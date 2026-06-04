@@ -1,8 +1,12 @@
 import Link from "next/link";
-import { projects } from "@/lib/demo-data";
 import ProjectSidebar from "../project-sidebar";
+import { getAllProjects } from "@/lib/project-store";
 
-export default function ProjectManagementPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ProjectManagementPage() {
+  const projects = await getAllProjects();
+
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
       <div className="flex min-h-screen">

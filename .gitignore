@@ -10,3 +10,5 @@ coverage
 prisma/dev.db
 
 storage/uploads
+
+storage/projects.json

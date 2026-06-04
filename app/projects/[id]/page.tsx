@@ -8,9 +8,9 @@ import {
   hybridResults,
   hybridSettings,
   laws,
-  projects,
 } from "@/lib/demo-data";
 import { calculateProjectScore } from "@/lib/hybrid-evaluation";
+import { getProjectById } from "@/lib/project-store";
 import type { HybridResult } from "@/lib/types";
 import ProjectSidebar from "../../project-sidebar";
 import UploadAnalyzer from "../../upload-analyzer";
@@ -24,13 +24,11 @@ const weightPresets = [
   { ai: 100, human: 0 },
 ];
 
-export function generateStaticParams() {
-  return projects.map((project) => ({ id: project.id }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const project = projects.find((item) => item.id === id);
+  const project = await getProjectById(id);
 
   if (!project) {
     notFound();
