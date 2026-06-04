@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { PROJECT_NAME } from "@/lib/demo-data";
+import SidebarBrand from "./sidebar-brand";
 
 const projectSubMenus = [
   { label: "Project Overview", href: "#project-management" },
@@ -56,10 +56,7 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
 
   return (
     <aside className="sticky top-10 hidden h-[calc(100vh-2.5rem)] w-72 shrink-0 self-start overflow-y-auto border-r border-[#d7dee8] bg-[#15345b] text-white xl:block">
-      <div className="border-b border-white/10 px-6 py-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-100">Public Review AI</p>
-        <h1 className="mt-3 text-2xl font-bold leading-tight">{PROJECT_NAME}</h1>
-      </div>
+      <SidebarBrand />
       <nav className="space-y-2 px-4 py-6 text-sm">
         <Link href="/" className="block rounded-lg px-4 py-3 text-blue-50 transition hover:bg-white/10">
           Dashboard

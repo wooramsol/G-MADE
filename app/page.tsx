@@ -3,10 +3,10 @@ import {
   annualStatistics,
   dashboardStats,
   hybridResults,
-  PROJECT_NAME,
   projects,
   roles,
 } from "@/lib/demo-data";
+import SidebarBrand from "./sidebar-brand";
 import { calculateProjectScore } from "@/lib/hybrid-evaluation";
 
 export default function Dashboard() {
@@ -16,10 +16,7 @@ export default function Dashboard() {
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
       <div className="flex min-h-screen">
         <aside className="hidden w-72 shrink-0 border-r border-[#d7dee8] bg-[#15345b] text-white xl:block">
-          <div className="border-b border-white/10 px-6 py-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-100">Public Review AI</p>
-            <h1 className="mt-3 text-2xl font-bold leading-tight">{PROJECT_NAME}</h1>
-          </div>
+          <SidebarBrand />
           <nav className="space-y-2 px-4 py-6 text-sm">
             <Link href="/" className="block rounded-lg bg-white/10 px-4 py-3 text-white">
               Dashboard
