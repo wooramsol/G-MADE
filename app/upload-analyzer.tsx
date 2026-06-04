@@ -143,6 +143,31 @@ export default function UploadAnalyzer() {
 
           <p className="text-sm leading-6 text-[#475569]">{result.analysis.summary}</p>
 
+          <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-[#eef4fb] text-[#15345b]">
+                <tr>
+                  <th className="px-4 py-3">이번 업로드 파일</th>
+                  <th className="px-4 py-3">형식</th>
+                  <th className="px-4 py-3">크기</th>
+                  <th className="px-4 py-3">분석상태</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#d7dee8] bg-white">
+                {result.files.map((file) => (
+                  <tr key={file.id}>
+                    <td className="px-4 py-4 font-semibold text-[#15345b]">{file.originalName}</td>
+                    <td className="px-4 py-4 text-[#64748b]">{file.fileType}</td>
+                    <td className="px-4 py-4 text-[#64748b]">{formatBytes(file.sizeBytes)}</td>
+                    <td className="px-4 py-4">
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">분석 완료</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
           {result.analysis.warnings.length > 0 ? (
             <div className="rounded-xl bg-[#fff7ed] p-3 text-sm leading-6 text-[#9a3412]">
               {result.analysis.warnings.map((warning) => (

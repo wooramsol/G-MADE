@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   annualStatistics,
@@ -9,11 +8,11 @@ import {
   hybridResults,
   hybridSettings,
   laws,
-  PROJECT_NAME,
   projects,
 } from "@/lib/demo-data";
 import { calculateProjectScore } from "@/lib/hybrid-evaluation";
 import type { HybridResult } from "@/lib/types";
+import ProjectSidebar from "../../project-sidebar";
 import UploadAnalyzer from "../../upload-analyzer";
 
 const supportedFiles = ["PDF", "DOCX", "PPTX", "JPG", "PNG", "DWG", "ZIP"];
@@ -41,41 +40,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-72 shrink-0 border-r border-[#d7dee8] bg-[#15345b] text-white xl:block">
-          <div className="border-b border-white/10 px-6 py-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-100">Public Review AI</p>
-            <h1 className="mt-3 text-2xl font-bold leading-tight">{PROJECT_NAME}</h1>
-          </div>
-          <nav className="space-y-2 px-4 py-6 text-sm">
-            <Link href="/" className="block rounded-lg px-4 py-3 text-blue-50 transition hover:bg-white/10">
-              Dashboard
-            </Link>
-            <Link href="/projects" className="block rounded-lg px-4 py-3 text-blue-50 transition hover:bg-white/10">
-              Project Management
-            </Link>
-            {[
-              ["Project Overview", "#project-management"],
-              ["AI Document Analysis", "#ai-document-analysis"],
-              ["Hybrid Score Engine", "#hybrid-score-engine"],
-              ["Explainable AI", "#explainable-ai"],
-              ["Laws & Case Search", "#laws-and-case-search"],
-              ["Reports & Statistics", "#reports-and-statistics"],
-              ["Admin Settings", "#admin-settings"],
-            ].map(([item, href]) => (
-              <a
-                href={href}
-                className="block rounded-lg px-4 py-3 text-blue-50 transition hover:bg-white/10"
-                key={item}
-              >
-                {item}
-              </a>
-            ))}
-          </nav>
-          <div className="mx-4 mt-8 rounded-xl border border-white/10 bg-white/10 p-4 text-sm text-blue-50">
-            <p className="font-semibold">핵심 원칙</p>
-            <p className="mt-2 leading-6">AI는 심사를 대체하지 않고, 인간 심사위원의 최종판단을 지원합니다.</p>
-          </div>
-        </aside>
+        <ProjectSidebar context="detail" />
 
         <section className="flex-1">
           <header className="sticky top-0 z-10 border-b border-[#d7dee8] bg-white/95 px-6 py-4 backdrop-blur">
@@ -124,6 +89,27 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                   ))}
                 </div>
                 <UploadAnalyzer />
+                <div className="mt-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-[#15345b]">업로드 히스토리</p>
+                      <p className="mt-1 text-sm text-[#64748b]">프로젝트에 등록된 기존 자료와 추가 업로드 이력을 함께 확인합니다.</p>
+                    </div>
+                    <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{project.files.length}건</span>
+                  </div>
+                  <div className="space-y-3">
+                    {project.files.map((file) => (
+                      <div className="grid gap-3 rounded-xl border border-[#d7dee8] bg-white p-4 text-sm md:grid-cols-[1fr_110px_100px]" key={file.id}>
+                        <div>
+                          <p className="font-bold text-[#15345b]">{file.fileName}</p>
+                          <p className="mt-1 text-[#64748b]">프로젝트 기본 첨부자료</p>
+                        </div>
+                        <span className="font-semibold text-[#475569]">{file.fileType}</span>
+                        <Badge tone="blue">{file.analysisStatus}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </Panel>
             </section>
 
