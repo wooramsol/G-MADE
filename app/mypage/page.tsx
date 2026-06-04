@@ -57,6 +57,7 @@ export default function MyPage() {
         <Panel title="AI 연동 상태">
           <SettingRow label="OpenAI / ChatGPT" value="환경변수 설정 시 활성" />
           <SettingRow label="Google Gemini" value="환경변수 설정 시 활성" />
+          <SettingRow label="Claude / Anthropic" value="환경변수 설정 시 활성" />
           <SettingRow label="API 키 미설정 시" value="데모 분석 모드" />
         </Panel>
         <Panel title="알림 설정">

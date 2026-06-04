@@ -57,7 +57,7 @@ export default function NewProjectPage() {
                 {initialUploadHistory.map((file) => (
                   <tr key={file.fileName}>
                     <td className="px-4 py-4 font-semibold text-[#15345b]">{file.fileName}</td>
-                    <td className="px-4 py-4 text-[#64748b]">{file.fileType}</td>
+                    <td className="px-4 py-4"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{file.fileType}</span></td>
                     <td className="px-4 py-4"><StatusBadge status={file.status} /></td>
                     <td className="px-4 py-4 text-[#64748b]">{file.uploadedAt}</td>
                   </tr>
