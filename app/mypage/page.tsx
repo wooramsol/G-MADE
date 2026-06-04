@@ -7,8 +7,8 @@ export default function MyPage() {
       title="내 정보"
       description="로그인된 MVP 사용자의 계정 정보, 최근 활동, 서비스 설정을 한 화면에서 확인합니다."
     >
-      <section className="grid gap-6 xl:grid-cols-[0.7fr_1.3fr]">
-        <div className="rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
+      <section className="grid items-stretch gap-6 xl:grid-cols-2">
+        <div className="h-full rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e8f1ff] text-2xl font-black text-[#2463b3]">정</div>
             <div>
@@ -29,7 +29,7 @@ export default function MyPage() {
           </button>
         </div>
 
-        <div className="rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
+        <div className="h-full rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
           <h3 className="text-xl font-bold text-[#15345b]">최근 업무 현황</h3>
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <Metric label="진행 프로젝트" value="17" />
@@ -48,7 +48,7 @@ export default function MyPage() {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
+      <section className="grid items-stretch gap-6 xl:grid-cols-2">
         <Panel title="평가 가중치 기본값">
           <SettingRow label="AI 평가 기본 비율" value="30%" />
           <SettingRow label="전문가 평가 기본 비율" value="70%" />
@@ -56,9 +56,9 @@ export default function MyPage() {
         </Panel>
         <Panel title="AI 연동 상태">
           <SettingRow label="OpenAI / ChatGPT" value="환경변수 설정 시 활성" />
-          <SettingRow label="Google Gemini" value="환경변수 설정 시 활성" />
-          <SettingRow label="Claude / Anthropic" value="환경변수 설정 시 활성" />
-          <SettingRow label="API 키 미설정 시" value="데모 분석 모드" />
+          <SettingRow label="Google / Gemini" value="환경변수 설정 시 활성" />
+          <SettingRow label="Anthropic / Claude" value="환경변수 설정 시 활성" />
+          <SettingRow label="G-MADE HIVE / 데모 분석" value="API 키 미설정 시" />
         </Panel>
         <Panel title="알림 설정">
           <SettingRow label="신규 프로젝트 등록" value="이메일 알림" />
@@ -77,16 +77,16 @@ export default function MyPage() {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 rounded-xl bg-[#f8fafc] px-4 py-3">
+    <div className="grid grid-cols-[110px_1fr] gap-4 rounded-xl bg-[#f8fafc] px-4 py-3">
       <dt className="font-semibold text-[#64748b]">{label}</dt>
-      <dd className="font-bold text-[#15345b]">{value}</dd>
+      <dd className="text-right font-bold text-[#15345b]">{value}</dd>
     </div>
   );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-[#e8f1ff] p-4">
+    <div className="h-full rounded-xl bg-[#e8f1ff] p-4">
       <p className="text-sm font-bold text-[#2463b3]">{label}</p>
       <p className="mt-2 text-3xl font-black text-[#15345b]">{value}</p>
     </div>
@@ -95,18 +95,18 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
+    <div className="flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
       <h3 className="text-xl font-bold text-[#15345b]">{title}</h3>
-      <div className="mt-5 space-y-3">{children}</div>
+      <div className="mt-5 flex flex-1 flex-col gap-3">{children}</div>
     </div>
   );
 }
 
 function SettingRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm">
+    <div className="grid items-center gap-3 rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm md:grid-cols-[1fr_180px]">
       <span className="font-semibold text-[#475569]">{label}</span>
-      <span className="rounded-full bg-[#e8f1ff] px-3 py-1 font-bold text-[#2463b3]">{value}</span>
+      <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-center font-bold text-[#2463b3]">{value}</span>
     </div>
   );
 }
