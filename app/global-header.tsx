@@ -14,7 +14,7 @@ export default function GlobalHeader() {
                 className="h-auto w-full object-contain"
                 height={180}
                 priority
-                src="/brand/banner.png"
+                src="/brand/banner-low.png"
                 width={520}
               />
             </div>
