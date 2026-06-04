@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { PROJECT_NAME } from "@/lib/demo-data";
 
 const projectSubMenus = [
@@ -17,9 +20,43 @@ type ProjectSidebarProps = {
 
 export default function ProjectSidebar({ context }: ProjectSidebarProps) {
   const isProjectArea = context === "list" || context === "detail" || context === "new";
+  const [activeHref, setActiveHref] = useState(projectSubMenus[0].href);
+
+  useEffect(() => {
+    if (context !== "detail") return;
+
+    const sectionIds = projectSubMenus.map((menu) => menu.href.replace("#", ""));
+    const sections = sectionIds
+      .map((id) => document.getElementById(id))
+      .filter((section): section is HTMLElement => Boolean(section));
+
+    if (sections.length === 0) return;
+
+    const updateActiveSection = () => {
+      const current = sections
+        .map((section) => ({
+          id: section.id,
+          distance: Math.abs(section.getBoundingClientRect().top - 120),
+        }))
+        .sort((a, b) => a.distance - b.distance)[0];
+
+      if (current) {
+        setActiveHref(`#${current.id}`);
+      }
+    };
+
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("resize", updateActiveSection);
+
+    return () => {
+      window.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("resize", updateActiveSection);
+    };
+  }, [context]);
 
   return (
-    <aside className="hidden w-72 shrink-0 border-r border-[#d7dee8] bg-[#15345b] text-white xl:block">
+    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 self-start overflow-y-auto border-r border-[#d7dee8] bg-[#15345b] text-white xl:block">
       <div className="border-b border-white/10 px-6 py-7">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-100">Public Review AI</p>
         <h1 className="mt-3 text-2xl font-bold leading-tight">{PROJECT_NAME}</h1>
@@ -38,20 +75,17 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
         </Link>
 
         <div className="ml-3 border-l border-white/20 pl-3">
-          <Link
-            href="/projects/new"
-            className={`block rounded-lg px-3 py-2 text-xs font-semibold transition ${
-              context === "new" ? "bg-[#2463b3] text-white" : "text-blue-100 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            + 새 프로젝트 추가
-          </Link>
-          {projectSubMenus.map((menu) =>
-            context === "detail" ? (
+          {projectSubMenus.map((menu) => {
+            const isActive = context === "detail" && activeHref === menu.href;
+
+            return context === "detail" ? (
               <a
                 href={menu.href}
-                className="mt-1 block rounded-lg px-3 py-2 text-xs text-blue-100 transition hover:bg-white/10 hover:text-white"
+                className={`mt-1 block rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  isActive ? "bg-[#2463b3] text-white" : "text-blue-100 hover:bg-white/10 hover:text-white"
+                }`}
                 key={menu.label}
+                onClick={() => setActiveHref(menu.href)}
               >
                 {menu.label}
               </a>
@@ -62,8 +96,8 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
               >
                 {menu.label}
               </span>
-            ),
-          )}
+            );
+          })}
         </div>
       </nav>
       <div className="mx-4 mt-8 rounded-xl border border-white/10 bg-white/10 p-4 text-sm text-blue-50">
