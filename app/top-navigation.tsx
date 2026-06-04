@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { label: "Dashboard", href: "/", match: (pathname: string) => pathname === "/" },
-  { label: "Project Management", href: "/projects", match: (pathname: string) => pathname.startsWith("/projects") },
-  { label: "마이페이지", href: "/mypage", match: (pathname: string) => pathname === "/mypage" },
+  { label: "대시보드", href: "/", match: (pathname: string) => pathname === "/" },
+  { label: "프로젝트 관리", href: "/projects", match: (pathname: string) => pathname.startsWith("/projects") },
+  { label: "내 정보", href: "/mypage", match: (pathname: string) => pathname === "/mypage" },
 ] as const;
 
 export default function TopNavigation() {
