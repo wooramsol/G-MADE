@@ -9,7 +9,7 @@ export default function GlobalHeader() {
       <div className="bg-gradient-to-r from-[#0f4d87] via-[#176dab] to-[#15345b] px-6 py-4 text-white shadow-sm">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
           <Link className="flex items-center gap-4" href="/">
-            <div className="my-2 flex h-20 w-60 items-center">
+            <div className="my-6 flex h-20 w-60 items-center">
               <Image
                 alt="G-MADE HIVE"
                 className="h-auto w-full object-contain"
