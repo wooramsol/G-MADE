@@ -25,9 +25,6 @@ export default function GlobalHeader() {
             </div>
           </Link>
           <div className="flex items-center gap-3">
-            <span className="hidden rounded-full bg-white/10 px-3 py-2 text-sm font-semibold text-blue-50 md:inline-flex">
-              연구소장 정우람솔
-            </span>
             <HeaderActions />
           </div>
         </div>
