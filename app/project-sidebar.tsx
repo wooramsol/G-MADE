@@ -46,22 +46,24 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
           >
             + 새 프로젝트 추가
           </Link>
-          {projectSubMenus.map((menu) => {
-            const href = context === "detail" ? menu.href : "/projects";
-            return (
-              <Link
-                href={href}
-                className={`mt-1 block rounded-lg px-3 py-2 text-xs transition ${
-                  context === "detail"
-                    ? "text-blue-100 hover:bg-white/10 hover:text-white"
-                    : "cursor-default text-blue-200/70"
-                }`}
+          {projectSubMenus.map((menu) =>
+            context === "detail" ? (
+              <a
+                href={menu.href}
+                className="mt-1 block rounded-lg px-3 py-2 text-xs text-blue-100 transition hover:bg-white/10 hover:text-white"
                 key={menu.label}
               >
                 {menu.label}
-              </Link>
-            );
-          })}
+              </a>
+            ) : (
+              <span
+                className="mt-1 block cursor-default rounded-lg px-3 py-2 text-xs text-blue-200/70"
+                key={menu.label}
+              >
+                {menu.label}
+              </span>
+            ),
+          )}
         </div>
       </nav>
       <div className="mx-4 mt-8 rounded-xl border border-white/10 bg-white/10 p-4 text-sm text-blue-50">
