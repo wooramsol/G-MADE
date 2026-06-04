@@ -2,6 +2,7 @@ import Link from "next/link";
 import ProjectSidebar from "../project-sidebar";
 import DeleteProjectButton from "./delete-project-button";
 import { getAllProjects, isCreatedProjectId } from "@/lib/project-store";
+import HeaderActions from "../header-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +15,13 @@ export default async function ProjectManagementPage() {
         <ProjectSidebar context="list" />
 
         <section className="flex-1">
-          <header className="border-b border-[#d7dee8] bg-white px-6 py-4">
+          <header className="bg-[#15345b] px-6 py-4 text-white shadow-sm">
             <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-[#2463b3]">프로젝트 선택</p>
-                <h2 className="mt-1 text-2xl font-bold text-[#15345b]">Project Management</h2>
+                <p className="text-sm font-semibold text-blue-100">프로젝트 선택</p>
+                <h2 className="mt-1 text-2xl font-bold text-white">Project Management</h2>
               </div>
+              <HeaderActions />
 
             </div>
           </header>

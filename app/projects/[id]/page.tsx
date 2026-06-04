@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import {
+import HeaderActions from "../../header-actions";
   caseStudies,
   evaluationItems,
   extractedDocumentSections,
@@ -42,13 +43,14 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
         <ProjectSidebar context="detail" />
 
         <section className="flex-1">
-          <header className="border-b border-[#d7dee8] bg-white px-6 py-4">
+          <header className="bg-[#15345b] px-6 py-4 text-white shadow-sm">
             <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-[#2463b3]">프로젝트 상세 평가 워크스페이스</p>
-                <h2 className="mt-1 text-2xl font-bold text-[#15345b]">{project.name}</h2>
+                <p className="text-sm font-semibold text-blue-100">프로젝트 상세 평가 워크스페이스</p>
+                <h2 className="mt-1 text-2xl font-bold text-white">{project.name}</h2>
               </div>
               <div className="hidden items-center gap-3 lg:flex">
+                <HeaderActions />
                 <Badge tone="blue">AI {hybridSettings.aiWeight}%</Badge>
                 <Badge tone="gray">인간 {hybridSettings.humanWeight}%</Badge>
                 {canDelete ? <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" /> : null}

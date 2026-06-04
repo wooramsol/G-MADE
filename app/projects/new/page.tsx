@@ -2,6 +2,7 @@ import Link from "next/link";
 import ProjectSidebar from "../../project-sidebar";
 import UploadAnalyzer from "../../upload-analyzer";
 import ProjectCreateForm from "./project-create-form";
+import HeaderActions from "../../header-actions";
 const initialUploadHistory = [
   { fileName: "신규사업_등록양식.docx", fileType: "DOCX", status: "작성중", uploadedAt: "임시저장 전" },
   { fileName: "관련자료는 아래 업로드 분석 영역에서 추가", fileType: "PDF/DOCX/PPTX/JPG/PNG/DWG/ZIP", status: "대기", uploadedAt: "미등록" },
@@ -14,19 +15,20 @@ export default function NewProjectPage() {
         <ProjectSidebar context="new" />
 
         <section className="flex-1">
-          <header className="border-b border-[#d7dee8] bg-white px-6 py-4">
+          <header className="bg-[#15345b] px-6 py-4 text-white shadow-sm">
             <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-[#2463b3]">Project Management</p>
-                <h2 className="mt-1 text-2xl font-bold text-[#15345b]">새 프로젝트 추가하기</h2>
+                <p className="text-sm font-semibold text-blue-100">Project Management</p>
+                <h2 className="mt-1 text-2xl font-bold text-white">새 프로젝트 추가하기</h2>
               </div>
               <div className="flex items-center gap-3">
-                <Link href="/projects" className="rounded-lg border border-[#d7dee8] bg-white px-4 py-2 text-sm font-semibold text-[#15345b]">
+                <Link href="/projects" className="rounded-lg border border-white/30 bg-white px-4 py-2 text-sm font-semibold text-[#15345b]">
                   목록으로 돌아가기
                 </Link>
-                <button className="primary-action rounded-lg px-4 py-2 text-sm font-semibold shadow-sm" form="new-project-form" type="submit">
+                <button className="rounded-lg border border-white/30 bg-white px-4 py-2 text-sm font-semibold text-[#15345b] shadow-sm" form="new-project-form" type="submit">
                   프로젝트 생성하기
                 </button>
+                <HeaderActions />
               </div>
             </div>
           </header>
