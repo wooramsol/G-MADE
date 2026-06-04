@@ -19,7 +19,7 @@ export default function GlobalHeader() {
               />
             </div>
             <div>
-              <p className="text-xs font-semibold text-blue-100">G-MADE HIVE</p>
+              <p className="text-xs font-semibold text-blue-100">경관 사전심의</p>
               <h1 className="text-lg font-black text-white">AI-Human Hybrid Evaluation System</h1>
             </div>
           </Link>

@@ -4,8 +4,8 @@ export default function MyPage() {
   return (
     <SaasPageShell
       eyebrow="Account"
-      title="마이페이지"
-      description="로그인된 MVP 사용자를 위한 개인 업무 공간입니다. 내 계정, 최근 활동, 서비스 설정을 한 화면에서 확인합니다."
+      title="내 정보"
+      description="로그인된 MVP 사용자의 계정 정보, 최근 활동, 서비스 설정을 한 화면에서 확인합니다."
     >
       <section className="grid gap-6 xl:grid-cols-[0.7fr_1.3fr]">
         <div className="rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
