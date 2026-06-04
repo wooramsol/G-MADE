@@ -64,3 +64,23 @@ DATABASE_URL="postgresql://gmade:gmade@localhost:5432/gmade_hybrid_evaluation" n
 - audit_logs
 
 평가항목은 대분류, 중분류, 세부항목, 배점, 설명, 평가기준을 DB에서 관리하는 구조입니다. 화면의 샘플 항목은 초기 seed와 데모 표시를 위한 예시이며, 실제 운영에서는 관리자 화면에서 수정 가능한 레코드로 운용됩니다.
+
+## 파일 업로드와 AI 연동
+
+브라우저 화면의 "자료 업로드 및 AI 자동 분석" 영역에서 파일을 선택하고 분석할 수 있습니다. 업로드 파일은 로컬 개발 환경에서 `storage/uploads` 폴더에 저장됩니다.
+
+API 키가 없으면 데모 AI 분석 결과가 표시됩니다. 실제 ChatGPT/OpenAI 또는 Gemini 분석을 사용하려면 프로젝트 루트에 `.env` 파일을 만들고 아래 값 중 하나를 입력하세요.
+
+```bash
+OPENAI_API_KEY="발급받은 OpenAI API 키"
+OPENAI_MODEL="gpt-4o-mini"
+
+GEMINI_API_KEY="발급받은 Gemini API 키"
+GEMINI_MODEL="gemini-1.5-flash"
+```
+
+그 다음 개발 서버를 다시 시작합니다.
+
+```bash
+npm run dev
+```

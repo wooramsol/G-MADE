@@ -8,3 +8,5 @@ coverage
 !.env.example
 *.log
 prisma/dev.db
+
+storage/uploads

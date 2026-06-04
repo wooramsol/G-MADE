@@ -14,6 +14,7 @@ import {
 } from "@/lib/demo-data";
 import { calculateProjectScore } from "@/lib/hybrid-evaluation";
 import type { HybridResult } from "@/lib/types";
+import UploadAnalyzer from "./upload-analyzer";
 
 const supportedFiles = ["PDF", "DOCX", "PPTX", "JPG", "PNG", "DWG", "ZIP"];
 const weightPresets = [
@@ -154,6 +155,7 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+                <UploadAnalyzer />
               </Panel>
             </section>
 
