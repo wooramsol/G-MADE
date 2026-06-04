@@ -15,18 +15,18 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-72 shrink-0 border-r border-[#d7dee8] bg-[#15345b] text-white xl:block">
+        <aside className="hidden w-72 shrink-0 border-r border-[#d7dee8] bg-white text-[#172033] xl:block">
           <SidebarBrand />
           <nav className="space-y-2 px-4 py-6 text-sm">
-            <Link href="/" className="block rounded-lg bg-white/10 px-4 py-3 text-white">
+            <Link href="/" className="block rounded-lg bg-[#e8f1ff] px-4 py-3 font-bold text-[#15345b]">
               Dashboard
             </Link>
-            <Link href="/projects" className="block rounded-lg px-4 py-3 text-blue-50 transition hover:bg-white/10">
+            <Link href="/projects" className="block rounded-lg px-4 py-3 font-semibold text-[#475569] transition hover:bg-[#e8f1ff] hover:text-[#15345b]">
               Project Management
             </Link>
           </nav>
-          <div className="mx-4 mt-8 rounded-xl border border-white/10 bg-white/10 p-4 text-sm text-blue-50">
-            <p className="font-semibold">Dashboard</p>
+          <div className="mx-4 mt-8 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#475569]">
+            <p className="font-bold text-[#15345b]">Dashboard</p>
             <p className="mt-2 leading-6">모든 심의 프로젝트의 현황을 확인합니다.</p>
           </div>
         </aside>

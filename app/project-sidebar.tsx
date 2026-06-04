@@ -55,30 +55,30 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
   }, [context]);
 
   return (
-    <aside className="sticky top-10 hidden h-[calc(100vh-2.5rem)] w-72 shrink-0 self-start overflow-y-auto border-r border-[#d7dee8] bg-[#15345b] text-white xl:block">
+    <aside className="sticky top-10 hidden h-[calc(100vh-2.5rem)] w-72 shrink-0 self-start overflow-y-auto border-r border-[#d7dee8] bg-white text-[#172033] xl:block">
       <SidebarBrand />
       <nav className="space-y-2 px-4 py-6 text-sm">
-        <Link href="/" className="block rounded-lg px-4 py-3 text-blue-50 transition hover:bg-white/10">
+        <Link href="/" className="block rounded-lg px-4 py-3 font-semibold text-[#475569] transition hover:bg-[#e8f1ff] hover:text-[#15345b]">
           Dashboard
         </Link>
         <Link
           href="/projects"
-          className={`block rounded-lg px-4 py-3 font-semibold transition ${
-            isProjectArea ? "bg-white/10 text-white" : "text-blue-50 hover:bg-white/10"
+          className={`block rounded-lg px-4 py-3 font-bold transition ${
+            isProjectArea ? "bg-[#e8f1ff] text-[#15345b]" : "text-[#475569] hover:bg-[#e8f1ff] hover:text-[#15345b]"
           }`}
         >
           Project Management
         </Link>
 
-        <div className="ml-3 border-l border-white/20 pl-3">
+        <div className="ml-3 border-l border-[#d7dee8] pl-3">
           {projectSubMenus.map((menu) => {
             const isActive = context === "detail" && activeHref === menu.href;
 
             return context === "detail" ? (
               <a
                 href={menu.href}
-                className={`mt-1 block rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                  isActive ? "bg-[#2463b3] text-white" : "text-blue-100 hover:bg-white/10 hover:text-white"
+                className={`mt-1 block rounded-lg px-3 py-2 text-xs font-bold transition ${
+                  isActive ? "primary-action-blue" : "text-[#64748b] hover:bg-[#eef4fb] hover:text-[#15345b]"
                 }`}
                 key={menu.label}
                 onClick={() => setActiveHref(menu.href)}
@@ -87,7 +87,7 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
               </a>
             ) : (
               <span
-                className="mt-1 block cursor-default rounded-lg px-3 py-2 text-xs text-blue-200/70"
+                className="mt-1 block cursor-default rounded-lg px-3 py-2 text-xs font-semibold text-[#94a3b8]"
                 key={menu.label}
               >
                 {menu.label}
@@ -96,8 +96,8 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
           })}
         </div>
       </nav>
-      <div className="mx-4 mt-8 rounded-xl border border-white/10 bg-white/10 p-4 text-sm text-blue-50">
-        <p className="font-semibold">Project Management</p>
+      <div className="mx-4 mt-8 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#475569]">
+        <p className="font-bold text-[#15345b]">Project Management</p>
         <p className="mt-2 leading-6">
           프로젝트를 선택하면 하위 메뉴에서 AI 분석, 하이브리드 점수, 설명 가능한 AI 기능을 사용할 수 있습니다.
         </p>
