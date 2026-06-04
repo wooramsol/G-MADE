@@ -20,9 +20,7 @@ export default async function ProjectManagementPage() {
                 <p className="text-sm font-semibold text-[#2463b3]">프로젝트 선택</p>
                 <h2 className="mt-1 text-2xl font-bold text-[#15345b]">Project Management</h2>
               </div>
-              <Link href="/" className="rounded-lg border border-[#d7dee8] bg-white px-4 py-2 text-sm font-semibold text-[#15345b]">
-                Dashboard로 돌아가기
-              </Link>
+
             </div>
           </header>
 

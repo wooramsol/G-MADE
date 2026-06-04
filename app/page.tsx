@@ -29,8 +29,8 @@ export default function Dashboard() {
             </Link>
           </nav>
           <div className="mx-4 mt-8 rounded-xl border border-white/10 bg-white/10 p-4 text-sm text-blue-50">
-            <p className="font-semibold">사용 흐름</p>
-            <p className="mt-2 leading-6">전체 현황을 확인한 뒤 Project Management에서 프로젝트를 선택해 상세 평가로 이동합니다.</p>
+            <p className="font-semibold">Dashboard</p>
+            <p className="mt-2 leading-6">모든 심의 프로젝트의 현황을 확인합니다.</p>
           </div>
         </aside>
 
@@ -41,9 +41,7 @@ export default function Dashboard() {
                 <p className="text-sm font-semibold text-[#2463b3]">전체 프로젝트 현황판</p>
                 <h2 className="mt-1 text-2xl font-bold text-[#15345b]">Dashboard</h2>
               </div>
-              <Link href="/projects" className="primary-action rounded-lg px-4 py-2 text-sm font-semibold shadow-sm">
-                Project Management 열기
-              </Link>
+
             </div>
           </header>
 
