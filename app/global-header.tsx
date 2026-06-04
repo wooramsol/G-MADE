@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import HeaderActions from "./header-actions";
 import TopNavigation from "./top-navigation";
 
 export default function GlobalHeader() {
@@ -24,9 +23,6 @@ export default function GlobalHeader() {
               <h1 className="text-xl font-black text-white">AI-Human Hybrid Evaluation System</h1>
             </div>
           </Link>
-          <div className="flex items-center gap-3">
-            <HeaderActions />
-          </div>
         </div>
       </div>
       <TopNavigation />

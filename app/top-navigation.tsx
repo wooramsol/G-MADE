@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { label: "Dashboard", href: "/", match: (pathname: string) => pathname === "/" },
   { label: "Project Management", href: "/projects", match: (pathname: string) => pathname.startsWith("/projects") },
+  { label: "마이페이지", href: "/mypage", match: (pathname: string) => pathname === "/mypage" },
 ] as const;
 
 export default function TopNavigation() {
@@ -20,7 +21,7 @@ export default function TopNavigation() {
           return (
             <Link
               className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
-                active ? "bg-[#15345b] text-white shadow-sm" : "text-[#15345b] hover:bg-[#e8f1ff]"
+                active ? "bg-[#15345b] !text-white shadow-sm" : "text-[#15345b] hover:bg-[#e8f1ff]"
               }`}
               href={item.href}
               key={item.href}
