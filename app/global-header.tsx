@@ -8,14 +8,14 @@ export default function GlobalHeader() {
       <div className="bg-gradient-to-r from-[#0f4d87] via-[#176dab] to-[#15345b] px-6 py-4 text-white shadow-sm">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
           <Link className="flex items-center gap-4" href="/">
-            <div className="flex h-16 w-44 items-center overflow-hidden rounded-lg bg-[#125b96]">
+            <div className="flex h-16 w-48 items-center">
               <Image
                 alt="G-MADE HIVE"
-                className="h-full w-full object-cover"
-                height={576}
+                className="h-auto w-full object-contain"
+                height={180}
                 priority
-                src="/brand/gmade-hive-banner-bg.jpg"
-                width={1024}
+                src="/brand/banner.png"
+                width={520}
               />
             </div>
             <div>
