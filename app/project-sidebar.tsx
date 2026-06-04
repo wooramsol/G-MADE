@@ -55,7 +55,7 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
   }, [context]);
 
   return (
-    <aside className="sticky top-10 hidden h-[calc(100vh-2.5rem)] w-72 shrink-0 self-start overflow-y-auto border-r border-[#d7dee8] bg-white text-[#172033] xl:block">
+    <aside className="sticky top-8 hidden h-[calc(100vh-2rem)] w-72 shrink-0 self-start overflow-y-auto border-r border-[#d7dee8] bg-white text-[#172033] xl:block">
       <SidebarBrand />
       <nav className="space-y-2 px-4 py-6 text-sm">
         <Link href="/" className="block rounded-lg px-4 py-3 font-semibold text-[#475569] transition hover:bg-[#e8f1ff] hover:text-[#15345b]">
