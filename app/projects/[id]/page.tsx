@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import {
 import HeaderActions from "../../header-actions";
+import {
   caseStudies,
   evaluationItems,
   extractedDocumentSections,
