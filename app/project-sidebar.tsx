@@ -55,7 +55,7 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
   }, [context]);
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 self-start overflow-y-auto border-r border-[#d7dee8] bg-[#15345b] text-white xl:block">
+    <aside className="sticky top-10 hidden h-[calc(100vh-2.5rem)] w-72 shrink-0 self-start overflow-y-auto border-r border-[#d7dee8] bg-[#15345b] text-white xl:block">
       <div className="border-b border-white/10 px-6 py-7">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-100">Public Review AI</p>
         <h1 className="mt-3 text-2xl font-bold leading-tight">{PROJECT_NAME}</h1>

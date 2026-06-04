@@ -35,7 +35,7 @@ export default function Dashboard() {
         </aside>
 
         <section className="flex-1">
-          <header className="sticky top-0 z-10 border-b border-[#d7dee8] bg-white/95 px-6 py-4 backdrop-blur">
+          <header className="sticky top-10 z-10 border-b border-[#d7dee8] bg-white/95 px-6 py-4 backdrop-blur">
             <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-[#2463b3]">전체 프로젝트 현황판</p>
