@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import {
   caseStudies,
-  evaluationItems,
   extractedDocumentSections,
   guidelines,
   hybridResults,
@@ -49,7 +48,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
         </div>
       </div>
       <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
-        <section id="project-management" className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+        <section id="project-management" className="space-y-5">
           <Panel title="Project Overview" action="프로젝트 정보">
             <div className="grid gap-3 text-sm sm:grid-cols-2">
               <Info label="사업명" value={project.name} />
@@ -211,45 +210,6 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
           </Panel>
         </section>
 
-        <section id="admin-settings">
-          <SectionTitle eyebrow="Admin Settings" title="DB 기반 평가항목 관리" description="대분류, 중분류, 세부항목, 배점, 설명, 평가기준은 코드 고정값이 아니라 DB 레코드로 관리되도록 설계했습니다." />
-          <div className="mt-5">
-            <Panel title="평가항목 카탈로그" action="항목 추가">
-              <div className="overflow-auto rounded-xl border border-[#d7dee8]">
-                <table className="w-full min-w-[980px] border-collapse text-left text-sm">
-                  <thead className="bg-[#15345b] text-white">
-                    <tr>
-                      <th className="px-4 py-3">대분류</th>
-                      <th className="px-4 py-3">중분류</th>
-                      <th className="px-4 py-3">세부항목</th>
-                      <th className="px-4 py-3">배점</th>
-                      <th className="px-4 py-3">평가기준</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#d7dee8] bg-white">
-                    {evaluationItems.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-4 py-4 font-semibold text-[#15345b]">{item.majorCategory}</td>
-                        <td className="px-4 py-4 text-[#475569]">{item.middleCategory}</td>
-                        <td className="px-4 py-4 font-semibold">{item.detailItem}</td>
-                        <td className="px-4 py-4">
-                          <input
-                            aria-label="평가항목 배점"
-                            className="w-20 rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white"
-                            defaultValue={item.points}
-                            min="0"
-                            type="number"
-                          />
-                        </td>
-                        <td className="px-4 py-4 leading-6 text-[#64748b]">{item.criteria}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Panel>
-          </div>
-        </section>
       </div>
 
     </main>
