@@ -4,8 +4,31 @@ import { getAllProjects, isCreatedProjectId } from "@/lib/project-store";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectManagementPage() {
+export default async function ProjectManagementPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string }>;
+}) {
   const projects = await getAllProjects();
+  const params = await searchParams;
+  const query = (params?.q ?? "").trim();
+  const normalizedQuery = query.toLowerCase();
+  const filteredProjects = normalizedQuery
+    ? projects.filter((project) =>
+        [
+          project.name,
+          project.location,
+          project.client,
+          project.designer,
+          project.projectType,
+          project.reviewType,
+          project.status,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery),
+      )
+    : projects;
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
@@ -23,8 +46,32 @@ export default async function ProjectManagementPage() {
           </Link>
         </div>
 
+        <form action="/projects" className="rounded-2xl border border-[#d7dee8] bg-white p-4 panel-shadow">
+          <label className="block text-sm font-bold text-[#15345b]" htmlFor="project-search">
+            프로젝트 검색
+          </label>
+          <div className="mt-2 grid gap-3 md:grid-cols-[1fr_120px]">
+            <input
+              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+              defaultValue={query}
+              id="project-search"
+              name="q"
+              placeholder="사업명, 위치, 시행자, 사업유형, 심의종류를 검색하세요."
+              type="search"
+            />
+            <button className="primary-action-blue rounded-xl px-4 py-3 text-sm font-bold" type="submit">
+              검색
+            </button>
+          </div>
+          {query ? (
+            <p className="mt-3 text-sm font-semibold text-[#64748b]">
+              “{query}” 검색 결과 {filteredProjects.length}건
+            </p>
+          ) : null}
+        </form>
+
         <div className="grid gap-5 xl:grid-cols-3">
-          {projects.map((project) => {
+          {filteredProjects.length > 0 ? filteredProjects.map((project) => {
             const canDelete = isCreatedProjectId(project.id);
 
             return (
@@ -57,7 +104,11 @@ export default async function ProjectManagementPage() {
                 ) : null}
               </article>
             );
-          })}
+          }) : (
+            <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm font-semibold text-[#64748b] xl:col-span-3">
+              검색 조건에 맞는 프로젝트가 없습니다.
+            </div>
+          )}
         </div>
       </div>
 
