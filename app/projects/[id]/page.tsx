@@ -76,7 +76,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                 </div>
               ))}
             </div>
-            <UploadAnalyzer />
+            <UploadAnalyzer projectId={project.id} />
             <div className="mt-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>

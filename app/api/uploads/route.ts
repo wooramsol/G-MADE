@@ -3,6 +3,8 @@ import path from "path";
 import { getWritableStoragePath } from "@/lib/runtime-storage";
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeUploadedFiles, type UploadedFileSummary } from "@/lib/upload-analysis";
+import { addProjectFiles } from "@/lib/project-store";
+import type { ProjectFile } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -12,6 +14,7 @@ const maxFileSizeBytes = 25 * 1024 * 1024;
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
+    const projectId = String(formData.get("projectId") ?? "").trim();
     const providerPreference = String(formData.get("provider") ?? "auto") as
       | "auto"
       | "demo"
@@ -49,12 +52,25 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const persistedFiles: ProjectFile[] = savedFiles.map((file) => ({
+      id: file.id,
+      fileName: file.originalName,
+      fileType: formatStoredFileType(file.originalName, file.fileType),
+      analysisStatus: "완료",
+    }));
+
+    const updatedProject = projectId ? await addProjectFiles(projectId, persistedFiles) : undefined;
+
+    if (projectId && !updatedProject) {
+      return NextResponse.json({ error: "업로드 히스토리를 저장할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
+    }
+
     const analysis = await analyzeUploadedFiles({
       providerPreference,
       files: savedFiles,
     });
 
-    return NextResponse.json({ files: savedFiles, analysis });
+    return NextResponse.json({ files: savedFiles, analysis, project: updatedProject });
   } catch (error) {
     const message = error instanceof Error ? error.message : "파일 업로드 중 오류가 발생했습니다.";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -99,4 +115,9 @@ function extractTextPreview(buffer: Buffer, fileType: string, fileName: string):
   }
 
   return buffer.toString("utf8").replace(/\s+/g, " ").slice(0, 4000);
+}
+
+function formatStoredFileType(fileName: string, fallbackType: string): string {
+  const extension = getExtension(fileName);
+  return extension ? extension.toUpperCase() : fallbackType;
 }

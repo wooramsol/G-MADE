@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
 import { getWritableStoragePath } from "./runtime-storage";
-import type { Project } from "./types";
+import type { Project, ProjectFile } from "./types";
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
@@ -18,8 +18,14 @@ export function isCreatedProjectId(id: string): boolean {
 }
 
 export async function getAllProjects(): Promise<Project[]> {
-  const createdProjects = await readCreatedProjects();
-  return [...demoProjects, ...createdProjects.filter((project) => !demoProjectIds.has(project.id))];
+  const storedProjects = await readCreatedProjects();
+  const storedById = new Map(storedProjects.map((project) => [project.id, project]));
+  const mergedDemoProjects = demoProjects.map((project) => {
+    const stored = storedById.get(project.id);
+    return stored ? { ...project, ...stored, files: stored.files } : project;
+  });
+
+  return [...mergedDemoProjects, ...storedProjects.filter((project) => !demoProjectIds.has(project.id))];
 }
 
 export async function getProjectById(id: string): Promise<Project | undefined> {
@@ -39,6 +45,30 @@ export async function createProject(input: ProjectInput): Promise<Project> {
   await writeCreatedProjects([project, ...createdProjects]);
 
   return project;
+}
+
+export async function addProjectFiles(id: string, files: ProjectFile[]): Promise<Project | undefined> {
+  const allProjects = await getAllProjects();
+  const existingProject = allProjects.find((project) => project.id === id);
+
+  if (!existingProject) return undefined;
+
+  const storedProjects = await readCreatedProjects();
+  const storedIndex = storedProjects.findIndex((project) => project.id === id);
+  const baseProject = storedIndex >= 0 ? storedProjects[storedIndex] : existingProject;
+  const nextProject: Project = {
+    ...baseProject,
+    files: [...baseProject.files, ...files],
+  };
+
+  if (storedIndex >= 0) {
+    storedProjects[storedIndex] = nextProject;
+  } else {
+    storedProjects.unshift(nextProject);
+  }
+
+  await writeCreatedProjects(storedProjects);
+  return nextProject;
 }
 
 export async function deleteCreatedProject(id: string): Promise<boolean> {

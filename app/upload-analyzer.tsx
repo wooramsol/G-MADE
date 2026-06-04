@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { evaluationItems } from "@/lib/demo-data";
 
 type UploadResponse = {
@@ -28,7 +29,8 @@ type UploadResponse = {
   };
 };
 
-export default function UploadAnalyzer() {
+export default function UploadAnalyzer({ projectId }: { projectId?: string }) {
+  const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [aiWeight, setAiWeight] = useState(30);
   const [itemPoints, setItemPoints] = useState<Record<string, number>>(
@@ -66,6 +68,9 @@ export default function UploadAnalyzer() {
     setResult(null);
 
     const formData = new FormData();
+    if (projectId) {
+      formData.append("projectId", projectId);
+    }
     formData.append("provider", "auto");
     formData.append("aiWeight", String(aiWeight));
     formData.append("expertWeight", String(100 - aiWeight));
@@ -84,6 +89,9 @@ export default function UploadAnalyzer() {
       }
 
       setResult(payload);
+      if (projectId) {
+        router.refresh();
+      }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "업로드에 실패했습니다.");
     } finally {
