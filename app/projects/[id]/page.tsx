@@ -135,7 +135,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
 
         <section id="hybrid-score-engine">
           <SectionTitle eyebrow="Hybrid Score Engine" title="AI 평가와 인간 평가의 종합 산출" description="관리자가 설정한 AI/인간 가중치를 기준으로 최종점수를 자동 계산합니다." />
-          <div className="mt-5 grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
+          <div className="mt-5 space-y-5">
             <Panel title="현재 가중치 설정" action="관리자 설정">
               <div className="space-y-5">
                 <WeightBar label="AI 평가" value={hybridSettings.aiWeight} color="#2463b3" />
