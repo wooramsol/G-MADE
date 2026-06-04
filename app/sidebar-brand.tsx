@@ -9,7 +9,7 @@ export default function SidebarBrand() {
           className="h-auto w-full rounded-xl"
           height={576}
           priority
-          src="/brand/gmade-hive-banner.svg"
+          src="/brand/gmade-hive-banner.jpg"
           width={1024}
         />
       </div>
