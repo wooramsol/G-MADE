@@ -52,7 +52,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <div className="hidden items-center gap-3 lg:flex">
                 <Badge tone="blue">AI {hybridSettings.aiWeight}%</Badge>
                 <Badge tone="gray">인간 {hybridSettings.humanWeight}%</Badge>
-                <a href="#reports-and-statistics" className="rounded-lg bg-[#15345b] px-4 py-2 text-sm font-semibold text-white shadow-sm">
+                <a href="#reports-and-statistics" className="primary-action rounded-lg px-4 py-2 text-sm font-semibold shadow-sm">
                   보고서 생성
                 </a>
               </div>

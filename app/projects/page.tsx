@@ -15,14 +15,9 @@ export default function ProjectManagementPage() {
                 <p className="text-sm font-semibold text-[#2463b3]">프로젝트 선택</p>
                 <h2 className="mt-1 text-2xl font-bold text-[#15345b]">Project Management</h2>
               </div>
-              <div className="flex items-center gap-3">
-                <Link href="/" className="rounded-lg border border-[#d7dee8] bg-white px-4 py-2 text-sm font-semibold text-[#15345b]">
-                  Dashboard로 돌아가기
-                </Link>
-                <Link href="/projects/new" className="rounded-lg bg-[#15345b] px-4 py-2 text-sm font-semibold text-white shadow-sm">
-                  새 프로젝트 추가하기
-                </Link>
-              </div>
+              <Link href="/" className="rounded-lg border border-[#d7dee8] bg-white px-4 py-2 text-sm font-semibold text-[#15345b]">
+                Dashboard로 돌아가기
+              </Link>
             </div>
           </header>
 
@@ -35,7 +30,7 @@ export default function ProjectManagementPage() {
                   프로젝트를 클릭하면 해당 프로젝트 안에서 AI Document Analysis, Hybrid Score Engine, Explainable AI, 보고서 생성 메뉴를 사용할 수 있습니다.
                 </p>
               </div>
-              <Link href="/projects/new" className="rounded-lg bg-[#2463b3] px-4 py-3 text-sm font-bold text-white shadow-sm">
+              <Link href="/projects/new" className="primary-action-blue rounded-lg px-4 py-3 text-sm font-bold shadow-sm">
                 새 프로젝트 추가하기
               </Link>
             </div>
@@ -60,7 +55,7 @@ export default function ProjectManagementPage() {
                     <Info label="사업유형" value={project.projectType} />
                     <Info label="접수일" value={project.receivedAt} />
                   </dl>
-                  <div className="mt-5 rounded-xl bg-[#2463b3] px-4 py-3 text-sm font-bold text-white">
+                  <div className="primary-action-blue mt-5 rounded-xl px-4 py-3 text-sm font-bold">
                     프로젝트 상세 평가로 이동
                   </div>
                 </Link>

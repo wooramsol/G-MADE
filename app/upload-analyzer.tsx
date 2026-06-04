@@ -108,7 +108,7 @@ export default function UploadAnalyzer() {
           </select>
         </label>
         <button
-          className="rounded-xl bg-[#15345b] px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+          className="primary-action rounded-xl px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
           disabled={loading}
           type="button"
           onClick={submitUpload}

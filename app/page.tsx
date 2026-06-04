@@ -41,7 +41,7 @@ export default function Dashboard() {
                 <p className="text-sm font-semibold text-[#2463b3]">전체 프로젝트 현황판</p>
                 <h2 className="mt-1 text-2xl font-bold text-[#15345b]">Dashboard</h2>
               </div>
-              <Link href="/projects" className="rounded-lg bg-[#15345b] px-4 py-2 text-sm font-semibold text-white shadow-sm">
+              <Link href="/projects" className="primary-action rounded-lg px-4 py-2 text-sm font-semibold shadow-sm">
                 Project Management 열기
               </Link>
             </div>
@@ -112,7 +112,7 @@ export default function Dashboard() {
                   Dashboard에서는 전체 현황만 확인합니다. 개별 프로젝트의 AI Document Analysis, Hybrid Score Engine,
                   Explainable AI, 법령/사례 검색, 보고서 생성은 Project Management에서 프로젝트를 선택한 뒤 진행합니다.
                 </p>
-                <Link className="mt-5 inline-flex rounded-lg bg-[#15345b] px-4 py-2 text-sm font-bold text-white" href="/projects">
+                <Link className="primary-action mt-5 inline-flex rounded-lg px-4 py-2 text-sm font-bold" href="/projects">
                   Project Management로 이동
                 </Link>
               </Panel>

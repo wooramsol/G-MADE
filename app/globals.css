@@ -39,3 +39,15 @@ textarea {
     box-shadow: 0 10px 30px rgba(21, 52, 91, 0.08);
   }
 }
+
+@layer utilities {
+  .primary-action {
+    background-color: #15345b;
+    color: #ffffff !important;
+  }
+
+  .primary-action-blue {
+    background-color: #2463b3;
+    color: #ffffff !important;
+  }
+}

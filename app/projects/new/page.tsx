@@ -26,7 +26,7 @@ export default function NewProjectPage() {
                 <Link href="/projects" className="rounded-lg border border-[#d7dee8] bg-white px-4 py-2 text-sm font-semibold text-[#15345b]">
                   목록으로 돌아가기
                 </Link>
-                <button className="rounded-lg bg-[#15345b] px-4 py-2 text-sm font-semibold text-white shadow-sm" type="button">
+                <button className="primary-action rounded-lg px-4 py-2 text-sm font-semibold shadow-sm" type="button">
                   프로젝트 임시저장
                 </button>
               </div>
