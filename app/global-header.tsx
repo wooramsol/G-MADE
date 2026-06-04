@@ -5,22 +5,22 @@ import HeaderActions from "./header-actions";
 export default function GlobalHeader() {
   return (
     <header className="bg-white">
-      <div className="bg-[#15345b] px-6 py-4 text-white shadow-sm">
+      <div className="bg-gradient-to-r from-[#0f4d87] via-[#176dab] to-[#15345b] px-6 py-4 text-white shadow-sm">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
           <Link className="flex items-center gap-4" href="/">
-            <div className="flex h-14 w-36 items-center rounded-lg bg-white px-2">
+            <div className="flex h-16 w-44 items-center overflow-hidden rounded-lg bg-[#125b96]">
               <Image
                 alt="G-MADE HIVE"
-                className="h-auto w-full"
+                className="h-full w-full object-cover"
                 height={576}
                 priority
-                src="/brand/gmade-hive-banner.jpg"
+                src="/brand/gmade-hive-banner-bg.jpg"
                 width={1024}
               />
             </div>
             <div>
               <p className="text-sm font-semibold text-blue-100">G-MADE HIVE</p>
-              <h1 className="text-xl font-black text-white">Hybrid Evaluation Platform</h1>
+              <h1 className="text-xl font-black text-white">AI-Human Hybrid Evaluation System</h1>
             </div>
           </Link>
           <div className="flex items-center gap-3">
