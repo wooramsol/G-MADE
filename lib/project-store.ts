@@ -6,11 +6,19 @@ import type { Project } from "./types";
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
 const storePath = path.join(process.cwd(), "storage", "projects.json");
+const demoProjectIds = new Set(demoProjects.map((project) => project.id));
+
+export function isDemoProjectId(id: string): boolean {
+  return demoProjectIds.has(id);
+}
+
+export function isCreatedProjectId(id: string): boolean {
+  return !isDemoProjectId(id);
+}
 
 export async function getAllProjects(): Promise<Project[]> {
   const createdProjects = await readCreatedProjects();
-  const demoIds = new Set(demoProjects.map((project) => project.id));
-  return [...demoProjects, ...createdProjects.filter((project) => !demoIds.has(project.id))];
+  return [...demoProjects, ...createdProjects.filter((project) => !demoProjectIds.has(project.id))];
 }
 
 export async function getProjectById(id: string): Promise<Project | undefined> {
@@ -30,6 +38,20 @@ export async function createProject(input: ProjectInput): Promise<Project> {
   await writeCreatedProjects([project, ...createdProjects]);
 
   return project;
+}
+
+export async function deleteCreatedProject(id: string): Promise<boolean> {
+  if (isDemoProjectId(id)) return false;
+
+  const createdProjects = await readCreatedProjects();
+  const nextProjects = createdProjects.filter((project) => project.id !== id);
+
+  if (nextProjects.length === createdProjects.length) {
+    return false;
+  }
+
+  await writeCreatedProjects(nextProjects);
+  return true;
 }
 
 async function readCreatedProjects(): Promise<Project[]> {

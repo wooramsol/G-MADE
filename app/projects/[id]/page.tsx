@@ -10,7 +10,8 @@ import {
   laws,
 } from "@/lib/demo-data";
 import { calculateProjectScore } from "@/lib/hybrid-evaluation";
-import { getProjectById } from "@/lib/project-store";
+import { getProjectById, isCreatedProjectId } from "@/lib/project-store";
+import DeleteProjectButton from "../delete-project-button";
 import type { HybridResult } from "@/lib/types";
 import ProjectSidebar from "../../project-sidebar";
 import UploadAnalyzer from "../../upload-analyzer";
@@ -34,6 +35,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
     notFound();
   }
   const projectScore = calculateProjectScore(hybridResults);
+  const canDelete = isCreatedProjectId(project.id);
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
@@ -50,9 +52,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <div className="hidden items-center gap-3 lg:flex">
                 <Badge tone="blue">AI {hybridSettings.aiWeight}%</Badge>
                 <Badge tone="gray">인간 {hybridSettings.humanWeight}%</Badge>
-                <a href="#reports-and-statistics" className="primary-action rounded-lg px-4 py-2 text-sm font-semibold shadow-sm">
-                  보고서 생성
-                </a>
+                {canDelete ? <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" /> : null}
               </div>
             </div>
           </header>
@@ -207,7 +207,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
             </section>
 
             <section id="reports-and-statistics" className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-              <Panel title="보고서 생성 구성" action="PDF 생성">
+              <Panel title="보고서 구성 항목">
                 <div className="grid gap-3 text-sm sm:grid-cols-2">
                   {[
                     "사업개요",
