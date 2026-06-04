@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+dist
+coverage
+.env
+.env.*
+!.env.example
+*.log
+prisma/dev.db
+
+storage/uploads
+
+storage/projects.json
