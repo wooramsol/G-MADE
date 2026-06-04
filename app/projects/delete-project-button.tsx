@@ -6,7 +6,7 @@ import { useState } from "react";
 type DeleteProjectButtonProps = {
   projectId: string;
   projectName: string;
-  redirectTo?: string;
+  redirectTo?: "/projects";
 };
 
 export default function DeleteProjectButton({ projectId, projectName, redirectTo }: DeleteProjectButtonProps) {
