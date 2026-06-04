@@ -21,6 +21,12 @@ export default function MyPage() {
             <Info label="권한" value="관리자" />
             <Info label="소속" value="G-MADE HIVE 운영팀" />
           </dl>
+          <button
+            className="mt-5 w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-100"
+            type="button"
+          >
+            로그아웃
+          </button>
         </div>
 
         <div className="rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
