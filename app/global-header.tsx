@@ -19,7 +19,7 @@ export default function GlobalHeader() {
               />
             </div>
             <div>
-              <p className="text-xs font-semibold text-blue-100">경관 사전심의 테스트 모델</p>
+              <p className="text-xs font-semibold text-blue-100">AI-전문가 사전심의 시스템</p>
               <h1 className="text-lg font-black text-white">AI-Human Hybrid Evaluation System</h1>
             </div>
           </Link>
