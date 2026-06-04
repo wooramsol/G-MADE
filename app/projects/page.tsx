@@ -1,5 +1,6 @@
 import Link from "next/link";
 import DeleteProjectButton from "./delete-project-button";
+import LocalProjectList from "./local-project-list";
 import { getAllProjects, isCreatedProjectId } from "@/lib/project-store";
 
 export const dynamic = "force-dynamic";
@@ -106,9 +107,10 @@ export default async function ProjectManagementPage({
             );
           }) : (
             <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm font-semibold text-[#64748b] xl:col-span-3">
-              검색 조건에 맞는 프로젝트가 없습니다.
+              서버 저장 프로젝트 중 검색 조건에 맞는 프로젝트가 없습니다. 브라우저 저장 프로젝트는 아래에서 별도로 확인됩니다.
             </div>
           )}
+          <LocalProjectList serverProjectIds={projects.map((project) => project.id)} query={query} />
         </div>
       </div>
 

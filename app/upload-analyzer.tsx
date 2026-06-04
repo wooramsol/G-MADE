@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { evaluationItems } from "@/lib/demo-data";
+import type { ProjectFile } from "@/lib/types";
 
 type UploadResponse = {
   files: Array<{
@@ -29,7 +30,13 @@ type UploadResponse = {
   };
 };
 
-export default function UploadAnalyzer({ projectId }: { projectId?: string }) {
+export default function UploadAnalyzer({
+  projectId,
+  onUploadedFiles,
+}: {
+  projectId?: string;
+  onUploadedFiles?: (files: ProjectFile[]) => void;
+}) {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [aiWeight, setAiWeight] = useState(30);
@@ -89,6 +96,16 @@ export default function UploadAnalyzer({ projectId }: { projectId?: string }) {
       }
 
       setResult(payload);
+      if (onUploadedFiles) {
+        onUploadedFiles(
+          payload.files.map((file: { id: string; originalName: string; fileType: string }) => ({
+            id: file.id,
+            fileName: file.originalName,
+            fileType: formatStoredFileType(file.originalName, file.fileType),
+            analysisStatus: "완료",
+          })),
+        );
+      }
       if (projectId) {
         router.refresh();
       }
@@ -304,6 +321,11 @@ export default function UploadAnalyzer({ projectId }: { projectId?: string }) {
       ) : null}
     </div>
   );
+}
+
+function formatStoredFileType(fileName: string, fallbackType: string): string {
+  const extension = fileName.split(".").pop()?.toUpperCase();
+  return extension || fallbackType;
 }
 
 function formatBytes(bytes: number): string {

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { saveLocalProject } from "../local-project-storage";
 
 const reviewTypes = ["경관사전심의", "경관심의", "공공디자인심의"];
 const projectTypes = ["복합문화시설", "공공공간", "생활SOC", "업무시설", "공동주택", "기반시설"];
@@ -45,6 +46,7 @@ export default function ProjectCreateForm() {
         throw new Error(payload.error ?? "프로젝트 생성에 실패했습니다.");
       }
 
+      saveLocalProject(payload.project);
       router.push(`/projects/${payload.project.id}`);
       router.refresh();
     } catch (submitError) {

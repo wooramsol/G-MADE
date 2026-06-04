@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import {
   caseStudies,
   extractedDocumentSections,
@@ -12,6 +11,7 @@ import { getProjectById, isCreatedProjectId } from "@/lib/project-store";
 import DeleteProjectButton from "../delete-project-button";
 import type { HybridResult } from "@/lib/types";
 import UploadAnalyzer from "../../upload-analyzer";
+import LocalProjectDetail from "./local-project-detail";
 
 const supportedFiles = ["PDF", "DOCX", "PPTX", "JPG", "PNG", "DWG", "ZIP"];
 const weightPresets = [
@@ -29,7 +29,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   const project = await getProjectById(id);
 
   if (!project) {
-    notFound();
+    return <LocalProjectDetail projectId={id} />;
   }
   const projectScore = calculateProjectScore(hybridResults);
   const canDelete = isCreatedProjectId(project.id);
