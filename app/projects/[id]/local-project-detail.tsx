@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { Project, ProjectFile } from "@/lib/types";
+import type { Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
 import UploadAnalyzer from "../../upload-analyzer";
-import { addLocalProjectFiles, deleteLocalProject, getLocalProjects } from "../local-project-storage";
+import { UploadHistoryPanel } from "../../upload-panels";
+import { addLocalProjectUploadAnalysis, deleteLocalProject, getLocalProjects } from "../local-project-storage";
 import { showToast } from "../../toast";
 
 export default function LocalProjectDetail({ projectId }: { projectId: string }) {
@@ -18,8 +19,8 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
     return () => window.clearTimeout(timeout);
   }, [projectId]);
 
-  function handleUploadedFiles(files: ProjectFile[]) {
-    const updatedProject = addLocalProjectFiles(projectId, files);
+  function handleAnalysisSaved(session: UploadAnalysisSession, files: ProjectFile[]) {
+    const updatedProject = addLocalProjectUploadAnalysis(projectId, session, files);
     if (updatedProject) setProject(updatedProject);
   }
 
@@ -84,8 +85,12 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
           </Panel>
 
           <Panel title="프로젝트 자료 업로드 및 AI 자동 분석" action="파일 추가">
-            <UploadAnalyzer projectId={project.id} onUploadedFiles={handleUploadedFiles} />
-            <UploadHistory files={project.files} />
+            <UploadAnalyzer
+              projectId={project.id}
+              savedAnalyses={project.uploadAnalyses ?? []}
+              onAnalysisSaved={handleAnalysisSaved}
+            />
+            <UploadHistoryPanel files={project.files} />
           </Panel>
         </section>
       </div>
@@ -110,46 +115,6 @@ function Info({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]">{label}</p>
       <p className="mt-2 font-semibold leading-6 text-[#172033]">{value}</p>
-    </div>
-  );
-}
-
-function UploadHistory({ files }: { files: ProjectFile[] }) {
-  return (
-    <div className="mt-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="font-bold text-[#15345b]">업로드 히스토리</p>
-          <p className="mt-1 text-sm text-[#64748b]">프로젝트에 저장된 업로드 파일 이력입니다.</p>
-        </div>
-        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{files.length}건</span>
-      </div>
-      {files.length > 0 ? (
-        <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-[#eef4fb] text-[#15345b]">
-              <tr>
-                <th className="px-4 py-3">파일명</th>
-                <th className="w-28 px-4 py-3">파일 형식</th>
-                <th className="w-28 px-4 py-3">분석 상태</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#d7dee8] bg-white">
-              {files.map((file) => (
-                <tr key={file.id}>
-                  <td className="px-4 py-4 font-bold text-[#15345b]">{file.fileName}</td>
-                  <td className="px-4 py-4"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{file.fileType}</span></td>
-                  <td className="px-4 py-4"><span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{file.analysisStatus}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-[#d7dee8] bg-white p-6 text-center text-sm font-semibold text-[#64748b]">
-          아직 업로드된 파일이 없습니다.
-        </div>
-      )}
     </div>
   );
 }

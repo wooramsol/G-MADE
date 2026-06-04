@@ -3,8 +3,8 @@ import path from "path";
 import { getWritableStoragePath } from "@/lib/runtime-storage";
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeUploadedFiles, type UploadedFileSummary } from "@/lib/upload-analysis";
-import { addProjectFiles } from "@/lib/project-store";
-import type { ProjectFile } from "@/lib/types";
+import { addProjectUploadAnalysis } from "@/lib/project-store";
+import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -52,21 +52,46 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const uploadedAt = new Date().toISOString();
     const persistedFiles: ProjectFile[] = savedFiles.map((file) => ({
       id: file.id,
       fileName: file.originalName,
       fileType: formatStoredFileType(file.originalName, file.fileType),
       analysisStatus: "완료",
+      uploadedAt,
+      sizeBytes: file.sizeBytes,
     }));
-
-    const updatedProject = projectId ? await addProjectFiles(projectId, persistedFiles) : undefined;
 
     const analysis = await analyzeUploadedFiles({
       providerPreference,
       files: savedFiles,
     });
 
-    return NextResponse.json({ files: savedFiles, analysis, project: updatedProject });
+    const aiWeight = Number(formData.get("aiWeight") ?? 30);
+    const expertWeight = Number(formData.get("expertWeight") ?? 70);
+    const evaluationItemPoints = parseEvaluationItemPoints(formData.get("evaluationItemPoints"));
+    const totalPoints = Object.values(evaluationItemPoints).reduce((sum, points) => sum + points, 0);
+
+    const session: UploadAnalysisSession = {
+      id: `analysis-${Date.now()}-${crypto.randomUUID()}`,
+      analyzedAt: uploadedAt,
+      aiWeight: Number.isFinite(aiWeight) ? aiWeight : 30,
+      expertWeight: Number.isFinite(expertWeight) ? expertWeight : 70,
+      totalPoints,
+      files: savedFiles.map((file) => ({
+        id: file.id,
+        originalName: file.originalName,
+        fileType: formatStoredFileType(file.originalName, file.fileType),
+        sizeBytes: file.sizeBytes,
+      })),
+      analysis,
+    };
+
+    const updatedProject = projectId
+      ? await addProjectUploadAnalysis(projectId, session, persistedFiles)
+      : undefined;
+
+    return NextResponse.json({ files: savedFiles, analysis, session, project: updatedProject });
   } catch (error) {
     const message = error instanceof Error ? error.message : "파일 업로드 중 오류가 발생했습니다.";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -116,4 +141,17 @@ function extractTextPreview(buffer: Buffer, fileType: string, fileName: string):
 function formatStoredFileType(fileName: string, fallbackType: string): string {
   const extension = getExtension(fileName);
   return extension ? extension.toUpperCase() : fallbackType;
+}
+
+function parseEvaluationItemPoints(value: FormDataEntryValue | null): Record<string, number> {
+  if (typeof value !== "string" || !value.trim()) return {};
+
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(parsed).map(([key, points]) => [key, Math.max(0, Number(points) || 0)]),
+    );
+  } catch {
+    return {};
+  }
 }

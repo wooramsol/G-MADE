@@ -50,6 +50,38 @@ export type ProjectFile = {
   fileName: string;
   fileType: string;
   analysisStatus: "대기" | "분석중" | "완료";
+  uploadedAt?: string;
+  sizeBytes?: number;
+};
+
+export type UploadAnalysisSession = {
+  id: string;
+  analyzedAt: string;
+  aiWeight: number;
+  expertWeight: number;
+  totalPoints: number;
+  files: Array<{
+    id: string;
+    originalName: string;
+    fileType: string;
+    sizeBytes: number;
+  }>;
+  analysis: {
+    provider: "demo" | "openai" | "gemini";
+    mode: "demo" | "live";
+    summary: string;
+    documentSections: Array<{ label: string; confidence: number; summary: string }>;
+    evaluationPreview: Array<{
+      itemName: string;
+      score: number;
+      grade: string;
+      rationale: string;
+      recommendation: string;
+      laws: string[];
+      guidelines: string[];
+    }>;
+    warnings: string[];
+  };
 };
 
 export type Project = {
@@ -64,6 +96,7 @@ export type Project = {
   receivedAt: string;
   status: "접수" | "심사 진행중" | "완료";
   files: ProjectFile[];
+  uploadAnalyses?: UploadAnalysisSession[];
 };
 
 export type AiEvaluation = {

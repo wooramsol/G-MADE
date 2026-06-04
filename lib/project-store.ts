@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
 import { getWritableStoragePath } from "./runtime-storage";
-import type { Project, ProjectFile } from "./types";
+import type { Project, ProjectFile, UploadAnalysisSession } from "./types";
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
@@ -22,7 +22,14 @@ export async function getAllProjects(): Promise<Project[]> {
   const storedById = new Map(storedProjects.map((project) => [project.id, project]));
   const mergedDemoProjects = demoProjects.map((project) => {
     const stored = storedById.get(project.id);
-    return stored ? { ...project, ...stored, files: stored.files } : project;
+    return stored
+      ? {
+          ...project,
+          ...stored,
+          files: stored.files ?? project.files,
+          uploadAnalyses: stored.uploadAnalyses ?? project.uploadAnalyses ?? [],
+        }
+      : project;
   });
 
   return [...mergedDemoProjects, ...storedProjects.filter((project) => !demoProjectIds.has(project.id))];
@@ -48,6 +55,28 @@ export async function createProject(input: ProjectInput): Promise<Project> {
 }
 
 export async function addProjectFiles(id: string, files: ProjectFile[]): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    files: mergeProjectFiles(project.files, files),
+  }));
+}
+
+export async function addProjectUploadAnalysis(
+  id: string,
+  session: UploadAnalysisSession,
+  files: ProjectFile[],
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    files: mergeProjectFiles(project.files, files),
+    uploadAnalyses: [...(project.uploadAnalyses ?? []), session],
+  }));
+}
+
+async function updateStoredProject(
+  id: string,
+  updater: (project: Project) => Project,
+): Promise<Project | undefined> {
   const allProjects = await getAllProjects();
   const existingProject = allProjects.find((project) => project.id === id);
 
@@ -56,10 +85,10 @@ export async function addProjectFiles(id: string, files: ProjectFile[]): Promise
   const storedProjects = await readCreatedProjects();
   const storedIndex = storedProjects.findIndex((project) => project.id === id);
   const baseProject = storedIndex >= 0 ? storedProjects[storedIndex] : existingProject;
-  const nextProject: Project = {
+  const nextProject = updater({
     ...baseProject,
-    files: [...baseProject.files, ...files],
-  };
+    uploadAnalyses: baseProject.uploadAnalyses ?? [],
+  });
 
   if (storedIndex >= 0) {
     storedProjects[storedIndex] = nextProject;
@@ -69,6 +98,12 @@ export async function addProjectFiles(id: string, files: ProjectFile[]): Promise
 
   await writeCreatedProjects(storedProjects);
   return nextProject;
+}
+
+function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]): ProjectFile[] {
+  const byId = new Map<string, ProjectFile>();
+  [...currentFiles, ...nextFiles].forEach((file) => byId.set(file.id, file));
+  return Array.from(byId.values());
 }
 
 export async function deleteCreatedProject(id: string): Promise<boolean> {

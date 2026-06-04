@@ -1,44 +1,34 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { evaluationItems } from "@/lib/demo-data";
-import type { ProjectFile } from "@/lib/types";
+import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
+import { UploadAnalysisResultsPanel } from "./upload-panels";
 import { showToast } from "./toast";
 
-type UploadResponse = {
+type UploadApiResponse = {
   files: Array<{
     id: string;
     originalName: string;
     fileType: string;
     sizeBytes: number;
   }>;
-  analysis: {
-    provider: "demo" | "openai" | "gemini";
-    mode: "demo" | "live";
-    summary: string;
-    documentSections: Array<{ label: string; confidence: number; summary: string }>;
-    evaluationPreview: Array<{
-      itemName: string;
-      score: number;
-      grade: string;
-      rationale: string;
-      recommendation: string;
-      laws: string[];
-      guidelines: string[];
-    }>;
-    warnings: string[];
-  };
+  session: UploadAnalysisSession;
+};
+
+type UploadAnalyzerProps = {
+  projectId?: string;
+  savedAnalyses?: UploadAnalysisSession[];
+  onUploadedFiles?: (files: ProjectFile[]) => void;
+  onAnalysisSaved?: (session: UploadAnalysisSession, files: ProjectFile[]) => void;
 };
 
 export default function UploadAnalyzer({
   projectId,
+  savedAnalyses = [],
   onUploadedFiles,
-}: {
-  projectId?: string;
-  onUploadedFiles?: (files: ProjectFile[]) => void;
-}) {
-  const router = useRouter();
+  onAnalysisSaved,
+}: UploadAnalyzerProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [aiWeight, setAiWeight] = useState(30);
   const [itemPoints, setItemPoints] = useState<Record<string, number>>(
@@ -46,8 +36,6 @@ export default function UploadAnalyzer({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<UploadResponse | null>(null);
-
   const totalSize = useMemo(
     () => files.reduce((sum, file) => sum + file.size, 0),
     [files],
@@ -73,7 +61,6 @@ export default function UploadAnalyzer({
 
     setLoading(true);
     setError("");
-    setResult(null);
 
     const formData = new FormData();
     if (projectId) {
@@ -90,26 +77,30 @@ export default function UploadAnalyzer({
         method: "POST",
         body: formData,
       });
-      const payload = await response.json();
+      const payload = (await response.json()) as UploadApiResponse & { error?: string };
 
       if (!response.ok) {
         throw new Error(payload.error ?? "업로드에 실패했습니다.");
       }
 
-      setResult(payload);
+      const uploadedAt = payload.session.analyzedAt;
+      const projectFiles: ProjectFile[] = payload.files.map((file) => ({
+        id: file.id,
+        fileName: file.originalName,
+        fileType: formatStoredFileType(file.originalName, file.fileType),
+        analysisStatus: "완료",
+        uploadedAt,
+        sizeBytes: file.sizeBytes,
+      }));
+
+      setFiles([]);
       showToast({ message: "AI 분석이 완료되었습니다.", tone: "success" });
+
       if (onUploadedFiles) {
-        onUploadedFiles(
-          payload.files.map((file: { id: string; originalName: string; fileType: string }) => ({
-            id: file.id,
-            fileName: file.originalName,
-            fileType: formatStoredFileType(file.originalName, file.fileType),
-            analysisStatus: "완료",
-          })),
-        );
+        onUploadedFiles(projectFiles);
       }
-      if (projectId) {
-        router.refresh();
+      if (onAnalysisSaved) {
+        onAnalysisSaved(payload.session, projectFiles);
       }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "업로드에 실패했습니다.");
@@ -238,89 +229,7 @@ export default function UploadAnalyzer({
 
       {error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p> : null}
 
-      {result ? (
-        <div className="space-y-4 rounded-xl bg-white p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-              {result.analysis.provider.toUpperCase()}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-              {result.analysis.mode === "live" ? "실제 AI API 분석" : "데모 분석"}
-            </span>
-            <span className="rounded-full bg-[#eef4fb] px-3 py-1 text-xs font-bold text-[#15345b]">
-              적용 가중치 AI {aiWeight}% · 전문가 {100 - aiWeight}%
-            </span>
-            <span className="rounded-full bg-[#eef4fb] px-3 py-1 text-xs font-bold text-[#15345b]">
-              총 배점 {totalPoints}점
-            </span>
-          </div>
-
-          <p className="text-sm leading-6 text-[#475569]">{result.analysis.summary}</p>
-
-          <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-[#eef4fb] text-[#15345b]">
-                <tr>
-                  <th className="px-4 py-3">이번 업로드 파일</th>
-                  <th className="px-4 py-3">형식</th>
-                  <th className="px-4 py-3">크기</th>
-                  <th className="px-4 py-3">분석상태</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#d7dee8] bg-white">
-                {result.files.map((file) => (
-                  <tr key={file.id}>
-                    <td className="px-4 py-4 font-semibold text-[#15345b]">{file.originalName}</td>
-                    <td className="px-4 py-4 text-[#64748b]">{file.fileType}</td>
-                    <td className="px-4 py-4 text-[#64748b]">{formatBytes(file.sizeBytes)}</td>
-                    <td className="px-4 py-4">
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">분석 완료</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {result.analysis.warnings.length > 0 ? (
-            <div className="rounded-xl bg-[#fff7ed] p-3 text-sm leading-6 text-[#9a3412]">
-              {result.analysis.warnings.map((warning) => (
-                <p key={warning}>{warning}</p>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {result.analysis.documentSections.slice(0, 6).map((section) => (
-              <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-3" key={section.label}>
-                <div className="flex justify-between text-sm font-bold text-[#15345b]">
-                  <span>{section.label}</span>
-                  <span>{section.confidence}%</span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e2e8f0]">
-                  <div className="h-full rounded-full bg-[#2463b3]" style={{ width: `${section.confidence}%` }} />
-                </div>
-                <p className="mt-2 text-xs leading-5 text-[#64748b]">{section.summary}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-3">
-            {result.analysis.evaluationPreview.slice(0, 3).map((row) => (
-              <div className="rounded-xl border border-[#d7dee8] p-3" key={row.itemName}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-bold text-[#15345b]">{row.itemName}</p>
-                  <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-                    {row.score}점 · {row.grade}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-[#475569]">{row.rationale}</p>
-                <p className="mt-2 text-sm font-semibold leading-6 text-[#9a3412]">개선권고: {row.recommendation}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <UploadAnalysisResultsPanel sessions={savedAnalyses} />
     </div>
   );
 }
