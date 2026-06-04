@@ -110,7 +110,7 @@ export default function Dashboard() {
               <Panel title="Project Management 진입" action="업무 시작">
                 <p className="text-sm leading-6 text-[#475569]">
                   Dashboard에서는 전체 현황만 확인합니다. 개별 프로젝트의 AI Document Analysis, Hybrid Score Engine,
-                  Explainable AI, 법령/사례 검색, 결과/통계 확인은 Project Management에서 프로젝트를 선택한 뒤 진행합니다.
+                  Explainable AI, 법령/사례 검색, 결과 확인은 Project Management에서 프로젝트를 선택한 뒤 진행합니다.
                 </p>
                 <Link className="primary-action mt-5 inline-flex rounded-lg px-4 py-2 text-sm font-bold" href="/projects">
                   Project Management로 이동

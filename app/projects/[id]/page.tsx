@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import {
-  annualStatistics,
   caseStudies,
   evaluationItems,
   extractedDocumentSections,
@@ -206,41 +205,6 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               </Panel>
             </section>
 
-            <section id="reports-and-statistics" className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-              <Panel title="보고서 구성 항목">
-                <div className="grid gap-3 text-sm sm:grid-cols-2">
-                  {[
-                    "사업개요",
-                    "평가표",
-                    "종합점수",
-                    "AI 의견",
-                    "심사위원 의견",
-                    "최종결론",
-                    "개선사항",
-                    "법령 및 지침 근거",
-                  ].map((item) => (
-                    <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 font-semibold text-[#15345b]" key={item}>
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-              <Panel title="통계 분석" action="통계 상세">
-                <div className="space-y-4">
-                  {annualStatistics.map((row) => (
-                    <div className="grid gap-3 rounded-xl border border-[#d7dee8] bg-white p-4 md:grid-cols-[80px_1fr]" key={row.label}>
-                      <p className="font-bold text-[#15345b]">{row.label}</p>
-                      <div className="space-y-2">
-                        <StatisticBar label="경관심의" value={row.landscape} />
-                        <StatisticBar label="공공디자인심의" value={row.publicDesign} />
-                        <StatisticBar label="경관사전심의" value={row.preliminary} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-            </section>
-
             <section id="admin-settings">
               <SectionTitle eyebrow="Admin Settings" title="DB 기반 평가항목 관리" description="대분류, 중분류, 세부항목, 배점, 설명, 평가기준은 코드 고정값이 아니라 DB 레코드로 관리되도록 설계했습니다." />
               <div className="mt-5">
@@ -373,18 +337,6 @@ function ReferenceCard({ title, subtitle, body }: { title: string; subtitle: str
       <p className="font-bold text-[#15345b]">{title}</p>
       <p className="mt-1 text-xs font-semibold text-[#2463b3]">{subtitle}</p>
       <p className="mt-2 text-sm leading-6 text-[#64748b]">{body}</p>
-    </div>
-  );
-}
-
-function StatisticBar({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="grid grid-cols-[120px_1fr_50px] items-center gap-3 text-sm">
-      <span className="font-semibold text-[#475569]">{label}</span>
-      <div className="h-2 overflow-hidden rounded-full bg-[#e2e8f0]">
-        <div className="h-full rounded-full bg-[#2463b3]" style={{ width: `${value}%` }} />
-      </div>
-      <span className="text-right font-bold text-[#15345b]">{value}</span>
     </div>
   );
 }

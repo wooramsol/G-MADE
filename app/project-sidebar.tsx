@@ -10,7 +10,6 @@ const projectSubMenus = [
   { label: "Hybrid Score Engine", href: "#hybrid-score-engine" },
   { label: "Explainable AI", href: "#explainable-ai" },
   { label: "Laws & Case Search", href: "#laws-and-case-search" },
-  { label: "Reports & Statistics", href: "#reports-and-statistics" },
   { label: "Admin Settings", href: "#admin-settings" },
 ];
 
@@ -103,7 +102,7 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
       <div className="mx-4 mt-8 rounded-xl border border-white/10 bg-white/10 p-4 text-sm text-blue-50">
         <p className="font-semibold">Project Management</p>
         <p className="mt-2 leading-6">
-          프로젝트를 선택하면 하위 메뉴에서 AI 분석, 하이브리드 점수, 설명 가능한 AI, 보고서 기능을 사용할 수 있습니다.
+          프로젝트를 선택하면 하위 메뉴에서 AI 분석, 하이브리드 점수, 설명 가능한 AI 기능을 사용할 수 있습니다.
         </p>
       </div>
     </aside>

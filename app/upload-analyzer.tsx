@@ -27,16 +27,9 @@ type UploadResponse = {
   };
 };
 
-const providerOptions = [
-  { value: "auto", label: "자동 선택" },
-  { value: "openai", label: "ChatGPT / OpenAI" },
-  { value: "gemini", label: "Google Gemini" },
-  { value: "demo", label: "데모 분석" },
-];
-
 export default function UploadAnalyzer() {
   const [files, setFiles] = useState<File[]>([]);
-  const [provider, setProvider] = useState("auto");
+  const [aiWeight, setAiWeight] = useState(30);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<UploadResponse | null>(null);
@@ -57,7 +50,9 @@ export default function UploadAnalyzer() {
     setResult(null);
 
     const formData = new FormData();
-    formData.append("provider", provider);
+    formData.append("provider", "auto");
+    formData.append("aiWeight", String(aiWeight));
+    formData.append("expertWeight", String(100 - aiWeight));
     files.forEach((file) => formData.append("files", file));
 
     try {
@@ -81,7 +76,7 @@ export default function UploadAnalyzer() {
 
   return (
     <div className="mt-5 space-y-4 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <div className="grid gap-3 lg:grid-cols-[1fr_180px_140px]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_320px_140px]">
         <label className="flex cursor-pointer flex-col rounded-xl border border-dashed border-[#2463b3] bg-white p-4 text-sm text-[#475569]">
           <span className="font-bold text-[#15345b]">파일 선택</span>
           <span className="mt-1">PDF, DOCX, PPTX, JPG, PNG, DWG, ZIP 파일을 업로드할 수 있습니다.</span>
@@ -93,20 +88,34 @@ export default function UploadAnalyzer() {
             onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
           />
         </label>
-        <label className="rounded-xl border border-[#d7dee8] bg-white p-4 text-sm">
-          <span className="font-bold text-[#15345b]">AI 선택</span>
-          <select
-            className="mt-3 w-full rounded-lg border border-[#d7dee8] px-3 py-2"
-            value={provider}
-            onChange={(event) => setProvider(event.target.value)}
-          >
-            {providerOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="rounded-xl border border-[#d7dee8] bg-white p-4 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold text-[#15345b]">평가 가중치</span>
+            <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+              AI {aiWeight}% · 전문가 {100 - aiWeight}%
+            </span>
+          </div>
+          <input
+            aria-label="AI 평가 가중치"
+            className="mt-4 w-full accent-[#2463b3]"
+            max="100"
+            min="0"
+            step="10"
+            type="range"
+            value={aiWeight}
+            onChange={(event) => setAiWeight(Number(event.target.value))}
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-[#e8f1ff] p-3">
+              <p className="text-xs font-bold text-[#2463b3]">AI 평가</p>
+              <p className="mt-1 text-xl font-black text-[#15345b]">{aiWeight}%</p>
+            </div>
+            <div className="rounded-lg bg-slate-100 p-3">
+              <p className="text-xs font-bold text-slate-600">전문가 평가</p>
+              <p className="mt-1 text-xl font-black text-[#15345b]">{100 - aiWeight}%</p>
+            </div>
+          </div>
+        </div>
         <button
           className="primary-action rounded-xl px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
           disabled={loading}
@@ -138,6 +147,9 @@ export default function UploadAnalyzer() {
             </span>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
               {result.analysis.mode === "live" ? "실제 AI API 분석" : "데모 분석"}
+            </span>
+            <span className="rounded-full bg-[#eef4fb] px-3 py-1 text-xs font-bold text-[#15345b]">
+              적용 가중치 AI {aiWeight}% · 전문가 {100 - aiWeight}%
             </span>
           </div>
 

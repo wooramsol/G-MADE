@@ -32,7 +32,7 @@ export default async function ProjectManagementPage() {
                 <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#2463b3]">Project Management</p>
                 <h3 className="mt-2 text-2xl font-bold text-[#15345b]">심의 프로젝트 목록</h3>
                 <p className="mt-2 text-sm leading-6 text-[#64748b]">
-                  프로젝트를 클릭하면 해당 프로젝트 안에서 AI Document Analysis, Hybrid Score Engine, Explainable AI, 결과와 통계 메뉴를 사용할 수 있습니다.
+                  프로젝트를 클릭하면 해당 프로젝트 안에서 AI Document Analysis, Hybrid Score Engine, Explainable AI, 결과 확인 메뉴를 사용할 수 있습니다.
                 </p>
               </div>
               <Link href="/projects/new" className="primary-action-blue rounded-lg px-4 py-3 text-sm font-bold shadow-sm">
