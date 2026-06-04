@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { getWritableStoragePath } from "@/lib/runtime-storage";
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeUploadedFiles, type UploadedFileSummary } from "@/lib/upload-analysis";
 
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "업로드할 파일을 선택해 주세요." }, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), "storage", "uploads");
+    const uploadDir = getWritableStoragePath("uploads");
     await mkdir(uploadDir, { recursive: true });
 
     const savedFiles: UploadedFileSummary[] = [];

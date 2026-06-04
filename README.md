@@ -84,3 +84,29 @@ GEMINI_MODEL="gemini-1.5-flash"
 ```bash
 npm run dev
 ```
+
+## Vercel 배포와 gmadehive.com 연결
+
+팀 공유용으로 가장 빠른 배포 방식은 Vercel입니다.
+
+1. Vercel에서 GitHub 저장소 `G-MADE`를 Import합니다.
+2. Production Branch는 현재 작업 브랜치 `cursor/g-made-hybrid-evaluation-0398`를 선택하거나, PR을 `main`에 머지한 뒤 `main`을 선택합니다.
+3. Framework Preset은 `Next.js`로 둡니다.
+4. Build Command는 `npm run build`, Install Command는 `npm install` 기본값을 사용합니다.
+5. API 키 없이도 데모 AI 분석으로 동작합니다. 실제 AI 분석이 필요하면 Vercel Project Settings > Environment Variables에 `OPENAI_API_KEY` 또는 `GEMINI_API_KEY`를 추가합니다.
+
+### 가비아 DNS 설정
+
+Vercel Project Settings > Domains에 아래 도메인을 추가합니다.
+
+- `gmadehive.com`
+- `www.gmadehive.com`
+
+가비아 DNS 관리에서 아래 레코드를 설정합니다.
+
+| 타입 | 호스트 | 값 |
+| --- | --- | --- |
+| A | @ | 76.76.21.21 |
+| CNAME | www | cname.vercel-dns.com |
+
+참고: 현재 프로젝트 생성/삭제와 업로드 파일 저장은 데모용 임시 저장 방식입니다. Vercel에서는 서버리스 환경 특성상 장기 보관이 보장되지 않습니다. 운영용으로 사용하려면 PostgreSQL, Firebase, Vercel Blob 같은 영구 저장소를 연결해야 합니다.

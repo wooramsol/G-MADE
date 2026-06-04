@@ -1,11 +1,12 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
-import path from "path";
 import { projects as demoProjects } from "./demo-data";
+import { getWritableStoragePath } from "./runtime-storage";
 import type { Project } from "./types";
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
-const storePath = path.join(process.cwd(), "storage", "projects.json");
+const storeDir = getWritableStoragePath();
+const storePath = getWritableStoragePath("projects.json");
 const demoProjectIds = new Set(demoProjects.map((project) => project.id));
 
 export function isDemoProjectId(id: string): boolean {
@@ -66,7 +67,7 @@ async function readCreatedProjects(): Promise<Project[]> {
 }
 
 async function writeCreatedProjects(projects: Project[]) {
-  await mkdir(path.dirname(storePath), { recursive: true });
+  await mkdir(storeDir, { recursive: true });
   await writeFile(storePath, JSON.stringify(projects, null, 2));
 }
 
