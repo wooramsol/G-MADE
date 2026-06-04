@@ -61,10 +61,6 @@ export async function POST(request: NextRequest) {
 
     const updatedProject = projectId ? await addProjectFiles(projectId, persistedFiles) : undefined;
 
-    if (projectId && !updatedProject) {
-      return NextResponse.json({ error: "업로드 히스토리를 저장할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
-    }
-
     const analysis = await analyzeUploadedFiles({
       providerPreference,
       files: savedFiles,
