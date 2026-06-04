@@ -1,5 +1,4 @@
 import Link from "next/link";
-import HeaderActions from "./header-actions";
 import {
   annualStatistics,
   dashboardStats,
@@ -7,7 +6,6 @@ import {
   projects,
   roles,
 } from "@/lib/demo-data";
-import SidebarBrand from "./sidebar-brand";
 import { calculateProjectScore } from "@/lib/hybrid-evaluation";
 
 export default function Dashboard() {
@@ -15,123 +13,93 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-72 shrink-0 border-r border-[#d7dee8] bg-white text-[#172033] xl:block">
-          <SidebarBrand />
-          <nav className="space-y-2 px-4 py-6 text-sm">
-            <Link href="/" className="block rounded-lg bg-[#e8f1ff] px-4 py-3 font-bold text-[#15345b]">
-              Dashboard
-            </Link>
-            <Link href="/projects" className="block rounded-lg px-4 py-3 font-semibold text-[#475569] transition hover:bg-[#e8f1ff] hover:text-[#15345b]">
-              Project Management
-            </Link>
-          </nav>
-          <div className="mx-4 mt-8 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#475569]">
-            <p className="font-bold text-[#15345b]">Dashboard</p>
-            <p className="mt-2 leading-6">모든 심의 프로젝트의 현황을 확인합니다.</p>
-          </div>
-        </aside>
-
-        <section className="flex-1">
-          <header className="bg-[#15345b] px-6 py-4 text-white shadow-sm">
-            <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-blue-100">전체 프로젝트 현황판</p>
-                <h2 className="mt-1 text-2xl font-bold text-white">Dashboard</h2>
-              </div>
-              <HeaderActions />
-
-            </div>
-          </header>
-
-          <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
-            <section className="space-y-5">
-              <SectionTitle
-                eyebrow="Dashboard"
-                title="전체 프로젝트 대시보드"
-                description="모든 심의 프로젝트의 접수, 진행, 완료, 평균 점수를 한 화면에서 확인합니다."
-              />
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard label="접수 건수" value={dashboardStats.received.toString()} delta="전체 프로젝트 기준" />
-                <MetricCard label="심사 진행중" value={dashboardStats.inReview.toString()} delta="위원 검토 대기 포함" />
-                <MetricCard label="완료 건수" value={dashboardStats.completed.toString()} delta="보고서 발급 완료 포함" />
-                <MetricCard label="평균 점수" value={`${projectScore}점`} delta="최근 평가 데이터 기준" />
-              </div>
-            </section>
-
-            <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-              <Panel title="최근 프로젝트" action="프로젝트 선택">
-                <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
-                  <table className="w-full border-collapse text-left text-sm">
-                    <thead className="bg-[#eef4fb] text-[#15345b]">
-                      <tr>
-                        <th className="px-4 py-3">사업명</th>
-                        <th className="px-4 py-3">심의종류</th>
-                        <th className="px-4 py-3">접수일</th>
-                        <th className="px-4 py-3">상태</th>
-                        <th className="px-4 py-3">이동</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#d7dee8] bg-white">
-                      {projects.map((project) => (
-                        <tr key={project.id}>
-                          <td className="px-4 py-4 font-semibold text-[#172033]">{project.name}</td>
-                          <td className="px-4 py-4 text-[#64748b]">{project.reviewType}</td>
-                          <td className="px-4 py-4 text-[#64748b]">{project.receivedAt}</td>
-                          <td className="px-4 py-4"><StatusBadge status={project.status} /></td>
-                          <td className="px-4 py-4">
-                            <Link className="font-bold text-[#2463b3]" href={`/projects/${project.id}`}>
-                              상세 보기
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Panel>
-
-              <Panel title="사용자 권한 체계" action="역할별 접근">
-                <div className="space-y-3">
-                  {roles.map((role) => (
-                    <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={role.code}>
-                      <p className="font-bold text-[#15345b]">{role.label}</p>
-                      <p className="mt-1 text-sm leading-6 text-[#64748b]">{role.authority}</p>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-            </section>
-
-            <section className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
-              <Panel title="Project Management 진입" action="업무 시작">
-                <p className="text-sm leading-6 text-[#475569]">
-                  Dashboard에서는 전체 현황만 확인합니다. 개별 프로젝트의 AI Document Analysis, Hybrid Score Engine,
-                  Explainable AI, 법령/사례 검색, 결과 확인은 Project Management에서 프로젝트를 선택한 뒤 진행합니다.
-                </p>
-                <Link className="primary-action mt-5 inline-flex rounded-lg px-4 py-2 text-sm font-bold" href="/projects">
-                  Project Management로 이동
-                </Link>
-              </Panel>
-
-              <Panel title="연도별 평균 점수" action="통계 요약">
-                <div className="space-y-4">
-                  {annualStatistics.map((row) => (
-                    <div className="grid gap-3 rounded-xl border border-[#d7dee8] bg-white p-4 md:grid-cols-[80px_1fr]" key={row.label}>
-                      <p className="font-bold text-[#15345b]">{row.label}</p>
-                      <div className="space-y-2">
-                        <StatisticBar label="경관심의" value={row.landscape} />
-                        <StatisticBar label="공공디자인심의" value={row.publicDesign} />
-                        <StatisticBar label="경관사전심의" value={row.preliminary} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-            </section>
+      <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
+        <section className="space-y-5">
+          <SectionTitle
+            eyebrow="Dashboard"
+            title="전체 프로젝트 대시보드"
+            description="모든 심의 프로젝트의 접수, 진행, 완료, 평균 점수를 한 화면에서 확인합니다."
+          />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="접수 건수" value={dashboardStats.received.toString()} delta="전체 프로젝트 기준" />
+            <MetricCard label="심사 진행중" value={dashboardStats.inReview.toString()} delta="위원 검토 대기 포함" />
+            <MetricCard label="완료 건수" value={dashboardStats.completed.toString()} delta="보고서 발급 완료 포함" />
+            <MetricCard label="평균 점수" value={`${projectScore}점`} delta="최근 평가 데이터 기준" />
           </div>
         </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+          <Panel title="최근 프로젝트" action="프로젝트 선택">
+            <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead className="bg-[#eef4fb] text-[#15345b]">
+                  <tr>
+                    <th className="px-4 py-3">사업명</th>
+                    <th className="px-4 py-3">심의종류</th>
+                    <th className="px-4 py-3">접수일</th>
+                    <th className="px-4 py-3">상태</th>
+                    <th className="px-4 py-3">이동</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#d7dee8] bg-white">
+                  {projects.map((project) => (
+                    <tr key={project.id}>
+                      <td className="px-4 py-4 font-semibold text-[#172033]">{project.name}</td>
+                      <td className="px-4 py-4 text-[#64748b]">{project.reviewType}</td>
+                      <td className="px-4 py-4 text-[#64748b]">{project.receivedAt}</td>
+                      <td className="px-4 py-4"><StatusBadge status={project.status} /></td>
+                      <td className="px-4 py-4">
+                        <Link className="font-bold text-[#2463b3]" href={`/projects/${project.id}`}>
+                          상세 보기
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+
+          <Panel title="사용자 권한 체계" action="역할별 접근">
+            <div className="space-y-3">
+              {roles.map((role) => (
+                <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={role.code}>
+                  <p className="font-bold text-[#15345b]">{role.label}</p>
+                  <p className="mt-1 text-sm leading-6 text-[#64748b]">{role.authority}</p>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
+          <Panel title="Project Management 진입" action="업무 시작">
+            <p className="text-sm leading-6 text-[#475569]">
+              Dashboard에서는 전체 현황만 확인합니다. 개별 프로젝트의 AI Document Analysis, Hybrid Score Engine,
+              Explainable AI, 법령/사례 검색, 결과 확인은 Project Management에서 프로젝트를 선택한 뒤 진행합니다.
+            </p>
+            <Link className="primary-action mt-5 inline-flex rounded-lg px-4 py-2 text-sm font-bold" href="/projects">
+              Project Management로 이동
+            </Link>
+          </Panel>
+
+          <Panel title="연도별 평균 점수" action="통계 요약">
+            <div className="space-y-4">
+              {annualStatistics.map((row) => (
+                <div className="grid gap-3 rounded-xl border border-[#d7dee8] bg-white p-4 md:grid-cols-[80px_1fr]" key={row.label}>
+                  <p className="font-bold text-[#15345b]">{row.label}</p>
+                  <div className="space-y-2">
+                    <StatisticBar label="경관심의" value={row.landscape} />
+                    <StatisticBar label="공공디자인심의" value={row.publicDesign} />
+                    <StatisticBar label="경관사전심의" value={row.preliminary} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </section>
       </div>
+
     </main>
   );
 }
