@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Project } from "@/lib/types";
 import { deleteLocalProject, getLocalProjects } from "./local-project-storage";
+import { showToast } from "../toast";
 
 type LocalProjectListProps = {
   serverProjectIds: string[];
@@ -75,6 +76,7 @@ export default function LocalProjectList({ serverProjectIds, query }: LocalProje
               onClick={() => {
                 deleteLocalProject(project.id);
                 setProjects(getLocalProjects());
+                showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
               }}
             >
               프로젝트 삭제

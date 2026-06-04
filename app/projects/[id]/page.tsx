@@ -10,7 +10,7 @@ import { calculateProjectScore } from "@/lib/hybrid-evaluation";
 import { getProjectById, isCreatedProjectId } from "@/lib/project-store";
 import DeleteProjectButton from "../delete-project-button";
 import type { HybridResult } from "@/lib/types";
-import UploadAnalyzer from "../../upload-analyzer";
+import ProjectUploadSection from "./project-upload-section";
 import LocalProjectDetail from "./local-project-detail";
 
 const supportedFiles = ["PDF", "DOCX", "PPTX", "JPG", "PNG", "DWG", "ZIP"];
@@ -76,42 +76,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                 </div>
               ))}
             </div>
-            <UploadAnalyzer projectId={project.id} />
-            <div className="mt-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-bold text-[#15345b]">업로드 히스토리</p>
-                  <p className="mt-1 text-sm text-[#64748b]">프로젝트에 등록된 기존 자료와 추가 업로드 이력을 함께 확인합니다.</p>
-                </div>
-                <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{project.files.length}건</span>
-              </div>
-              <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
-                <table className="w-full border-collapse text-left text-sm">
-                  <thead className="bg-[#eef4fb] text-[#15345b]">
-                    <tr>
-                      <th className="px-4 py-3">파일명</th>
-                      <th className="w-28 px-4 py-3">파일 형식</th>
-                      <th className="w-28 px-4 py-3">분석 상태</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#d7dee8] bg-white">
-                    {project.files.map((file) => (
-                      <tr key={file.id}>
-                        <td className="px-4 py-4">
-                          <p className="font-bold text-[#15345b]">{file.fileName}</p>
-                          <p className="mt-1 text-[#64748b]">프로젝트 기본 첨부자료</p>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{file.fileType}</span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <Badge tone="blue">{file.analysisStatus}</Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>              </div>
-            </div>
+            <ProjectUploadSection project={project} />
           </Panel>
         </section>
 

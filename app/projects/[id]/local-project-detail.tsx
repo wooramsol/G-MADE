@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { Project, ProjectFile } from "@/lib/types";
 import UploadAnalyzer from "../../upload-analyzer";
 import { addLocalProjectFiles, deleteLocalProject, getLocalProjects } from "../local-project-storage";
+import { queueToast } from "../../toast";
 
 export default function LocalProjectDetail({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
@@ -59,6 +60,7 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
               type="button"
               onClick={() => {
                 deleteLocalProject(project.id);
+                queueToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
                 window.location.href = "/projects";
               }}
             >
