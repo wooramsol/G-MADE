@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  RECEIVED
+  IN_REVIEW
+  COMPLETED
+}
+
+enum AnalysisStatus {
+  PENDING
+  ANALYZING
+  COMPLETED
+  FAILED
+}
+
+enum ReportStatus {
+  DRAFT
+  GENERATED
+  ISSUED
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String
+  users       User[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("roles")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  roleId    String   @map("role_id")
+  role      Role     @relation(fields: [roleId], references: [id])
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  humanEvaluations HumanEvaluation[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  location    String
+  client      String
+  designer    String
+  projectType String        @map("project_type")
+  scale       String
+  reviewType  String        @map("review_type")
+  receivedAt  DateTime      @map("received_at")
+  status      ProjectStatus @default(RECEIVED)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  files            ProjectFile[]
+  aiEvaluations    AiEvaluation[]
+  humanEvaluations HumanEvaluation[]
+  hybridResults    HybridResult[]
+  reports          Report[]
+
+  @@map("projects")
+}
+
+model ProjectFile {
+  id             String         @id @default(cuid())
+  projectId      String         @map("project_id")
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileName       String         @map("file_name")
+  fileType       String         @map("file_type")
+  storageKey     String         @map("storage_key")
+  sizeBytes      BigInt         @map("size_bytes")
+  analysisStatus AnalysisStatus @default(PENDING) @map("analysis_status")
+  extractedData  Json?          @map("extracted_data")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  @@map("project_files")
+}
+
+model EvaluationCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?  @map("parent_id")
+  parent      EvaluationCategory?  @relation("EvaluationCategoryTree", fields: [parentId], references: [id])
+  children    EvaluationCategory[] @relation("EvaluationCategoryTree")
+  sortOrder   Int      @default(0) @map("sort_order")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  items EvaluationItem[]
+
+  @@map("evaluation_categories")
+}
+
+model EvaluationItem {
+  id          String   @id @default(cuid())
+  categoryId  String   @map("category_id")
+  category    EvaluationCategory @relation(fields: [categoryId], references: [id])
+  detailItem  String   @map("detail_item")
+  points      Int
+  description String
+  criteria    String
+  sortOrder   Int      @default(0) @map("sort_order")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  aiEvaluations    AiEvaluation[]
+  humanEvaluations HumanEvaluation[]
+  hybridResults    HybridResult[]
+
+  @@map("evaluation_items")
+}
+
+model AiEvaluation {
+  id             String   @id @default(cuid())
+  projectId      String   @map("project_id")
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  itemId         String   @map("item_id")
+  item           EvaluationItem @relation(fields: [itemId], references: [id])
+  score          Decimal  @db.Decimal(5, 2)
+  grade          String
+  rationale      String
+  recommendation String
+  scoreTrace     Json     @map("score_trace")
+  lawRefs        Json     @map("law_refs")
+  guidelineRefs  Json     @map("guideline_refs")
+  caseRefs       Json     @map("case_refs")
+  modelName      String   @map("model_name")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([projectId, itemId])
+  @@map("ai_evaluations")
+}
+
+model HumanEvaluation {
+  id             String   @id @default(cuid())
+  projectId      String   @map("project_id")
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  itemId         String   @map("item_id")
+  item           EvaluationItem @relation(fields: [itemId], references: [id])
+  reviewerId     String   @map("reviewer_id")
+  reviewer       User     @relation(fields: [reviewerId], references: [id])
+  score          Decimal  @db.Decimal(5, 2)
+  comment        String
+  attachmentKey  String?  @map("attachment_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([projectId, itemId, reviewerId])
+  @@map("human_evaluations")
+}
+
+model HybridResult {
+  id           String   @id @default(cuid())
+  projectId    String   @map("project_id")
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  itemId       String   @map("item_id")
+  item         EvaluationItem @relation(fields: [itemId], references: [id])
+  aiWeight     Decimal  @db.Decimal(5, 2) @map("ai_weight")
+  humanWeight  Decimal  @db.Decimal(5, 2) @map("human_weight")
+  aiScore      Decimal  @db.Decimal(5, 2) @map("ai_score")
+  humanScore   Decimal  @db.Decimal(5, 2) @map("human_score")
+  finalScore   Decimal  @db.Decimal(5, 2) @map("final_score")
+  finalGrade   String   @map("final_grade")
+  finalComment String   @map("final_comment")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([projectId, itemId])
+  @@map("hybrid_results")
+}
+
+model Report {
+  id        String       @id @default(cuid())
+  projectId String       @map("project_id")
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status    ReportStatus @default(DRAFT)
+  title     String
+  fileKey   String?      @map("file_key")
+  payload   Json
+  issuedAt  DateTime?    @map("issued_at")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  @@map("reports")
+}
+
+model Law {
+  id           String   @id @default(cuid())
+  title        String
+  article      String
+  jurisdiction String
+  summary      String
+  sourceUrl    String?  @map("source_url")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("laws")
+}
+
+model Guideline {
+  id        String   @id @default(cuid())
+  title     String
+  section   String
+  summary   String
+  sourceUrl String?  @map("source_url")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("guidelines")
+}
+
+model CaseStudy {
+  id          String   @id @default(cuid())
+  title       String
+  location    String
+  projectType String   @map("project_type")
+  reviewType  String   @map("review_type")
+  summary     String
+  keyLearning String   @map("key_learning")
+  vectorKey   String?  @map("vector_key")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("case_studies")
+}
+
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       Json
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
