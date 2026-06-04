@@ -14,7 +14,7 @@ export default async function ProjectManagementPage() {
         <ProjectSidebar context="list" />
 
         <section className="flex-1">
-          <header className="sticky top-10 z-10 border-b border-[#d7dee8] bg-white/95 px-6 py-4 backdrop-blur">
+          <header className="border-b border-[#d7dee8] bg-white px-6 py-4">
             <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-[#2463b3]">프로젝트 선택</p>
