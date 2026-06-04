@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { label: "Dashboard", href: "/", match: (pathname: string) => pathname === "/" },
   { label: "Project Management", href: "/projects", match: (pathname: string) => pathname.startsWith("/projects") },
-];
+] as const;
 
 export default function TopNavigation() {
   const pathname = usePathname();
