@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { queueToast, showToast } from "../toast";
+import { showToast } from "../toast";
 import { useState } from "react";
 
 type DeleteProjectButtonProps = {
@@ -30,13 +30,12 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
         throw new Error(payload.error ?? "프로젝트 삭제에 실패했습니다.");
       }
 
+      showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
       if (redirectTo) {
-        queueToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
-        router.push(redirectTo);
+        window.setTimeout(() => router.push(redirectTo), 650);
       } else {
-        showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
+        router.refresh();
       }
-      router.refresh();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "프로젝트 삭제에 실패했습니다.");
     } finally {

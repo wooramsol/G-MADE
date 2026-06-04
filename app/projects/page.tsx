@@ -1,7 +1,6 @@
 import Link from "next/link";
-import DeleteProjectButton from "./delete-project-button";
 import LocalProjectList from "./local-project-list";
-import { getAllProjects, isCreatedProjectId } from "@/lib/project-store";
+import { getAllProjects } from "@/lib/project-store";
 
 export const dynamic = "force-dynamic";
 
@@ -73,8 +72,6 @@ export default async function ProjectManagementPage({
 
         <div className="grid gap-5 xl:grid-cols-3">
           {filteredProjects.length > 0 ? filteredProjects.map((project) => {
-            const canDelete = isCreatedProjectId(project.id);
-
             return (
               <article
                 className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow transition hover:-translate-y-0.5 hover:border-[#2463b3]"
@@ -98,11 +95,6 @@ export default async function ProjectManagementPage({
                     프로젝트 상세 평가로 이동
                   </div>
                 </Link>
-                {canDelete ? (
-                  <div className="mt-3 border-t border-[#d7dee8] pt-3">
-                    <DeleteProjectButton projectId={project.id} projectName={project.name} />
-                  </div>
-                ) : null}
               </article>
             );
           }) : (

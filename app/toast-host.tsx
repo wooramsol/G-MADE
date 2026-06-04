@@ -34,13 +34,9 @@ export default function ToastHost() {
 
   if (!toast) return null;
 
-  const toneClass = toast.tone === "error"
-    ? "border-red-200 bg-red-50/90 text-red-800"
-    : "border-blue-200 bg-white/85 text-[#15345b]";
-
   return (
     <div className="fixed left-1/2 top-1/2 z-[60] w-[min(92vw,420px)] -translate-x-1/2 -translate-y-1/2">
-      <div className={`rounded-3xl border px-6 py-4 text-center text-sm font-bold shadow-2xl backdrop-blur-md ${toneClass}`}>
+      <div className="rounded-3xl bg-black/75 px-6 py-4 text-center text-sm font-bold text-white shadow-2xl backdrop-blur-md">
         {toast.message}
       </div>
     </div>

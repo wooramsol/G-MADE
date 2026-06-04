@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Project } from "@/lib/types";
-import { deleteLocalProject, getLocalProjects } from "./local-project-storage";
-import { showToast } from "../toast";
+import { getLocalProjects } from "./local-project-storage";
 
 type LocalProjectListProps = {
   serverProjectIds: string[];
@@ -69,19 +68,6 @@ export default function LocalProjectList({ serverProjectIds, query }: LocalProje
               프로젝트 상세 평가로 이동
             </div>
           </Link>
-          <div className="mt-3 border-t border-[#d7dee8] pt-3">
-            <button
-              className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100"
-              type="button"
-              onClick={() => {
-                deleteLocalProject(project.id);
-                setProjects(getLocalProjects());
-                showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
-              }}
-            >
-              프로젝트 삭제
-            </button>
-          </div>
         </article>
       ))}
     </>

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { evaluationItems } from "@/lib/demo-data";
 import type { ProjectFile } from "@/lib/types";
+import { showToast } from "./toast";
 
 type UploadResponse = {
   files: Array<{
@@ -96,6 +97,7 @@ export default function UploadAnalyzer({
       }
 
       setResult(payload);
+      showToast({ message: "AI 분석이 완료되었습니다.", tone: "success" });
       if (onUploadedFiles) {
         onUploadedFiles(
           payload.files.map((file: { id: string; originalName: string; fileType: string }) => ({
