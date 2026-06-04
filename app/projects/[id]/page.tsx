@@ -317,24 +317,9 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
   );
 }
 
-function MetricCard({ label, value, delta }: { label: string; value: string; delta: string }) {
-  return (
-    <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
-      <p className="text-sm font-semibold text-[#64748b]">{label}</p>
-      <p className="mt-3 text-3xl font-black text-[#15345b]">{value}</p>
-      <p className="mt-3 text-sm text-[#2463b3]">{delta}</p>
-    </div>
-  );
-}
-
 function Badge({ children, tone }: { children: React.ReactNode; tone: "blue" | "gray" }) {
   const toneClass = tone === "blue" ? "bg-[#e8f1ff] text-[#2463b3]" : "bg-[#eef2f7] text-[#475569]";
   return <span className={`rounded-full px-3 py-1 text-xs font-bold ${toneClass}`}>{children}</span>;
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const tone = status === "완료" ? "bg-emerald-50 text-emerald-700" : status === "접수" ? "bg-slate-100 text-slate-700" : "bg-blue-50 text-blue-700";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${tone}`}>{status}</span>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
