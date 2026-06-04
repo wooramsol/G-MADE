@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import SiteFooter from "./site-footer";
 
 const PROJECT_NAME = "G-MADE Hybrid Evaluation System";
 
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           이 사이트는 현재 정식배포가 아닌 테스트서버입니다. 담당자: 연구소장 정우람솔
         </div>
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

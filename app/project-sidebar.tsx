@@ -70,31 +70,26 @@ export default function ProjectSidebar({ context }: ProjectSidebarProps) {
           Project Management
         </Link>
 
-        <div className="ml-3 border-l border-[#d7dee8] pl-3">
-          {projectSubMenus.map((menu) => {
-            const isActive = context === "detail" && activeHref === menu.href;
+        {context === "detail" ? (
+          <div className="ml-3 border-l border-[#d7dee8] pl-3">
+            {projectSubMenus.map((menu) => {
+              const isActive = activeHref === menu.href;
 
-            return context === "detail" ? (
-              <a
-                href={menu.href}
-                className={`mt-1 block rounded-lg px-3 py-2 text-xs font-bold transition ${
-                  isActive ? "primary-action-blue" : "text-[#64748b] hover:bg-[#eef4fb] hover:text-[#15345b]"
-                }`}
-                key={menu.label}
-                onClick={() => setActiveHref(menu.href)}
-              >
-                {menu.label}
-              </a>
-            ) : (
-              <span
-                className="mt-1 block cursor-default rounded-lg px-3 py-2 text-xs font-semibold text-[#94a3b8]"
-                key={menu.label}
-              >
-                {menu.label}
-              </span>
-            );
-          })}
-        </div>
+              return (
+                <a
+                  href={menu.href}
+                  className={`mt-1 block rounded-lg px-3 py-2 text-xs font-bold transition ${
+                    isActive ? "primary-action-blue" : "text-[#64748b] hover:bg-[#eef4fb] hover:text-[#15345b]"
+                  }`}
+                  key={menu.label}
+                  onClick={() => setActiveHref(menu.href)}
+                >
+                  {menu.label}
+                </a>
+              );
+            })}
+          </div>
+        ) : null}
       </nav>
       <div className="mx-4 mt-8 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#475569]">
         <p className="font-bold text-[#15345b]">Project Management</p>
