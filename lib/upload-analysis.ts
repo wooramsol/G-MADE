@@ -1,3 +1,4 @@
+import { formatProviderApiError } from "./ai/format-api-error";
 import { selectProvider } from "./ai/select-provider";
 import type { AiProviderPreference } from "./ai/types";
 import { evaluationItems, guidelines, laws } from "./demo-data";
@@ -113,7 +114,7 @@ async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAn
 
   if (!response.ok) {
     const message = await response.text();
-    return createDemoAnalysis(files, "openai", [`OpenAI API 호출 실패: ${message.slice(0, 300)}`]);
+    return createDemoAnalysis(files, "openai", [formatProviderApiError("OpenAI", response.status, message)]);
   }
 
   const payload = await response.json();
@@ -125,8 +126,34 @@ async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAn
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return createDemoAnalysis(files, "demo", ["GEMINI_API_KEY가 설정되지 않았습니다."]);
 
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
-  const response = await fetch(
+  const configuredModel = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+  const modelsToTry = Array.from(new Set([configuredModel, "gemini-2.0-flash", "gemini-2.0-flash-lite"]));
+
+  let lastStatus = 500;
+  let lastBody = "";
+
+  for (const model of modelsToTry) {
+    const response = await requestGemini(apiKey, model, files);
+
+    if (response.ok) {
+      const payload = await response.json();
+      const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+      return normalizeAiJson(content, files, "gemini");
+    }
+
+    lastStatus = response.status;
+    lastBody = await response.text();
+
+    if (response.status !== 429) {
+      break;
+    }
+  }
+
+  return createDemoAnalysis(files, "gemini", [formatProviderApiError("Gemini", lastStatus, lastBody)]);
+}
+
+async function requestGemini(apiKey: string, model: string, files: UploadedFileSummary[]) {
+  return fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",
@@ -149,15 +176,6 @@ async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAn
       }),
     },
   );
-
-  if (!response.ok) {
-    const message = await response.text();
-    return createDemoAnalysis(files, "gemini", [`Gemini API 호출 실패: ${message.slice(0, 300)}`]);
-  }
-
-  const payload = await response.json();
-  const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-  return normalizeAiJson(content, files, "gemini");
 }
 
 function buildPrompt(files: UploadedFileSummary[]): string {

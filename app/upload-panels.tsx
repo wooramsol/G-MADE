@@ -130,9 +130,10 @@ export function UploadAnalysisResultsPanel({ sessions }: { sessions: UploadAnaly
           </div>
 
           {session.analysis.warnings.length > 0 ? (
-            <div className="rounded-xl bg-[#fff7ed] p-3 text-sm leading-6 text-[#9a3412]">
+            <div className="rounded-xl border border-[#fdba74] bg-[#fff7ed] p-4 text-sm leading-6 text-[#9a3412]">
+              <p className="font-bold">AI 호출 안내</p>
               {session.analysis.warnings.map((warning) => (
-                <p key={warning}>{warning}</p>
+                <p className="mt-2" key={warning}>{warning}</p>
               ))}
             </div>
           ) : null}
