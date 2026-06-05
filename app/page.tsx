@@ -1,14 +1,17 @@
 import Link from "next/link";
-import {
-  dashboardStats,
-  hybridResults,
-  projects,
-  roles,
-} from "@/lib/demo-data";
-import { calculateProjectScore } from "@/lib/hybrid-evaluation";
+import { getDashboardPageData } from "@/lib/dashboard-data";
 
-export default function Dashboard() {
-  const projectScore = calculateProjectScore(hybridResults);
+export const dynamic = "force-dynamic";
+
+export default async function Dashboard() {
+  const { stats, recentProjects, roles } = await getDashboardPageData();
+
+  const averageScoreDelta =
+    stats.averageScoreSource === "hybrid_results"
+      ? "하이브리드 평가 결과 기준"
+      : stats.averageScoreSource === "upload_analyses"
+        ? "업로드 AI 분석 결과 기준"
+        : "최근 평가 데이터 기준";
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
@@ -20,43 +23,54 @@ export default function Dashboard() {
             description="모든 심의 프로젝트의 접수, 진행, 완료, 평균 점수를 한 화면에서 확인합니다."
           />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="접수 건수" value={dashboardStats.received.toString()} delta="전체 프로젝트 기준" />
-            <MetricCard label="심사 진행중" value={dashboardStats.inReview.toString()} delta="위원 검토 대기 포함" />
-            <MetricCard label="완료 건수" value={dashboardStats.completed.toString()} delta="보고서 발급 완료 포함" />
-            <MetricCard label="평균 점수" value={`${projectScore}점`} delta="최근 평가 데이터 기준" />
+            <MetricCard label="접수 건수" value={stats.received.toString()} delta="전체 프로젝트 기준" />
+            <MetricCard label="심사 진행중" value={stats.inReview.toString()} delta="위원 검토 대기 포함" />
+            <MetricCard label="완료 건수" value={stats.completed.toString()} delta="보고서 발급 완료 포함" />
+            <MetricCard label="평균 점수" value={`${stats.averageScore}점`} delta={averageScoreDelta} />
           </div>
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
           <Panel title="최근 프로젝트" action="프로젝트 선택">
-            <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-[#eef4fb] text-[#15345b]">
-                  <tr>
-                    <th className="px-4 py-3">사업명</th>
-                    <th className="px-4 py-3">심의종류</th>
-                    <th className="px-4 py-3">접수일</th>
-                    <th className="px-4 py-3">상태</th>
-                    <th className="px-4 py-3">이동</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#d7dee8] bg-white">
-                  {projects.map((project) => (
-                    <tr key={project.id}>
-                      <td className="px-4 py-4 font-semibold text-[#172033]">{project.name}</td>
-                      <td className="px-4 py-4 text-[#64748b]">{project.reviewType}</td>
-                      <td className="px-4 py-4 text-[#64748b]">{project.receivedAt}</td>
-                      <td className="px-4 py-4"><StatusBadge status={project.status} /></td>
-                      <td className="px-4 py-4">
-                        <Link className="font-bold text-[#2463b3]" href={`/projects/${project.id}`}>
-                          상세 보기
-                        </Link>
-                      </td>
+            {recentProjects.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
+                등록된 프로젝트가 없습니다.{" "}
+                <Link className="font-bold text-[#2463b3]" href="/projects/new">
+                  새 프로젝트 등록
+                </Link>
+              </p>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="bg-[#eef4fb] text-[#15345b]">
+                    <tr>
+                      <th className="px-4 py-3">사업명</th>
+                      <th className="px-4 py-3">심의종류</th>
+                      <th className="px-4 py-3">접수일</th>
+                      <th className="px-4 py-3">상태</th>
+                      <th className="px-4 py-3">이동</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-[#d7dee8] bg-white">
+                    {recentProjects.map((project) => (
+                      <tr key={project.id}>
+                        <td className="px-4 py-4 font-semibold text-[#172033]">{project.name}</td>
+                        <td className="px-4 py-4 text-[#64748b]">{project.reviewType}</td>
+                        <td className="px-4 py-4 text-[#64748b]">{project.receivedAt}</td>
+                        <td className="px-4 py-4">
+                          <StatusBadge status={project.status} />
+                        </td>
+                        <td className="px-4 py-4">
+                          <Link className="font-bold text-[#2463b3]" href={`/projects/${project.id}`}>
+                            상세 보기
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Panel>
 
           <Panel title="사용자 권한 체계" action="역할별 접근">
@@ -70,9 +84,7 @@ export default function Dashboard() {
             </div>
           </Panel>
         </section>
-
       </div>
-
     </main>
   );
 }
@@ -110,6 +122,11 @@ function MetricCard({ label, value, delta }: { label: string; value: string; del
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const tone = status === "완료" ? "bg-emerald-50 text-emerald-700" : status === "접수" ? "bg-slate-100 text-slate-700" : "bg-blue-50 text-blue-700";
+  const tone =
+    status === "완료"
+      ? "bg-emerald-50 text-emerald-700"
+      : status === "접수"
+        ? "bg-slate-100 text-slate-700"
+        : "bg-blue-50 text-blue-700";
   return <span className={`rounded-full px-3 py-1 text-xs font-bold ${tone}`}>{status}</span>;
 }
