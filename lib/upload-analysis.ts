@@ -1,4 +1,5 @@
 import { formatProviderApiError } from "./ai/format-api-error";
+import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
 import { selectProvider } from "./ai/select-provider";
 import type { AiProviderPreference } from "./ai/types";
 import { evaluationItems, guidelines, laws } from "./demo-data";
@@ -126,28 +127,48 @@ async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAn
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return createDemoAnalysis(files, "demo", ["GEMINI_API_KEY가 설정되지 않았습니다."]);
 
-  const primaryModel = process.env.GEMINI_MODEL ?? "gemini-2.0-flash-lite";
-  let response = await requestGemini(apiKey, primaryModel, files);
+  const modelsToTry = getGeminiModelsToTry(process.env.GEMINI_MODEL);
+  let lastStatus = 500;
+  let lastBody = "";
+  let rateLimitModel = modelsToTry[0] ?? DEFAULT_GEMINI_MODEL;
 
-  if (!response.ok && response.status === 429) {
-    await sleep(13_000);
-    response = await requestGemini(apiKey, primaryModel, files);
+  for (const model of modelsToTry) {
+    let response = await requestGemini(apiKey, model, files);
+
+    if (!response.ok && response.status === 429) {
+      rateLimitModel = model;
+      await sleep(13_000);
+      response = await requestGemini(apiKey, model, files);
+    }
+
+    if (response.ok) {
+      const payload = await response.json();
+      const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+      return normalizeAiJson(content, files, "gemini");
+    }
+
+    lastStatus = response.status;
+    lastBody = await response.text();
+
+    if (response.status === 404) {
+      continue;
+    }
+
+    if (response.status === 429) {
+      break;
+    }
+
+    break;
   }
 
-  if (!response.ok && response.status === 404) {
-    const fallbackModel =
-      primaryModel === "gemini-2.0-flash-lite" ? "gemini-2.0-flash" : "gemini-2.0-flash-lite";
-    response = await requestGemini(apiKey, fallbackModel, files);
+  if (lastStatus === 429) {
+    return createDemoAnalysis(files, "gemini", [
+      formatProviderApiError("Gemini", lastStatus, lastBody),
+      `사용 모델: ${rateLimitModel}`,
+    ]);
   }
 
-  if (response.ok) {
-    const payload = await response.json();
-    const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-    return normalizeAiJson(content, files, "gemini");
-  }
-
-  const lastBody = await response.text();
-  return createDemoAnalysis(files, "gemini", [formatProviderApiError("Gemini", response.status, lastBody)]);
+  return createDemoAnalysis(files, "gemini", [formatProviderApiError("Gemini", lastStatus, lastBody)]);
 }
 
 function sleep(ms: number): Promise<void> {

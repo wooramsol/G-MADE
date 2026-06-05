@@ -23,7 +23,7 @@ export function formatProviderApiError(providerLabel: string, status: number, bo
   }
 
   if (code === 404 || status === 404 || lowerMessage.includes("not found")) {
-    return `${providerLabel} 모델을 찾을 수 없습니다(404). Vercel의 GEMINI_MODEL 값을 gemini-2.0-flash로 설정한 뒤 재배포해 주세요.`;
+    return `${providerLabel} 모델을 찾을 수 없습니다(404). Vercel의 GEMINI_MODEL을 gemini-2.5-flash-lite로 설정하거나 GEMINI_MODEL 변수를 삭제한 뒤 재배포해 주세요. (gemini-2.0 계열은 2026년 6월부터 종료되었습니다.)`;
   }
 
   if (code === 401 || status === 401 || lowerMessage.includes("api key")) {
