@@ -1,6 +1,7 @@
 import { roles as demoRoles } from "./demo-data";
 import { buildDashboardStats, getRecentProjects, mergeManagedProjects } from "./dashboard-projects";
 import { getAllProjects } from "./project-store";
+import type { Role } from "@prisma/client";
 import { getPrismaClient, isDatabaseAvailable } from "./prisma";
 import type { Project } from "./types";
 
@@ -42,7 +43,7 @@ async function getDatabaseRoles(): Promise<DashboardRole[]> {
 
     if (records.length === 0) return demoRoles.map(mapDemoRole);
 
-    return records.map((role) => ({
+    return records.map((role: Role) => ({
       code: role.code,
       label: role.name,
       authority: role.description,
