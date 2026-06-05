@@ -46,7 +46,7 @@ export function getActiveProviderLabel(preference: AiProviderPreference = "auto"
   const labels: Record<AiProviderId, string> = {
     demo: "데모",
     gemini: "Gemini",
-    openai: "GPT (OpenAI)",
+    openai: "ChatGPT",
     claude: "Claude",
   };
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
 
@@ -89,7 +90,7 @@ export function UploadAnalysisResultsPanel({ sessions }: { sessions: UploadAnaly
               {formatUploadDateTime(session.analyzedAt)}
             </span>
             <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-              {session.analysis.provider.toUpperCase()}
+              {formatProviderBadgeLabel(session.analysis.provider)}
             </span>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
               {session.analysis.mode === "live" ? "실제 AI API 분석" : "데모 분석"}
