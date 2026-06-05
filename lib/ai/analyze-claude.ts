@@ -1,6 +1,6 @@
 import type { UploadedFileSummary, UploadAnalysisResult } from "./analysis-types";
 import { buildAnalysisPrompt } from "./analysis-prompt";
-import { getAnthropicApiKey } from "./env-keys";
+import { getClaudeApiKey, getClaudeModel } from "./env-keys";
 import { extractJsonContent } from "./extract-json";
 import { formatProviderApiError } from "./format-api-error";
 
@@ -21,20 +21,20 @@ export async function analyzeWithClaude(
   files: UploadedFileSummary[],
   deps: ClaudeDeps,
 ): Promise<UploadAnalysisResult> {
-  const apiKey = getAnthropicApiKey();
+  const apiKey = getClaudeApiKey();
   if (!apiKey) {
     return deps.createDemoAnalysis(files, "claude", [
-      "Claude API 키가 서버에서 읽히지 않습니다. Vercel에 ANTHROPIC_API_KEY 또는 CLAUDE_API_KEY로 sk-ant- 키를 넣었는지 확인하고 재배포해 주세요. /api/ai-status 로 등록 여부를 확인할 수 있습니다.",
+      "CLAUDE_API_KEY가 서버에서 읽히지 않습니다. Vercel Environment Variables에 sk-ant- 키를 넣었는지 확인하고 재배포해 주세요. /api/ai-status 로 등록 여부를 확인할 수 있습니다.",
     ]);
   }
 
   if (!apiKey.startsWith("sk-ant-")) {
     return deps.createDemoAnalysis(files, "claude", [
-      "ANTHROPIC_API_KEY 형식이 올바르지 않습니다. sk-ant- 로 시작하는 Claude API 키인지 확인해 주세요.",
+      "CLAUDE_API_KEY 형식이 올바르지 않습니다. sk-ant- 로 시작하는 Claude API 키인지 확인해 주세요.",
     ]);
   }
 
-  const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+  const model = getClaudeModel();
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {

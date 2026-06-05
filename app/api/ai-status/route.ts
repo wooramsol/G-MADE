@@ -22,9 +22,9 @@ export async function GET() {
       },
       claude: {
         configured: providers.claude,
-        envKey: providers.anthropicEnvKey ?? "ANTHROPIC_API_KEY | CLAUDE_API_KEY",
-        acceptedKeys: ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"],
-        keyHint: providers.anthropicKeyHint,
+        envKey: providers.claudeEnvKey ?? "CLAUDE_API_KEY",
+        acceptedKeys: ["CLAUDE_API_KEY", "ANTHROPIC_API_KEY"],
+        keyHint: providers.claudeKeyHint,
       },
     },
     note: "키 값 전체는 노출하지 않습니다. configured가 false면 Vercel 환경 변수 이름·환경(Production/Preview)·재배포를 확인하세요.",

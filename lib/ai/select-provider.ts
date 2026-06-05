@@ -1,4 +1,4 @@
-import { getAnthropicApiKey, getGeminiApiKey, getOpenAiApiKey } from "./env-keys";
+import { getClaudeApiKey, getGeminiApiKey, getOpenAiApiKey } from "./env-keys";
 import type { AiProviderId, AiProviderPreference } from "./types";
 
 const providerOrder: AiProviderId[] = ["gemini", "openai", "claude"];
@@ -37,7 +37,7 @@ export function isProviderConfigured(provider: AiProviderId): boolean {
   if (provider === "demo") return true;
   if (provider === "openai") return Boolean(getOpenAiApiKey());
   if (provider === "gemini") return Boolean(getGeminiApiKey());
-  if (provider === "claude") return Boolean(getAnthropicApiKey());
+  if (provider === "claude") return Boolean(getClaudeApiKey());
   return false;
 }
 

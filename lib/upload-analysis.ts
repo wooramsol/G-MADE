@@ -64,7 +64,7 @@ export async function analyzeUploadedFiles(input: AnalyzeInput): Promise<UploadA
   }
 
   return createDemoAnalysis(input.files, "demo", [
-    "설정된 AI API 키가 없어 데모 분석 결과를 반환했습니다. Vercel에 GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY 중 하나를 추가해 주세요.",
+    "설정된 AI API 키가 없어 데모 분석 결과를 반환했습니다. Vercel에 GEMINI_API_KEY, OPENAI_API_KEY, CLAUDE_API_KEY 중 하나를 추가해 주세요.",
   ]);
 }
 

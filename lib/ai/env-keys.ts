@@ -11,24 +11,28 @@ export function getOpenAiApiKey(): string | undefined {
   return readEnv("OPENAI_API_KEY");
 }
 
-export function getAnthropicApiKey(): string | undefined {
-  return readEnv("ANTHROPIC_API_KEY") ?? readEnv("CLAUDE_API_KEY");
+export function getClaudeApiKey(): string | undefined {
+  return readEnv("CLAUDE_API_KEY") ?? readEnv("ANTHROPIC_API_KEY");
+}
+
+export function getClaudeModel(): string {
+  return readEnv("CLAUDE_MODEL") ?? readEnv("ANTHROPIC_MODEL") ?? "claude-sonnet-4-20250514";
 }
 
 export function getConfiguredProviders() {
   const gemini = Boolean(getGeminiApiKey());
   const openai = Boolean(getOpenAiApiKey());
-  const claude = Boolean(getAnthropicApiKey());
+  const claude = Boolean(getClaudeApiKey());
 
   return {
     gemini,
     openai,
     claude,
-    anthropicKeyHint: claude ? getAnthropicApiKey()?.slice(0, 7) : null,
-    anthropicEnvKey: claude
-      ? readEnv("ANTHROPIC_API_KEY")
-        ? "ANTHROPIC_API_KEY"
-        : "CLAUDE_API_KEY"
+    claudeKeyHint: claude ? getClaudeApiKey()?.slice(0, 7) : null,
+    claudeEnvKey: claude
+      ? readEnv("CLAUDE_API_KEY")
+        ? "CLAUDE_API_KEY"
+        : "ANTHROPIC_API_KEY"
       : null,
     geminiKeyHint: gemini ? getGeminiApiKey()?.slice(0, 4) : null,
     openaiKeyHint: openai ? getOpenAiApiKey()?.slice(0, 3) : null,
