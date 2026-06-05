@@ -144,7 +144,13 @@ async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAn
     lastStatus = response.status;
     lastBody = await response.text();
 
-    if (response.status !== 429) {
+    // 429는 분당 요청 제한(RPM) — 연속 재시도하면 오히려 한도를 더 소모함
+    if (response.status === 429) {
+      break;
+    }
+
+    // 404(모델 없음)일 때만 다음 모델로 한 번 교체
+    if (response.status !== 404) {
       break;
     }
   }

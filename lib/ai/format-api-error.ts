@@ -19,7 +19,7 @@ export function formatProviderApiError(providerLabel: string, status: number, bo
   const lowerMessage = message.toLowerCase();
 
   if (code === 429 || status === 429 || lowerMessage.includes("quota") || lowerMessage.includes("rate")) {
-    return `${providerLabel} 무료 사용 한도를 초과했습니다(429). 잠시 후 다시 시도하거나 Google AI Studio 사용량(https://ai.dev/rate-limit)을 확인해 주세요. 지금은 데모 분석 결과를 표시합니다.`;
+    return `${providerLabel} 분당 요청 제한(RPM)에 걸렸습니다(429). 무료 티어는 1분에 몇 번만 호출할 수 있어, 짧은 시간에 여러 번 분석하면 발생합니다. 1~2분 후 한 번만 다시 시도해 주세요. (일일 총량을 다 쓴 것은 아닐 수 있습니다.) 지금은 데모 분석 결과를 표시합니다.`;
   }
 
   if (code === 404 || status === 404 || lowerMessage.includes("not found")) {
