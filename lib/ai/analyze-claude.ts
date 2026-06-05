@@ -1,5 +1,6 @@
 import type { UploadedFileSummary, UploadAnalysisResult } from "./analysis-types";
 import { buildAnalysisPrompt } from "./analysis-prompt";
+import { getAnthropicApiKey } from "./env-keys";
 import { extractJsonContent } from "./extract-json";
 import { formatProviderApiError } from "./format-api-error";
 
@@ -20,10 +21,16 @@ export async function analyzeWithClaude(
   files: UploadedFileSummary[],
   deps: ClaudeDeps,
 ): Promise<UploadAnalysisResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = getAnthropicApiKey();
   if (!apiKey) {
     return deps.createDemoAnalysis(files, "claude", [
-      "ANTHROPIC_API_KEY가 Vercel 환경 변수에 설정되지 않았습니다. Anthropic Console에서 키를 발급한 뒤 Vercel에 추가하고 재배포해 주세요.",
+      "ANTHROPIC_API_KEY가 서버에서 읽히지 않습니다. Vercel Key 이름이 정확한지, Production·Preview 모두 체크했는지, 저장 후 재배포했는지 확인하세요. /api/ai-status 로 등록 여부를 확인할 수 있습니다.",
+    ]);
+  }
+
+  if (!apiKey.startsWith("sk-ant-")) {
+    return deps.createDemoAnalysis(files, "claude", [
+      "ANTHROPIC_API_KEY 형식이 올바르지 않습니다. sk-ant- 로 시작하는 Claude API 키인지 확인해 주세요.",
     ]);
   }
 

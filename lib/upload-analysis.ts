@@ -1,4 +1,5 @@
 import { analyzeWithClaude } from "./ai/analyze-claude";
+import { getGeminiApiKey, getOpenAiApiKey } from "./ai/env-keys";
 import { buildAnalysisPrompt } from "./ai/analysis-prompt";
 import type { UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
@@ -68,7 +69,7 @@ export async function analyzeUploadedFiles(input: AnalyzeInput): Promise<UploadA
 }
 
 async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAnalysisResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getOpenAiApiKey();
   if (!apiKey) {
     return createDemoAnalysis(files, "openai", [
       "OPENAI_API_KEY가 Vercel 환경 변수에 설정되지 않았습니다. Settings → Environment Variables에서 추가한 뒤 재배포해 주세요.",
@@ -110,7 +111,7 @@ async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAn
 }
 
 async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAnalysisResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey) return createDemoAnalysis(files, "demo", ["GEMINI_API_KEY가 설정되지 않았습니다."]);
 
   const modelsToTry = getGeminiModelsToTry(process.env.GEMINI_MODEL);
