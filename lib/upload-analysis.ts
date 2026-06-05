@@ -102,7 +102,7 @@ async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAn
 
   if (!response.ok) {
     const message = await response.text();
-    return createDemoAnalysis(files, "openai", [formatProviderApiError("OpenAI", response.status, message)]);
+    return createDemoAnalysis(files, "openai", [formatProviderApiError("openai", "OpenAI", response.status, message)]);
   }
 
   const payload = await response.json();
@@ -150,12 +150,12 @@ async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAn
 
   if (lastStatus === 429) {
     return createDemoAnalysis(files, "gemini", [
-      formatProviderApiError("Gemini", lastStatus, lastBody),
+      formatProviderApiError("gemini", "Gemini", lastStatus, lastBody),
       `사용 모델: ${rateLimitModel}`,
     ]);
   }
 
-  return createDemoAnalysis(files, "gemini", [formatProviderApiError("Gemini", lastStatus, lastBody)]);
+  return createDemoAnalysis(files, "gemini", [formatProviderApiError("gemini", "Gemini", lastStatus, lastBody)]);
 }
 
 function sleep(ms: number): Promise<void> {

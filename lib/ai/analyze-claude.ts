@@ -1,5 +1,6 @@
 import type { UploadedFileSummary, UploadAnalysisResult } from "./analysis-types";
 import { buildAnalysisPrompt } from "./analysis-prompt";
+import { getClaudeModelsToTry } from "./claude-models";
 import { getClaudeApiKey, getClaudeModel } from "./env-keys";
 import { extractJsonContent } from "./extract-json";
 import { formatProviderApiError } from "./format-api-error";
@@ -34,8 +35,39 @@ export async function analyzeWithClaude(
     ]);
   }
 
-  const model = getClaudeModel();
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const modelsToTry = getClaudeModelsToTry(getClaudeModel());
+  let lastStatus = 500;
+  let lastBody = "";
+
+  for (const model of modelsToTry) {
+    const response = await requestClaude(apiKey, model, files);
+
+    if (response.ok) {
+      const payload = (await response.json()) as {
+        content?: Array<{ type?: string; text?: string }>;
+      };
+      const textBlock = payload.content?.find((block) => block.type === "text") ?? payload.content?.[0];
+      const content = extractJsonContent(textBlock?.text);
+      return deps.normalizeAiJson(content, files, "claude");
+    }
+
+    lastStatus = response.status;
+    lastBody = await response.text();
+
+    if (response.status === 404) {
+      continue;
+    }
+
+    break;
+  }
+
+  return deps.createDemoAnalysis(files, "claude", [
+    formatProviderApiError("claude", "Claude", lastStatus, lastBody),
+  ]);
+}
+
+async function requestClaude(apiKey: string, model: string, files: UploadedFileSummary[]) {
+  return fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "x-api-key": apiKey,
@@ -55,17 +87,4 @@ export async function analyzeWithClaude(
       ],
     }),
   });
-
-  if (!response.ok) {
-    const message = await response.text();
-    return deps.createDemoAnalysis(files, "claude", [formatProviderApiError("Claude", response.status, message)]);
-  }
-
-  const payload = (await response.json()) as {
-    content?: Array<{ type?: string; text?: string }>;
-  };
-  const textBlock = payload.content?.find((block) => block.type === "text") ?? payload.content?.[0];
-  const content = extractJsonContent(textBlock?.text);
-
-  return deps.normalizeAiJson(content, files, "claude");
 }

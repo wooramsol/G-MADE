@@ -15,8 +15,8 @@ export function getClaudeApiKey(): string | undefined {
   return readEnv("CLAUDE_API_KEY") ?? readEnv("ANTHROPIC_API_KEY");
 }
 
-export function getClaudeModel(): string {
-  return readEnv("CLAUDE_MODEL") ?? readEnv("ANTHROPIC_MODEL") ?? "claude-sonnet-4-20250514";
+export function getClaudeModel(): string | undefined {
+  return readEnv("CLAUDE_MODEL") ?? readEnv("ANTHROPIC_MODEL");
 }
 
 export function getConfiguredProviders() {
