@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { evaluationItems } from "@/lib/demo-data";
+import type { AiProviderPreference } from "@/lib/ai/types";
 import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
 import { UploadAnalysisResultsPanel } from "./upload-panels";
 import { showToast } from "./toast";
@@ -34,6 +35,7 @@ export default function UploadAnalyzer({
   const [itemPoints, setItemPoints] = useState<Record<string, number>>(
     Object.fromEntries(evaluationItems.map((item) => [item.id, item.points])),
   );
+  const [provider, setProvider] = useState<AiProviderPreference>("gemini");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const totalSize = useMemo(
@@ -68,7 +70,7 @@ export default function UploadAnalyzer({
     if (projectId) {
       formData.append("projectId", projectId);
     }
-    formData.append("provider", "gemini");
+    formData.append("provider", provider);
     formData.append("aiWeight", String(aiWeight));
     formData.append("expertWeight", String(100 - aiWeight));
     formData.append("evaluationItemPoints", JSON.stringify(itemPoints));
@@ -113,14 +115,25 @@ export default function UploadAnalyzer({
 
   return (
     <div className="mt-5 space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d7dee8] bg-white px-4 py-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-[#d7dee8] bg-white px-4 py-3">
         <div>
-          <p className="text-sm font-bold text-[#15345b]">분석 AI (테스트)</p>
+          <p className="text-sm font-bold text-[#15345b]">분석 AI 선택</p>
           <p className="mt-1 text-xs text-[#64748b]">
-            Gemini 무료 API 사용 중입니다. 1분에 호출 횟수 제한이 있어, 분석은 한 번에 하나씩만 실행해 주세요.
+            테스트 기본값은 Gemini입니다. GPT·Claude는 Vercel에 API 키를 넣으면 사용할 수 있습니다.
           </p>
         </div>
-        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">Gemini</span>
+        <label className="text-sm">
+          <span className="mb-2 block font-bold text-[#15345b]">AI 엔진</span>
+          <select
+            className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white"
+            value={provider}
+            onChange={(event) => setProvider(event.target.value as AiProviderPreference)}
+          >
+            <option value="gemini">Gemini (테스트 기본)</option>
+            <option value="openai">GPT (OpenAI)</option>
+            <option value="claude">Claude (Anthropic)</option>
+          </select>
+        </label>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -234,7 +247,7 @@ export default function UploadAnalyzer({
             type="button"
             onClick={submitUpload}
           >
-            {loading ? "Gemini 분석 중 (최대 20초)..." : "업로드 분석"}
+            {loading ? "AI 분석 중 (최대 20초)..." : "업로드 분석"}
           </button>
         </div>
       </div>

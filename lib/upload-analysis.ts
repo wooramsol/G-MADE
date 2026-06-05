@@ -1,3 +1,7 @@
+import { analyzeWithClaude } from "./ai/analyze-claude";
+import { buildAnalysisPrompt } from "./ai/analysis-prompt";
+import type { UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
+import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
 import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
 import { selectProvider } from "./ai/select-provider";
@@ -5,36 +9,7 @@ import type { AiProviderPreference } from "./ai/types";
 import { evaluationItems, guidelines, laws } from "./demo-data";
 import { gradeScore } from "./hybrid-evaluation";
 
-export type UploadedFileSummary = {
-  id: string;
-  originalName: string;
-  fileType: string;
-  sizeBytes: number;
-  storagePath: string;
-  extractedTextPreview: string;
-};
-
-export type UploadAnalysisResult = {
-  provider: "demo" | "openai" | "gemini" | "claude";
-  mode: "demo" | "live";
-  summary: string;
-  documentSections: Array<{
-    label: string;
-    confidence: number;
-    summary: string;
-  }>;
-  evaluationPreview: Array<{
-    itemId: string;
-    itemName: string;
-    score: number;
-    grade: string;
-    rationale: string;
-    recommendation: string;
-    laws: string[];
-    guidelines: string[];
-  }>;
-  warnings: string[];
-};
+export type { UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 
 type AnalyzeInput = {
   providerPreference: AiProviderPreference;
@@ -66,22 +41,11 @@ export async function analyzeUploadedFiles(input: AnalyzeInput): Promise<UploadA
   }
 
   if (provider === "claude") {
-    return analyzeWithClaude(input.files);
+    return analyzeWithClaude(input.files, { normalizeAiJson, createDemoAnalysis });
   }
 
   return createDemoAnalysis(input.files, "demo", [
     "API 키가 설정되지 않아 데모 AI 분석 결과를 반환했습니다.",
-  ]);
-}
-
-async function analyzeWithClaude(files: UploadedFileSummary[]): Promise<UploadAnalysisResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return createDemoAnalysis(files, "demo", ["ANTHROPIC_API_KEY가 설정되지 않았습니다."]);
-  }
-
-  return createDemoAnalysis(files, "claude", [
-    "Claude API 연동은 준비 중입니다. 테스트 단계에서는 Gemini를 기본으로 사용합니다.",
   ]);
 }
 
@@ -106,7 +70,7 @@ async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAn
         },
         {
           role: "user",
-          content: buildPrompt(files),
+          content: buildAnalysisPrompt(files),
         },
       ],
       temperature: 0.2,
@@ -187,7 +151,7 @@ async function requestGemini(apiKey: string, model: string, files: UploadedFileS
             role: "user",
             parts: [
               {
-                text: `너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 반드시 JSON만 반환한다.\n\n${buildPrompt(files)}`,
+                text: `너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 반드시 JSON만 반환한다.\n\n${buildAnalysisPrompt(files)}`,
               },
             ],
           },
@@ -201,49 +165,6 @@ async function requestGemini(apiKey: string, model: string, files: UploadedFileS
   );
 }
 
-function buildPrompt(files: UploadedFileSummary[]): string {
-  return `업로드된 심의 자료를 분석해라.
-
-파일 목록:
-${files
-  .map(
-    (file, index) =>
-      `${index + 1}. ${file.originalName} (${file.fileType}, ${file.sizeBytes} bytes)\n텍스트 미리보기: ${file.extractedTextPreview || "텍스트 추출 불가 또는 이미지/도면 자료"}`,
-  )
-  .join("\n\n")}
-
-반환 JSON 스키마:
-{
-  "summary": "전체 분석 요약",
-  "documentSections": [{ "label": "건축개요", "confidence": 0-100, "summary": "추출 요약" }],
-  "evaluationPreview": [{
-    "itemName": "평가항목명",
-    "score": 0-100,
-    "grade": "매우우수|우수|보통|미흡|매우미흡",
-    "rationale": "점수 산정 근거",
-    "recommendation": "개선권고사항"
-  }]
-}
-
-평가항목 후보:
-${evaluationItems
-  .slice(0, 6)
-  .map((item) => `- ${item.detailItem}: ${item.criteria}`)
-  .join("\n")}
-
-관련 법령 후보:
-${laws
-  .slice(0, 3)
-  .map((law) => `- ${law.title} ${law.article}: ${law.summary}`)
-  .join("\n")}
-
-관련 지침 후보:
-${guidelines
-  .slice(0, 3)
-  .map((guide) => `- ${guide.title} ${guide.section}: ${guide.summary}`)
-  .join("\n")}`;
-}
-
 function normalizeAiJson(
   content: string | undefined,
   files: UploadedFileSummary[],
@@ -254,7 +175,7 @@ function normalizeAiJson(
   }
 
   try {
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(extractJsonContent(content) ?? content);
     return {
       provider,
       mode: "live",
