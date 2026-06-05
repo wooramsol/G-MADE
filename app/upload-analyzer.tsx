@@ -54,6 +54,8 @@ export default function UploadAnalyzer({
   }
 
   async function submitUpload() {
+    if (loading) return;
+
     if (files.length === 0) {
       setError("먼저 파일을 선택해 주세요.");
       return;
@@ -114,7 +116,9 @@ export default function UploadAnalyzer({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d7dee8] bg-white px-4 py-3">
         <div>
           <p className="text-sm font-bold text-[#15345b]">분석 AI (테스트)</p>
-          <p className="mt-1 text-xs text-[#64748b]">현재 Gemini 무료 API를 기본으로 사용합니다. GPT·Claude는 추후 통합 예정입니다.</p>
+          <p className="mt-1 text-xs text-[#64748b]">
+            Gemini 무료 API 사용 중입니다. 1분에 호출 횟수 제한이 있어, 분석은 한 번에 하나씩만 실행해 주세요.
+          </p>
         </div>
         <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">Gemini</span>
       </div>
@@ -230,7 +234,7 @@ export default function UploadAnalyzer({
             type="button"
             onClick={submitUpload}
           >
-            {loading ? "분석 중..." : "업로드 분석"}
+            {loading ? "Gemini 분석 중 (최대 20초)..." : "업로드 분석"}
           </button>
         </div>
       </div>

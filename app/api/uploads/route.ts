@@ -9,6 +9,7 @@ import { analyzeUploadedFiles, type UploadedFileSummary } from "@/lib/upload-ana
 import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const allowedExtensions = new Set(["pdf", "docx", "pptx", "jpg", "jpeg", "png", "dwg", "zip", "txt", "md"]);
 const maxFileSizeBytes = 25 * 1024 * 1024;

@@ -126,36 +126,32 @@ async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAn
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return createDemoAnalysis(files, "demo", ["GEMINI_API_KEY가 설정되지 않았습니다."]);
 
-  const configuredModel = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
-  const modelsToTry = Array.from(new Set([configuredModel, "gemini-2.0-flash", "gemini-2.0-flash-lite"]));
+  const primaryModel = process.env.GEMINI_MODEL ?? "gemini-2.0-flash-lite";
+  let response = await requestGemini(apiKey, primaryModel, files);
 
-  let lastStatus = 500;
-  let lastBody = "";
-
-  for (const model of modelsToTry) {
-    const response = await requestGemini(apiKey, model, files);
-
-    if (response.ok) {
-      const payload = await response.json();
-      const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-      return normalizeAiJson(content, files, "gemini");
-    }
-
-    lastStatus = response.status;
-    lastBody = await response.text();
-
-    // 429는 분당 요청 제한(RPM) — 연속 재시도하면 오히려 한도를 더 소모함
-    if (response.status === 429) {
-      break;
-    }
-
-    // 404(모델 없음)일 때만 다음 모델로 한 번 교체
-    if (response.status !== 404) {
-      break;
-    }
+  if (!response.ok && response.status === 429) {
+    await sleep(13_000);
+    response = await requestGemini(apiKey, primaryModel, files);
   }
 
-  return createDemoAnalysis(files, "gemini", [formatProviderApiError("Gemini", lastStatus, lastBody)]);
+  if (!response.ok && response.status === 404) {
+    const fallbackModel =
+      primaryModel === "gemini-2.0-flash-lite" ? "gemini-2.0-flash" : "gemini-2.0-flash-lite";
+    response = await requestGemini(apiKey, fallbackModel, files);
+  }
+
+  if (response.ok) {
+    const payload = await response.json();
+    const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+    return normalizeAiJson(content, files, "gemini");
+  }
+
+  const lastBody = await response.text();
+  return createDemoAnalysis(files, "gemini", [formatProviderApiError("Gemini", response.status, lastBody)]);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function requestGemini(apiKey: string, model: string, files: UploadedFileSummary[]) {
@@ -209,13 +205,22 @@ ${files
 }
 
 평가항목 후보:
-${evaluationItems.map((item) => `- ${item.detailItem}: ${item.criteria}`).join("\n")}
+${evaluationItems
+  .slice(0, 6)
+  .map((item) => `- ${item.detailItem}: ${item.criteria}`)
+  .join("\n")}
 
 관련 법령 후보:
-${laws.map((law) => `- ${law.title} ${law.article}: ${law.summary}`).join("\n")}
+${laws
+  .slice(0, 3)
+  .map((law) => `- ${law.title} ${law.article}: ${law.summary}`)
+  .join("\n")}
 
 관련 지침 후보:
-${guidelines.map((guide) => `- ${guide.title} ${guide.section}: ${guide.summary}`).join("\n")}`;
+${guidelines
+  .slice(0, 3)
+  .map((guide) => `- ${guide.title} ${guide.section}: ${guide.summary}`)
+  .join("\n")}`;
 }
 
 function normalizeAiJson(
