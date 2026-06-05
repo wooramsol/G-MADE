@@ -22,7 +22,9 @@ export async function analyzeWithClaude(
 ): Promise<UploadAnalysisResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return deps.createDemoAnalysis(files, "demo", ["ANTHROPIC_API_KEY가 설정되지 않았습니다."]);
+    return deps.createDemoAnalysis(files, "claude", [
+      "ANTHROPIC_API_KEY가 Vercel 환경 변수에 설정되지 않았습니다. Anthropic Console에서 키를 발급한 뒤 Vercel에 추가하고 재배포해 주세요.",
+    ]);
   }
 
   const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";

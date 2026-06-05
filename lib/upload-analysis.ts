@@ -30,7 +30,25 @@ const sectionLabels = [
 ];
 
 export async function analyzeUploadedFiles(input: AnalyzeInput): Promise<UploadAnalysisResult> {
-  const provider = selectProvider(input.providerPreference);
+  const preference = input.providerPreference;
+
+  if (preference === "demo") {
+    return createDemoAnalysis(input.files, "demo", ["데모 분석 모드로 실행했습니다."]);
+  }
+
+  if (preference === "openai") {
+    return analyzeWithOpenAi(input.files);
+  }
+
+  if (preference === "gemini") {
+    return analyzeWithGemini(input.files);
+  }
+
+  if (preference === "claude") {
+    return analyzeWithClaude(input.files, { normalizeAiJson, createDemoAnalysis });
+  }
+
+  const provider = selectProvider("auto");
 
   if (provider === "openai") {
     return analyzeWithOpenAi(input.files);
@@ -45,13 +63,17 @@ export async function analyzeUploadedFiles(input: AnalyzeInput): Promise<UploadA
   }
 
   return createDemoAnalysis(input.files, "demo", [
-    "API 키가 설정되지 않아 데모 AI 분석 결과를 반환했습니다.",
+    "설정된 AI API 키가 없어 데모 분석 결과를 반환했습니다. Vercel에 GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY 중 하나를 추가해 주세요.",
   ]);
 }
 
 async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAnalysisResult> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return createDemoAnalysis(files, "demo", ["OPENAI_API_KEY가 설정되지 않았습니다."]);
+  if (!apiKey) {
+    return createDemoAnalysis(files, "openai", [
+      "OPENAI_API_KEY가 Vercel 환경 변수에 설정되지 않았습니다. Settings → Environment Variables에서 추가한 뒤 재배포해 주세요.",
+    ]);
+  }
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",

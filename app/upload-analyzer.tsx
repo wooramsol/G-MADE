@@ -119,7 +119,7 @@ export default function UploadAnalyzer({
         <div>
           <p className="text-sm font-bold text-[#15345b]">분석 AI 선택</p>
           <p className="mt-1 text-xs text-[#64748b]">
-            테스트 기본값은 Gemini입니다. GPT·Claude는 Vercel에 API 키를 넣으면 사용할 수 있습니다.
+            테스트 기본값은 Gemini입니다. Claude는 Vercel에 ANTHROPIC_API_KEY, GPT는 OPENAI_API_KEY가 필요합니다.
           </p>
         </div>
         <label className="text-sm">
