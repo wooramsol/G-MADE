@@ -66,7 +66,7 @@ export default function UploadAnalyzer({
     if (projectId) {
       formData.append("projectId", projectId);
     }
-    formData.append("provider", "auto");
+    formData.append("provider", "gemini");
     formData.append("aiWeight", String(aiWeight));
     formData.append("expertWeight", String(100 - aiWeight));
     formData.append("evaluationItemPoints", JSON.stringify(itemPoints));
@@ -111,6 +111,14 @@ export default function UploadAnalyzer({
 
   return (
     <div className="mt-5 space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d7dee8] bg-white px-4 py-3">
+        <div>
+          <p className="text-sm font-bold text-[#15345b]">분석 AI (테스트)</p>
+          <p className="mt-1 text-xs text-[#64748b]">현재 Gemini 무료 API를 기본으로 사용합니다. GPT·Claude는 추후 통합 예정입니다.</p>
+        </div>
+        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">Gemini</span>
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-2">
         <label className="flex min-h-56 cursor-pointer flex-col rounded-xl border border-dashed border-[#2463b3] bg-white p-4 text-sm text-[#475569]">
           <span className="font-bold text-[#15345b]">1. 파일 선택</span>

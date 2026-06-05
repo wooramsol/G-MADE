@@ -2,8 +2,10 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { getWritableStoragePath } from "@/lib/runtime-storage";
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeUploadedFiles, type UploadedFileSummary } from "@/lib/upload-analysis";
+import { getDefaultAiProvider } from "@/lib/ai/select-provider";
+import type { AiProviderPreference } from "@/lib/ai/types";
 import { addProjectUploadAnalysis } from "@/lib/project-store";
+import { analyzeUploadedFiles, type UploadedFileSummary } from "@/lib/upload-analysis";
 import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -15,11 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const projectId = String(formData.get("projectId") ?? "").trim();
-    const providerPreference = String(formData.get("provider") ?? "auto") as
-      | "auto"
-      | "demo"
-      | "openai"
-      | "gemini";
+    const providerPreference = String(formData.get("provider") ?? getDefaultAiProvider()) as AiProviderPreference;
     const entries = formData.getAll("files");
     const files = entries.filter(isFileLike);
 

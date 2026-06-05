@@ -1,3 +1,5 @@
+import { selectProvider } from "./ai/select-provider";
+import type { AiProviderPreference } from "./ai/types";
 import { evaluationItems, guidelines, laws } from "./demo-data";
 import { gradeScore } from "./hybrid-evaluation";
 
@@ -11,7 +13,7 @@ export type UploadedFileSummary = {
 };
 
 export type UploadAnalysisResult = {
-  provider: "demo" | "openai" | "gemini";
+  provider: "demo" | "openai" | "gemini" | "claude";
   mode: "demo" | "live";
   summary: string;
   documentSections: Array<{
@@ -32,10 +34,8 @@ export type UploadAnalysisResult = {
   warnings: string[];
 };
 
-type ProviderPreference = "auto" | "demo" | "openai" | "gemini";
-
 type AnalyzeInput = {
-  providerPreference: ProviderPreference;
+  providerPreference: AiProviderPreference;
   files: UploadedFileSummary[];
 };
 
@@ -63,19 +63,24 @@ export async function analyzeUploadedFiles(input: AnalyzeInput): Promise<UploadA
     return analyzeWithGemini(input.files);
   }
 
+  if (provider === "claude") {
+    return analyzeWithClaude(input.files);
+  }
+
   return createDemoAnalysis(input.files, "demo", [
     "API 키가 설정되지 않아 데모 AI 분석 결과를 반환했습니다.",
   ]);
 }
 
-function selectProvider(preference: ProviderPreference): "demo" | "openai" | "gemini" {
-  if (preference === "demo") return "demo";
-  if (preference === "openai") return process.env.OPENAI_API_KEY ? "openai" : "demo";
-  if (preference === "gemini") return process.env.GEMINI_API_KEY ? "gemini" : "demo";
+async function analyzeWithClaude(files: UploadedFileSummary[]): Promise<UploadAnalysisResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return createDemoAnalysis(files, "demo", ["ANTHROPIC_API_KEY가 설정되지 않았습니다."]);
+  }
 
-  if (process.env.OPENAI_API_KEY) return "openai";
-  if (process.env.GEMINI_API_KEY) return "gemini";
-  return "demo";
+  return createDemoAnalysis(files, "claude", [
+    "Claude API 연동은 준비 중입니다. 테스트 단계에서는 Gemini를 기본으로 사용합니다.",
+  ]);
 }
 
 async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAnalysisResult> {
@@ -192,7 +197,7 @@ ${guidelines.map((guide) => `- ${guide.title} ${guide.section}: ${guide.summary}
 function normalizeAiJson(
   content: string | undefined,
   files: UploadedFileSummary[],
-  provider: "openai" | "gemini",
+  provider: "openai" | "gemini" | "claude",
 ): UploadAnalysisResult {
   if (!content) {
     return createDemoAnalysis(files, provider, [`${provider} 응답 본문이 비어 있어 데모 분석으로 대체했습니다.`]);
@@ -255,7 +260,7 @@ function defaultSections(): UploadAnalysisResult["documentSections"] {
 
 function createDemoAnalysis(
   files: UploadedFileSummary[],
-  provider: "demo" | "openai" | "gemini",
+  provider: "demo" | "openai" | "gemini" | "claude",
   warnings: string[],
 ): UploadAnalysisResult {
   const fileNames = files.map((file) => file.originalName).join(", ") || "업로드 자료";

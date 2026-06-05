@@ -67,7 +67,7 @@ export type UploadAnalysisSession = {
     sizeBytes: number;
   }>;
   analysis: {
-    provider: "demo" | "openai" | "gemini";
+    provider: "demo" | "openai" | "gemini" | "claude";
     mode: "demo" | "live";
     summary: string;
     documentSections: Array<{ label: string; confidence: number; summary: string }>;
