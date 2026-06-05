@@ -12,7 +12,7 @@ export function getOpenAiApiKey(): string | undefined {
 }
 
 export function getAnthropicApiKey(): string | undefined {
-  return readEnv("ANTHROPIC_API_KEY");
+  return readEnv("ANTHROPIC_API_KEY") ?? readEnv("CLAUDE_API_KEY");
 }
 
 export function getConfiguredProviders() {
@@ -25,6 +25,11 @@ export function getConfiguredProviders() {
     openai,
     claude,
     anthropicKeyHint: claude ? getAnthropicApiKey()?.slice(0, 7) : null,
+    anthropicEnvKey: claude
+      ? readEnv("ANTHROPIC_API_KEY")
+        ? "ANTHROPIC_API_KEY"
+        : "CLAUDE_API_KEY"
+      : null,
     geminiKeyHint: gemini ? getGeminiApiKey()?.slice(0, 4) : null,
     openaiKeyHint: openai ? getOpenAiApiKey()?.slice(0, 3) : null,
   };

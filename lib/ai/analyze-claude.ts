@@ -24,7 +24,7 @@ export async function analyzeWithClaude(
   const apiKey = getAnthropicApiKey();
   if (!apiKey) {
     return deps.createDemoAnalysis(files, "claude", [
-      "ANTHROPIC_API_KEY가 서버에서 읽히지 않습니다. Vercel Key 이름이 정확한지, Production·Preview 모두 체크했는지, 저장 후 재배포했는지 확인하세요. /api/ai-status 로 등록 여부를 확인할 수 있습니다.",
+      "Claude API 키가 서버에서 읽히지 않습니다. Vercel에 ANTHROPIC_API_KEY 또는 CLAUDE_API_KEY로 sk-ant- 키를 넣었는지 확인하고 재배포해 주세요. /api/ai-status 로 등록 여부를 확인할 수 있습니다.",
     ]);
   }
 

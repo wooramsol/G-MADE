@@ -22,7 +22,8 @@ export async function GET() {
       },
       claude: {
         configured: providers.claude,
-        envKey: "ANTHROPIC_API_KEY",
+        envKey: providers.anthropicEnvKey ?? "ANTHROPIC_API_KEY | CLAUDE_API_KEY",
+        acceptedKeys: ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"],
         keyHint: providers.anthropicKeyHint,
       },
     },
