@@ -1,6 +1,12 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import bcrypt from "bcryptjs";
+import { Pool } from "pg";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL?.trim();
+const prisma = connectionString
+  ? new PrismaClient({ adapter: new PrismaPg(new Pool({ connectionString })) })
+  : new PrismaClient();
 
 async function main() {
   const adminRole = await prisma.role.upsert({
@@ -33,12 +39,22 @@ async function main() {
     },
   });
 
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase() ?? "admin@gmadehive.com";
+  const adminPassword = process.env.ADMIN_INITIAL_PASSWORD?.trim() ?? "gmadehive-admin";
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
+
   await prisma.user.upsert({
-    where: { email: "admin@g-made.local" },
-    update: {},
-    create: {
-      email: "admin@g-made.local",
+    where: { email: adminEmail },
+    update: {
       name: "시스템 관리자",
+      passwordHash,
+      roleId: adminRole.id,
+      active: true,
+    },
+    create: {
+      email: adminEmail,
+      name: "시스템 관리자",
+      passwordHash,
       roleId: adminRole.id,
     },
   });

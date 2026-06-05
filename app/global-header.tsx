@@ -1,8 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
+import { auth } from "@/auth";
+import { getRoleLabel } from "@/lib/role-labels";
 import TopNavigation from "./top-navigation";
 
-export default function GlobalHeader() {
+export default async function GlobalHeader() {
+  const session = await auth();
+  const user = session?.user;
+
   return (
     <header className="bg-white">
       <div className="bg-gradient-to-r from-[#0f4d87] via-[#176dab] to-[#15345b] px-6 py-3 text-white shadow-sm">
@@ -23,9 +28,17 @@ export default function GlobalHeader() {
               <h1 className="text-lg font-black text-white">AI-Human Hybrid Evaluation System</h1>
             </div>
           </Link>
+          {user ? (
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-bold text-white">{user.name}</p>
+              <p className="text-xs text-blue-100">
+                {getRoleLabel(user.role)} · {user.email}
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
-      <TopNavigation />
+      <TopNavigation isAuthenticated={Boolean(user)} />
     </header>
   );
 }

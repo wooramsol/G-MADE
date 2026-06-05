@@ -1,48 +1,60 @@
+import { auth } from "@/auth";
+import { getRoleLabel } from "@/lib/role-labels";
 import SaasPageShell from "../saas-page-shell";
+import LogoutButton from "./logout-button";
 
-export default function MyPage() {
+export const dynamic = "force-dynamic";
+
+export default async function MyPage() {
+  const session = await auth();
+  const user = session?.user;
+  const initial = user?.name?.slice(0, 1) ?? "?";
+
   return (
     <SaasPageShell
       eyebrow="Account"
       title="내 정보"
-      description="로그인된 MVP 사용자의 계정 정보, 최근 활동, 서비스 설정을 한 화면에서 확인합니다."
+      description="로그인된 내부 사용자의 계정 정보와 서비스 설정을 확인합니다."
     >
       <section className="grid items-stretch gap-6 xl:grid-cols-2">
         <div className="h-full rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e8f1ff] text-2xl font-black text-[#2463b3]">정</div>
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e8f1ff] text-2xl font-black text-[#2463b3]">
+              {initial}
+            </div>
             <div>
-              <p className="text-xl font-bold text-[#15345b]">연구소장 정우람솔</p>
-              <p className="mt-1 text-sm text-[#64748b]">서비스 관리자 · G-MADE HIVE</p>
+              <p className="text-xl font-bold text-[#15345b]">{user?.name ?? "사용자"}</p>
+              <p className="mt-1 text-sm text-[#64748b]">
+                {user?.role ? getRoleLabel(user.role) : "내부 사용자"} · G-MADE HIVE
+              </p>
             </div>
           </div>
           <dl className="mt-6 space-y-3 text-sm">
-            <Info label="이메일" value="admin@gmadehive.com" />
-            <Info label="권한" value="관리자" />
-            <Info label="소속" value="G-MADE HIVE 운영팀" />
+            <Info label="이메일" value={user?.email ?? "-"} />
+            <Info label="권한" value={user?.role ? getRoleLabel(user.role) : "-"} />
+            <Info label="접근 범위" value="전체 프로젝트 공유" />
           </dl>
-          <button
-            className="mt-5 w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-100"
-            type="button"
-          >
-            로그아웃
-          </button>
+          <LogoutButton />
         </div>
 
         <div className="h-full rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
-          <h3 className="text-xl font-bold text-[#15345b]">최근 업무 현황</h3>
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <Metric label="진행 프로젝트" value="17" />
-            <Metric label="검토 대기" value="9" />
-            <Metric label="완료 평가" value="25" />
-          </div>
+          <h3 className="text-xl font-bold text-[#15345b]">내부 테스트 안내</h3>
+          <p className="mt-3 text-sm leading-6 text-[#64748b]">
+            현재는 내부 MVP 단계로, 로그인한 모든 사용자가 동일한 프로젝트 목록과 대시보드를 공유합니다. 이메일
+            인증이나 비밀번호 재설정 메일은 발송되지 않습니다.
+          </p>
           <div className="mt-6 space-y-3">
             {[
-              "동부역세권 복합문화시설 AI 분석 결과 확인",
-              "서부 수변공원 공공디자인심의 자료 업로드",
-              "남부 생활SOC 복합센터 최종 점수 검토",
+              "프로젝트 등록 및 AI 분석은 전체 공유",
+              "역할 기반 세부 권한은 다음 단계에서 적용 예정",
+              "관리자 계정은 환경 변수 또는 DB 시드로 관리",
             ].map((activity) => (
-              <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm font-semibold text-[#475569]" key={activity}>{activity}</div>
+              <div
+                className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm font-semibold text-[#475569]"
+                key={activity}
+              >
+                {activity}
+              </div>
             ))}
           </div>
         </div>
@@ -60,16 +72,6 @@ export default function MyPage() {
           <SettingRow label="Anthropic / Claude" value="환경변수 설정 시 활성" />
           <SettingRow label="G-MADE HIVE / 데모 분석" value="API 키 미설정 시" />
         </Panel>
-        <Panel title="알림 설정">
-          <SettingRow label="신규 프로젝트 등록" value="이메일 알림" />
-          <SettingRow label="심사 완료" value="대시보드 알림" />
-          <SettingRow label="자료 보완 요청" value="이메일 + 화면 알림" />
-        </Panel>
-        <Panel title="보안 및 접근">
-          <SettingRow label="관리자 승인" value="필수" />
-          <SettingRow label="감사 로그" value="활성" />
-          <SettingRow label="파일 접근 권한" value="프로젝트 단위" />
-        </Panel>
       </section>
     </SaasPageShell>
   );
@@ -80,15 +82,6 @@ function Info({ label, value }: { label: string; value: string }) {
     <div className="grid grid-cols-[110px_1fr] gap-4 rounded-xl bg-[#f8fafc] px-4 py-3">
       <dt className="font-semibold text-[#64748b]">{label}</dt>
       <dd className="text-right font-bold text-[#15345b]">{value}</dd>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="h-full rounded-xl bg-[#e8f1ff] p-4">
-      <p className="text-sm font-bold text-[#2463b3]">{label}</p>
-      <p className="mt-2 text-3xl font-black text-[#15345b]">{value}</p>
     </div>
   );
 }

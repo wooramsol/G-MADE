@@ -9,12 +9,13 @@ const navItems = [
   { label: "내 정보", href: "/mypage", match: (pathname: string) => pathname === "/mypage" },
 ] as const;
 
-export default function TopNavigation() {
+export default function TopNavigation({ isAuthenticated }: { isAuthenticated: boolean }) {
   const pathname = usePathname();
 
   return (
     <nav className="border-b border-[#d7dee8] bg-white px-6">
-      <div className="mx-auto flex max-w-[1500px] gap-2 py-3">
+      <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-2 py-3">
+        <div className="flex gap-2">
         {navItems.map((item) => {
           const active = item.match(pathname);
 
@@ -30,6 +31,12 @@ export default function TopNavigation() {
             </Link>
           );
         })}
+        </div>
+        {!isAuthenticated ? (
+          <Link className="rounded-lg bg-[#15345b] px-4 py-2 text-sm font-bold text-white" href="/login">
+            로그인
+          </Link>
+        ) : null}
       </div>
     </nav>
   );
