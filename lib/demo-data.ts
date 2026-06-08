@@ -29,7 +29,8 @@ export const projects: Project[] = [
   {
     id: "project-001",
     name: "동부역세권 복합문화시설 경관사전심의",
-    location: "서울특별시 중구 세종대로 일원",
+    location: "서울특별시 성동구 왕십리로 222 (동부역세권 일원)",
+    locationPoint: { x: 127.037, y: 37.5613, source: "address", note: "동부역세권 일원" },
     client: "서울도시개발공사",
     designer: "GMA 도시건축사사무소",
     projectType: "복합문화시설",
@@ -46,7 +47,8 @@ export const projects: Project[] = [
   {
     id: "project-002",
     name: "서부 수변공원 공공디자인심의",
-    location: "서울특별시 마포구 한강변",
+    location: "서울특별시 마포구 망원로 165 (한강변 수변공원 예정지)",
+    locationPoint: { x: 126.8965, y: 37.5551, source: "place", note: "한강변 수변공원 예정지" },
     client: "마포구청",
     designer: "도시공간연구소",
     projectType: "공공공간",
@@ -59,7 +61,8 @@ export const projects: Project[] = [
   {
     id: "project-003",
     name: "남부 생활SOC 복합센터 경관심의",
-    location: "경기도 성남시 수정구",
+    location: "경기도 성남시 수정구 수정로 210",
+    locationPoint: { x: 127.1598, y: 37.4513, source: "address" },
     client: "성남시",
     designer: "공공건축기획단",
     projectType: "생활SOC",
@@ -72,7 +75,8 @@ export const projects: Project[] = [
   {
     id: "project-004",
     name: "북부 산업단지 진입관문 경관개선 심의",
-    location: "경기도 고양시 덕양구",
+    location: "경기도 고양시 덕양구 고양대로 1604 (산업단지 진입관문 예정지)",
+    locationPoint: { x: 126.832, y: 37.6584, source: "map", note: "산업단지 진입관문 예정지" },
     client: "고양도시관리공사",
     designer: "어반링크 디자인랩",
     projectType: "기반시설",
@@ -87,7 +91,8 @@ export const projects: Project[] = [
   {
     id: "project-005",
     name: "중앙로 보행친화 가로환경 공공디자인심의",
-    location: "대전광역시 중구 중앙로",
+    location: "대전광역시 중구 중앙로 101",
+    locationPoint: { x: 127.4215, y: 36.3279, source: "address" },
     client: "대전광역시",
     designer: "공공디자인 스튜디오 봄",
     projectType: "공공공간",
@@ -100,7 +105,8 @@ export const projects: Project[] = [
   {
     id: "project-006",
     name: "해안 문화복합시설 야간경관 사전검토",
-    location: "부산광역시 해운대구 우동",
+    location: "부산광역시 해운대구 해운대해변로 264",
+    locationPoint: { x: 129.1604, y: 35.1587, source: "address" },
     client: "부산관광공사",
     designer: "라이트스케이프 건축",
     projectType: "문화시설",
@@ -116,7 +122,8 @@ export const projects: Project[] = [
   {
     id: "project-007",
     name: "혁신도시 공공청사 증축 경관심의",
-    location: "전라북도 전주시 덕진구",
+    location: "전북특별자치도 전주시 덕진구 시청로 10 (공공청사 증축 예정지)",
+    locationPoint: { x: 127.148, y: 35.8242, source: "map", note: "공공청사 증축 예정지" },
     client: "전북특별자치도",
     designer: "한빛 공공건축사사무소",
     projectType: "공공청사",
@@ -129,7 +136,8 @@ export const projects: Project[] = [
   {
     id: "project-008",
     name: "동남권 복합환승센터 경관사전심의",
-    location: "서울특별시 송파구 장지동",
+    location: "서울특별시 송파구 장지동 300 (복합환승센터 예정 부지)",
+    locationPoint: { x: 127.1267, y: 37.4784, source: "map", note: "복합환승센터 예정 부지" },
     client: "서울교통공사",
     designer: "메트로폴리스 플랜",
     projectType: "교통시설",
