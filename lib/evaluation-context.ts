@@ -2,6 +2,7 @@ import { guidelines, laws as demoLaws } from "./demo-data";
 import { buildGuidelineReferenceUrl, buildLawReferenceUrl } from "./reference-links";
 import { fetchLawReferences, type FetchedLawReference } from "./law/articles";
 import { isLawApiConfigured } from "./law/config";
+import { LAW_OC_MISSING_WARNING } from "./law/warnings";
 import { searchLaws } from "./law/search";
 import { getProjectById } from "./project-store";
 import type { Project, ProjectLocationPoint } from "./types";
@@ -117,7 +118,7 @@ async function loadReferenceLaws(
   warnings: string[],
 ): Promise<FetchedLawReference[]> {
   if (!isLawApiConfigured()) {
-    warnings.push("LAW_OC가 없어 국가법령정보 API 대신 내장 법령 요약을 사용했습니다.");
+    warnings.push(LAW_OC_MISSING_WARNING);
     return demoLawsToReferences();
   }
 

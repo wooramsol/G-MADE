@@ -5,6 +5,7 @@ import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { buildLawReferenceUrl } from "@/lib/reference-links";
+import { filterStaleLawWarnings, hadLawOcMissingWarning } from "@/lib/law/warnings";
 import type { UploadAnalysisSession } from "@/lib/types";
 
 type SessionWithRound = UploadAnalysisSession & { round: number };
@@ -22,6 +23,26 @@ export function UploadAnalysisResultsPanel({ sessions }: { sessions: UploadAnaly
   }, [sessions]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [lawApiConfigured, setLawApiConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/law/status")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { configured?: boolean } | null) => {
+        if (!cancelled) {
+          setLawApiConfigured(Boolean(payload?.configured));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLawApiConfigured(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (sortedSessions.length === 0) return;
@@ -78,12 +99,35 @@ export function UploadAnalysisResultsPanel({ sessions }: { sessions: UploadAnaly
         </div>
       </div>
 
-      <AnalysisSessionDetail session={selectedSession} />
+      {lawApiConfigured === false ? (
+        <div className="rounded-xl border border-[#fdba74] bg-[#fff7ed] p-4 text-sm leading-6 text-[#9a3412]">
+          <p className="font-bold">법령 API 미설정</p>
+          <p className="mt-2">
+            Vercel 환경 변수 <code className="rounded bg-white/80 px-1">LAW_OC</code>에 발급받은 OC(
+            <code className="rounded bg-white/80 px-1">gmadehive0515</code>)를 넣고 Redeploy한 뒤, 파일을 다시
+            업로드·분석해 주세요.
+          </p>
+        </div>
+      ) : null}
+
+      <AnalysisSessionDetail lawApiConfigured={lawApiConfigured} session={selectedSession} />
     </div>
   );
 }
 
-function AnalysisSessionDetail({ session }: { session: SessionWithRound }) {
+function AnalysisSessionDetail({
+  lawApiConfigured,
+  session,
+}: {
+  lawApiConfigured: boolean | null;
+  session: SessionWithRound;
+}) {
+  const warnings = filterStaleLawWarnings(session.analysis.warnings, lawApiConfigured);
+  const showStaleLawNotice =
+    lawApiConfigured === true &&
+    hadLawOcMissingWarning(session.analysis.warnings) &&
+    session.analysis.lawSource !== "law.go.kr";
+
   const avgScore =
     session.analysis.evaluationPreview.length > 0
       ? Math.round(
@@ -190,10 +234,19 @@ function AnalysisSessionDetail({ session }: { session: SessionWithRound }) {
         </div>
       </details>
 
-      {session.analysis.warnings.length > 0 ? (
+      {showStaleLawNotice ? (
+        <div className="rounded-xl border border-[#93c5fd] bg-[#eff6ff] p-4 text-sm leading-6 text-[#1e40af]">
+          <p className="font-bold">법령 API는 현재 연결되어 있습니다</p>
+          <p className="mt-2">
+            이 결과는 API 설정 전에 분석된 차수입니다. 실시간 법령 근거를 쓰려면 파일을 다시 업로드·분석해 주세요.
+          </p>
+        </div>
+      ) : null}
+
+      {warnings.length > 0 ? (
         <div className="rounded-xl border border-[#fdba74] bg-[#fff7ed] p-4 text-sm leading-6 text-[#9a3412]">
           <p className="font-bold">AI 호출 안내</p>
-          {session.analysis.warnings.map((warning) => (
+          {warnings.map((warning) => (
             <p className="mt-2" key={warning}>
               {warning}
             </p>
