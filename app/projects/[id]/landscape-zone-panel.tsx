@@ -50,10 +50,17 @@ type LandscapeZonePanelProps = {
   locationPoint?: ProjectLocationPoint;
 };
 
+const LAYER_CHIP_COLORS: Record<string, string> = {
+  "landscape-zone": "bg-[#e8f1ff] text-[#2463b3]",
+  "land-use-zone": "bg-[#ecfdf3] text-[#15803d]",
+  "cultural-heritage": "bg-[#fef2f2] text-[#b91c1c]",
+};
+
 export default function LandscapeZonePanel({ address, locationPoint }: LandscapeZonePanelProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [result, setResult] = useState<LandscapeZoneResponse | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -111,8 +118,7 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
     };
   }, [address, locationPoint]);
 
-  const otherLayers =
-    result?.layerFeatures?.filter((feature) => feature.layerId !== "landscape-zone") ?? [];
+  const zoneGroups = buildZoneGroups(result);
 
   return (
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
@@ -152,43 +158,115 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
               label="경관지구 해당"
               value={result.inLandscapeZone ? "해당 가능" : "인근 조회 결과 없음"}
             />
-            <Info label="매칭 건수" value={`${result.matchedZones.length}건`} />
+            <Info label="총 매칭" value={`${countZoneItems(zoneGroups)}건`} />
           </div>
 
-          {result.matchedZones.length > 0 ? (
+          {zoneGroups.length > 0 ? (
             <div className="space-y-3">
-              {result.matchedZones.map((zone) => (
-                <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm" key={zone.id}>
-                  <p className="font-bold text-[#15345b]">{zone.name}</p>
-                  <p className="mt-1 text-[#64748b]">
-                    코드 {zone.code} · {zone.jurisdiction} · 지정연도 {zone.designationYear}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : null}
+              {zoneGroups.map((group) => {
+                const expanded = expandedGroups[group.id] ?? false;
+                const visibleItems = expanded ? group.items : group.items.slice(0, 2);
+                const hiddenCount = Math.max(0, group.items.length - visibleItems.length);
 
-          {otherLayers.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-sm font-bold text-[#15345b]">기타 공간 레이어</p>
-              {otherLayers.map((layer) => (
-                <div
-                  className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm"
-                  key={`${layer.layerId}-${layer.name}`}
-                >
-                  <p className="font-bold text-[#15345b]">
-                    [{layer.layerLabel}] {layer.name}
-                  </p>
-                </div>
-              ))}
+                return (
+                  <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={group.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-[#15345b]">
+                        {group.label} <span className="text-[#64748b]">({group.items.length}건)</span>
+                      </p>
+                      {group.items.length > 2 ? (
+                        <button
+                          className="text-xs font-bold text-[#2463b3] underline underline-offset-2"
+                          type="button"
+                          onClick={() =>
+                            setExpandedGroups((current) => ({
+                              ...current,
+                              [group.id]: !expanded,
+                            }))
+                          }
+                        >
+                          {expanded ? "접기" : `외 ${hiddenCount}건 더보기`}
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {visibleItems.map((item) => (
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${LAYER_CHIP_COLORS[group.id] ?? "bg-[#eef4fb] text-[#15345b]"}`}
+                          key={`${group.id}-${item.key}`}
+                          title={item.detail ?? item.name}
+                        >
+                          {item.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ) : null}
+          ) : (
+            <p className="rounded-xl bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
+              조회 반경 내 경관지구·용도지역 정보가 없습니다. 지도 마커 위치를 기준으로 표시됩니다.
+            </p>
+          )}
 
           <p className="text-xs leading-5 text-[#64748b]">{result.disclaimer}</p>
         </div>
       ) : null}
     </div>
   );
+}
+
+type ZoneGroupItem = {
+  key: string;
+  name: string;
+  detail?: string;
+};
+
+type ZoneGroup = {
+  id: string;
+  label: string;
+  items: ZoneGroupItem[];
+};
+
+function buildZoneGroups(result: LandscapeZoneResponse | null): ZoneGroup[] {
+  if (!result) return [];
+
+  const groups: ZoneGroup[] = [];
+
+  if (result.matchedZones.length > 0) {
+    groups.push({
+      id: "landscape-zone",
+      label: "경관지구",
+      items: result.matchedZones.map((zone) => ({
+        key: zone.id,
+        name: zone.name,
+        detail: `${zone.jurisdiction} · ${zone.designationYear}`,
+      })),
+    });
+  }
+
+  const layerGroups = new Map<string, ZoneGroup>();
+  for (const feature of result.layerFeatures ?? []) {
+    if (feature.layerId === "landscape-zone") continue;
+    const group =
+      layerGroups.get(feature.layerId) ??
+      ({
+        id: feature.layerId,
+        label: feature.layerLabel,
+        items: [],
+      } satisfies ZoneGroup);
+    if (!group.items.some((item) => item.key === feature.name)) {
+      group.items.push({ key: feature.name, name: feature.name });
+    }
+    layerGroups.set(feature.layerId, group);
+  }
+
+  return [...groups, ...Array.from(layerGroups.values())];
+}
+
+function countZoneItems(groups: ZoneGroup[]): number {
+  return groups.reduce((sum, group) => sum + group.items.length, 0);
 }
 
 function Info({ label, value }: { label: string; value: string }) {

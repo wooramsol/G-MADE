@@ -2,6 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { caseStudies, guidelines } from "@/lib/demo-data";
+import {
+  formatCaseStudyLinkLabel,
+  formatGuidelineLinkLabel,
+  formatLawLinkLabel,
+} from "@/lib/reference-links";
 import { buildHybridViewFromSession } from "@/lib/upload-to-hybrid";
 import type { HybridResult, Project, UploadAnalysisSession } from "@/lib/types";
 import { showToast } from "../../toast";
@@ -40,15 +45,23 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
   async function deleteSession(sessionId: string) {
     if (!window.confirm("이 분석 결과를 삭제할까요?")) return;
 
+    let next = sorted.filter((session) => session.id !== sessionId);
+
     try {
       const response = await fetch(`/api/projects/${project.id}/analyses/${sessionId}`, {
         method: "DELETE",
       });
-      const payload = await response.json();
-      if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        project?: { uploadAnalyses?: UploadAnalysisSession[] };
+      };
+
+      if (response.ok) {
+        next = payload.project?.uploadAnalyses ?? next;
+      } else if (response.status !== 404) {
         throw new Error(payload.error ?? "삭제에 실패했습니다.");
       }
-      const next = (payload.project?.uploadAnalyses as UploadAnalysisSession[] | undefined) ?? sorted.filter((s) => s.id !== sessionId);
+
       onAnalysesChange?.(next);
       if (selectedId === sessionId) {
         setSelectedId(next[0]?.id ?? null);
@@ -246,7 +259,8 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
             {referenceLaws.slice(0, 6).map((law) => (
               <ReferenceCard
                 title={`${law.title} ${law.article}`}
-                subtitle={law.sourceUrl}
+                href={law.sourceUrl}
+                linkLabel={formatLawLinkLabel(law.title, law.article)}
                 body={law.summary}
                 key={`${law.title}-${law.article}`}
               />
@@ -258,7 +272,8 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
             {guidelines.slice(0, 5).map((guide) => (
               <ReferenceCard
                 title={guide.title}
-                subtitle={`Section ${guide.section}`}
+                href={guide.sourceUrl}
+                linkLabel={formatGuidelineLinkLabel(guide.title, guide.section)}
                 body={guide.summary}
                 key={guide.id}
               />
@@ -270,7 +285,9 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
             {caseStudies.map((item) => (
               <ReferenceCard
                 title={item.title}
-                subtitle={`${item.location} · 유사도 ${item.similarityScore}%`}
+                href={item.sourceUrl}
+                linkLabel={formatCaseStudyLinkLabel(item.title)}
+                meta={`${item.location} · 유사도 ${item.similarityScore}%`}
                 body={item.keyLearning}
                 key={item.id}
               />
@@ -389,11 +406,33 @@ function EvaluationTable({
   );
 }
 
-function ReferenceCard({ title, subtitle, body }: { title: string; subtitle: string; body: string }) {
+function ReferenceCard({
+  title,
+  href,
+  linkLabel,
+  meta,
+  body,
+}: {
+  title: string;
+  href?: string;
+  linkLabel?: string;
+  meta?: string;
+  body: string;
+}) {
   return (
     <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
       <p className="font-bold text-[#15345b]">{title}</p>
-      <p className="mt-1 text-xs font-semibold text-[#2463b3] break-all">{subtitle}</p>
+      {meta ? <p className="mt-1 text-xs font-semibold text-[#64748b]">{meta}</p> : null}
+      {href && linkLabel ? (
+        <a
+          className="mt-2 inline-flex text-sm font-bold text-[#2463b3] underline decoration-[#2463b3]/40 underline-offset-2 hover:text-[#15345b] hover:decoration-[#15345b]"
+          href={href}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          {linkLabel}
+        </a>
+      ) : null}
       <p className="mt-2 text-sm leading-6 text-[#64748b]">{body}</p>
     </div>
   );

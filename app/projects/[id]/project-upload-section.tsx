@@ -1,9 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
 import UploadAnalyzer from "../../upload-analyzer";
-import { addLocalProjectUploadAnalysis, getLocalProjects, saveLocalProject } from "../local-project-storage";
+import { addLocalProjectUploadAnalysis, getLocalProjects, saveLocalProject, syncLocalProjectAnalyses } from "../local-project-storage";
 import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
 
 function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]): ProjectFile[] {
@@ -22,6 +23,7 @@ function mergeAnalyses(
 }
 
 export default function ProjectUploadSection({ project }: { project: Project }) {
+  const router = useRouter();
   const [files, setFiles] = useState<ProjectFile[]>(project.files);
   const [analyses, setAnalyses] = useState<UploadAnalysisSession[]>(project.uploadAnalyses ?? []);
 
@@ -30,7 +32,7 @@ export default function ProjectUploadSection({ project }: { project: Project }) 
       const localProject = getLocalProjects().find((item) => item.id === project.id);
       if (localProject) {
         setFiles(mergeProjectFiles(project.files, localProject.files));
-        setAnalyses(mergeAnalyses(project.uploadAnalyses, localProject.uploadAnalyses));
+        setAnalyses(localProject.uploadAnalyses ?? project.uploadAnalyses ?? []);
       } else {
         setFiles(project.files);
         setAnalyses(project.uploadAnalyses ?? []);
@@ -39,6 +41,12 @@ export default function ProjectUploadSection({ project }: { project: Project }) 
 
     return () => window.clearTimeout(timeout);
   }, [project.files, project.id, project.uploadAnalyses]);
+
+  function handleAnalysesChange(next: UploadAnalysisSession[]) {
+    setAnalyses(next);
+    syncLocalProjectAnalyses(project.id, project, files, next);
+    router.refresh();
+  }
 
   function persistUpload(session: UploadAnalysisSession, uploadedFiles: ProjectFile[]) {
     const nextFiles = mergeProjectFiles(files, uploadedFiles);
@@ -70,7 +78,7 @@ export default function ProjectUploadSection({ project }: { project: Project }) 
         <ProjectEvaluationWorkspace
           project={project}
           analyses={analyses}
-          onAnalysesChange={setAnalyses}
+          onAnalysesChange={handleAnalysesChange}
         />
       </div>
     </>

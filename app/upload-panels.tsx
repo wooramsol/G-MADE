@@ -142,12 +142,17 @@ function AnalysisSessionDetail({ session }: { session: SessionWithRound }) {
                 실시간 법령 근거 ({session.analysis.lawSource === "law.go.kr" ? "국가법령정보" : "내장 요약"})
               </p>
               {session.analysis.referenceLaws?.slice(0, 3).map((law) => (
-                <p className="mt-2 text-[#64748b]" key={`${session.id}-${law.title}-${law.article}`}>
-                  <span className="font-semibold text-[#15345b]">
+                <div className="mt-2 text-[#64748b]" key={`${session.id}-${law.title}-${law.article}`}>
+                  <a
+                    className="font-semibold text-[#2463b3] underline decoration-[#2463b3]/40 underline-offset-2 hover:text-[#15345b]"
+                    href={law.sourceUrl}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
                     {law.title} {law.article}
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-5">{law.summary}</span>
-                </p>
+                  </a>
+                  <p className="mt-0.5 text-xs leading-5">{law.summary}</p>
+                </div>
               ))}
             </div>
           ) : null}

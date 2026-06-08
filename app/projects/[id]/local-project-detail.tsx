@@ -1,16 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
 import UploadAnalyzer from "../../upload-analyzer";
-import { addLocalProjectUploadAnalysis, deleteLocalProject, getLocalProjects } from "../local-project-storage";
+import {
+  addLocalProjectUploadAnalysis,
+  deleteLocalProject,
+  getLocalProjects,
+  syncLocalProjectAnalyses,
+} from "../local-project-storage";
 import { showToast } from "../../toast";
 import LandscapeZonePanel from "./landscape-zone-panel";
 import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
 import ProjectLocationEditor from "./project-location-editor";
 
 export default function LocalProjectDetail({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const [project, setProject] = useState<Project | null | undefined>(undefined);
 
   useEffect(() => {
@@ -102,7 +109,16 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
               <ProjectEvaluationWorkspace
                 project={project}
                 analyses={project.uploadAnalyses ?? []}
-                onAnalysesChange={(next) => setProject({ ...project, uploadAnalyses: next })}
+                onAnalysesChange={(next) => {
+                  const updated = syncLocalProjectAnalyses(
+                    project.id,
+                    project,
+                    project.files,
+                    next,
+                  );
+                  setProject(updated);
+                  router.refresh();
+                }}
               />
             </div>
           </Panel>

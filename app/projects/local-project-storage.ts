@@ -47,6 +47,22 @@ export function addLocalProjectFiles(projectId: string, files: ProjectFile[]): P
   return nextProject;
 }
 
+export function syncLocalProjectAnalyses(
+  projectId: string,
+  baseProject: Project,
+  files: ProjectFile[],
+  uploadAnalyses: UploadAnalysisSession[],
+): Project {
+  const local = getLocalProjects().find((item) => item.id === projectId);
+  const nextProject = {
+    ...(local ?? baseProject),
+    files,
+    uploadAnalyses,
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
 export function removeLocalProjectUploadAnalysis(projectId: string, sessionId: string): Project | undefined {
   const projects = getLocalProjects();
   const project = projects.find((item) => item.id === projectId);

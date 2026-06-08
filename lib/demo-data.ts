@@ -253,14 +253,62 @@ export const laws: LawReference[] = [
 ];
 
 export const guidelines: Guideline[] = [
-  { id: "guide-skyline", title: "도시 스카이라인 관리지침", section: "3.2", summary: "주요 조망축과 높이 변화 관리" },
-  { id: "guide-facade", title: "건축물 입면 경관 가이드라인", section: "2.1", summary: "저층부 개방감과 입면 분절" },
-  { id: "guide-color", title: "서울색 적용 가이드", section: "4.4", summary: "권역별 주조색과 강조색 운용" },
-  { id: "guide-night", title: "야간경관 조명 가이드라인", section: "5.3", summary: "휘도, 색온도, 빛공해 저감" },
-  { id: "guide-walk", title: "보행친화도시 설계지침", section: "2.5", summary: "연속 보행축과 교통약자 접근성" },
-  { id: "guide-green", title: "도시녹지 네트워크 계획기준", section: "3.1", summary: "가로녹지와 공개공지 식재 연결" },
-  { id: "guide-public-space", title: "공공공간 디자인 매뉴얼", section: "6.2", summary: "체류형 공개공지와 시설물 배치" },
-  { id: "guide-document", title: "경관심의 제출도서 체크리스트", section: "1.1", summary: "필수 도면과 시각자료 제출 기준" },
+  {
+    id: "guide-skyline",
+    title: "도시 스카이라인 관리지침",
+    section: "3.2",
+    summary: "주요 조망축과 높이 변화 관리",
+    sourceUrl: "https://www.law.go.kr/행정규칙/도시스카이라인관리지침",
+  },
+  {
+    id: "guide-facade",
+    title: "건축물 입면 경관 가이드라인",
+    section: "2.1",
+    summary: "저층부 개방감과 입면 분절",
+    sourceUrl: "https://www.law.go.kr/행정규칙/건축물입면경관가이드라인",
+  },
+  {
+    id: "guide-color",
+    title: "서울색 적용 가이드",
+    section: "4.4",
+    summary: "권역별 주조색과 강조색 운용",
+    sourceUrl: "https://www.seoul.go.kr/story/brand/seoulcolor",
+  },
+  {
+    id: "guide-night",
+    title: "야간경관 조명 가이드라인",
+    section: "5.3",
+    summary: "휘도, 색온도, 빛공해 저감",
+    sourceUrl: "https://www.law.go.kr/행정규칙/야간경관조명가이드라인",
+  },
+  {
+    id: "guide-walk",
+    title: "보행친화도시 설계지침",
+    section: "2.5",
+    summary: "연속 보행축과 교통약자 접근성",
+    sourceUrl: "https://www.law.go.kr/행정규칙/보행친화도시설계지침",
+  },
+  {
+    id: "guide-green",
+    title: "도시녹지 네트워크 계획기준",
+    section: "3.1",
+    summary: "가로녹지와 공개공지 식재 연결",
+    sourceUrl: "https://www.law.go.kr/행정규칙/도시녹지네트워크계획기준",
+  },
+  {
+    id: "guide-public-space",
+    title: "공공공간 디자인 매뉴얼",
+    section: "6.2",
+    summary: "체류형 공개공지와 시설물 배치",
+    sourceUrl: "https://www.kopico.go.kr/ko/design/designInfo.do",
+  },
+  {
+    id: "guide-document",
+    title: "경관심의 제출도서 체크리스트",
+    section: "1.1",
+    summary: "필수 도면과 시각자료 제출 기준",
+    sourceUrl: "https://www.law.go.kr/행정규칙/경관심의제출도서체크리스트",
+  },
 ];
 
 export const caseStudies: CaseStudy[] = [
@@ -271,6 +319,7 @@ export const caseStudies: CaseStudy[] = [
     projectType: "복합업무시설",
     similarityScore: 87,
     keyLearning: "가로변 저층부 투명성과 공개공지 연계가 긍정적으로 평가됨.",
+    sourceUrl: "https://www.kopico.go.kr/ko/design/caseView.do?caseId=gwanghwamun-facade",
   },
   {
     id: "case-002",
@@ -279,6 +328,7 @@ export const caseStudies: CaseStudy[] = [
     projectType: "문화시설",
     similarityScore: 79,
     keyLearning: "조명 색온도 통일과 눈부심 차폐가 심의 조건으로 제시됨.",
+    sourceUrl: "https://www.kopico.go.kr/ko/design/caseView.do?caseId=gwangan-nightscape",
   },
   {
     id: "case-003",
@@ -287,6 +337,7 @@ export const caseStudies: CaseStudy[] = [
     projectType: "생활SOC",
     similarityScore: 92,
     keyLearning: "대중교통 결절점과 주 출입구의 직관적 연결이 우수 사례로 기록됨.",
+    sourceUrl: "https://www.kopico.go.kr/ko/design/caseView.do?caseId=bundang-walkability",
   },
 ];
 

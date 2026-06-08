@@ -34,6 +34,7 @@ export type Guideline = {
   title: string;
   section: string;
   summary: string;
+  sourceUrl: string;
 };
 
 export type CaseStudy = {
@@ -43,6 +44,7 @@ export type CaseStudy = {
   projectType: string;
   similarityScore: number;
   keyLearning: string;
+  sourceUrl: string;
 };
 
 export type ProjectFile = {

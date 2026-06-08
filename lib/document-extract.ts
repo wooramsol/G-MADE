@@ -1,18 +1,12 @@
-import mammoth from "mammoth";
 import JSZip from "jszip";
 
 const PREVIEW_LIMIT = 8000;
 
+/** PDF/DOCX 추출은 제거. PPTX·텍스트 파일만 미리보기를 생성합니다. */
 export async function extractDocumentText(buffer: Buffer, fileName: string): Promise<string> {
   const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
 
   try {
-    if (extension === "pdf") {
-      return await extractPdfText(buffer);
-    }
-    if (extension === "docx") {
-      return await extractDocxText(buffer);
-    }
     if (extension === "pptx") {
       return await extractPptxText(buffer);
     }
@@ -24,21 +18,6 @@ export async function extractDocumentText(buffer: Buffer, fileName: string): Pro
   }
 
   return "";
-}
-
-async function extractPdfText(buffer: Buffer): Promise<string> {
-  const pdfModule = await import("pdf-parse");
-  const pdfParse =
-    "default" in pdfModule && typeof pdfModule.default === "function"
-      ? pdfModule.default
-      : (pdfModule as unknown as (data: Buffer) => Promise<{ text?: string }>);
-  const parsed = await pdfParse(buffer);
-  return normalizeText(parsed.text ?? "");
-}
-
-async function extractDocxText(buffer: Buffer): Promise<string> {
-  const result = await mammoth.extractRawText({ buffer });
-  return normalizeText(result.value ?? "");
 }
 
 async function extractPptxText(buffer: Buffer): Promise<string> {
