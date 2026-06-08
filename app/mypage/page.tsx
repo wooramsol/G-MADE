@@ -1,4 +1,6 @@
 import { auth } from "@/auth";
+import IntegrationStatusPanel from "@/components/integration-status-panel";
+import { getIntegrationStatuses } from "@/lib/integrations/status";
 import { getRoleLabel } from "@/lib/role-labels";
 import SaasPageShell from "../saas-page-shell";
 import LogoutButton from "./logout-button";
@@ -9,6 +11,7 @@ export default async function MyPage() {
   const session = await auth();
   const user = session?.user;
   const initial = user?.name?.slice(0, 1) ?? "?";
+  const integrations = await getIntegrationStatuses();
 
   return (
     <SaasPageShell
@@ -60,17 +63,27 @@ export default async function MyPage() {
         </div>
       </section>
 
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold text-[#15345b]">API 연동 상태</h2>
+          <p className="mt-2 text-sm leading-6 text-[#64748b]">
+            운영 서버 환경 변수 기준으로 AI, 법령, 공간정보, 데이터베이스 연동 여부를 표시합니다. 키 값 전체는
+            노출하지 않습니다.
+          </p>
+        </div>
+
+        <div className="grid items-stretch gap-6 xl:grid-cols-2">
+          {integrations.groups.map((group) => (
+            <IntegrationStatusPanel checkedAt={integrations.checkedAt} group={group} key={group.id} />
+          ))}
+        </div>
+      </section>
+
       <section className="grid items-stretch gap-6 xl:grid-cols-2">
         <Panel title="평가 가중치 기본값">
           <SettingRow label="AI 평가 기본 비율" value="30%" />
           <SettingRow label="전문가 평가 기본 비율" value="70%" />
           <SettingRow label="프로젝트별 가중치 수정" value="허용" />
-        </Panel>
-        <Panel title="AI 연동 상태">
-          <SettingRow label="OpenAI / ChatGPT" value="환경변수 설정 시 활성" />
-          <SettingRow label="Google / Gemini" value="환경변수 설정 시 활성" />
-          <SettingRow label="Anthropic / Claude" value="환경변수 설정 시 활성" />
-          <SettingRow label="G-MADE HIVE / 데모 분석" value="API 키 미설정 시" />
         </Panel>
       </section>
     </SaasPageShell>
