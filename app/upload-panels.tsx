@@ -105,6 +105,38 @@ export function UploadAnalysisResultsPanel({ sessions }: { sessions: UploadAnaly
 
           <p className="text-sm leading-6 text-[#475569]">{session.analysis.summary}</p>
 
+          {session.analysis.spatialContext || (session.analysis.referenceLaws?.length ?? 0) > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {session.analysis.spatialContext ? (
+                <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-3 text-sm">
+                  <p className="font-bold text-[#15345b]">경관지구 (브이월드)</p>
+                  <p className="mt-1 text-[#64748b]">{session.analysis.spatialContext.address}</p>
+                  <p className="mt-2 font-semibold text-[#15345b]">
+                    {session.analysis.spatialContext.inLandscapeZone ? "경관지구 해당 가능" : "인근 조회 결과 없음"}
+                  </p>
+                  {session.analysis.spatialContext.matchedZones.slice(0, 2).map((zone) => (
+                    <p className="mt-1 text-xs text-[#64748b]" key={`${session.id}-${zone.code}`}>
+                      {zone.name} · {zone.jurisdiction}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+              {(session.analysis.referenceLaws?.length ?? 0) > 0 ? (
+                <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-3 text-sm">
+                  <p className="font-bold text-[#15345b]">
+                    실시간 법령 근거 ({session.analysis.lawSource === "law.go.kr" ? "국가법령정보" : "내장 요약"})
+                  </p>
+                  {session.analysis.referenceLaws?.slice(0, 3).map((law) => (
+                    <p className="mt-2 text-[#64748b]" key={`${session.id}-${law.title}-${law.article}`}>
+                      <span className="font-semibold text-[#15345b]">{law.title} {law.article}</span>
+                      <span className="mt-0.5 block text-xs leading-5">{law.summary}</span>
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-[#eef4fb] text-[#15345b]">
@@ -164,6 +196,9 @@ export function UploadAnalysisResultsPanel({ sessions }: { sessions: UploadAnaly
                   </span>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[#475569]">{row.rationale}</p>
+                {row.laws.length > 0 ? (
+                  <p className="mt-2 text-xs leading-5 text-[#64748b]">법령 근거: {row.laws.join(" · ")}</p>
+                ) : null}
                 <p className="mt-2 text-sm font-semibold leading-6 text-[#9a3412]">개선권고: {row.recommendation}</p>
               </div>
             ))}

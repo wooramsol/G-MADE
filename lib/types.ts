@@ -72,6 +72,7 @@ export type UploadAnalysisSession = {
     summary: string;
     documentSections: Array<{ label: string; confidence: number; summary: string }>;
     evaluationPreview: Array<{
+      itemId?: string;
       itemName: string;
       score: number;
       grade: string;
@@ -80,6 +81,24 @@ export type UploadAnalysisSession = {
       laws: string[];
       guidelines: string[];
     }>;
+    referenceLaws?: Array<{
+      title: string;
+      article: string;
+      summary: string;
+      sourceUrl: string;
+    }>;
+    spatialContext?: {
+      address: string;
+      inLandscapeZone: boolean;
+      matchedZones: Array<{
+        name: string;
+        code: string;
+        jurisdiction: string;
+        designationYear: string;
+      }>;
+    } | null;
+    lawSource?: "law.go.kr" | "demo-fallback";
+    contextFetchedAt?: string;
     warnings: string[];
   };
 };

@@ -1,3 +1,5 @@
+import type { EvaluationContext } from "../evaluation-context";
+
 export type UploadedFileSummary = {
   id: string;
   originalName: string;
@@ -5,6 +7,13 @@ export type UploadedFileSummary = {
   sizeBytes: number;
   storagePath: string;
   extractedTextPreview: string;
+};
+
+export type UploadAnalysisReferenceLaw = {
+  title: string;
+  article: string;
+  summary: string;
+  sourceUrl: string;
 };
 
 export type UploadAnalysisResult = {
@@ -26,5 +35,15 @@ export type UploadAnalysisResult = {
     laws: string[];
     guidelines: string[];
   }>;
+  referenceLaws: UploadAnalysisReferenceLaw[];
+  spatialContext: EvaluationContext["spatial"];
+  lawSource: EvaluationContext["lawSource"];
+  contextFetchedAt: string;
   warnings: string[];
+};
+
+export type AnalyzeUploadedFilesInput = {
+  providerPreference: import("./types").AiProviderPreference;
+  files: UploadedFileSummary[];
+  evaluationContext: EvaluationContext;
 };

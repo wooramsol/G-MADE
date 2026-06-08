@@ -1,21 +1,16 @@
 import { analyzeWithClaude } from "./ai/analyze-claude";
 import { getGeminiApiKey, getOpenAiApiKey } from "./ai/env-keys";
 import { buildAnalysisPrompt } from "./ai/analysis-prompt";
-import type { UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
+import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
 import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
 import { selectProvider } from "./ai/select-provider";
-import type { AiProviderPreference } from "./ai/types";
-import { evaluationItems, guidelines, laws } from "./demo-data";
+import type { EvaluationContext } from "./evaluation-context";
+import { evaluationItems } from "./demo-data";
 import { gradeScore } from "./hybrid-evaluation";
 
 export type { UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
-
-type AnalyzeInput = {
-  providerPreference: AiProviderPreference;
-  files: UploadedFileSummary[];
-};
 
 const sectionLabels = [
   "건축개요",
@@ -30,48 +25,63 @@ const sectionLabels = [
   "주변현황",
 ];
 
-export async function analyzeUploadedFiles(input: AnalyzeInput): Promise<UploadAnalysisResult> {
-  const preference = input.providerPreference;
+export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Promise<UploadAnalysisResult> {
+  const { providerPreference, files, evaluationContext } = input;
+  const baseWarnings = [...evaluationContext.warnings];
 
-  if (preference === "demo") {
-    return createDemoAnalysis(input.files, "demo", ["데모 분석 모드로 실행했습니다."]);
+  if (providerPreference === "demo") {
+    return createDemoAnalysis(files, evaluationContext, "demo", [...baseWarnings, "데모 분석 모드로 실행했습니다."]);
   }
 
-  if (preference === "openai") {
-    return analyzeWithOpenAi(input.files);
+  if (providerPreference === "openai") {
+    return analyzeWithOpenAi(files, evaluationContext, baseWarnings);
   }
 
-  if (preference === "gemini") {
-    return analyzeWithGemini(input.files);
+  if (providerPreference === "gemini") {
+    return analyzeWithGemini(files, evaluationContext, baseWarnings);
   }
 
-  if (preference === "claude") {
-    return analyzeWithClaude(input.files, { normalizeAiJson, createDemoAnalysis });
+  if (providerPreference === "claude") {
+    return analyzeWithClaude(files, evaluationContext, {
+      normalizeAiJson: (content, provider) => normalizeAiJson(content, files, provider, evaluationContext, baseWarnings),
+      createDemoAnalysis: (provider, warnings) => createDemoAnalysis(files, evaluationContext, provider, [...baseWarnings, ...warnings]),
+    });
   }
 
   const provider = selectProvider("auto");
 
   if (provider === "openai") {
-    return analyzeWithOpenAi(input.files);
+    return analyzeWithOpenAi(files, evaluationContext, baseWarnings);
   }
 
   if (provider === "gemini") {
-    return analyzeWithGemini(input.files);
+    return analyzeWithGemini(files, evaluationContext, baseWarnings);
   }
 
   if (provider === "claude") {
-    return analyzeWithClaude(input.files, { normalizeAiJson, createDemoAnalysis });
+    return analyzeWithClaude(files, evaluationContext, {
+      normalizeAiJson: (content, providerName) =>
+        normalizeAiJson(content, files, providerName, evaluationContext, baseWarnings),
+      createDemoAnalysis: (providerName, warnings) =>
+        createDemoAnalysis(files, evaluationContext, providerName, [...baseWarnings, ...warnings]),
+    });
   }
 
-  return createDemoAnalysis(input.files, "demo", [
+  return createDemoAnalysis(files, evaluationContext, "demo", [
+    ...baseWarnings,
     "설정된 AI API 키가 없어 데모 분석 결과를 반환했습니다. Vercel에 GEMINI_API_KEY, OPENAI_API_KEY, CLAUDE_API_KEY 중 하나를 추가해 주세요.",
   ]);
 }
 
-async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAnalysisResult> {
+async function analyzeWithOpenAi(
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  baseWarnings: string[],
+): Promise<UploadAnalysisResult> {
   const apiKey = getOpenAiApiKey();
   if (!apiKey) {
-    return createDemoAnalysis(files, "openai", [
+    return createDemoAnalysis(files, evaluationContext, "openai", [
+      ...baseWarnings,
       "OPENAI_API_KEY가 Vercel 환경 변수에 설정되지 않았습니다. Settings → Environment Variables에서 추가한 뒤 재배포해 주세요.",
     ]);
   }
@@ -89,11 +99,11 @@ async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAn
         {
           role: "system",
           content:
-            "너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 반드시 JSON만 반환한다.",
+            "너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 제공된 실시간 법령·경관지구 정보를 근거로 반드시 JSON만 반환한다.",
         },
         {
           role: "user",
-          content: buildAnalysisPrompt(files),
+          content: buildAnalysisPrompt(files, evaluationContext),
         },
       ],
       temperature: 0.2,
@@ -102,17 +112,26 @@ async function analyzeWithOpenAi(files: UploadedFileSummary[]): Promise<UploadAn
 
   if (!response.ok) {
     const message = await response.text();
-    return createDemoAnalysis(files, "openai", [formatProviderApiError("openai", "OpenAI", response.status, message)]);
+    return createDemoAnalysis(files, evaluationContext, "openai", [
+      ...baseWarnings,
+      formatProviderApiError("openai", "OpenAI", response.status, message),
+    ]);
   }
 
   const payload = await response.json();
   const content = payload.choices?.[0]?.message?.content;
-  return normalizeAiJson(content, files, "openai");
+  return normalizeAiJson(content, files, "openai", evaluationContext, baseWarnings);
 }
 
-async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAnalysisResult> {
+async function analyzeWithGemini(
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  baseWarnings: string[],
+): Promise<UploadAnalysisResult> {
   const apiKey = getGeminiApiKey();
-  if (!apiKey) return createDemoAnalysis(files, "demo", ["GEMINI_API_KEY가 설정되지 않았습니다."]);
+  if (!apiKey) {
+    return createDemoAnalysis(files, evaluationContext, "demo", [...baseWarnings, "GEMINI_API_KEY가 설정되지 않았습니다."]);
+  }
 
   const modelsToTry = getGeminiModelsToTry(process.env.GEMINI_MODEL);
   let lastStatus = 500;
@@ -120,18 +139,18 @@ async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAn
   let rateLimitModel = modelsToTry[0] ?? DEFAULT_GEMINI_MODEL;
 
   for (const model of modelsToTry) {
-    let response = await requestGemini(apiKey, model, files);
+    let response = await requestGemini(apiKey, model, files, evaluationContext);
 
     if (!response.ok && response.status === 429) {
       rateLimitModel = model;
       await sleep(13_000);
-      response = await requestGemini(apiKey, model, files);
+      response = await requestGemini(apiKey, model, files, evaluationContext);
     }
 
     if (response.ok) {
       const payload = await response.json();
       const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-      return normalizeAiJson(content, files, "gemini");
+      return normalizeAiJson(content, files, "gemini", evaluationContext, baseWarnings);
     }
 
     lastStatus = response.status;
@@ -149,20 +168,24 @@ async function analyzeWithGemini(files: UploadedFileSummary[]): Promise<UploadAn
   }
 
   if (lastStatus === 429) {
-    return createDemoAnalysis(files, "gemini", [
+    return createDemoAnalysis(files, evaluationContext, "gemini", [
+      ...baseWarnings,
       formatProviderApiError("gemini", "Gemini", lastStatus, lastBody),
       `사용 모델: ${rateLimitModel}`,
     ]);
   }
 
-  return createDemoAnalysis(files, "gemini", [formatProviderApiError("gemini", "Gemini", lastStatus, lastBody)]);
+  return createDemoAnalysis(files, evaluationContext, "gemini", [
+    ...baseWarnings,
+    formatProviderApiError("gemini", "Gemini", lastStatus, lastBody),
+  ]);
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function requestGemini(apiKey: string, model: string, files: UploadedFileSummary[]) {
+async function requestGemini(apiKey: string, model: string, files: UploadedFileSummary[], evaluationContext: EvaluationContext) {
   return fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -174,7 +197,7 @@ async function requestGemini(apiKey: string, model: string, files: UploadedFileS
             role: "user",
             parts: [
               {
-                text: `너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 반드시 JSON만 반환한다.\n\n${buildAnalysisPrompt(files)}`,
+                text: `너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 제공된 실시간 법령·경관지구 정보를 근거로 반드시 JSON만 반환한다.\n\n${buildAnalysisPrompt(files, evaluationContext)}`,
               },
             ],
           },
@@ -192,23 +215,32 @@ function normalizeAiJson(
   content: string | undefined,
   files: UploadedFileSummary[],
   provider: "openai" | "gemini" | "claude",
+  evaluationContext: EvaluationContext,
+  baseWarnings: string[],
 ): UploadAnalysisResult {
   if (!content) {
-    return createDemoAnalysis(files, provider, [`${provider} 응답 본문이 비어 있어 데모 분석으로 대체했습니다.`]);
+    return createDemoAnalysis(files, evaluationContext, provider, [
+      ...baseWarnings,
+      `${provider} 응답 본문이 비어 있어 데모 분석으로 대체했습니다.`,
+    ]);
   }
 
   try {
     const parsed = JSON.parse(extractJsonContent(content) ?? content);
-    return {
-      provider,
-      mode: "live",
-      summary: String(parsed.summary ?? "업로드 자료를 기반으로 AI 분석을 완료했습니다."),
-      documentSections: normalizeSections(parsed.documentSections),
-      evaluationPreview: normalizeEvaluations(parsed.evaluationPreview),
-      warnings: [],
-    };
+    return attachContextMetadata(
+      {
+        provider,
+        mode: "live",
+        summary: String(parsed.summary ?? "업로드 자료와 실시간 법령·경관지구 정보를 기반으로 AI 분석을 완료했습니다."),
+        documentSections: normalizeSections(parsed.documentSections),
+        evaluationPreview: normalizeEvaluations(parsed.evaluationPreview, evaluationContext),
+        warnings: baseWarnings,
+      },
+      evaluationContext,
+    );
   } catch {
-    return createDemoAnalysis(files, provider, [
+    return createDemoAnalysis(files, evaluationContext, provider, [
+      ...baseWarnings,
       `${provider} 응답 JSON 파싱에 실패해 원문 요약을 표시합니다: ${content.slice(0, 300)}`,
     ]);
   }
@@ -224,24 +256,53 @@ function normalizeSections(value: unknown): UploadAnalysisResult["documentSectio
   }));
 }
 
-function normalizeEvaluations(value: unknown): UploadAnalysisResult["evaluationPreview"] {
+function normalizeEvaluations(
+  value: unknown,
+  evaluationContext: EvaluationContext,
+): UploadAnalysisResult["evaluationPreview"] {
   const source = Array.isArray(value) && value.length > 0 ? value : [];
   const rows = source.length > 0 ? source : evaluationItems.slice(0, 4);
+  const defaultLawRefs = evaluationContext.referenceLaws.slice(0, 3).map((law) => `${law.title} ${law.article}`);
+  const defaultGuidelineRefs = evaluationContext.guidelines.slice(0, 2).map((guide) => `${guide.title} ${guide.section}`);
 
   return rows.slice(0, 8).map((row, index) => {
     const item = evaluationItems[index % evaluationItems.length];
     const score = clampNumber(Number(row?.score ?? 80 - index * 2));
+    const aiLawRefs = Array.isArray(row?.lawRefs)
+      ? row.lawRefs.map((law: unknown) => String(law)).filter(Boolean)
+      : [];
+    const aiGuidelineRefs = Array.isArray(row?.guidelineRefs)
+      ? row.guidelineRefs.map((guide: unknown) => String(guide)).filter(Boolean)
+      : [];
+
     return {
       itemId: item.id,
       itemName: String(row?.itemName ?? item.detailItem),
       score,
       grade: String(row?.grade ?? gradeScore(score)),
-      rationale: String(row?.rationale ?? item.criteria),
+      rationale: String(row?.rationale ?? buildFallbackRationale(item.criteria, evaluationContext)),
       recommendation: String(row?.recommendation ?? "심사위원 검토 단계에서 현장 맥락과 보완 조건을 확인해야 합니다."),
-      laws: laws.slice(0, 2).map((law) => `${law.title} ${law.article}`),
-      guidelines: guidelines.slice(0, 2).map((guide) => `${guide.title} ${guide.section}`),
+      laws: aiLawRefs.length > 0 ? aiLawRefs : defaultLawRefs,
+      guidelines: aiGuidelineRefs.length > 0 ? aiGuidelineRefs : defaultGuidelineRefs,
     };
   });
+}
+
+function buildFallbackRationale(criteria: string, evaluationContext: EvaluationContext): string {
+  const lawRef = evaluationContext.referenceLaws[0];
+  const spatial = evaluationContext.spatial;
+  const parts = [criteria];
+
+  if (lawRef) {
+    parts.push(`${lawRef.title} ${lawRef.article} 및 실시간 법령 조회 결과를 참고함.`);
+  }
+  if (spatial?.matchedZones[0]) {
+    parts.push(`인근 경관지구: ${spatial.matchedZones[0].name}.`);
+  } else if (spatial) {
+    parts.push("경관지구 조회 반경 내 해당 레이어는 확인되지 않음.");
+  }
+
+  return parts.join(" ");
 }
 
 function defaultSections(): UploadAnalysisResult["documentSections"] {
@@ -254,18 +315,47 @@ function defaultSections(): UploadAnalysisResult["documentSections"] {
 
 function createDemoAnalysis(
   files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
   provider: "demo" | "openai" | "gemini" | "claude",
   warnings: string[],
 ): UploadAnalysisResult {
   const fileNames = files.map((file) => file.originalName).join(", ") || "업로드 자료";
+  const lawNote =
+    evaluationContext.lawSource === "law.go.kr"
+      ? `국가법령정보 API에서 ${evaluationContext.referenceLaws.length}건의 법령 근거를 조회했습니다.`
+      : "법령 API 미연동 상태에서 내장 요약을 사용했습니다.";
+  const spatialNote = evaluationContext.spatial
+    ? `경관지구 ${evaluationContext.spatial.inLandscapeZone ? "해당 가능" : "인근 조회 결과 없음"}`
+    : "경관지구 정보 미조회";
 
+  return attachContextMetadata(
+    {
+      provider,
+      mode: "demo",
+      summary: `${fileNames}를 기준으로 건축개요, 배치, 입면, 색채, 야간경관, 보행동선, 녹지계획을 예비 분석했습니다. ${lawNote} ${spatialNote}.`,
+      documentSections: defaultSections(),
+      evaluationPreview: normalizeEvaluations([], evaluationContext),
+      warnings,
+    },
+    evaluationContext,
+  );
+}
+
+function attachContextMetadata(
+  result: Omit<UploadAnalysisResult, "referenceLaws" | "spatialContext" | "lawSource" | "contextFetchedAt">,
+  evaluationContext: EvaluationContext,
+): UploadAnalysisResult {
   return {
-    provider,
-    mode: "demo",
-    summary: `${fileNames}를 기준으로 건축개요, 배치, 입면, 색채, 야간경관, 보행동선, 녹지계획을 예비 분석했습니다. 실제 AI API 키가 설정되면 같은 화면에서 실시간 분석 결과가 표시됩니다.`,
-    documentSections: defaultSections(),
-    evaluationPreview: normalizeEvaluations([]),
-    warnings,
+    ...result,
+    referenceLaws: evaluationContext.referenceLaws.map((law) => ({
+      title: law.title,
+      article: law.article,
+      summary: law.summary,
+      sourceUrl: law.sourceUrl,
+    })),
+    spatialContext: evaluationContext.spatial,
+    lawSource: evaluationContext.lawSource,
+    contextFetchedAt: evaluationContext.fetchedAt,
   };
 }
 

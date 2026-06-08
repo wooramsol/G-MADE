@@ -1,8 +1,60 @@
-import { evaluationItems, guidelines, laws } from "../demo-data";
+import { evaluationItems } from "../demo-data";
+import type { EvaluationContext } from "../evaluation-context";
 import type { UploadedFileSummary } from "./analysis-types";
 
-export function buildAnalysisPrompt(files: UploadedFileSummary[]): string {
-  return `업로드된 심의 자료를 분석해라.
+export function buildAnalysisPrompt(files: UploadedFileSummary[], context: EvaluationContext): string {
+  const projectBlock = context.project
+    ? `프로젝트 정보:
+- 사업명: ${context.project.name}
+- 사업위치: ${context.project.location}
+- 심의종류: ${context.project.reviewType}
+- 사업유형: ${context.project.projectType}
+- 좌표: ${context.project.locationPoint ? `${context.project.locationPoint.y}, ${context.project.locationPoint.x}` : "미지정"}`
+    : "프로젝트 정보: 없음 (파일만 분석)";
+
+  const spatialBlock = context.spatial
+    ? `경관지구 공간정보 (브이월드 실시간, ${context.fetchedAt}):
+- 조회 주소: ${context.spatial.address}
+- 경관지구 해당: ${context.spatial.inLandscapeZone ? "해당 가능" : "인근 조회 결과 없음"}
+- 매칭 경관지구: ${
+        context.spatial.matchedZones.length > 0
+          ? context.spatial.matchedZones
+              .map((zone) => `${zone.name}(코드 ${zone.code}, ${zone.jurisdiction}, 지정 ${zone.designationYear})`)
+              .join("; ")
+          : "없음"
+      }
+- 참고: ${context.spatial.disclaimer}`
+    : "경관지구 공간정보: 조회 불가 또는 미연동";
+
+  const lawBlock =
+    context.referenceLaws.length > 0
+      ? `실시간 법령 근거 (${context.lawSource}, ${context.fetchedAt}):
+${context.referenceLaws
+  .map(
+    (law, index) =>
+      `${index + 1}. ${law.title} ${law.article}
+   요약: ${law.summary}
+   출처: ${law.sourceUrl}`,
+  )
+  .join("\n")}`
+      : "실시간 법령 근거: 없음";
+
+  const guidelineBlock =
+    context.guidelines.length > 0
+      ? `관련 지침 후보:
+${context.guidelines.map((guide) => `- ${guide.title} ${guide.section}: ${guide.summary}`).join("\n")}`
+      : "";
+
+  return `업로드된 심의 자료를 분석하고 경관·공공디자인 심의 관점에서 평가하라.
+반드시 아래 실시간 법령·경관지구 정보를 근거로 활용하고, rationale에 어떤 법령·경관지구 맥락을 참고했는지 명시하라.
+
+${projectBlock}
+
+${spatialBlock}
+
+${lawBlock}
+
+${guidelineBlock}
 
 파일 목록:
 ${files
@@ -14,32 +66,22 @@ ${files
 
 반환 JSON 스키마:
 {
-  "summary": "전체 분석 요약",
+  "summary": "전체 분석 요약 (법령·경관지구 맥락 반영)",
   "documentSections": [{ "label": "건축개요", "confidence": 0-100, "summary": "추출 요약" }],
   "evaluationPreview": [{
     "itemName": "평가항목명",
     "score": 0-100,
     "grade": "매우우수|우수|보통|미흡|매우미흡",
-    "rationale": "점수 산정 근거",
-    "recommendation": "개선권고사항"
+    "rationale": "점수 산정 근거 (인용한 법령 조문·경관지구명 포함)",
+    "recommendation": "개선권고사항",
+    "lawRefs": ["경관의 법률 제28조"],
+    "guidelineRefs": ["서울색 적용 가이드 4.4"]
   }]
 }
 
 평가항목 후보:
 ${evaluationItems
-  .slice(0, 6)
+  .slice(0, 8)
   .map((item) => `- ${item.detailItem}: ${item.criteria}`)
-  .join("\n")}
-
-관련 법령 후보:
-${laws
-  .slice(0, 3)
-  .map((law) => `- ${law.title} ${law.article}: ${law.summary}`)
-  .join("\n")}
-
-관련 지침 후보:
-${guidelines
-  .slice(0, 3)
-  .map((guide) => `- ${guide.title} ${guide.section}: ${guide.summary}`)
   .join("\n")}`;
 }

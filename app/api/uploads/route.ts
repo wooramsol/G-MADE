@@ -4,12 +4,14 @@ import { getWritableStoragePath } from "@/lib/runtime-storage";
 import { NextRequest, NextResponse } from "next/server";
 import { getDefaultAiProvider } from "@/lib/ai/select-provider";
 import type { AiProviderPreference } from "@/lib/ai/types";
+import { buildEvaluationContext } from "@/lib/evaluation-context";
 import { addProjectUploadAnalysis } from "@/lib/project-store";
 import { analyzeUploadedFiles, type UploadedFileSummary } from "@/lib/upload-analysis";
 import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
+export const preferredRegion = "icn1";
 
 const allowedExtensions = new Set(["pdf", "docx", "pptx", "jpg", "jpeg", "png", "dwg", "zip", "txt", "md"]);
 const maxFileSizeBytes = 25 * 1024 * 1024;
@@ -61,9 +63,11 @@ export async function POST(request: NextRequest) {
       sizeBytes: file.sizeBytes,
     }));
 
+    const evaluationContext = await buildEvaluationContext(projectId || undefined);
     const analysis = await analyzeUploadedFiles({
       providerPreference,
       files: savedFiles,
+      evaluationContext,
     });
 
     const aiWeight = Number(formData.get("aiWeight") ?? 30);
