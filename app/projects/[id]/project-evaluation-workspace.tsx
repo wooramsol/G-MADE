@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import { caseStudies, guidelines } from "@/lib/demo-data";
 import {
+  buildCaseStudyReferenceUrl,
+  buildGuidelineReferenceUrl,
+  buildLawReferenceUrl,
   formatCaseStudyLinkLabel,
   formatGuidelineLinkLabel,
   formatLawLinkLabel,
@@ -259,7 +262,7 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
             {referenceLaws.slice(0, 6).map((law) => (
               <ReferenceCard
                 title={`${law.title} ${law.article}`}
-                href={law.sourceUrl}
+                href={buildLawReferenceUrl(law.title, law.sourceUrl)}
                 linkLabel={formatLawLinkLabel(law.title, law.article)}
                 body={law.summary}
                 key={`${law.title}-${law.article}`}
@@ -272,7 +275,7 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
             {guidelines.slice(0, 5).map((guide) => (
               <ReferenceCard
                 title={guide.title}
-                href={guide.sourceUrl}
+                href={guide.sourceUrl ?? buildGuidelineReferenceUrl(guide)}
                 linkLabel={formatGuidelineLinkLabel(guide.title, guide.section)}
                 body={guide.summary}
                 key={guide.id}
@@ -285,7 +288,7 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
             {caseStudies.map((item) => (
               <ReferenceCard
                 title={item.title}
-                href={item.sourceUrl}
+                href={item.sourceUrl ?? buildCaseStudyReferenceUrl(item)}
                 linkLabel={formatCaseStudyLinkLabel(item.title)}
                 meta={`${item.location} · 유사도 ${item.similarityScore}%`}
                 body={item.keyLearning}
