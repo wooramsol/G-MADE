@@ -72,10 +72,24 @@ export default async function MyPage() {
           </p>
         </div>
 
-        <div className="grid items-stretch gap-6 xl:grid-cols-2">
-          {integrations.groups.map((group) => (
-            <IntegrationStatusPanel checkedAt={integrations.checkedAt} group={group} key={group.id} />
-          ))}
+        <div className="grid items-start gap-6 xl:grid-cols-2">
+          {integrations.groups
+            .filter((group) => group.id === "ai")
+            .map((group) => (
+              <IntegrationStatusPanel
+                checkedAt={integrations.checkedAt}
+                group={group}
+                key={group.id}
+              />
+            ))}
+
+          <div className="flex flex-col gap-4">
+            {integrations.groups
+              .filter((group) => group.id !== "ai")
+              .map((group) => (
+                <IntegrationStatusPanel group={group} key={group.id} variant="compact" />
+              ))}
+          </div>
         </div>
       </section>
 
