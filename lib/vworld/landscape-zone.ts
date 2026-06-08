@@ -1,6 +1,5 @@
-import { getVWorldApiKey } from "./config";
 import type { GeoPoint } from "./geocode";
-import { buildVWorldParams, extractVWorldError, vworldGetJson } from "./http";
+import { querySpatialLayersNearPoint, type SpatialLayerFeature } from "./wfs";
 
 export type LandscapeZoneFeature = {
   id: string;
@@ -16,20 +15,14 @@ export type LandscapeZoneLookupResult = {
   point: GeoPoint;
   inLandscapeZone: boolean;
   matchedZones: LandscapeZoneFeature[];
+  layerFeatures: Array<{
+    layerId: string;
+    layerLabel: string;
+    name: string;
+    geometry: GeoJSON.Geometry | null;
+  }>;
   source: "vworld-wfs";
   disclaimer: string;
-};
-
-type GeoJsonFeature = {
-  id?: string;
-  type?: string;
-  geometry?: { type?: string };
-  properties?: Record<string, unknown>;
-};
-
-type GeoJsonCollection = {
-  type?: string;
-  features?: GeoJsonFeature[];
 };
 
 const DISCLAIMER =
@@ -43,82 +36,35 @@ export class VWorldLandscapeZoneError extends Error {
 }
 
 export async function lookupLandscapeZoneByAddress(address: string, point: GeoPoint): Promise<LandscapeZoneLookupResult> {
-  const matchedZones = await queryLandscapeZonesNearPoint(point);
+  const layerFeatures = await querySpatialLayersNearPoint(point);
+  const matchedZones = layerFeatures
+    .filter((feature) => feature.layerId === "landscape-zone")
+    .map((feature, index) => mapLayerToLandscapeZone(feature, index));
 
   return {
     address,
     point,
     inLandscapeZone: matchedZones.length > 0,
     matchedZones,
+    layerFeatures: layerFeatures.map((feature) => ({
+      layerId: feature.layerId,
+      layerLabel: feature.layerLabel,
+      name: feature.name,
+      geometry: feature.geometry,
+    })),
     source: "vworld-wfs",
     disclaimer: DISCLAIMER,
   };
 }
 
-async function queryLandscapeZonesNearPoint(point: GeoPoint): Promise<LandscapeZoneFeature[]> {
-  const key = getVWorldApiKey();
-  if (!key) return [];
-
-  const buffer = 0.002;
-  const bbox = [point.y - buffer, point.x - buffer, point.y + buffer, point.x + buffer].join(",");
-
-  const params = buildVWorldParams({
-    service: "WFS",
-    request: "GetFeature",
-    version: "1.1.0",
-    typename: "lt_c_uq121",
-    srsname: "EPSG:4326",
-    bbox,
-    output: "application/json",
-    maxfeatures: "10",
-    key,
-  });
-
-  const result = await vworldGetJson<GeoJsonCollection>(
-    `https://api.vworld.kr/req/wfs?${params.toString()}`,
-    "경관지구(WFS)",
-  );
-
-  if (!result.ok) {
-    throw new VWorldLandscapeZoneError(result.error);
-  }
-
-  const vworldError = extractVWorldError(result.data);
-  if (vworldError) {
-    throw new VWorldLandscapeZoneError(vworldError);
-  }
-
-  if (!Array.isArray(result.data.features)) {
-    return [];
-  }
-
-  return result.data.features
-    .map((feature, index) => mapLandscapeZoneFeature(feature, index))
-    .filter((feature): feature is LandscapeZoneFeature => feature !== null);
-}
-
-function mapLandscapeZoneFeature(feature: GeoJsonFeature, index: number): LandscapeZoneFeature | null {
-  const properties = feature.properties ?? {};
-  const name = pickString(properties, ["uname", "UNAME", "name", "NAME"]) ?? `경관지구 ${index + 1}`;
-  const code = pickString(properties, ["ucode", "UCODE", "code", "CODE"]) ?? "-";
-  const jurisdiction = pickString(properties, ["sido_name", "SIDO_NAME", "sigg_name", "SIGG_NAME"]) ?? "-";
-  const designationYear = pickString(properties, ["dyear", "DYEAR", "year", "YEAR"]) ?? "-";
-
+function mapLayerToLandscapeZone(feature: SpatialLayerFeature, index: number): LandscapeZoneFeature {
+  const props = feature.properties;
   return {
-    id: String(feature.id ?? `${code}-${index}`),
-    name,
-    code,
-    jurisdiction,
-    designationYear,
+    id: feature.id,
+    name: feature.name,
+    code: props.ucode ?? props.UCODE ?? props.code ?? "-",
+    jurisdiction: props.sido_name ?? props.SIDO_NAME ?? props.sigg_name ?? "-",
+    designationYear: props.dyear ?? props.DYEAR ?? "-",
     geometryType: feature.geometry?.type ?? "Unknown",
   };
-}
-
-function pickString(properties: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = properties[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-    if (typeof value === "number") return String(value);
-  }
-  return null;
 }

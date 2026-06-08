@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { getWritableStoragePath } from "@/lib/runtime-storage";
 import { NextRequest, NextResponse } from "next/server";
+import { extractDocumentText } from "@/lib/document-extract";
 import { getDefaultAiProvider } from "@/lib/ai/select-provider";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import { buildEvaluationContext } from "@/lib/evaluation-context";
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
         fileType: file.type || inferFileType(file.name),
         sizeBytes: file.size,
         storagePath,
-        extractedTextPreview: extractTextPreview(buffer, file.type, file.name),
+        extractedTextPreview: await extractDocumentText(buffer, file.name),
       });
     }
 
@@ -128,17 +129,6 @@ function getExtension(fileName: string): string {
 function inferFileType(fileName: string): string {
   const extension = getExtension(fileName);
   return extension ? `application/${extension}` : "application/octet-stream";
-}
-
-function extractTextPreview(buffer: Buffer, fileType: string, fileName: string): string {
-  const extension = getExtension(fileName);
-  const looksText = fileType.startsWith("text/") || ["txt", "md"].includes(extension);
-
-  if (!looksText) {
-    return "";
-  }
-
-  return buffer.toString("utf8").replace(/\s+/g, " ").slice(0, 4000);
 }
 
 function formatStoredFileType(fileName: string, fallbackType: string): string {

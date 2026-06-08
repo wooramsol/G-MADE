@@ -140,10 +140,13 @@ async function loadReferenceLaws(
 function buildLawQueries(project?: Project): string[] {
   const queries = new Set<string>([
     "경관의 법률",
+    "경관법 시행령",
     "공공디자인의 진흥에 관한 법률",
+    "공공디자인 진흥법 시행령",
     "인공조명에 의한 빛공해 방지법",
     "도시공원 및 녹지 등에 관한 법률",
     "장애인·노인·임산부 등의 편의증진 보장에 관한 법률",
+    "건축법",
   ]);
 
   if (project?.reviewType.includes("공공디자인")) {

@@ -1,7 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import type { ProjectLocationPoint } from "@/lib/types";
+
+const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[320px] items-center justify-center rounded-xl border border-[#d7dee8] bg-[#f8fafc] text-sm text-[#64748b]">
+      지도 불러오는 중…
+    </div>
+  ),
+});
 
 type LandscapeZoneFeature = {
   id: string;
@@ -12,11 +22,19 @@ type LandscapeZoneFeature = {
   geometryType: string;
 };
 
+type LayerFeature = {
+  layerId: string;
+  layerLabel: string;
+  name: string;
+  geometry: GeoJSON.Geometry | null;
+};
+
 type LandscapeZoneResponse = {
   address: string;
   point: { x: number; y: number };
   inLandscapeZone: boolean;
   matchedZones: LandscapeZoneFeature[];
+  layerFeatures?: LayerFeature[];
   disclaimer: string;
 };
 
@@ -63,7 +81,6 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
           const errorPayload = payload as LandscapeZoneErrorResponse;
           const parts = [errorPayload.error ?? "경관지구 조회에 실패했습니다."];
           if (errorPayload.hint) parts.push(errorPayload.hint);
-          if (errorPayload.domain) parts.push(`도메인: ${errorPayload.domain}`);
           throw new Error(parts.join(" "));
         }
 
@@ -86,7 +103,7 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
       void loadLandscapeZone();
     } else {
       setLoading(false);
-      setError("사업위치가 없어 경관지구를 조회할 수 없습니다.");
+      setError("사업위치가 없어 공간정보를 조회할 수 없습니다.");
     }
 
     return () => {
@@ -94,22 +111,36 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
     };
   }, [address, locationPoint]);
 
+  const otherLayers =
+    result?.layerFeatures?.filter((feature) => feature.layerId !== "landscape-zone") ?? [];
+
   return (
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#2463b3]">Spatial Context</p>
-          <h3 className="mt-1 text-lg font-bold text-[#15345b]">경관지구 공간정보 (브이월드)</h3>
+          <h3 className="mt-1 text-lg font-bold text-[#15345b]">공간정보 (브이월드)</h3>
         </div>
-        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">lt_c_uq121</span>
+        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+          경관지구·용도지역·문화재
+        </span>
       </div>
 
       {loading ? (
-        <p className="rounded-xl bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">사업위치 기준 경관지구를 조회하는 중입니다...</p>
+        <p className="rounded-xl bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">공간정보를 조회하는 중입니다...</p>
       ) : null}
 
       {!loading && error ? (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{error}</p>
+      ) : null}
+
+      {!loading && result && locationPoint ? (
+        <div className="mb-4">
+          <SpatialDetailMap
+            point={{ x: locationPoint.x, y: locationPoint.y }}
+            layerFeatures={result.layerFeatures ?? []}
+          />
+        </div>
       ) : null}
 
       {!loading && result ? (
@@ -135,11 +166,23 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
-              조회 반경 내 경관지구 레이어가 확인되지 않았습니다. 지도에서 좌표를 다시 지정하거나 보조 설명을 확인해 주세요.
-            </p>
-          )}
+          ) : null}
+
+          {otherLayers.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-[#15345b]">기타 공간 레이어</p>
+              {otherLayers.map((layer) => (
+                <div
+                  className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm"
+                  key={`${layer.layerId}-${layer.name}`}
+                >
+                  <p className="font-bold text-[#15345b]">
+                    [{layer.layerLabel}] {layer.name}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           <p className="text-xs leading-5 text-[#64748b]">{result.disclaimer}</p>
         </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
 import UploadAnalyzer from "../../upload-analyzer";
 import { addLocalProjectUploadAnalysis, getLocalProjects, saveLocalProject } from "../local-project-storage";
+import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
 
 function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]): ProjectFile[] {
   const byId = new Map<string, ProjectFile>();
@@ -65,6 +66,13 @@ export default function ProjectUploadSection({ project }: { project: Project }) 
         savedAnalyses={analyses}
         onAnalysisSaved={persistUpload}
       />
+      <div className="mt-8">
+        <ProjectEvaluationWorkspace
+          project={project}
+          analyses={analyses}
+          onAnalysesChange={setAnalyses}
+        />
+      </div>
     </>
   );
 }

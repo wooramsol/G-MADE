@@ -73,6 +73,26 @@ export async function addProjectUploadAnalysis(
   }));
 }
 
+export async function updateProject(
+  id: string,
+  patch: Partial<Pick<Project, "name" | "location" | "locationPoint" | "client" | "designer" | "projectType" | "scale" | "reviewType" | "receivedAt" | "status">>,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    ...patch,
+  }));
+}
+
+export async function removeProjectUploadAnalysis(
+  id: string,
+  sessionId: string,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    uploadAnalyses: (project.uploadAnalyses ?? []).filter((session) => session.id !== sessionId),
+  }));
+}
+
 async function updateStoredProject(
   id: string,
   updater: (project: Project) => Project,

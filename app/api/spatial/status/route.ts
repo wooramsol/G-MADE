@@ -14,7 +14,7 @@ export async function GET() {
   return NextResponse.json({
     configured: isVWorldConfigured(),
     domain: getVWorldDomain(),
-    layers: ["lt_c_uq121"],
+    layers: ["lt_c_uq121", "lt_c_uq111", "lt_c_mcsp"],
     provider: "vworld",
   });
 }

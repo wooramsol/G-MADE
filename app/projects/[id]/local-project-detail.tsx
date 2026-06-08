@@ -7,6 +7,8 @@ import UploadAnalyzer from "../../upload-analyzer";
 import { addLocalProjectUploadAnalysis, deleteLocalProject, getLocalProjects } from "../local-project-storage";
 import { showToast } from "../../toast";
 import LandscapeZonePanel from "./landscape-zone-panel";
+import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
+import ProjectLocationEditor from "./project-location-editor";
 
 export default function LocalProjectDetail({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
@@ -74,7 +76,11 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
           <Panel title="Project Overview" action="브라우저 저장 프로젝트">
             <div className="grid gap-3 text-sm sm:grid-cols-2">
               <Info label="사업명" value={project.name} />
-              <Info label="사업위치" value={project.location} />
+              <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]">사업위치</p>
+                <p className="mt-2 font-semibold leading-6 text-[#172033]">{project.location}</p>
+                <ProjectLocationEditor project={project} onUpdated={setProject} />
+              </div>
               <Info label="시행자" value={project.client} />
               <Info label="설계자" value={project.designer} />
               <Info label="사업유형" value={project.projectType} />
@@ -92,6 +98,13 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
               savedAnalyses={project.uploadAnalyses ?? []}
               onAnalysisSaved={handleAnalysisSaved}
             />
+            <div className="mt-8">
+              <ProjectEvaluationWorkspace
+                project={project}
+                analyses={project.uploadAnalyses ?? []}
+                onAnalysesChange={(next) => setProject({ ...project, uploadAnalyses: next })}
+              />
+            </div>
           </Panel>
         </section>
       </div>

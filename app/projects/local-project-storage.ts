@@ -47,6 +47,19 @@ export function addLocalProjectFiles(projectId: string, files: ProjectFile[]): P
   return nextProject;
 }
 
+export function removeLocalProjectUploadAnalysis(projectId: string, sessionId: string): Project | undefined {
+  const projects = getLocalProjects();
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) return undefined;
+
+  const nextProject = {
+    ...project,
+    uploadAnalyses: (project.uploadAnalyses ?? []).filter((session) => session.id !== sessionId),
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
 export function addLocalProjectUploadAnalysis(
   projectId: string,
   session: UploadAnalysisSession,
