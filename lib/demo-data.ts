@@ -29,8 +29,8 @@ export const projects: Project[] = [
   {
     id: "project-001",
     name: "동부역세권 복합문화시설 경관사전심의",
-    location: "서울특별시 성동구 왕십리로 222 (동부역세권 일원)",
-    locationPoint: { x: 127.037, y: 37.5613, source: "address", note: "동부역세권 일원" },
+    location: "서울특별시 성동구 왕십리로 222",
+    locationPoint: { x: 127.037, y: 37.5613, source: "address" },
     client: "서울도시개발공사",
     designer: "GMA 도시건축사사무소",
     projectType: "복합문화시설",
@@ -47,8 +47,8 @@ export const projects: Project[] = [
   {
     id: "project-002",
     name: "서부 수변공원 공공디자인심의",
-    location: "서울특별시 마포구 망원로 165 (한강변 수변공원 예정지)",
-    locationPoint: { x: 126.8965, y: 37.5551, source: "place", note: "한강변 수변공원 예정지" },
+    location: "서울특별시 마포구 망원한강로 14",
+    locationPoint: { x: 126.8965, y: 37.5551, source: "address" },
     client: "마포구청",
     designer: "도시공간연구소",
     projectType: "공공공간",
@@ -75,8 +75,8 @@ export const projects: Project[] = [
   {
     id: "project-004",
     name: "북부 산업단지 진입관문 경관개선 심의",
-    location: "경기도 고양시 덕양구 고양대로 1604 (산업단지 진입관문 예정지)",
-    locationPoint: { x: 126.832, y: 37.6584, source: "map", note: "산업단지 진입관문 예정지" },
+    location: "경기도 고양시 일산동구 고봉로 32",
+    locationPoint: { x: 126.7707, y: 37.6889, source: "address" },
     client: "고양도시관리공사",
     designer: "어반링크 디자인랩",
     projectType: "기반시설",
@@ -122,8 +122,8 @@ export const projects: Project[] = [
   {
     id: "project-007",
     name: "혁신도시 공공청사 증축 경관심의",
-    location: "전북특별자치도 전주시 덕진구 시청로 10 (공공청사 증축 예정지)",
-    locationPoint: { x: 127.148, y: 35.8242, source: "map", note: "공공청사 증축 예정지" },
+    location: "전북특별자치도 전주시 덕진구 시청로 10",
+    locationPoint: { x: 127.148, y: 35.8242, source: "address" },
     client: "전북특별자치도",
     designer: "한빛 공공건축사사무소",
     projectType: "공공청사",
@@ -136,8 +136,8 @@ export const projects: Project[] = [
   {
     id: "project-008",
     name: "동남권 복합환승센터 경관사전심의",
-    location: "서울특별시 송파구 장지동 300 (복합환승센터 예정 부지)",
-    locationPoint: { x: 127.1267, y: 37.4784, source: "map", note: "복합환승센터 예정 부지" },
+    location: "서울특별시 송파구 마천로 111",
+    locationPoint: { x: 127.1267, y: 37.4784, source: "address" },
     client: "서울교통공사",
     designer: "메트로폴리스 플랜",
     projectType: "교통시설",
@@ -267,7 +267,7 @@ export const caseStudies: CaseStudy[] = [
   {
     id: "case-001",
     title: "광화문 업무복합 저층부 개방형 경관개선",
-    location: "서울 종로구",
+    location: "서울특별시 종로구 세종대로 172",
     projectType: "복합업무시설",
     similarityScore: 87,
     keyLearning: "가로변 저층부 투명성과 공개공지 연계가 긍정적으로 평가됨.",
@@ -275,7 +275,7 @@ export const caseStudies: CaseStudy[] = [
   {
     id: "case-002",
     title: "수변 문화시설 야간경관 개선",
-    location: "부산 수영구",
+    location: "부산광역시 수영구 광안해변로 219",
     projectType: "문화시설",
     similarityScore: 79,
     keyLearning: "조명 색온도 통일과 눈부심 차폐가 심의 조건으로 제시됨.",
@@ -283,7 +283,7 @@ export const caseStudies: CaseStudy[] = [
   {
     id: "case-003",
     title: "역세권 생활SOC 보행동선 재구성",
-    location: "경기 성남시",
+    location: "경기도 성남시 분당구 황새울로 240",
     projectType: "생활SOC",
     similarityScore: 92,
     keyLearning: "대중교통 결절점과 주 출입구의 직관적 연결이 우수 사례로 기록됨.",
