@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ProjectLocationPoint } from "@/lib/types";
 
 type LandscapeZoneFeature = {
   id: string;
@@ -28,9 +29,10 @@ type LandscapeZoneErrorResponse = {
 
 type LandscapeZonePanelProps = {
   address: string;
+  locationPoint?: ProjectLocationPoint;
 };
 
-export default function LandscapeZonePanel({ address }: LandscapeZonePanelProps) {
+export default function LandscapeZonePanel({ address, locationPoint }: LandscapeZonePanelProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [result, setResult] = useState<LandscapeZoneResponse | null>(null);
@@ -43,7 +45,16 @@ export default function LandscapeZonePanel({ address }: LandscapeZonePanelProps)
       setError("");
 
       try {
-        const response = await fetch(`/api/spatial/landscape-zone?address=${encodeURIComponent(address)}`, {
+        const params = new URLSearchParams();
+        if (locationPoint) {
+          params.set("x", String(locationPoint.x));
+          params.set("y", String(locationPoint.y));
+        }
+        if (address.trim()) {
+          params.set("address", address.trim());
+        }
+
+        const response = await fetch(`/api/spatial/landscape-zone?${params.toString()}`, {
           credentials: "same-origin",
         });
         const payload = (await response.json()) as LandscapeZoneResponse | LandscapeZoneErrorResponse;
@@ -71,7 +82,7 @@ export default function LandscapeZonePanel({ address }: LandscapeZonePanelProps)
       }
     }
 
-    if (address.trim()) {
+    if (locationPoint || address.trim()) {
       void loadLandscapeZone();
     } else {
       setLoading(false);
@@ -81,7 +92,7 @@ export default function LandscapeZonePanel({ address }: LandscapeZonePanelProps)
     return () => {
       cancelled = true;
     };
-  }, [address]);
+  }, [address, locationPoint]);
 
   return (
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
@@ -126,7 +137,7 @@ export default function LandscapeZonePanel({ address }: LandscapeZonePanelProps)
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
-              조회 반경 내 경관지구 레이어가 확인되지 않았습니다. 주소를 더 구체적으로 입력하거나 지도 검토가 필요할 수 있습니다.
+              조회 반경 내 경관지구 레이어가 확인되지 않았습니다. 지도에서 좌표를 다시 지정하거나 보조 설명을 확인해 주세요.
             </p>
           )}
 

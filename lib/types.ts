@@ -84,10 +84,18 @@ export type UploadAnalysisSession = {
   };
 };
 
+export type ProjectLocationPoint = {
+  x: number;
+  y: number;
+  source: "address" | "place" | "map";
+  note?: string;
+};
+
 export type Project = {
   id: string;
   name: string;
   location: string;
+  locationPoint?: ProjectLocationPoint;
   client: string;
   designer: string;
   projectType: string;

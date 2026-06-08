@@ -23,15 +23,20 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const address = searchParams.get("address")?.trim();
+  const address = searchParams.get("address")?.trim() ?? "";
+  const x = Number(searchParams.get("x"));
+  const y = Number(searchParams.get("y"));
+  const hasCoordinates = Number.isFinite(x) && Number.isFinite(y);
 
-  if (!address) {
-    return NextResponse.json({ error: "address 파라미터가 필요합니다." }, { status: 400 });
+  if (!hasCoordinates && !address) {
+    return NextResponse.json({ error: "address 또는 x,y 좌표가 필요합니다." }, { status: 400 });
   }
 
   try {
-    const point = await geocodeAddress(address);
-    const result = await lookupLandscapeZoneByAddress(address, point);
+    const point = hasCoordinates
+      ? { x, y, crs: "EPSG:4326" as const }
+      : await geocodeAddress(address);
+    const result = await lookupLandscapeZoneByAddress(address || `좌표 ${y.toFixed(6)}, ${x.toFixed(6)}`, point);
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof VWorldGeocodeError) {

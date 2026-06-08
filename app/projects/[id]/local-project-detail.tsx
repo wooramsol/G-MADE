@@ -85,7 +85,7 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
             </div>
           </Panel>
 
-          <LandscapeZonePanel address={project.location} />
+          <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
 
           <Panel title="프로젝트 자료 업로드 및 AI 자동 분석" action="파일 추가">
             <UploadAnalyzer

@@ -62,7 +62,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <Info label="접수일" value={project.receivedAt} />
             </div>
           </Panel>
-          <LandscapeZonePanel address={project.location} />
+          <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
           <Panel title="프로젝트 자료 업로드 및 AI 자동 분석" action="파일 추가">
             <div className="mb-4 flex flex-wrap gap-2">
               {supportedFiles.map((file) => <Badge tone="gray" key={file}>{file}</Badge>)}
