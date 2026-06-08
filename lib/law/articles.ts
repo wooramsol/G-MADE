@@ -1,3 +1,4 @@
+import { isVerifiedLawGoKrDetailUrl } from "../reference-links";
 import { getLawOc } from "./config";
 import { lawGetJson } from "./http";
 import type { LawSearchHit } from "./search";
@@ -53,7 +54,7 @@ export async function fetchLawReferences(hits: LawSearchHit[], maxLaws = 5): Pro
     });
   }
 
-  return references;
+  return references.filter((reference) => isVerifiedLawGoKrDetailUrl(reference.sourceUrl));
 }
 
 async function fetchLawArticleSnippets(hit: LawSearchHit): Promise<FetchedLawReference[]> {

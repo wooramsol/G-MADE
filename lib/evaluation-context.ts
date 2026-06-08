@@ -1,5 +1,5 @@
 import { guidelines, laws as demoLaws } from "./demo-data";
-import { buildLawReferenceUrl } from "./reference-links";
+import { buildGuidelineReferenceUrl, buildLawReferenceUrl } from "./reference-links";
 import { fetchLawReferences, type FetchedLawReference } from "./law/articles";
 import { isLawApiConfigured } from "./law/config";
 import { searchLaws } from "./law/search";
@@ -55,11 +55,14 @@ export async function buildEvaluationContext(projectId?: string): Promise<Evalua
       : undefined,
     spatial,
     referenceLaws,
-    guidelines: guidelines.slice(0, 6).map((guide) => ({
-      title: guide.title,
-      section: guide.section,
-      summary: guide.summary,
-    })),
+    guidelines: guidelines
+      .filter((guide) => buildGuidelineReferenceUrl(guide) !== null)
+      .slice(0, 6)
+      .map((guide) => ({
+        title: guide.title,
+        section: guide.section,
+        summary: guide.summary,
+      })),
     lawSource: referenceLaws[0]?.source === "law.go.kr" ? "law.go.kr" : "demo-fallback",
     fetchedAt,
     warnings,
@@ -129,7 +132,9 @@ async function loadReferenceLaws(
     return demoLawsToReferences();
   }
 
-  const references = await fetchLawReferences(uniqueHits, 6);
+  const references = (await fetchLawReferences(uniqueHits, 6)).filter(
+    (reference) => buildLawReferenceUrl(reference.title, reference.sourceUrl) !== null,
+  );
   if (references.length === 0) {
     warnings.push("법령 본문 조회에 실패해 검색 메타데이터·내장 요약을 사용했습니다.");
     return uniqueHitsToReferences(uniqueHits);
@@ -183,29 +188,42 @@ function dedupeLawHits<T extends { lawId: string }>(hits: T[]): T[] {
 }
 
 function demoLawsToReferences(): FetchedLawReference[] {
-  return demoLaws.map((law) => ({
-    id: law.id,
-    title: law.title,
-    article: law.article,
-    summary: law.summary,
-    ministry: law.jurisdiction,
-    enforcementDate: "",
-    sourceUrl: buildLawReferenceUrl(law.title) ?? `https://www.law.go.kr/법령/${encodeURIComponent(law.title)}`,
-    source: "demo-fallback",
-  }));
+  return demoLaws.flatMap((law) => {
+    const sourceUrl = buildLawReferenceUrl(law.title);
+    if (!sourceUrl) return [];
+
+    return [
+      {
+        id: law.id,
+        title: law.title,
+        article: law.article,
+        summary: law.summary,
+        ministry: law.jurisdiction,
+        enforcementDate: "",
+        sourceUrl,
+        source: "demo-fallback" as const,
+      },
+    ];
+  });
 }
 
 function uniqueHitsToReferences(
   hits: Array<{ lawId: string; title: string; ministry: string; enforcementDate: string; sourceUrl: string }>,
 ): FetchedLawReference[] {
-  return hits.map((hit) => ({
-    id: `law-${hit.lawId}`,
-    title: hit.title,
-    article: hit.enforcementDate ? `시행 ${hit.enforcementDate}` : "현행",
-    summary: `${hit.ministry ? `${hit.ministry} 소관 ` : ""}국가법령정보센터 검색 결과`,
-    ministry: hit.ministry,
-    enforcementDate: hit.enforcementDate,
-    sourceUrl: hit.sourceUrl,
-    source: "law.go.kr",
-  }));
+  return hits.flatMap((hit) => {
+    if (!hit.sourceUrl) return [];
+
+    return [
+      {
+        id: `law-${hit.lawId}`,
+        title: hit.title,
+        article: hit.enforcementDate ? `시행 ${hit.enforcementDate}` : "현행",
+        summary: `${hit.ministry ? `${hit.ministry} 소관 ` : ""}국가법령정보센터 검색 결과`,
+        ministry: hit.ministry,
+        enforcementDate: hit.enforcementDate,
+        sourceUrl: hit.sourceUrl,
+        source: "law.go.kr" as const,
+      },
+    ];
+  });
 }

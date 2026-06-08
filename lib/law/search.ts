@@ -1,4 +1,4 @@
-import { buildLawReferenceUrl } from "../reference-links";
+import { buildLawGoKrDetailUrl } from "../reference-links";
 import { getLawOc } from "./config";
 import { lawGetJson } from "./http";
 
@@ -62,6 +62,9 @@ function mapLawSearchHit(row: Record<string, unknown>): LawSearchHit | null {
   const enforcementDate = pickString(row, ["시행일자", "시행일"]) ?? "";
   const lawType = pickString(row, ["법령구분명", "법령구분"]) ?? "";
 
+  const sourceUrl = buildLawGoKrDetailUrl(mst);
+  if (!sourceUrl) return null;
+
   return {
     lawId,
     mst,
@@ -70,7 +73,7 @@ function mapLawSearchHit(row: Record<string, unknown>): LawSearchHit | null {
     ministry,
     enforcementDate,
     lawType,
-    sourceUrl: buildLawReferenceUrl(title) ?? `https://www.law.go.kr/법령/${encodeURIComponent(title)}`,
+    sourceUrl,
   };
 }
 

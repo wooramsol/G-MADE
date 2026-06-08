@@ -253,26 +253,32 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
             </button>
           </div>
           <div className="space-y-3">
-            {referenceLaws.slice(0, 6).map((law) => (
-              <ReferenceCard
-                title={`${law.title} ${law.article}`}
-                href={buildLawReferenceUrl(law.title, law.sourceUrl)}
-                body={law.summary}
-                key={`${law.title}-${law.article}`}
-              />
-            ))}
+            {referenceLaws
+              .filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
+              .slice(0, 6)
+              .map((law) => (
+                <ReferenceCard
+                  title={`${law.title} ${law.article}`}
+                  href={buildLawReferenceUrl(law.title, law.sourceUrl)}
+                  body={law.summary}
+                  key={`${law.title}-${law.article}`}
+                />
+              ))}
           </div>
         </Panel>
         <Panel title="관련 지침" action="지침 관리">
           <div className="space-y-3">
-            {guidelines.slice(0, 5).map((guide) => (
-              <ReferenceCard
-                title={guide.title}
-                href={buildGuidelineReferenceUrl(guide)}
-                body={guide.summary}
-                key={guide.id}
-              />
-            ))}
+            {guidelines
+              .filter((guide) => buildGuidelineReferenceUrl(guide) !== null)
+              .slice(0, 5)
+              .map((guide) => (
+                <ReferenceCard
+                  title={guide.title}
+                  href={buildGuidelineReferenceUrl(guide)}
+                  body={guide.summary}
+                  key={guide.id}
+                />
+              ))}
           </div>
         </Panel>
         <Panel title="유사사례 검색" action="사례 추천">

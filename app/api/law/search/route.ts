@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { fetchLawReferences } from "@/lib/law/articles";
+import { buildLawReferenceUrl } from "@/lib/reference-links";
 import { isLawApiConfigured } from "@/lib/law/config";
 import { searchLaws } from "@/lib/law/search";
 
@@ -31,8 +32,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ results: hits });
     }
 
-    const references = await fetchLawReferences(hits, 5);
-    return NextResponse.json({ results: hits, references });
+    const references = (await fetchLawReferences(hits, 5)).filter(
+      (reference) => buildLawReferenceUrl(reference.title, reference.sourceUrl) !== null,
+    );
+    const verifiedHits = hits.filter((hit) => buildLawReferenceUrl(hit.title, hit.sourceUrl) !== null);
+    return NextResponse.json({ results: verifiedHits, references });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "법령 검색 중 오류가 발생했습니다." },

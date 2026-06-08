@@ -143,15 +143,18 @@ function AnalysisSessionDetail({ session }: { session: SessionWithRound }) {
               <p className="font-bold text-[#15345b]">
                 실시간 법령 근거 ({session.analysis.lawSource === "law.go.kr" ? "국가법령정보" : "내장 요약"})
               </p>
-              {session.analysis.referenceLaws?.slice(0, 3).map((law) => (
-                <div className="mt-2 text-[#64748b]" key={`${session.id}-${law.title}-${law.article}`}>
-                  <ReferenceLinkTitle
-                    title={`${law.title} ${law.article}`}
-                    href={buildLawReferenceUrl(law.title, law.sourceUrl)}
-                  />
-                  <p className="mt-0.5 text-xs leading-5">{law.summary}</p>
-                </div>
-              ))}
+              {session.analysis.referenceLaws
+                ?.filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
+                .slice(0, 3)
+                .map((law) => (
+                  <div className="mt-2 text-[#64748b]" key={`${session.id}-${law.title}-${law.article}`}>
+                    <ReferenceLinkTitle
+                      title={`${law.title} ${law.article}`}
+                      href={buildLawReferenceUrl(law.title, law.sourceUrl)}
+                    />
+                    <p className="mt-0.5 text-xs leading-5">{law.summary}</p>
+                  </div>
+                ))}
             </div>
           ) : null}
         </div>

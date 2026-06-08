@@ -347,12 +347,14 @@ function attachContextMetadata(
 ): UploadAnalysisResult {
   return {
     ...result,
-    referenceLaws: evaluationContext.referenceLaws.map((law) => ({
-      title: law.title,
-      article: law.article,
-      summary: law.summary,
-      sourceUrl: law.sourceUrl,
-    })),
+    referenceLaws: evaluationContext.referenceLaws
+      .filter((law) => law.sourceUrl)
+      .map((law) => ({
+        title: law.title,
+        article: law.article,
+        summary: law.summary,
+        sourceUrl: law.sourceUrl,
+      })),
     spatialContext: evaluationContext.spatial,
     lawSource: evaluationContext.lawSource,
     contextFetchedAt: evaluationContext.fetchedAt,
