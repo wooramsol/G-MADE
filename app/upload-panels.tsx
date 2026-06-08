@@ -3,66 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
-import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
-
-export function UploadHistoryPanel({ files }: { files: ProjectFile[] }) {
-  const sortedFiles = [...files].sort((left, right) => {
-    const leftTime = left.uploadedAt ? new Date(left.uploadedAt).getTime() : 0;
-    const rightTime = right.uploadedAt ? new Date(right.uploadedAt).getTime() : 0;
-    return rightTime - leftTime;
-  });
-
-  return (
-    <div className="mt-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="font-bold text-[#15345b]">업로드 히스토리</p>
-          <p className="mt-1 text-sm text-[#64748b]">프로젝트에 등록된 업로드 파일과 분석 완료 시각을 확인합니다.</p>
-        </div>
-        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{files.length}건</span>
-      </div>
-      {sortedFiles.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl border border-[#d7dee8]">
-          <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-            <thead className="bg-[#eef4fb] text-[#15345b]">
-              <tr>
-                <th className="px-4 py-3">파일명</th>
-                <th className="w-28 px-4 py-3">파일 형식</th>
-                <th className="w-44 px-4 py-3">업로드 일시</th>
-                <th className="w-28 px-4 py-3">분석 상태</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#d7dee8] bg-white">
-              {sortedFiles.map((file) => (
-                <tr key={file.id}>
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-[#15345b]">{file.fileName}</p>
-                    {file.sizeBytes ? (
-                      <p className="mt-1 text-xs text-[#64748b]">{formatBytes(file.sizeBytes)}</p>
-                    ) : (
-                      <p className="mt-1 text-xs text-[#64748b]">프로젝트 첨부자료</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{file.fileType}</span>
-                  </td>
-                  <td className="px-4 py-4 text-[#64748b]">{formatUploadDateTime(file.uploadedAt)}</td>
-                  <td className="px-4 py-4">
-                    <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{file.analysisStatus}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-[#d7dee8] bg-white p-6 text-center text-sm font-semibold text-[#64748b]">
-          아직 업로드된 파일이 없습니다.
-        </div>
-      )}
-    </div>
-  );
-}
+import type { UploadAnalysisSession } from "@/lib/types";
 
 type SessionWithRound = UploadAnalysisSession & { round: number };
 

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
 import UploadAnalyzer from "../../upload-analyzer";
-import { UploadHistoryPanel } from "../../upload-panels";
 import { addLocalProjectUploadAnalysis, deleteLocalProject, getLocalProjects } from "../local-project-storage";
 import { showToast } from "../../toast";
 import LandscapeZonePanel from "./landscape-zone-panel";
@@ -93,7 +92,6 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
               savedAnalyses={project.uploadAnalyses ?? []}
               onAnalysisSaved={handleAnalysisSaved}
             />
-            <UploadHistoryPanel files={project.files} />
           </Panel>
         </section>
       </div>

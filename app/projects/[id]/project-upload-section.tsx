@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
 import UploadAnalyzer from "../../upload-analyzer";
-import { UploadHistoryPanel } from "../../upload-panels";
 import { addLocalProjectUploadAnalysis, getLocalProjects, saveLocalProject } from "../local-project-storage";
 
 function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]): ProjectFile[] {
@@ -40,8 +39,6 @@ export default function ProjectUploadSection({ project }: { project: Project }) 
     return () => window.clearTimeout(timeout);
   }, [project.files, project.id, project.uploadAnalyses]);
 
-  const visibleProject = useMemo(() => ({ ...project, files, uploadAnalyses: analyses }), [analyses, files, project]);
-
   function persistUpload(session: UploadAnalysisSession, uploadedFiles: ProjectFile[]) {
     const nextFiles = mergeProjectFiles(files, uploadedFiles);
     const nextAnalyses = mergeAnalyses(analyses, [session]);
@@ -68,7 +65,6 @@ export default function ProjectUploadSection({ project }: { project: Project }) 
         savedAnalyses={analyses}
         onAnalysisSaved={persistUpload}
       />
-      <UploadHistoryPanel files={visibleProject.files} />
     </>
   );
 }

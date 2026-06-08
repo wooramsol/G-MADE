@@ -1,9 +1,5 @@
 import UploadAnalyzer from "../../upload-analyzer";
 import ProjectCreateForm from "./project-create-form";
-const initialUploadHistory = [
-  { fileName: "신규사업_등록양식.docx", fileType: "DOCX", status: "작성중", uploadedAt: "임시저장 전" },
-  { fileName: "관련자료는 아래 업로드 분석 영역에서 추가", fileType: "PDF/DOCX/PPTX/JPG/PNG/DWG/ZIP", status: "대기", uploadedAt: "미등록" },
-];
 
 export default function NewProjectPage() {
   return (
@@ -34,46 +30,8 @@ export default function NewProjectPage() {
           </div>
           <UploadAnalyzer />
         </section>
-
-        <section className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#2463b3]">Upload History</p>
-              <h3 className="mt-2 text-xl font-bold text-[#15345b]">업로드 히스토리</h3>
-            </div>
-            <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">등록 준비</span>
-          </div>
-          <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-[#eef4fb] text-[#15345b]">
-                <tr>
-                  <th className="px-4 py-3">파일명</th>
-                  <th className="px-4 py-3">형식</th>
-                  <th className="px-4 py-3">상태</th>
-                  <th className="px-4 py-3">등록시점</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#d7dee8] bg-white">
-                {initialUploadHistory.map((file) => (
-                  <tr key={file.fileName}>
-                    <td className="px-4 py-4 font-semibold text-[#15345b]">{file.fileName}</td>
-                    <td className="px-4 py-4"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{file.fileType}</span></td>
-                    <td className="px-4 py-4"><StatusBadge status={file.status} /></td>
-                    <td className="px-4 py-4 text-[#64748b]">{file.uploadedAt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
       </div>
 
     </main>
   );
-}
-
-
-function StatusBadge({ status }: { status: string }) {
-  const tone = status === "작성중" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-700";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${tone}`}>{status}</span>;
 }
