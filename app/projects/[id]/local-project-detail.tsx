@@ -7,6 +7,7 @@ import UploadAnalyzer from "../../upload-analyzer";
 import { UploadHistoryPanel } from "../../upload-panels";
 import { addLocalProjectUploadAnalysis, deleteLocalProject, getLocalProjects } from "../local-project-storage";
 import { showToast } from "../../toast";
+import LandscapeZonePanel from "./landscape-zone-panel";
 
 export default function LocalProjectDetail({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
@@ -83,6 +84,8 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
               <Info label="접수일" value={project.receivedAt} />
             </div>
           </Panel>
+
+          <LandscapeZonePanel address={project.location} />
 
           <Panel title="프로젝트 자료 업로드 및 AI 자동 분석" action="파일 추가">
             <UploadAnalyzer

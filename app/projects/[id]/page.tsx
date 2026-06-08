@@ -12,6 +12,7 @@ import DeleteProjectButton from "../delete-project-button";
 import type { HybridResult } from "@/lib/types";
 import ProjectUploadSection from "./project-upload-section";
 import LocalProjectDetail from "./local-project-detail";
+import LandscapeZonePanel from "./landscape-zone-panel";
 
 const supportedFiles = ["PDF", "DOCX", "PPTX", "JPG", "PNG", "DWG", "ZIP"];
 const weightPresets = [
@@ -61,6 +62,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <Info label="접수일" value={project.receivedAt} />
             </div>
           </Panel>
+          <LandscapeZonePanel address={project.location} />
           <Panel title="프로젝트 자료 업로드 및 AI 자동 분석" action="파일 추가">
             <div className="mb-4 flex flex-wrap gap-2">
               {supportedFiles.map((file) => <Badge tone="gray" key={file}>{file}</Badge>)}
