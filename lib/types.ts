@@ -123,6 +123,7 @@ export type Project = {
   scale: string;
   reviewType: string;
   receivedAt: string;
+  updatedAt?: string;
   status: "접수" | "심사 진행중" | "완료";
   files: ProjectFile[];
   uploadAnalyses?: UploadAnalysisSession[];

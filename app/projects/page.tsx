@@ -1,5 +1,5 @@
 import Link from "next/link";
-import LocalProjectList from "./local-project-list";
+import ProjectManagementGrid from "./project-management-grid";
 import { getAllProjects } from "@/lib/project-store";
 
 export const dynamic = "force-dynamic";
@@ -12,23 +12,6 @@ export default async function ProjectManagementPage({
   const projects = await getAllProjects();
   const params = await searchParams;
   const query = (params?.q ?? "").trim();
-  const normalizedQuery = query.toLowerCase();
-  const filteredProjects = normalizedQuery
-    ? projects.filter((project) =>
-        [
-          project.name,
-          project.location,
-          project.client,
-          project.designer,
-          project.projectType,
-          project.reviewType,
-          project.status,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalizedQuery),
-      )
-    : projects;
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
@@ -63,46 +46,11 @@ export default async function ProjectManagementPage({
               검색
             </button>
           </div>
-          {query ? (
-            <p className="mt-3 text-sm font-semibold text-[#64748b]">
-              “{query}” 검색 결과 {filteredProjects.length}건
-            </p>
-          ) : null}
+          {query ? <p className="mt-3 text-sm font-semibold text-[#64748b]">“{query}” 검색 결과</p> : null}
         </form>
 
         <div className="grid gap-5 xl:grid-cols-3">
-          {filteredProjects.length > 0 ? filteredProjects.map((project) => {
-            return (
-              <article
-                className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow transition hover:-translate-y-0.5 hover:border-[#2463b3]"
-                key={project.id}
-              >
-                <Link href={`/projects/${project.id}`} className="block">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2463b3]">{project.reviewType}</p>
-                      <h4 className="mt-3 text-lg font-bold leading-7 text-[#15345b]">{project.name}</h4>
-                    </div>
-                    <StatusBadge status={project.status} />
-                  </div>
-                  <dl className="mt-5 space-y-3 text-sm text-[#475569]">
-                    <Info label="사업위치" value={project.location} />
-                    <Info label="시행자" value={project.client} />
-                    <Info label="사업유형" value={project.projectType} />
-                    <Info label="접수일" value={project.receivedAt} />
-                  </dl>
-                  <div className="primary-action-blue mt-5 rounded-xl px-4 py-3 text-sm font-bold">
-                    프로젝트 상세 평가로 이동
-                  </div>
-                </Link>
-              </article>
-            );
-          }) : (
-            <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm font-semibold text-[#64748b] xl:col-span-3">
-              서버 저장 프로젝트 중 검색 조건에 맞는 프로젝트가 없습니다. 브라우저 저장 프로젝트는 아래에서 별도로 확인됩니다.
-            </div>
-          )}
-          <LocalProjectList serverProjectIds={projects.map((project) => project.id)} query={query} />
+          <ProjectManagementGrid serverProjects={projects} query={query} />
         </div>
       </div>
 
@@ -110,16 +58,3 @@ export default async function ProjectManagementPage({
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[90px_1fr] gap-3">
-      <dt className="font-semibold text-[#64748b]">{label}</dt>
-      <dd className="font-semibold text-[#172033]">{value}</dd>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const tone = status === "완료" ? "bg-emerald-50 text-emerald-700" : status === "접수" ? "bg-slate-100 text-slate-700" : "bg-blue-50 text-blue-700";
-  return <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${tone}`}>{status}</span>;
-}

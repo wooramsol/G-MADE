@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
+import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import type { Project, ProjectFile, UploadAnalysisSession } from "./types";
 
@@ -32,7 +33,10 @@ export async function getAllProjects(): Promise<Project[]> {
       : project;
   });
 
-  return [...mergedDemoProjects, ...storedProjects.filter((project) => !demoProjectIds.has(project.id))];
+  return sortProjectsByUpdatedAt([
+    ...mergedDemoProjects,
+    ...storedProjects.filter((project) => !demoProjectIds.has(project.id)),
+  ]);
 }
 
 export async function getProjectById(id: string): Promise<Project | undefined> {
@@ -41,11 +45,13 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
 }
 
 export async function createProject(input: ProjectInput): Promise<Project> {
+  const now = new Date().toISOString();
   const project: Project = {
     id: `project-${Date.now()}`,
     ...input,
     status: "접수",
     files: [],
+    updatedAt: now,
   };
 
   const createdProjects = await readCreatedProjects();
@@ -108,6 +114,7 @@ async function updateStoredProject(
   const nextProject = updater({
     ...baseProject,
     uploadAnalyses: baseProject.uploadAnalyses ?? [],
+    updatedAt: new Date().toISOString(),
   });
 
   if (storedIndex >= 0) {

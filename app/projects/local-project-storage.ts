@@ -18,7 +18,11 @@ export function getLocalProjects(): Project[] {
 
 export function saveLocalProject(project: Project) {
   const projects = getLocalProjects();
-  const nextProjects = [project, ...projects.filter((item) => item.id !== project.id)];
+  const nextProject = {
+    ...project,
+    updatedAt: project.updatedAt ?? new Date().toISOString(),
+  };
+  const nextProjects = [nextProject, ...projects.filter((item) => item.id !== project.id)];
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProjects));
 }
 

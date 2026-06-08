@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LocationPicker, type LocationSelection } from "@/components/location-picker";
 import type { Project } from "@/lib/types";
+import { getLocalProjects, saveLocalProject } from "../local-project-storage";
 import { showToast } from "../../toast";
 
 function formatLocationLabel(selection: LocationSelection): string {
@@ -12,6 +14,18 @@ function formatLocationLabel(selection: LocationSelection): string {
   return selection.address;
 }
 
+function buildLocationPatch(location: LocationSelection) {
+  return {
+    location: formatLocationLabel(location),
+    locationPoint: {
+      x: location.x,
+      y: location.y,
+      source: location.source,
+      note: location.note,
+    },
+  };
+}
+
 export default function ProjectLocationEditor({
   project,
   onUpdated,
@@ -19,6 +33,7 @@ export default function ProjectLocationEditor({
   project: Project;
   onUpdated?: (project: Project) => void;
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState<LocationSelection | null>(
@@ -41,26 +56,37 @@ export default function ProjectLocationEditor({
 
     setLoading(true);
     try {
+      const patch = buildLocationPatch(location);
       const response = await fetch(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location: formatLocationLabel(location),
-          locationPoint: {
-            x: location.x,
-            y: location.y,
-            source: location.source,
-            note: location.note,
-          },
-        }),
+        body: JSON.stringify(patch),
       });
-      const payload = await response.json();
-      if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        project?: Project;
+      };
+
+      let updatedProject: Project;
+
+      if (response.ok && payload.project) {
+        updatedProject = payload.project;
+      } else if (response.status === 404) {
+        const local = getLocalProjects().find((item) => item.id === project.id);
+        updatedProject = {
+          ...(local ?? project),
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
         throw new Error(payload.error ?? "위치 수정에 실패했습니다.");
       }
+
+      saveLocalProject(updatedProject);
+      onUpdated?.(updatedProject);
+      router.refresh();
       showToast({ message: "사업위치가 수정되었습니다.", tone: "success" });
       setEditing(false);
-      onUpdated?.(payload.project);
     } catch (error) {
       showToast({
         message: error instanceof Error ? error.message : "위치 수정에 실패했습니다.",

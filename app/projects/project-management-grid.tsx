@@ -3,45 +3,53 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Project } from "@/lib/types";
+import { sortProjectsByUpdatedAt } from "@/lib/project-sort";
 import { getLocalProjects } from "./local-project-storage";
 
-type LocalProjectListProps = {
-  serverProjectIds: string[];
+type ProjectManagementGridProps = {
+  serverProjects: Project[];
   query: string;
 };
 
-export default function LocalProjectList({ serverProjectIds, query }: LocalProjectListProps) {
-  const [projects, setProjects] = useState<Project[]>([]);
+export default function ProjectManagementGrid({ serverProjects, query }: ProjectManagementGridProps) {
+  const [localProjects, setLocalProjects] = useState<Project[]>([]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setProjects(getLocalProjects()), 0);
+    const timeout = window.setTimeout(() => setLocalProjects(getLocalProjects()), 0);
     return () => window.clearTimeout(timeout);
   }, []);
 
   const normalizedQuery = query.trim().toLowerCase();
-  const visibleProjects = useMemo(
-    () =>
-      projects
-        .filter((project) => !serverProjectIds.includes(project.id))
-        .filter((project) => {
-          if (!normalizedQuery) return true;
-          return [
-            project.name,
-            project.location,
-            project.client,
-            project.designer,
-            project.projectType,
-            project.reviewType,
-            project.status,
-          ]
-            .join(" ")
-            .toLowerCase()
-            .includes(normalizedQuery);
-        }),
-    [normalizedQuery, projects, serverProjectIds],
-  );
+  const visibleProjects = useMemo(() => {
+    const serverIds = new Set(serverProjects.map((project) => project.id));
+    const localOnly = localProjects.filter((project) => !serverIds.has(project.id));
+    const merged = sortProjectsByUpdatedAt([...serverProjects, ...localOnly]);
 
-  if (visibleProjects.length === 0) return null;
+    if (!normalizedQuery) return merged;
+
+    return merged.filter((project) =>
+      [
+        project.name,
+        project.location,
+        project.client,
+        project.designer,
+        project.projectType,
+        project.reviewType,
+        project.status,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery),
+    );
+  }, [localProjects, normalizedQuery, serverProjects]);
+
+  if (visibleProjects.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm font-semibold text-[#64748b] xl:col-span-3">
+        검색 조건에 맞는 프로젝트가 없습니다.
+      </div>
+    );
+  }
 
   return (
     <>
@@ -84,6 +92,11 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const tone = status === "완료" ? "bg-emerald-50 text-emerald-700" : status === "접수" ? "bg-slate-100 text-slate-700" : "bg-blue-50 text-blue-700";
+  const tone =
+    status === "완료"
+      ? "bg-emerald-50 text-emerald-700"
+      : status === "접수"
+        ? "bg-slate-100 text-slate-700"
+        : "bg-blue-50 text-blue-700";
   return <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${tone}`}>{status}</span>;
 }
