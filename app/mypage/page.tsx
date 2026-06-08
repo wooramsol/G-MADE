@@ -72,7 +72,7 @@ export default async function MyPage() {
           </p>
         </div>
 
-        <div className="grid items-start gap-6 xl:grid-cols-2">
+        <div className="grid items-stretch gap-4 xl:grid-cols-2">
           {integrations.groups
             .filter((group) => group.id === "ai")
             .map((group) => (
@@ -83,11 +83,15 @@ export default async function MyPage() {
               />
             ))}
 
-          <div className="flex flex-col gap-4">
+          <div className="grid h-full grid-rows-3 gap-4">
             {integrations.groups
               .filter((group) => group.id !== "ai")
               .map((group) => (
-                <IntegrationStatusPanel group={group} key={group.id} variant="compact" />
+                <IntegrationStatusPanel
+                  checkedAt={integrations.checkedAt}
+                  group={group}
+                  key={group.id}
+                />
               ))}
           </div>
         </div>
