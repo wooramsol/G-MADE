@@ -19,6 +19,13 @@ type LandscapeZoneResponse = {
   disclaimer: string;
 };
 
+type LandscapeZoneErrorResponse = {
+  error: string;
+  stage?: string;
+  hint?: string;
+  domain?: string;
+};
+
 type LandscapeZonePanelProps = {
   address: string;
 };
@@ -36,11 +43,17 @@ export default function LandscapeZonePanel({ address }: LandscapeZonePanelProps)
       setError("");
 
       try {
-        const response = await fetch(`/api/spatial/landscape-zone?address=${encodeURIComponent(address)}`);
-        const payload = await response.json();
+        const response = await fetch(`/api/spatial/landscape-zone?address=${encodeURIComponent(address)}`, {
+          credentials: "same-origin",
+        });
+        const payload = (await response.json()) as LandscapeZoneResponse | LandscapeZoneErrorResponse;
 
         if (!response.ok) {
-          throw new Error(payload.error ?? "경관지구 조회에 실패했습니다.");
+          const errorPayload = payload as LandscapeZoneErrorResponse;
+          const parts = [errorPayload.error ?? "경관지구 조회에 실패했습니다."];
+          if (errorPayload.hint) parts.push(errorPayload.hint);
+          if (errorPayload.domain) parts.push(`도메인: ${errorPayload.domain}`);
+          throw new Error(parts.join(" "));
         }
 
         if (!cancelled) {

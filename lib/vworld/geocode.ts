@@ -1,4 +1,5 @@
-import { getVWorldApiKey, getVWorldDomain } from "./config";
+import { getVWorldApiKey } from "./config";
+import { buildVWorldParams, extractVWorldError, vworldGetJson } from "./http";
 
 export type GeoPoint = {
   x: number;
@@ -15,20 +16,37 @@ type VWorldAddressResponse = {
         y?: string;
       };
     };
+    error?: {
+      text?: string;
+      message?: string;
+    };
   };
 };
 
-export async function geocodeAddress(address: string): Promise<GeoPoint | null> {
+export class VWorldGeocodeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "VWorldGeocodeError";
+  }
+}
+
+export async function geocodeAddress(address: string): Promise<GeoPoint> {
   const road = await geocodeAddressByType(address, "ROAD");
   if (road) return road;
-  return geocodeAddressByType(address, "PARCEL");
+
+  const parcel = await geocodeAddressByType(address, "PARCEL");
+  if (parcel) return parcel;
+
+  throw new VWorldGeocodeError(
+    "주소를 좌표로 변환하지 못했습니다. 도로명주소를 더 구체적으로 입력해 주세요. (예: 서울특별시 중구 세종대로 175)",
+  );
 }
 
 async function geocodeAddressByType(address: string, type: "ROAD" | "PARCEL"): Promise<GeoPoint | null> {
   const key = getVWorldApiKey();
   if (!key) return null;
 
-  const params = new URLSearchParams({
+  const params = buildVWorldParams({
     service: "address",
     request: "getcoord",
     version: "2.0",
@@ -39,20 +57,32 @@ async function geocodeAddressByType(address: string, type: "ROAD" | "PARCEL"): P
     format: "json",
     type,
     key,
-    domain: getVWorldDomain(),
   });
 
-  const response = await fetch(`https://api.vworld.kr/req/address?${params.toString()}`, {
-    cache: "no-store",
-  });
+  const result = await vworldGetJson<VWorldAddressResponse>(
+    `https://api.vworld.kr/req/address?${params.toString()}`,
+    `지오코딩(${type})`,
+  );
 
-  if (!response.ok) return null;
+  if (!result.ok) {
+    throw new VWorldGeocodeError(result.error);
+  }
 
-  const payload = (await response.json()) as VWorldAddressResponse;
-  if (payload.response?.status !== "OK") return null;
+  const vworldError = extractVWorldError(result.data);
+  if (vworldError) {
+    throw new VWorldGeocodeError(vworldError);
+  }
 
-  const x = Number(payload.response.result?.point?.x);
-  const y = Number(payload.response.result?.point?.y);
+  if (result.data.response?.status === "NOT_FOUND") {
+    return null;
+  }
+
+  if (result.data.response?.status !== "OK") {
+    return null;
+  }
+
+  const x = Number(result.data.response.result?.point?.x);
+  const y = Number(result.data.response.result?.point?.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
   return { x, y, crs: "EPSG:4326" };

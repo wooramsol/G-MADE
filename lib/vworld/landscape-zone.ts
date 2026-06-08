@@ -1,5 +1,6 @@
-import { getVWorldApiKey, getVWorldDomain } from "./config";
+import { getVWorldApiKey } from "./config";
 import type { GeoPoint } from "./geocode";
+import { buildVWorldParams, extractVWorldError, vworldGetJson } from "./http";
 
 export type LandscapeZoneFeature = {
   id: string;
@@ -34,6 +35,13 @@ type GeoJsonCollection = {
 const DISCLAIMER =
   "브이월드 공공 공간정보를 참고한 결과이며 법적 효력이 없습니다. 최종 판단은 담당 공무원·심의위원회 확인이 필요합니다.";
 
+export class VWorldLandscapeZoneError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "VWorldLandscapeZoneError";
+  }
+}
+
 export async function lookupLandscapeZoneByAddress(address: string, point: GeoPoint): Promise<LandscapeZoneLookupResult> {
   const matchedZones = await queryLandscapeZonesNearPoint(point);
 
@@ -54,7 +62,7 @@ async function queryLandscapeZonesNearPoint(point: GeoPoint): Promise<LandscapeZ
   const buffer = 0.002;
   const bbox = [point.y - buffer, point.x - buffer, point.y + buffer, point.x + buffer].join(",");
 
-  const params = new URLSearchParams({
+  const params = buildVWorldParams({
     service: "WFS",
     request: "GetFeature",
     version: "1.1.0",
@@ -64,19 +72,27 @@ async function queryLandscapeZonesNearPoint(point: GeoPoint): Promise<LandscapeZ
     output: "application/json",
     maxfeatures: "10",
     key,
-    domain: getVWorldDomain(),
   });
 
-  const response = await fetch(`https://api.vworld.kr/req/wfs?${params.toString()}`, {
-    cache: "no-store",
-  });
+  const result = await vworldGetJson<GeoJsonCollection>(
+    `https://api.vworld.kr/req/wfs?${params.toString()}`,
+    "경관지구(WFS)",
+  );
 
-  if (!response.ok) return [];
+  if (!result.ok) {
+    throw new VWorldLandscapeZoneError(result.error);
+  }
 
-  const payload = (await response.json()) as GeoJsonCollection;
-  if (!Array.isArray(payload.features)) return [];
+  const vworldError = extractVWorldError(result.data);
+  if (vworldError) {
+    throw new VWorldLandscapeZoneError(vworldError);
+  }
 
-  return payload.features
+  if (!Array.isArray(result.data.features)) {
+    return [];
+  }
+
+  return result.data.features
     .map((feature, index) => mapLandscapeZoneFeature(feature, index))
     .filter((feature): feature is LandscapeZoneFeature => feature !== null);
 }

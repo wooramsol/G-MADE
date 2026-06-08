@@ -4,7 +4,8 @@ export function getVWorldApiKey(): string | null {
 }
 
 export function getVWorldDomain(): string {
-  return process.env.VWORLD_DOMAIN?.trim() || "gmadehive.com";
+  const raw = process.env.VWORLD_DOMAIN?.trim() || "www.gmadehive.com";
+  return raw.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
 export function isVWorldConfigured(): boolean {
