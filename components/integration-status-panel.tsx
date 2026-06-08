@@ -1,4 +1,5 @@
 import type { IntegrationGroup, IntegrationRow, IntegrationTone } from "@/lib/integrations/status";
+import { formatKoreaCheckedAt } from "@/lib/format-datetime";
 
 type IntegrationStatusPanelProps = {
   group: IntegrationGroup;
@@ -33,7 +34,7 @@ export default function IntegrationStatusPanel({ group, checkedAt }: Integration
       </div>
 
       {checkedAt ? (
-        <p className="mt-4 text-xs text-[#94a3b8]">서버 기준 {formatCheckedAt(checkedAt)} 확인</p>
+        <p className="mt-4 text-xs text-[#94a3b8]">한국시간 기준 {formatKoreaCheckedAt(checkedAt)} 확인</p>
       ) : null}
     </div>
   );
@@ -69,14 +70,3 @@ function IntegrationStatusRow({ row }: { row: IntegrationRow }) {
   );
 }
 
-function formatCheckedAt(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
