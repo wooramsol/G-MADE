@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
+import ReferenceLinkTitle from "@/components/reference-link-title";
 import { buildLawReferenceUrl } from "@/lib/reference-links";
 import type { UploadAnalysisSession } from "@/lib/types";
 
@@ -144,14 +145,10 @@ function AnalysisSessionDetail({ session }: { session: SessionWithRound }) {
               </p>
               {session.analysis.referenceLaws?.slice(0, 3).map((law) => (
                 <div className="mt-2 text-[#64748b]" key={`${session.id}-${law.title}-${law.article}`}>
-                  <a
-                    className="font-semibold text-[#2463b3] underline decoration-[#2463b3]/40 underline-offset-2 hover:text-[#15345b]"
+                  <ReferenceLinkTitle
+                    title={`${law.title} ${law.article}`}
                     href={buildLawReferenceUrl(law.title, law.sourceUrl)}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    {law.title} {law.article} 검색
-                  </a>
+                  />
                   <p className="mt-0.5 text-xs leading-5">{law.summary}</p>
                 </div>
               ))}

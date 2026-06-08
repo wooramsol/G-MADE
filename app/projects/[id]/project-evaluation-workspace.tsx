@@ -2,14 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { caseStudies, guidelines } from "@/lib/demo-data";
-import {
-  buildCaseStudyReferenceUrl,
-  buildGuidelineReferenceUrl,
-  buildLawReferenceUrl,
-  formatCaseStudyLinkLabel,
-  formatGuidelineLinkLabel,
-  formatLawLinkLabel,
-} from "@/lib/reference-links";
+import ReferenceLinkTitle from "@/components/reference-link-title";
+import { buildGuidelineReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
 import { buildHybridViewFromSession } from "@/lib/upload-to-hybrid";
 import type { HybridResult, Project, UploadAnalysisSession } from "@/lib/types";
 import { showToast } from "../../toast";
@@ -263,7 +257,6 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
               <ReferenceCard
                 title={`${law.title} ${law.article}`}
                 href={buildLawReferenceUrl(law.title, law.sourceUrl)}
-                linkLabel={formatLawLinkLabel(law.title, law.article)}
                 body={law.summary}
                 key={`${law.title}-${law.article}`}
               />
@@ -275,8 +268,7 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
             {guidelines.slice(0, 5).map((guide) => (
               <ReferenceCard
                 title={guide.title}
-                href={guide.sourceUrl ?? buildGuidelineReferenceUrl(guide)}
-                linkLabel={formatGuidelineLinkLabel(guide.title, guide.section)}
+                href={buildGuidelineReferenceUrl(guide)}
                 body={guide.summary}
                 key={guide.id}
               />
@@ -288,8 +280,6 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
             {caseStudies.map((item) => (
               <ReferenceCard
                 title={item.title}
-                href={item.sourceUrl ?? buildCaseStudyReferenceUrl(item)}
-                linkLabel={formatCaseStudyLinkLabel(item.title)}
                 meta={`${item.location} · 유사도 ${item.similarityScore}%`}
                 body={item.keyLearning}
                 key={item.id}
@@ -412,30 +402,18 @@ function EvaluationTable({
 function ReferenceCard({
   title,
   href,
-  linkLabel,
   meta,
   body,
 }: {
   title: string;
-  href?: string;
-  linkLabel?: string;
+  href?: string | null;
   meta?: string;
   body: string;
 }) {
   return (
     <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <p className="font-bold text-[#15345b]">{title}</p>
+      <ReferenceLinkTitle title={title} href={href} />
       {meta ? <p className="mt-1 text-xs font-semibold text-[#64748b]">{meta}</p> : null}
-      {href && linkLabel ? (
-        <a
-          className="mt-2 inline-flex text-sm font-bold text-[#2463b3] underline decoration-[#2463b3]/40 underline-offset-2 hover:text-[#15345b] hover:decoration-[#15345b]"
-          href={href}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {linkLabel}
-        </a>
-      ) : null}
       <p className="mt-2 text-sm leading-6 text-[#64748b]">{body}</p>
     </div>
   );

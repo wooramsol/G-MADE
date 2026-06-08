@@ -1,5 +1,5 @@
 import { guidelines, laws as demoLaws } from "./demo-data";
-import { buildLawGoKrLawSearchUrl } from "./reference-links";
+import { buildLawReferenceUrl } from "./reference-links";
 import { fetchLawReferences, type FetchedLawReference } from "./law/articles";
 import { isLawApiConfigured } from "./law/config";
 import { searchLaws } from "./law/search";
@@ -190,7 +190,7 @@ function demoLawsToReferences(): FetchedLawReference[] {
     summary: law.summary,
     ministry: law.jurisdiction,
     enforcementDate: "",
-    sourceUrl: buildLawGoKrLawSearchUrl(law.title),
+    sourceUrl: buildLawReferenceUrl(law.title) ?? `https://www.law.go.kr/법령/${encodeURIComponent(law.title)}`,
     source: "demo-fallback",
   }));
 }

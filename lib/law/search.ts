@@ -1,4 +1,4 @@
-import { buildLawGoKrLawSearchUrl } from "../reference-links";
+import { buildLawReferenceUrl } from "../reference-links";
 import { getLawOc } from "./config";
 import { lawGetJson } from "./http";
 
@@ -70,7 +70,7 @@ function mapLawSearchHit(row: Record<string, unknown>): LawSearchHit | null {
     ministry,
     enforcementDate,
     lawType,
-    sourceUrl: buildLawGoKrLawSearchUrl(title),
+    sourceUrl: buildLawReferenceUrl(title) ?? `https://www.law.go.kr/법령/${encodeURIComponent(title)}`,
   };
 }
 
