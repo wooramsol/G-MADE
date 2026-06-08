@@ -93,7 +93,15 @@ npm run dev
 2. Production Branch는 **`main`** 을 선택합니다. (`gmadehive.com` 도메인은 Production 배포만 연결됩니다. Preview URL과 코드가 다를 수 있습니다.)
 3. Framework Preset은 `Next.js`로 둡니다.
 4. Build Command는 `npm run build`, Install Command는 `npm install` 기본값을 사용합니다.
-5. API 키 없이도 데모 AI 분석으로 동작합니다. 실제 AI 분석이 필요하면 Vercel Project Settings > Environment Variables에 `OPENAI_API_KEY` 또는 `GEMINI_API_KEY`를 추가합니다.
+5. API 키 없이도 데모 AI 분석으로 동작합니다. 아래 환경 변수는 Vercel Project Settings > Environment Variables에 **Production** 환경으로 추가합니다.
+
+| 변수 | 값 예시 | 용도 |
+| --- | --- | --- |
+| `LAW_OC` | (open.law.go.kr 발급 OC) | 국가법령정보센터 Open API 인증 |
+| `LAW_REFERER` | `https://www.gmadehive.com` | 법령 API Referer (미설정 시 거부될 수 있음) |
+| `OPENAI_API_KEY` 또는 `GEMINI_API_KEY` | (발급 키) | 실제 AI 문서 분석 |
+
+`LAW_OC`가 없으면 업로드 분석 시 **「내장 법령 요약」** 으로 대체되고, 법령 검색 API도 비활성화됩니다. 변수 추가 후 **Redeploy** 해야 반영됩니다.
 
 ### 가비아 DNS 설정
 
