@@ -76,7 +76,7 @@ OPENAI_API_KEY="발급받은 OpenAI API 키"
 OPENAI_MODEL="gpt-4o-mini"
 
 GEMINI_API_KEY="발급받은 Gemini API 키"
-GEMINI_MODEL="gemini-1.5-flash"
+GEMINI_MODEL="gemini-2.5-flash-lite"
 ```
 
 그 다음 개발 서버를 다시 시작합니다.

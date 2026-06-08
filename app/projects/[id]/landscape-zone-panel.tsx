@@ -1,0 +1,201 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
+import type { ProjectLocationPoint } from "@/lib/types";
+
+const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[320px] items-center justify-center rounded-xl border border-[#d7dee8] bg-[#f8fafc] text-sm text-[#64748b]">
+      지도 불러오는 중…
+    </div>
+  ),
+});
+
+type LandscapeZoneFeature = {
+  id: string;
+  name: string;
+  code: string;
+  jurisdiction: string;
+  designationYear: string;
+  geometryType: string;
+};
+
+type LayerFeature = {
+  layerId: string;
+  layerLabel: string;
+  name: string;
+  geometry: GeoJSON.Geometry | null;
+};
+
+type LandscapeZoneResponse = {
+  address: string;
+  point: { x: number; y: number };
+  inLandscapeZone: boolean;
+  matchedZones: LandscapeZoneFeature[];
+  layerFeatures?: LayerFeature[];
+  disclaimer: string;
+};
+
+type LandscapeZoneErrorResponse = {
+  error: string;
+  stage?: string;
+  hint?: string;
+  domain?: string;
+};
+
+type LandscapeZonePanelProps = {
+  address: string;
+  locationPoint?: ProjectLocationPoint;
+};
+
+export default function LandscapeZonePanel({ address, locationPoint }: LandscapeZonePanelProps) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<LandscapeZoneResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLandscapeZone() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const params = new URLSearchParams();
+        if (locationPoint) {
+          params.set("x", String(locationPoint.x));
+          params.set("y", String(locationPoint.y));
+        }
+        if (address.trim()) {
+          params.set("address", address.trim());
+        }
+
+        const response = await fetch(`/api/spatial/landscape-zone?${params.toString()}`, {
+          credentials: "same-origin",
+        });
+        const payload = (await response.json()) as LandscapeZoneResponse | LandscapeZoneErrorResponse;
+
+        if (!response.ok) {
+          const errorPayload = payload as LandscapeZoneErrorResponse;
+          const parts = [errorPayload.error ?? "경관지구 조회에 실패했습니다."];
+          if (errorPayload.hint) parts.push(errorPayload.hint);
+          throw new Error(parts.join(" "));
+        }
+
+        if (!cancelled) {
+          setResult(payload as LandscapeZoneResponse);
+        }
+      } catch (fetchError) {
+        if (!cancelled) {
+          setError(fetchError instanceof Error ? fetchError.message : "경관지구 조회에 실패했습니다.");
+          setResult(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    if (locationPoint || address.trim()) {
+      void loadLandscapeZone();
+    } else {
+      setLoading(false);
+      setError("사업위치가 없어 공간정보를 조회할 수 없습니다.");
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, locationPoint]);
+
+  const otherLayers =
+    result?.layerFeatures?.filter((feature) => feature.layerId !== "landscape-zone") ?? [];
+
+  return (
+    <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#2463b3]">Spatial Context</p>
+          <h3 className="mt-1 text-lg font-bold text-[#15345b]">공간정보 (브이월드)</h3>
+        </div>
+        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+          경관지구·용도지역·문화재
+        </span>
+      </div>
+
+      {loading ? (
+        <p className="rounded-xl bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">공간정보를 조회하는 중입니다...</p>
+      ) : null}
+
+      {!loading && error ? (
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{error}</p>
+      ) : null}
+
+      {!loading && result && locationPoint ? (
+        <div className="mb-4">
+          <SpatialDetailMap
+            point={{ x: locationPoint.x, y: locationPoint.y }}
+            layerFeatures={result.layerFeatures ?? []}
+          />
+        </div>
+      ) : null}
+
+      {!loading && result ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Info label="조회 주소" value={result.address} />
+            <Info label="좌표" value={`${result.point.y.toFixed(6)}, ${result.point.x.toFixed(6)}`} />
+            <Info
+              label="경관지구 해당"
+              value={result.inLandscapeZone ? "해당 가능" : "인근 조회 결과 없음"}
+            />
+            <Info label="매칭 건수" value={`${result.matchedZones.length}건`} />
+          </div>
+
+          {result.matchedZones.length > 0 ? (
+            <div className="space-y-3">
+              {result.matchedZones.map((zone) => (
+                <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm" key={zone.id}>
+                  <p className="font-bold text-[#15345b]">{zone.name}</p>
+                  <p className="mt-1 text-[#64748b]">
+                    코드 {zone.code} · {zone.jurisdiction} · 지정연도 {zone.designationYear}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {otherLayers.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-[#15345b]">기타 공간 레이어</p>
+              {otherLayers.map((layer) => (
+                <div
+                  className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm"
+                  key={`${layer.layerId}-${layer.name}`}
+                >
+                  <p className="font-bold text-[#15345b]">
+                    [{layer.layerLabel}] {layer.name}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <p className="text-xs leading-5 text-[#64748b]">{result.disclaimer}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-[#f8fafc] px-4 py-3 text-sm">
+      <p className="font-semibold text-[#64748b]">{label}</p>
+      <p className="mt-1 font-bold text-[#15345b]">{value}</p>
+    </div>
+  );
+}

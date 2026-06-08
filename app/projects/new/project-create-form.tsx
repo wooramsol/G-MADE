@@ -2,13 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { LocationPicker, type LocationSelection } from "@/components/location-picker";
+import { saveLocalProject } from "../local-project-storage";
+import { showToast } from "../../toast";
 
 const reviewTypes = ["경관사전심의", "경관심의", "공공디자인심의"];
 const projectTypes = ["복합문화시설", "공공공간", "생활SOC", "업무시설", "공동주택", "기반시설"];
 
 const initialState = {
   name: "",
-  location: "",
   client: "",
   designer: "",
   projectType: "",
@@ -18,9 +20,17 @@ const initialState = {
   summary: "",
 };
 
+function formatLocationLabel(selection: LocationSelection): string {
+  if (selection.note?.trim()) {
+    return `${selection.address} (${selection.note.trim()})`;
+  }
+  return selection.address;
+}
+
 export default function ProjectCreateForm() {
   const router = useRouter();
   const [form, setForm] = useState(initialState);
+  const [location, setLocation] = useState<LocationSelection | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -31,13 +41,28 @@ export default function ProjectCreateForm() {
   async function submitProject(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    if (!location) {
+      setError("사업위치를 검색하거나 지도에서 선택해 주세요.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          location: formatLocationLabel(location),
+          locationPoint: {
+            x: location.x,
+            y: location.y,
+            source: location.source,
+            note: location.note,
+          },
+        }),
       });
       const payload = await response.json();
 
@@ -45,7 +70,9 @@ export default function ProjectCreateForm() {
         throw new Error(payload.error ?? "프로젝트 생성에 실패했습니다.");
       }
 
-      router.push(`/projects/${payload.project.id}`);
+      saveLocalProject(payload.project);
+      showToast({ message: "프로젝트가 생성되었습니다.", tone: "success" });
+      window.setTimeout(() => router.push(`/projects/${payload.project.id}`), 650);
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "프로젝트 생성에 실패했습니다.");
@@ -57,7 +84,12 @@ export default function ProjectCreateForm() {
   return (
     <form className="grid gap-4 lg:grid-cols-2" id="new-project-form" onSubmit={submitProject}>
       <Field label="사업명" placeholder="예: 동부역세권 복합문화시설 경관사전심의" value={form.name} onChange={(value) => updateField("name", value)} />
-      <Field label="사업위치" placeholder="예: 서울특별시 중구 세종대로 일원" value={form.location} onChange={(value) => updateField("location", value)} />
+      <div className="lg:col-span-2">
+        <p className="text-sm font-bold text-[#15345b]">사업위치</p>
+        <div className="mt-2 rounded-xl border border-[#d7dee8] bg-white p-4">
+          <LocationPicker value={location} onChange={setLocation} disabled={loading} />
+        </div>
+      </div>
       <Field label="시행자" placeholder="예: 서울도시개발공사" value={form.client} onChange={(value) => updateField("client", value)} />
       <Field label="설계자" placeholder="예: GMA 도시건축사사무소" value={form.designer} onChange={(value) => updateField("designer", value)} />
       <SelectField label="사업유형" options={projectTypes} value={form.projectType} onChange={(value) => updateField("projectType", value)} />

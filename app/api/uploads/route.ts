@@ -2,9 +2,17 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { getWritableStoragePath } from "@/lib/runtime-storage";
 import { NextRequest, NextResponse } from "next/server";
+import { extractDocumentText } from "@/lib/document-extract";
+import { getDefaultAiProvider } from "@/lib/ai/select-provider";
+import type { AiProviderPreference } from "@/lib/ai/types";
+import { buildEvaluationContext } from "@/lib/evaluation-context";
+import { addProjectUploadAnalysis } from "@/lib/project-store";
 import { analyzeUploadedFiles, type UploadedFileSummary } from "@/lib/upload-analysis";
+import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
+export const preferredRegion = "icn1";
 
 const allowedExtensions = new Set(["pdf", "docx", "pptx", "jpg", "jpeg", "png", "dwg", "zip", "txt", "md"]);
 const maxFileSizeBytes = 25 * 1024 * 1024;
@@ -12,11 +20,8 @@ const maxFileSizeBytes = 25 * 1024 * 1024;
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const providerPreference = String(formData.get("provider") ?? "auto") as
-      | "auto"
-      | "demo"
-      | "openai"
-      | "gemini";
+    const projectId = String(formData.get("projectId") ?? "").trim();
+    const providerPreference = String(formData.get("provider") ?? getDefaultAiProvider()) as AiProviderPreference;
     const entries = formData.getAll("files");
     const files = entries.filter(isFileLike);
 
@@ -45,16 +50,52 @@ export async function POST(request: NextRequest) {
         fileType: file.type || inferFileType(file.name),
         sizeBytes: file.size,
         storagePath,
-        extractedTextPreview: extractTextPreview(buffer, file.type, file.name),
+        extractedTextPreview: await extractDocumentText(buffer, file.name),
       });
     }
 
+    const uploadedAt = new Date().toISOString();
+    const persistedFiles: ProjectFile[] = savedFiles.map((file) => ({
+      id: file.id,
+      fileName: file.originalName,
+      fileType: formatStoredFileType(file.originalName, file.fileType),
+      analysisStatus: "완료",
+      uploadedAt,
+      sizeBytes: file.sizeBytes,
+    }));
+
+    const evaluationContext = await buildEvaluationContext(projectId || undefined);
     const analysis = await analyzeUploadedFiles({
       providerPreference,
       files: savedFiles,
+      evaluationContext,
     });
 
-    return NextResponse.json({ files: savedFiles, analysis });
+    const aiWeight = Number(formData.get("aiWeight") ?? 30);
+    const expertWeight = Number(formData.get("expertWeight") ?? 70);
+    const evaluationItemPoints = parseEvaluationItemPoints(formData.get("evaluationItemPoints"));
+    const totalPoints = Object.values(evaluationItemPoints).reduce((sum, points) => sum + points, 0);
+
+    const session: UploadAnalysisSession = {
+      id: `analysis-${Date.now()}-${crypto.randomUUID()}`,
+      analyzedAt: uploadedAt,
+      aiWeight: Number.isFinite(aiWeight) ? aiWeight : 30,
+      expertWeight: Number.isFinite(expertWeight) ? expertWeight : 70,
+      totalPoints,
+      files: savedFiles.map((file) => ({
+        id: file.id,
+        originalName: file.originalName,
+        fileType: formatStoredFileType(file.originalName, file.fileType),
+        sizeBytes: file.sizeBytes,
+      })),
+      analysis,
+    };
+
+    const updatedProject = projectId
+      ? await addProjectUploadAnalysis(projectId, session, persistedFiles)
+      : undefined;
+
+    return NextResponse.json({ files: savedFiles, analysis, session, project: updatedProject });
   } catch (error) {
     const message = error instanceof Error ? error.message : "파일 업로드 중 오류가 발생했습니다.";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -90,13 +131,20 @@ function inferFileType(fileName: string): string {
   return extension ? `application/${extension}` : "application/octet-stream";
 }
 
-function extractTextPreview(buffer: Buffer, fileType: string, fileName: string): string {
+function formatStoredFileType(fileName: string, fallbackType: string): string {
   const extension = getExtension(fileName);
-  const looksText = fileType.startsWith("text/") || ["txt", "md"].includes(extension);
+  return extension ? extension.toUpperCase() : fallbackType;
+}
 
-  if (!looksText) {
-    return "";
+function parseEvaluationItemPoints(value: FormDataEntryValue | null): Record<string, number> {
+  if (typeof value !== "string" || !value.trim()) return {};
+
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(parsed).map(([key, points]) => [key, Math.max(0, Number(points) || 0)]),
+    );
+  } catch {
+    return {};
   }
-
-  return buffer.toString("utf8").replace(/\s+/g, " ").slice(0, 4000);
 }

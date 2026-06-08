@@ -50,12 +50,71 @@ export type ProjectFile = {
   fileName: string;
   fileType: string;
   analysisStatus: "대기" | "분석중" | "완료";
+  uploadedAt?: string;
+  sizeBytes?: number;
+};
+
+export type UploadAnalysisSession = {
+  id: string;
+  analyzedAt: string;
+  aiWeight: number;
+  expertWeight: number;
+  totalPoints: number;
+  files: Array<{
+    id: string;
+    originalName: string;
+    fileType: string;
+    sizeBytes: number;
+  }>;
+  analysis: {
+    provider: "demo" | "openai" | "gemini" | "claude";
+    mode: "demo" | "live";
+    summary: string;
+    documentSections: Array<{ label: string; confidence: number; summary: string }>;
+    evaluationPreview: Array<{
+      itemId?: string;
+      itemName: string;
+      score: number;
+      grade: string;
+      rationale: string;
+      recommendation: string;
+      laws: string[];
+      guidelines: string[];
+    }>;
+    referenceLaws?: Array<{
+      title: string;
+      article: string;
+      summary: string;
+      sourceUrl: string;
+    }>;
+    spatialContext?: {
+      address: string;
+      inLandscapeZone: boolean;
+      matchedZones: Array<{
+        name: string;
+        code: string;
+        jurisdiction: string;
+        designationYear: string;
+      }>;
+    } | null;
+    lawSource?: "law.go.kr" | "demo-fallback";
+    contextFetchedAt?: string;
+    warnings: string[];
+  };
+};
+
+export type ProjectLocationPoint = {
+  x: number;
+  y: number;
+  source: "address" | "place" | "map";
+  note?: string;
 };
 
 export type Project = {
   id: string;
   name: string;
   location: string;
+  locationPoint?: ProjectLocationPoint;
   client: string;
   designer: string;
   projectType: string;
@@ -64,6 +123,7 @@ export type Project = {
   receivedAt: string;
   status: "접수" | "심사 진행중" | "완료";
   files: ProjectFile[];
+  uploadAnalyses?: UploadAnalysisSession[];
 };
 
 export type AiEvaluation = {

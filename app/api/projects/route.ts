@@ -20,9 +20,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const locationPoint = payload.locationPoint as
+      | { x?: unknown; y?: unknown; source?: unknown; note?: unknown }
+      | undefined;
+    const x = Number(locationPoint?.x);
+    const y = Number(locationPoint?.y);
+    const source = locationPoint?.source;
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return NextResponse.json(
+        { error: "사업위치를 검색하거나 지도에서 선택해 주세요." },
+        { status: 400 },
+      );
+    }
+
+    if (source !== "address" && source !== "place" && source !== "map") {
+      return NextResponse.json({ error: "유효한 위치 선택 정보가 필요합니다." }, { status: 400 });
+    }
+
     const project = await createProject({
       name: String(payload.name).trim(),
       location: String(payload.location).trim(),
+      locationPoint: {
+        x,
+        y,
+        source,
+        note: String(locationPoint?.note ?? "").trim() || undefined,
+      },
       client: String(payload.client).trim(),
       designer: String(payload.designer).trim(),
       projectType: String(payload.projectType).trim(),
