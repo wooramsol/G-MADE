@@ -7,6 +7,7 @@ import { lookupLandscapeZoneByAddress } from "@/lib/vworld/landscape-zone";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 30;
+export const preferredRegion = "icn1";
 
 export async function GET() {
   const session = await auth();
@@ -59,6 +60,7 @@ export async function GET() {
     notes: [
       "브이월드 키에 '지오코더 API'와 '2D 데이터 API(경관지구)' 권한이 모두 필요합니다.",
       "VWORLD_DOMAIN은 키 발급 시 등록한 도메인과 동일해야 합니다. (예: www.gmadehive.com)",
+      "Vercel 함수는 서울 리전(icn1)에서 브이월드로 호출합니다.",
     ],
   });
 }

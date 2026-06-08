@@ -7,6 +7,7 @@ import { getVWorldDomain, isVWorldConfigured } from "@/lib/vworld/config";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 30;
+export const preferredRegion = "icn1";
 
 export async function GET(request: Request) {
   const session = await auth();
