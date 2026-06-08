@@ -2,10 +2,9 @@ import type { Guideline } from "./types";
 
 type LawGoKrKind = "법령" | "행정규칙" | "자치법규";
 
-type DocumentTarget = {
-  kind: LawGoKrKind;
-  name: string;
-};
+type DocumentTarget =
+  | { url: string }
+  | { kind: LawGoKrKind; name: string };
 
 const LAW_DOCUMENT_TARGETS: Record<string, DocumentTarget> = {
   경관법: { kind: "법령", name: "경관법" },
@@ -19,8 +18,10 @@ const LAW_DOCUMENT_TARGETS: Record<string, DocumentTarget> = {
 
 const GUIDELINE_DOCUMENT_TARGETS: Record<string, DocumentTarget> = {
   "guide-skyline": { kind: "법령", name: "경관법" },
-  "guide-facade": { kind: "행정규칙", name: "건축물의 경관 등에 관한 기준" },
-  "guide-color": { kind: "자치법규", name: "서울특별시 색채계획 조례" },
+  // 국가법령정보센터 등록명: 경관심의운영지침 (데모 제목과 다름)
+  "guide-facade": { kind: "행정규칙", name: "경관심의운영지침" },
+  // 서울특별시 색채계획 조례는 등록되어 있지 않음 → 공공디자인 진흥 조례 본문
+  "guide-color": { url: "https://www.law.go.kr/LSW/ordinInfoP.do?ordinSeq=1566971" },
   "guide-night": { kind: "법령", name: "인공조명에 의한 빛공해 방지법" },
   "guide-walk": { kind: "법령", name: "보행안전 및 편의증진에 관한 법률" },
   "guide-green": { kind: "법령", name: "도시공원 및 녹지 등에 관한 법률" },
@@ -30,6 +31,11 @@ const GUIDELINE_DOCUMENT_TARGETS: Record<string, DocumentTarget> = {
 
 export function buildLawGoKrDirectUrl(kind: LawGoKrKind, name: string): string {
   return `https://www.law.go.kr/${kind}/${encodeURIComponent(name.trim())}`;
+}
+
+function buildDocumentUrl(target: DocumentTarget): string {
+  if ("url" in target) return target.url;
+  return buildLawGoKrDirectUrl(target.kind, target.name);
 }
 
 function normalizeLawTitle(title: string): string {
@@ -57,13 +63,13 @@ function resolveDocumentTarget(title: string): DocumentTarget | null {
 
 export function buildLawReferenceUrl(title: string, _sourceUrl?: string): string | null {
   const target = resolveDocumentTarget(title);
-  return target ? buildLawGoKrDirectUrl(target.kind, target.name) : null;
+  return target ? buildDocumentUrl(target) : null;
 }
 
 export function buildGuidelineReferenceUrl(guide: Pick<Guideline, "id" | "title">): string | null {
   const mapped = GUIDELINE_DOCUMENT_TARGETS[guide.id];
   if (!mapped) return null;
-  return buildLawGoKrDirectUrl(mapped.kind, mapped.name);
+  return buildDocumentUrl(mapped);
 }
 
 export function isExternalUrl(value: string): boolean {
