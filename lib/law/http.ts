@@ -1,5 +1,6 @@
 import https from "node:https";
 import { getLawReferer } from "./config";
+import { isRetryableLawHttpError, withLawRetry } from "./retry";
 
 const REQUEST_TIMEOUT_MS = 20_000;
 const LAW_BASE_URL = "https://www.law.go.kr";
@@ -40,7 +41,11 @@ function httpsGetText(url: string): Promise<{ status: number; body: string }> {
   });
 }
 
-export async function lawGetJson<T>(path: string, params: Record<string, string>, label: string): Promise<LawHttpResult<T>> {
+async function lawGetJsonOnce<T>(
+  path: string,
+  params: Record<string, string>,
+  label: string,
+): Promise<LawHttpResult<T>> {
   const search = new URLSearchParams(params);
   const url = `${LAW_BASE_URL}${path}?${search.toString()}`;
 
@@ -64,4 +69,15 @@ export async function lawGetJson<T>(path: string, params: Record<string, string>
     const message = error instanceof Error ? error.message : "알 수 없는 네트워크 오류";
     return { ok: false, status: 0, error: `${label} 연결 실패: ${message}` };
   }
+}
+
+export async function lawGetJson<T>(
+  path: string,
+  params: Record<string, string>,
+  label: string,
+): Promise<LawHttpResult<T>> {
+  return withLawRetry(
+    () => lawGetJsonOnce<T>(path, params, label),
+    (result) => !result.ok && isRetryableLawHttpError(result.error),
+  );
 }

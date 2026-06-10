@@ -1,4 +1,5 @@
 import { buildLawGoKrDetailUrl } from "../reference-links";
+import { getCachedLawSearch, setCachedLawSearch } from "./cache";
 import { getLawOc } from "./config";
 import { lawGetJson } from "./http";
 
@@ -17,7 +18,11 @@ type LawSearchResponse = Record<string, unknown>;
 
 export async function searchLaws(query: string, display = 5): Promise<LawSearchHit[]> {
   const oc = getLawOc();
-  if (!oc || !query.trim()) return [];
+  const normalizedQuery = query.trim();
+  if (!oc || !normalizedQuery) return [];
+
+  const cached = getCachedLawSearch(normalizedQuery, display);
+  if (cached) return cached;
 
   const result = await lawGetJson<LawSearchResponse>(
     "/DRF/lawSearch.do",
@@ -25,18 +30,20 @@ export async function searchLaws(query: string, display = 5): Promise<LawSearchH
       OC: oc,
       target: "law",
       type: "JSON",
-      query: query.trim(),
+      query: normalizedQuery,
       display: String(display),
       page: "1",
     },
-    `법령검색(${query})`,
+    `법령검색(${normalizedQuery})`,
   );
 
   if (!result.ok) {
-    throw new Error(result.error ?? `법령 검색에 실패했습니다. (${query})`);
+    throw new Error(result.error ?? `법령 검색에 실패했습니다. (${normalizedQuery})`);
   }
 
-  return parseLawSearchHits(result.data);
+  const hits = parseLawSearchHits(result.data);
+  setCachedLawSearch(normalizedQuery, display, hits);
+  return hits;
 }
 
 function parseLawSearchHits(payload: LawSearchResponse): LawSearchHit[] {

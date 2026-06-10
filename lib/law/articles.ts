@@ -1,6 +1,7 @@
 import { isVerifiedLawGoKrDetailUrl } from "../reference-links";
 import { getLawOc } from "./config";
 import { lawGetJson } from "./http";
+import { sleepMs } from "./retry";
 import type { LawSearchHit } from "./search";
 
 export type FetchedLawReference = {
@@ -32,9 +33,13 @@ export async function fetchLawReferences(hits: LawSearchHit[], maxLaws = 5): Pro
   const references: FetchedLawReference[] = [];
   const seen = new Set<string>();
 
-  for (const hit of hits.slice(0, maxLaws)) {
+  for (const [index, hit] of hits.slice(0, maxLaws).entries()) {
     if (seen.has(hit.lawId)) continue;
     seen.add(hit.lawId);
+
+    if (index > 0) {
+      await sleepMs(250);
+    }
 
     const articles = await fetchLawArticleSnippets(hit);
     if (articles.length > 0) {
@@ -64,7 +69,11 @@ async function fetchLawArticleSnippets(hit: LawSearchHit): Promise<FetchedLawRef
   const hints = pickArticleHints(hit.title);
   const snippets: FetchedLawReference[] = [];
 
-  for (const articleNo of hints.slice(0, 2)) {
+  for (const [index, articleNo] of hints.slice(0, 2).entries()) {
+    if (index > 0) {
+      await sleepMs(200);
+    }
+
     const jo = articleNo.padStart(4, "0") + "00";
     const result = await lawGetJson<LawServiceResponse>(
       "/DRF/lawService.do",

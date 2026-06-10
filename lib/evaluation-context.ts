@@ -4,7 +4,7 @@ import { buildGuidelineReferenceUrl, buildLawReferenceUrl } from "./reference-li
 import { fetchLawReferences, type FetchedLawReference } from "./law/articles";
 import { isLawApiConfigured } from "./law/config";
 import { formatLawSearchFailure, LAW_OC_MISSING_WARNING } from "./law/warnings";
-import { searchLaws } from "./law/search";
+import { searchLawsBatch } from "./law/search-batch";
 import { getProjectById } from "./project-store";
 import type { Project, ProjectLocationPoint } from "./types";
 import { geocodeAddress } from "./vworld/geocode";
@@ -124,18 +124,10 @@ async function loadReferenceLaws(
   }
 
   const queries = buildLawQueries(project);
-  const hits = (
-    await Promise.all(
-      queries.map(async (query) => {
-        try {
-          return await searchLaws(query, 4);
-        } catch (error) {
-          warnings.push(formatLawSearchFailure(query, error));
-          return [];
-        }
-      }),
-    )
-  ).flat();
+  const { hits, failures } = await searchLawsBatch(queries, 4);
+  for (const failure of failures) {
+    warnings.push(formatLawSearchFailure(failure.query, failure.error));
+  }
 
   const uniqueHits = dedupeLawHits(hits);
   if (uniqueHits.length === 0) {
