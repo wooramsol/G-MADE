@@ -110,7 +110,9 @@ export default function ProjectCreateForm() {
         <button className="primary-action rounded-lg px-5 py-3 text-sm font-bold shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" disabled={loading} type="submit">
           {loading ? "프로젝트 생성 중..." : "프로젝트 생성하기"}
         </button>
-        <p className="self-center text-sm text-[#64748b]">생성 후 해당 프로젝트 상세 화면으로 이동합니다.</p>
+        <p className="self-center text-sm text-[#64748b]">
+          생성 후 프로젝트 상세 화면에서 평가기준·자료 업로드를 진행합니다.
+        </p>
       </div>
     </form>
   );

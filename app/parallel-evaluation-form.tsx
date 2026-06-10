@@ -106,6 +106,10 @@ export default function ParallelEvaluationForm({
 
   return (
     <div className="space-y-5">
+      <p className="text-sm leading-6 text-[#64748b]">
+        공통 평가항목·배점을 설정한 뒤, AI·전문가 자료를 대칭 구조로 업로드하고 한 번에 하이브리드 평가 분석을
+        실행합니다.
+      </p>
       <EvaluationItemsEditor items={evaluationItems} onItemsChange={setEvaluationItems} />
 
       <div className="rounded-xl border border-[#d7dee8] bg-white p-4">

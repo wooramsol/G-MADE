@@ -5,7 +5,6 @@ import LocalProjectDetail from "./local-project-detail";
 import LandscapeZonePanel from "./landscape-zone-panel";
 import ProjectLocationEditor from "./project-location-editor";
 
-const supportedFiles = ["PDF", "DOCX", "PPTX", "JPG", "PNG", "DWG", "ZIP"];
 export const dynamic = "force-dynamic";
 
 export default async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -49,36 +48,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
             </div>
           </Panel>
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
-          <Panel title="AI · 전문가 병행 평가" action="자료 업로드">
-            <p className="mb-4 text-sm leading-6 text-[#64748b]">
-              공통 평가항목·배점을 설정한 뒤, AI·전문가 자료를 대칭 구조로 업로드하고 한 번에 하이브리드 평가
-              분석을 실행합니다.
-            </p>
-            <div className="mb-5 flex flex-wrap gap-2">
-              {supportedFiles.map((file) => (
-                <Badge tone="gray" key={file}>
-                  {file}
-                </Badge>
-              ))}
-              <Badge tone="gray">XLSX</Badge>
-              <Badge tone="gray">HWP</Badge>
-            </div>
-            {project.files.length > 0 ? (
-              <div className="mb-5 space-y-3">
-                {project.files.map((file) => (
-                  <div
-                    className="flex items-center justify-between rounded-xl border border-[#d7dee8] bg-white p-4"
-                    key={file.id}
-                  >
-                    <div>
-                      <p className="font-semibold text-[#172033]">{file.fileName}</p>
-                      <p className="text-sm text-[#64748b]">{file.fileType} · S3 호환 저장소 연결 구조</p>
-                    </div>
-                    <Badge tone="blue">{file.analysisStatus}</Badge>
-                  </div>
-                ))}
-              </div>
-            ) : null}
+          <Panel title="AI · 전문가 병행 평가">
             <ProjectUploadSection project={project} />
           </Panel>
         </section>
@@ -97,11 +67,6 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
       {children}
     </div>
   );
-}
-
-function Badge({ children, tone }: { children: React.ReactNode; tone: "blue" | "gray" }) {
-  const toneClass = tone === "blue" ? "bg-[#e8f1ff] text-[#2463b3]" : "bg-[#eef2f7] text-[#475569]";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${toneClass}`}>{children}</span>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
