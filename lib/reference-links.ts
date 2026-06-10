@@ -76,3 +76,18 @@ export function buildGuidelineReferenceUrl(guide: Pick<Guideline, "id" | "title"
 export function isExternalUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
+
+export type ReferenceLawLike = {
+  title: string;
+  article: string;
+};
+
+export function dedupeReferenceLaws<T extends ReferenceLawLike>(laws: T[]): T[] {
+  const seen = new Set<string>();
+  return laws.filter((law) => {
+    const key = `${normalizeLawTitle(law.title)}|${law.article.trim()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

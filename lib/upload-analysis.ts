@@ -9,6 +9,7 @@ import { selectProvider } from "./ai/select-provider";
 import type { EvaluationContext } from "./evaluation-context";
 import { evaluationItems as defaultEvaluationItems } from "./demo-data";
 import { gradeScore } from "./hybrid-evaluation";
+import { dedupeReferenceLaws } from "./reference-links";
 import type { EvaluationItem } from "./types";
 
 export type { UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
@@ -276,9 +277,6 @@ function normalizeEvaluations(
 ): UploadAnalysisResult["evaluationPreview"] {
   const source = Array.isArray(value) && value.length > 0 ? value : [];
   const rows = source.length > 0 ? source : items.slice(0, 4);
-  const defaultLawRefs = evaluationContext.referenceLaws.slice(0, 3).map((law) => `${law.title} ${law.article}`);
-  const defaultGuidelineRefs = evaluationContext.guidelines.slice(0, 2).map((guide) => `${guide.title} ${guide.section}`);
-
   return rows.slice(0, Math.max(items.length, 8)).map((row, index) => {
     const item = items[index % items.length];
     const score = clampNumber(Number(row?.score ?? 80 - index * 2));
@@ -296,20 +294,16 @@ function normalizeEvaluations(
       grade: String(row?.grade ?? gradeScore(score)),
       rationale: String(row?.rationale ?? buildFallbackRationale(item.criteria, evaluationContext)),
       recommendation: String(row?.recommendation ?? "심사위원 검토 단계에서 현장 맥락과 보완 조건을 확인해야 합니다."),
-      laws: aiLawRefs.length > 0 ? aiLawRefs : defaultLawRefs,
-      guidelines: aiGuidelineRefs.length > 0 ? aiGuidelineRefs : defaultGuidelineRefs,
+      laws: aiLawRefs,
+      guidelines: aiGuidelineRefs,
     };
   });
 }
 
 function buildFallbackRationale(criteria: string, evaluationContext: EvaluationContext): string {
-  const lawRef = evaluationContext.referenceLaws[0];
   const spatial = evaluationContext.spatial;
   const parts = [criteria];
 
-  if (lawRef) {
-    parts.push(`${lawRef.title} ${lawRef.article} 및 실시간 법령 조회 결과를 참고함.`);
-  }
   if (spatial?.matchedZones[0]) {
     parts.push(`인근 경관지구: ${spatial.matchedZones[0].name}.`);
   } else if (spatial) {
@@ -362,14 +356,16 @@ function attachContextMetadata(
 ): UploadAnalysisResult {
   return {
     ...result,
-    referenceLaws: evaluationContext.referenceLaws
-      .filter((law) => law.sourceUrl)
-      .map((law) => ({
-        title: law.title,
-        article: law.article,
-        summary: law.summary,
-        sourceUrl: law.sourceUrl,
-      })),
+    referenceLaws: dedupeReferenceLaws(
+      evaluationContext.referenceLaws
+        .filter((law) => law.sourceUrl)
+        .map((law) => ({
+          title: law.title,
+          article: law.article,
+          summary: law.summary,
+          sourceUrl: law.sourceUrl,
+        })),
+    ),
     spatialContext: evaluationContext.spatial,
     lawSource: evaluationContext.lawSource,
     contextFetchedAt: evaluationContext.fetchedAt,

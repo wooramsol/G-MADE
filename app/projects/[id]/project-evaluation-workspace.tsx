@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
-import { buildLawReferenceUrl } from "@/lib/reference-links";
+import { buildLawReferenceUrl, dedupeReferenceLaws } from "@/lib/reference-links";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
 import { showToast } from "../../toast";
@@ -31,6 +31,13 @@ export default function ProjectEvaluationWorkspace({ project, rounds, onRoundsCh
   const [selectedId, setSelectedId] = useState<string | null>(sorted[0]?.id ?? null);
   const selectedRound = sorted.find((round) => round.id === selectedId) ?? sorted[0];
   const hybridView = selectedRound ? buildHybridViewFromRound(selectedRound, selectedRound.roundNumber) : null;
+  const referenceLaws = useMemo(
+    () =>
+      dedupeReferenceLaws(selectedRound?.aiAnalysis.referenceLaws ?? []).filter(
+        (law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null,
+      ),
+    [selectedRound],
+  );
 
   const aiAvg =
     selectedRound && selectedRound.aiAnalysis.evaluationPreview.length > 0
@@ -183,48 +190,23 @@ export default function ProjectEvaluationWorkspace({ project, rounds, onRoundsCh
             <EvaluationTable results={hybridView.results} reviewerName={selectedRound.reviewerName} />
           </Panel>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            {selectedRound.aiAnalysis.evaluationPreview.map((row) => {
-              const item = selectedRound.evaluationItems.find(
-                (entry) => entry.id === row.itemId || entry.detailItem === row.itemName,
-              );
-              const expert = selectedRound.expertItemScores.find((score) => score.itemId === item?.id);
-              return (
-                <div className="rounded-xl border border-[#d7dee8] bg-white p-3" key={`${selectedRound.id}-${row.itemName}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-bold text-[#15345b]">{row.itemName}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-[#e8f1ff] px-2.5 py-1 text-[11px] font-bold text-[#2463b3]">
-                        AI {row.score}점
-                      </span>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
-                        전문가 {expert?.score ?? "-"}점
-                      </span>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-[#475569]">{row.rationale}</p>
-                  {expert?.comment ? (
-                    <p className="mt-2 text-xs leading-5 text-[#64748b]">전문가 의견: {expert.comment}</p>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-
-          {(selectedRound.aiAnalysis.referenceLaws?.length ?? 0) > 0 ? (
+          {referenceLaws.length > 0 ? (
             <div className="rounded-xl border border-[#d7dee8] bg-white p-3 text-sm">
-              <p className="font-bold text-[#15345b]">법령 근거</p>
-              {selectedRound.aiAnalysis.referenceLaws
-                ?.filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
-                .slice(0, 3)
-                .map((law) => (
-                  <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${law.title}`}>
-                    <ReferenceLinkTitle
-                      title={`${law.title} ${law.article}`}
-                      href={buildLawReferenceUrl(law.title, law.sourceUrl)}
-                    />
-                  </div>
-                ))}
+              <p className="font-bold text-[#15345b]">
+                법령 근거 ({selectedRound.aiAnalysis.lawSource === "law.go.kr" ? "국가법령정보" : "내장 요약"})
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[#64748b]">
+                이번 분석에 참고한 법령 목록입니다. 항목별 평가 근거는 위 표에서 확인할 수 있습니다.
+              </p>
+              {referenceLaws.map((law) => (
+                <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${law.title}-${law.article}`}>
+                  <ReferenceLinkTitle
+                    title={`${law.title} ${law.article}`}
+                    href={buildLawReferenceUrl(law.title, law.sourceUrl)}
+                  />
+                  {law.summary ? <p className="mt-0.5 text-xs leading-5">{law.summary}</p> : null}
+                </div>
+              ))}
             </div>
           ) : null}
 
@@ -235,47 +217,38 @@ export default function ProjectEvaluationWorkspace({ project, rounds, onRoundsCh
         </div>
       </section>
 
-      <section id="explainable-ai">
-        <SectionTitle eyebrow="Explainable AI" title="AI 평가 근거" description="선택 차수의 AI 분석 근거입니다." />
-        <div className="mt-5 grid gap-5 xl:grid-cols-2">
-          {hybridView.results.slice(0, 4).map((result) => (
-            <Panel
-              title={result.item.detailItem}
-              action={`AI ${result.aiEvaluation.score}점 · 전문가 ${result.humanEvaluation.score}점`}
-              key={result.item.id}
-            >
-              <p className="text-sm leading-6 text-[#475569]">{result.aiEvaluation.rationale}</p>
-              {result.humanEvaluation.comment ? (
-                <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-[#475569]">
-                  전문가 의견: {result.humanEvaluation.comment}
+      {selectedRound.aiAnalysis.documentSections.length > 0 ? (
+        <section id="ai-document-analysis">
+          <details className="rounded-2xl border border-[#d7dee8] bg-white panel-shadow">
+            <summary className="cursor-pointer list-none px-5 py-4 [&::-webkit-details-marker]:hidden">
+              <SectionTitle
+                eyebrow="Document Analysis"
+                title="업로드 자료 구성 점검"
+                description="AI가 업로드 문서에서 식별한 주요 구성 항목(건축개요, 배치도, 입면도 등)과 각 항목의 확인 신뢰도입니다."
+              />
+            </summary>
+            <div className="border-t border-[#d7dee8] px-5 pb-5">
+              {selectedRound.aiAnalysis.mode === "demo" ? (
+                <p className="mt-4 rounded-xl border border-[#fdba74] bg-[#fff7ed] px-3 py-2 text-xs leading-5 text-[#9a3412]">
+                  데모 분석 모드에서는 예시 항목이 표시됩니다. AI API 연동 후 실제 업로드 자료에서 추출한 결과가
+                  표시됩니다.
                 </p>
               ) : null}
-              <p className="mt-4 rounded-xl bg-[#fff7ed] p-3 text-sm leading-6 text-[#9a3412]">
-                개선권고: {result.aiEvaluation.recommendation}
-              </p>
-            </Panel>
-          ))}
-        </div>
-      </section>
-
-      <section id="ai-document-analysis">
-        <SectionTitle
-          eyebrow="Document Analysis"
-          title="AI 문서 섹션 추출"
-          description={`${selectedRound.roundNumber}차 AI 자료 분석 결과`}
-        />
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {selectedRound.aiAnalysis.documentSections.map((section) => (
-            <div className="rounded-2xl border border-[#d7dee8] bg-white p-4 panel-shadow" key={section.label}>
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-bold text-[#15345b]">{section.label}</p>
-                <span className="text-sm font-bold text-[#2463b3]">{section.confidence}%</span>
+              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                {selectedRound.aiAnalysis.documentSections.map((section) => (
+                  <div className="rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={section.label}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-bold text-[#15345b]">{section.label}</p>
+                      <span className="text-sm font-bold text-[#2463b3]">{section.confidence}%</span>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-[#64748b]">{section.summary}</p>
+                  </div>
+                ))}
               </div>
-              <p className="mt-3 text-sm leading-6 text-[#64748b]">{section.summary}</p>
             </div>
-          ))}
-        </div>
-      </section>
+          </details>
+        </section>
+      ) : null}
     </div>
   );
 }
