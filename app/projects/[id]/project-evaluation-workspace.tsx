@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import ConfirmDialog from "@/components/confirm-dialog";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
@@ -35,6 +36,9 @@ export default function ProjectEvaluationWorkspace({
   }, [rounds]);
 
   const [selectedId, setSelectedId] = useState<string | null>(sorted[0]?.id ?? null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingRoundId, setDeletingRoundId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const selectedRound = sorted.find((round) => round.id === selectedId) ?? sorted[0];
   const hybridView = selectedRound ? buildHybridViewFromRound(selectedRound, selectedRound.roundNumber) : null;
 
@@ -53,10 +57,20 @@ export default function ProjectEvaluationWorkspace({
         )
       : null;
 
-  async function deleteRound(roundId: string) {
-    if (!window.confirm("이 평가 차수를 삭제할까요?")) return;
+  const deletingRound = sorted.find((round) => round.id === deletingRoundId);
 
+  function requestDeleteRound(roundId: string) {
+    setDeletingRoundId(roundId);
+    setDeleteConfirmOpen(true);
+  }
+
+  async function deleteRound() {
+    if (!deletingRoundId) return;
+
+    const roundId = deletingRoundId;
     let next: EvaluationRound[] = sorted.filter((round) => round.id !== roundId);
+
+    setDeleting(true);
 
     try {
       const response = await fetch(`/api/projects/${project.id}/evaluation-rounds/${roundId}`, {
@@ -77,12 +91,16 @@ export default function ProjectEvaluationWorkspace({
       if (selectedId === roundId) {
         setSelectedId(next[0]?.id ?? null);
       }
+      setDeleteConfirmOpen(false);
+      setDeletingRoundId(null);
       showToast({ message: "평가 차수가 삭제되었습니다.", tone: "success" });
     } catch (error) {
       showToast({
         message: error instanceof Error ? error.message : "삭제에 실패했습니다.",
         tone: "error",
       });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -112,11 +130,28 @@ export default function ProjectEvaluationWorkspace({
           <button
             type="button"
             className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
-            onClick={() => deleteRound(selectedRound.id)}
+            onClick={() => requestDeleteRound(selectedRound.id)}
           >
             이 차수 삭제
           </button>
         </div>
+
+        <ConfirmDialog
+          description={
+            deletingRound
+              ? `${deletingRound.roundNumber}차 평가 결과가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`
+              : "선택한 평가 차수가 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+          }
+          loading={deleting}
+          open={deleteConfirmOpen}
+          onCancel={() => {
+            if (!deleting) {
+              setDeleteConfirmOpen(false);
+              setDeletingRoundId(null);
+            }
+          }}
+          onConfirm={deleteRound}
+        />
 
         <div className="mt-4 overflow-x-auto rounded-xl border border-[#d7dee8] bg-white p-1">
           <div className="flex min-w-max gap-1">

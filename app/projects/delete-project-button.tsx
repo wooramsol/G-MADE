@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { showToast } from "../toast";
 import { useState } from "react";
+import ConfirmDialog from "@/components/confirm-dialog";
+import { showToast } from "../toast";
 
 type DeleteProjectButtonProps = {
   projectId: string;
@@ -14,11 +15,9 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   async function deleteProject() {
-    const confirmed = window.confirm(`"${projectName}" 프로젝트를 삭제할까요?`);
-    if (!confirmed) return;
-
     setLoading(true);
     setError("");
 
@@ -30,6 +29,7 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
         throw new Error(payload.error ?? "프로젝트 삭제에 실패했습니다.");
       }
 
+      setConfirmOpen(false);
       showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
       if (redirectTo) {
         window.setTimeout(() => router.push(redirectTo), 650);
@@ -49,11 +49,20 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
         className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
         disabled={loading}
         type="button"
-        onClick={deleteProject}
+        onClick={() => setConfirmOpen(true)}
       >
-        {loading ? "삭제 중..." : "프로젝트 삭제"}
+        프로젝트 삭제
       </button>
       {error ? <p className="text-xs font-semibold text-red-700">{error}</p> : null}
+      <ConfirmDialog
+        description={`"${projectName}" 프로젝트와 평가 결과가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
+        loading={loading}
+        open={confirmOpen}
+        onCancel={() => {
+          if (!loading) setConfirmOpen(false);
+        }}
+        onConfirm={deleteProject}
+      />
     </div>
   );
 }

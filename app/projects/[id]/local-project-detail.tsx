@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ConfirmDialog from "@/components/confirm-dialog";
 import type { Project } from "@/lib/types";
 import {
   deleteLocalProject,
@@ -14,6 +15,8 @@ import ProjectUploadSection from "./project-upload-section";
 
 export default function LocalProjectDetail({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null | undefined>(undefined);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(
@@ -58,14 +61,27 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
             <button
               className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100"
               type="button"
-              onClick={() => {
-                deleteLocalProject(project.id);
-                showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
-                window.setTimeout(() => { window.location.href = "/projects"; }, 650);
-              }}
+              onClick={() => setDeleteConfirmOpen(true)}
             >
               프로젝트 삭제
             </button>
+            <ConfirmDialog
+              description={`"${project.name}" 프로젝트와 평가 결과가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
+              loading={deleting}
+              open={deleteConfirmOpen}
+              onCancel={() => {
+                if (!deleting) setDeleteConfirmOpen(false);
+              }}
+              onConfirm={() => {
+                setDeleting(true);
+                deleteLocalProject(project.id);
+                setDeleteConfirmOpen(false);
+                showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
+                window.setTimeout(() => {
+                  window.location.href = "/projects";
+                }, 650);
+              }}
+            />
           </div>
         </div>
 
