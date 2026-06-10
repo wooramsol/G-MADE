@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
 import IntegrationStatusPanel from "@/components/integration-status-panel";
+import LoginHistoryPanel from "@/components/login-history-panel";
 import { getIntegrationStatuses } from "@/lib/integrations/status";
+import { getLoginHistoryForEmail } from "@/lib/login-history";
 import { getRoleLabel } from "@/lib/role-labels";
 import SaasPageShell from "../saas-page-shell";
 import LogoutButton from "./logout-button";
@@ -12,6 +14,7 @@ export default async function MyPage() {
   const user = session?.user;
   const initial = user?.name?.slice(0, 1) ?? "?";
   const integrations = await getIntegrationStatuses();
+  const loginHistory = user?.email ? await getLoginHistoryForEmail(user.email) : [];
 
   return (
     <SaasPageShell
@@ -100,33 +103,7 @@ export default async function MyPage() {
 
       <section>
         <Panel title="로그인 히스토리">
-          <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-[#eef4fb] text-[#15345b]">
-                <tr>
-                  <th className="px-4 py-3">IP</th>
-                  <th className="px-4 py-3">로그인 일시</th>
-                  <th className="px-4 py-3">상태</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#d7dee8] bg-white">
-                {[
-                  { ip: "121.134.82.17", loggedAt: "2026-06-10 09:00:00", status: "성공" },
-                  { ip: "121.134.82.17", loggedAt: "2026-06-09 18:32:14", status: "성공" },
-                  { ip: "211.245.63.104", loggedAt: "2026-06-08 08:47:02", status: "성공" },
-                  { ip: "121.134.82.17", loggedAt: "2026-06-07 20:15:39", status: "성공" },
-                ].map((row) => (
-                  <tr key={row.ip + row.loggedAt}>
-                    <td className="px-4 py-4 font-semibold text-[#15345b]">{row.ip}</td>
-                    <td className="px-4 py-4 text-[#475569]">{row.loggedAt}</td>
-                    <td className="px-4 py-4">
-                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{row.status}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <LoginHistoryPanel entries={loginHistory} />
         </Panel>
       </section>
 

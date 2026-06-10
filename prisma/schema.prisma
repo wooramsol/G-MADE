@@ -50,8 +50,23 @@ model User {
 
   humanEvaluations HumanEvaluation[]
   auditLogs        AuditLog[]
+  loginHistories   LoginHistory[]
 
   @@map("users")
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String
+  ipAddress String   @map("ip_address")
+  status    String   @default("SUCCESS")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("login_history")
 }
 
 model Project {
