@@ -7,7 +7,7 @@ import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { buildLawReferenceUrl } from "@/lib/reference-links";
-import { formatScorePercent } from "@/lib/hybrid-evaluation";
+import { toAchievementPercent } from "@/lib/hybrid-evaluation";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
 import { showToast } from "../../toast";
@@ -203,12 +203,12 @@ export default function ProjectEvaluationWorkspace({
             </span>
             {aiAvg !== null ? (
               <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-                AI 평균 {formatScorePercent(aiAvg)}
+                AI 평균 {aiAvg}점
               </span>
             ) : null}
             {expertAvg !== null ? (
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                전문가 평균 {formatScorePercent(expertAvg)}
+                전문가 평균 {expertAvg}점
               </span>
             ) : null}
           </div>
@@ -227,10 +227,7 @@ export default function ProjectEvaluationWorkspace({
           <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <h3 className="text-lg font-bold text-[#15345b]">
-                종합 점수 {formatScorePercent(hybridView.projectScore)}
-                <span className="ml-2 text-sm font-semibold text-[#64748b]">
-                  (총 배점 {selectedRound.totalPoints}점)
-                </span>
+                종합 점수 {hybridView.projectScore} / {selectedRound.totalPoints}점
               </h3>
               <EvaluationGradeLegend />
             </div>
@@ -248,10 +245,10 @@ export default function ProjectEvaluationWorkspace({
                   <p className="font-bold text-[#15345b]">{result.item.detailItem}</p>
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full bg-[#e8f1ff] px-2.5 py-1 text-[11px] font-bold text-[#2463b3]">
-                      AI {formatScorePercent(result.aiEvaluation.score)}
+                      AI {result.aiEvaluation.score}점
                     </span>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
-                      전문가 {formatScorePercent(result.humanEvaluation.score)}
+                      전문가 {result.humanEvaluation.score}점
                     </span>
                   </div>
                 </div>
@@ -295,7 +292,7 @@ export default function ProjectEvaluationWorkspace({
           {hybridView.results.slice(0, 4).map((result) => (
             <Panel
               title={result.item.detailItem}
-              action={`AI ${formatScorePercent(result.aiEvaluation.score)} · 전문가 ${formatScorePercent(result.humanEvaluation.score)}`}
+              action={`AI ${result.aiEvaluation.score}점 · 전문가 ${result.humanEvaluation.score}점`}
               key={result.item.id}
             >
               <p className="text-sm leading-6 text-[#475569]">{result.aiEvaluation.rationale}</p>
@@ -426,9 +423,9 @@ function EvaluationTable({
           <tr>
             <th className="px-3 py-2.5">평가항목</th>
             <th className="px-3 py-2.5 text-center">배점</th>
-            <th className="px-3 py-2.5 text-center">AI (%)</th>
-            <th className="px-3 py-2.5 text-center">전문가 ({reviewerName})</th>
-            <th className="px-3 py-2.5 text-center">최종 (%)</th>
+            <th className="px-3 py-2.5 text-center">AI 점수</th>
+            <th className="px-3 py-2.5 text-center">전문가 점수 ({reviewerName})</th>
+            <th className="px-3 py-2.5 text-center">최종점수</th>
             <th className="px-3 py-2.5">평가 근거 / 의견</th>
           </tr>
         </thead>
@@ -448,14 +445,17 @@ function EvaluationTable({
               </td>
               <td className="px-3 py-2.5 align-top text-center font-semibold text-[#15345b]">{result.item.points}</td>
               <td className="px-3 py-2.5 align-top text-center font-bold text-[#2463b3]">
-                {formatScorePercent(result.aiEvaluation.score)}
+                {result.aiEvaluation.score}
               </td>
               <td className="px-3 py-2.5 align-top text-center font-bold text-[#15345b]">
-                {formatScorePercent(result.humanEvaluation.score)}
+                {result.humanEvaluation.score}
               </td>
               <td className="px-3 py-2.5 align-top text-center">
-                <p className="text-base font-black text-[#15345b]">{formatScorePercent(result.finalScore)}</p>
-                <p className="text-[11px] text-[#64748b]">{result.finalGrade}</p>
+                <p className="text-base font-black text-[#15345b]">{result.finalScore}</p>
+                <p className="text-[11px] text-[#64748b]">
+                  {result.finalGrade} (
+                  {Math.round(toAchievementPercent(result.finalScore, result.item.points) * 10) / 10}%)
+                </p>
               </td>
               <td className="px-3 py-2.5 align-top">
                 <div className="max-h-[4.5rem] space-y-1 overflow-y-auto pr-1 text-xs leading-5 text-[#64748b]">

@@ -31,14 +31,25 @@ export function clampScore(score: number): number {
   return Math.max(0, Math.min(100, score));
 }
 
-export function formatScorePercent(score: number): string {
-  return `${Math.round(clampScore(score) * 10) / 10}%`;
+/** 0~100 만점 원점수를 항목 배점으로 환산합니다. */
+export function scaleScoreToPoints(score: number, maxPoints: number): number {
+  if (maxPoints <= 0) return 0;
+
+  const scaled = (clampScore(score) / 100) * maxPoints;
+  return Math.round(Math.min(maxPoints, scaled) * 10) / 10;
+}
+
+/** 배점 대비 달성률(%) — 등급 산정에 사용합니다. */
+export function toAchievementPercent(scoreOnPoints: number, maxPoints: number): number {
+  if (maxPoints <= 0) return 0;
+  return clampScore((scoreOnPoints / maxPoints) * 100);
 }
 
 export function calculateHybridScore(input: {
   aiScore: number;
   humanScore: number;
   settings: HybridSettings;
+  maxPoints: number;
 }): number {
   const { aiWeight, humanWeight } = input.settings;
   const totalWeight = aiWeight + humanWeight;
@@ -47,10 +58,11 @@ export function calculateHybridScore(input: {
     throw new Error("AI weight and human weight cannot both be zero.");
   }
 
-  const weightedScore =
-    (clampScore(input.aiScore) * aiWeight + clampScore(input.humanScore) * humanWeight) / totalWeight;
+  const aiOnPoints = scaleScoreToPoints(input.aiScore, input.maxPoints);
+  const humanOnPoints = scaleScoreToPoints(input.humanScore, input.maxPoints);
+  const weightedScore = (aiOnPoints * aiWeight + humanOnPoints * humanWeight) / totalWeight;
 
-  return Math.round(clampScore(weightedScore) * 10) / 10;
+  return Math.round(Math.min(input.maxPoints, weightedScore) * 10) / 10;
 }
 
 export function calculateHybridResults(input: {
@@ -69,44 +81,41 @@ export function calculateHybridResults(input: {
       throw new Error(`Missing evaluation data for item ${item.id}.`);
     }
 
-    const aiPercent = clampScore(aiEvaluation.score);
-    const humanPercent = clampScore(humanEvaluation.score);
+    const aiScoreOnPoints = scaleScoreToPoints(aiEvaluation.score, item.points);
+    const humanScoreOnPoints = scaleScoreToPoints(humanEvaluation.score, item.points);
     const finalScore = calculateHybridScore({
-      aiScore: aiPercent,
-      humanScore: humanPercent,
+      aiScore: aiEvaluation.score,
+      humanScore: humanEvaluation.score,
       settings: input.settings,
+      maxPoints: item.points,
     });
 
     return {
       item,
       aiEvaluation: {
         ...aiEvaluation,
-        score: aiPercent,
-        grade: gradeScore(aiPercent),
+        score: aiScoreOnPoints,
+        grade: gradeScore(toAchievementPercent(aiScoreOnPoints, item.points)),
       },
       humanEvaluation: {
         ...humanEvaluation,
-        score: humanPercent,
+        score: humanScoreOnPoints,
       },
       finalScore,
-      finalGrade: gradeScore(finalScore),
+      finalGrade: gradeScore(toAchievementPercent(finalScore, item.points)),
       finalComment: buildFinalComment(aiEvaluation.scoreTrace, humanEvaluation.comment),
     };
   });
 }
 
-/** 배점 가중 평균으로 종합 달성률(%)을 계산합니다. */
 export function calculateProjectScore(results: HybridResult[]): number {
   const totalPoints = results.reduce((sum, result) => sum + result.item.points, 0);
 
   if (totalPoints <= 0) return 0;
 
-  const weighted = results.reduce(
-    (sum, result) => sum + result.finalScore * result.item.points,
-    0,
-  );
+  const earned = results.reduce((sum, result) => sum + result.finalScore, 0);
 
-  return Math.round((weighted / totalPoints) * 10) / 10;
+  return Math.round(Math.min(totalPoints, earned) * 10) / 10;
 }
 
 export function buildFinalComment(trace: ScoreTrace[], reviewerComment: string): string {
