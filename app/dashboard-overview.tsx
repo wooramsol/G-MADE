@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getLocalProjects } from "./projects/local-project-storage";
+import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import {
   buildDashboardStats,
   getRecentProjects,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/dashboard-projects";
 import type { DashboardRole } from "@/lib/dashboard-data";
 import type { Project } from "@/lib/types";
+import { getLocalProjects } from "./projects/local-project-storage";
 
 type DashboardOverviewProps = {
   serverProjects: Project[];
@@ -38,17 +39,17 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
           <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#2463b3]">Dashboard</p>
           <h2 className="mt-2 text-2xl font-bold text-[#15345b]">전체 프로젝트 대시보드</h2>
           <p className="mt-2 text-sm leading-6 text-[#64748b]">
-            프로젝트 관리에 등록된 심의 프로젝트의 접수, 진행, 완료 현황을 한 화면에서 확인합니다.
+            프로젝트 관리에 등록된 심의 프로젝트의 평가대기·평가 진행 현황을 한 화면에서 확인합니다.
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="접수 건수" value={stats.received.toString()} delta="프로젝트 관리 기준" />
-          <MetricCard label="심사 진행중" value={stats.inReview.toString()} delta="프로젝트 관리 기준" />
-          <MetricCard label="완료 건수" value={stats.completed.toString()} delta="프로젝트 관리 기준" />
+          <MetricCard label="평가대기 중" value={stats.waiting.toString()} delta="프로젝트 관리 기준" />
+          <MetricCard label="평가 중" value={stats.inEvaluation.toString()} delta="1건 이상 평가 완료" />
+          <MetricCard label="전체 프로젝트" value={stats.total.toString()} delta="등록된 심의 프로젝트" />
           <MetricCard
             label="평균 점수"
             value={stats.averageScore === null ? "—" : `${stats.averageScore}점`}
-            delta={stats.averageScore === null ? "AI 분석 결과 없음" : "업로드 AI 분석 결과 기준"}
+            delta={stats.averageScore === null ? "평가 결과 없음" : "하이브리드 평가 결과 기준"}
           />
         </div>
       </section>
@@ -81,7 +82,7 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
                     <td className="px-4 py-4 text-[#64748b]">{project.reviewType}</td>
                     <td className="px-4 py-4 text-[#64748b]">{project.receivedAt}</td>
                     <td className="px-4 py-4">
-                      <StatusBadge status={project.status} />
+                      <EvaluationStatusBadge project={project} />
                     </td>
                     <td className="px-4 py-4">
                       <Link className="font-bold text-[#2463b3]" href={`/projects/${project.id}`}>
@@ -147,12 +148,3 @@ function MetricCard({ label, value, delta }: { label: string; value: string; del
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const tone =
-    status === "완료"
-      ? "bg-emerald-50 text-emerald-700"
-      : status === "접수"
-        ? "bg-slate-100 text-slate-700"
-        : "bg-blue-50 text-blue-700";
-  return <span className={`rounded-full px-3 py-1 text-xs font-bold ${tone}`}>{status}</span>;
-}

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { Project } from "@/lib/types";
+import EvaluationStatusBadge from "@/components/evaluation-status-badge";
+import { getProjectEvaluationStatus } from "@/lib/project-evaluation-status";
 import { sortProjectsByUpdatedAt } from "@/lib/project-sort";
+import type { Project } from "@/lib/types";
 import { getLocalProjects } from "./local-project-storage";
 
 type ProjectManagementGridProps = {
@@ -35,7 +37,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
         project.designer,
         project.projectType,
         project.reviewType,
-        project.status,
+        getProjectEvaluationStatus(project).label,
       ]
         .join(" ")
         .toLowerCase()
@@ -64,7 +66,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2463b3]">{project.reviewType}</p>
                 <h4 className="mt-3 text-lg font-bold leading-7 text-[#15345b]">{project.name}</h4>
               </div>
-              <StatusBadge status={project.status} />
+              <EvaluationStatusBadge project={project} />
             </div>
             <dl className="mt-5 space-y-3 text-sm text-[#475569]">
               <Info label="사업위치" value={project.location} />
@@ -91,12 +93,3 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const tone =
-    status === "완료"
-      ? "bg-emerald-50 text-emerald-700"
-      : status === "접수"
-        ? "bg-slate-100 text-slate-700"
-        : "bg-blue-50 text-blue-700";
-  return <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${tone}`}>{status}</span>;
-}

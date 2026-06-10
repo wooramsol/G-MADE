@@ -1,9 +1,10 @@
+import { getProjectEvaluationRounds } from "./evaluation-rounds";
+import { getProjectEvaluationRoundCount } from "./project-evaluation-status";
 import type { Project } from "./types";
 
 export type DashboardStats = {
-  received: number;
-  inReview: number;
-  completed: number;
+  waiting: number;
+  inEvaluation: number;
   total: number;
   averageScore: number | null;
 };
@@ -15,16 +16,14 @@ export function mergeManagedProjects(serverProjects: Project[], localProjects: P
 }
 
 export function buildDashboardStats(projects: Project[]): DashboardStats {
-  const received = projects.filter((project) => project.status === "접수").length;
-  const inReview = projects.filter((project) => project.status === "심사 진행중").length;
-  const completed = projects.filter((project) => project.status === "완료").length;
+  const waiting = projects.filter((project) => getProjectEvaluationRoundCount(project) === 0).length;
+  const inEvaluation = projects.filter((project) => getProjectEvaluationRoundCount(project) > 0).length;
 
   return {
-    received,
-    inReview,
-    completed,
+    waiting,
+    inEvaluation,
     total: projects.length,
-    averageScore: getUploadAnalysisAverageScore(projects),
+    averageScore: getEvaluationAverageScore(projects),
   };
 }
 
@@ -32,10 +31,10 @@ export function getRecentProjects(projects: Project[], limit = 8): Project[] {
   return sortProjectsByReceivedAt(projects).slice(0, limit);
 }
 
-function getUploadAnalysisAverageScore(projects: Project[]): number | null {
+function getEvaluationAverageScore(projects: Project[]): number | null {
   const scores = projects.flatMap((project) =>
-    (project.uploadAnalyses ?? []).flatMap((session) =>
-      session.analysis.evaluationPreview.map((row) => row.score),
+    getProjectEvaluationRounds(project).flatMap((round) =>
+      round.aiAnalysis.evaluationPreview.map((row) => row.score),
     ),
   );
 
