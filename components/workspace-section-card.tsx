@@ -30,7 +30,7 @@ export default function WorkspaceSectionCard({
 }) {
   return (
     <section
-      className={`rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow ${className}`.trim()}
+      className={`rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow ${id ? "scroll-mt-6" : ""} ${className}`.trim()}
       id={id}
     >
       <WorkspaceSectionTitle title={title} description={description} />

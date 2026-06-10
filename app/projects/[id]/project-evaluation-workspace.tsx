@@ -83,11 +83,29 @@ export default function ProjectEvaluationWorkspace({
   }, [sorted]);
 
   useEffect(() => {
-    if (rounds.length > previousRoundCountRef.current && sorted[0]) {
-      setSelectedId(sorted[0].id);
-      document.getElementById("hybrid-evaluation-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (rounds.length <= previousRoundCountRef.current) {
+      previousRoundCountRef.current = rounds.length;
+      return;
     }
+
+    const latestRoundId = sorted[0]?.id;
     previousRoundCountRef.current = rounds.length;
+    if (!latestRoundId) return;
+
+    setSelectedId(latestRoundId);
+
+    const timeout = window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        const element = document.getElementById("hybrid-evaluation-results");
+        if (!element) return;
+
+        const offset = 24;
+        const top = element.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      });
+    }, 120);
+
+    return () => window.clearTimeout(timeout);
   }, [rounds.length, sorted]);
 
   function requestDeleteRound(roundId: string) {
