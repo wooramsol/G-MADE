@@ -145,9 +145,9 @@ export default function ParallelEvaluationForm({
               value={provider}
               onChange={(event) => setProvider(event.target.value as AiProviderPreference)}
             >
-              <option value="gemini">제미니 (테스트 기본)</option>
-              <option value="openai">챗GPT</option>
-              <option value="claude">클로드</option>
+              <option value="gemini">Gemini (기본)</option>
+              <option value="openai">ChatGPT</option>
+              <option value="claude">Claude</option>
             </select>
           </label>
         </MaterialColumn>
