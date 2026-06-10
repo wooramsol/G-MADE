@@ -22,7 +22,8 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
         <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-[#15345b]">{project.name}</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]">사업명</p>
+              <h2 className="mt-2 text-2xl font-bold text-[#15345b]">{project.name}</h2>
             </div>
             {canDelete ? <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" /> : null}
           </div>
