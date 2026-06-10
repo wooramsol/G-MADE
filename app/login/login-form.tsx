@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Caption, ErrorText, FormLabel } from "@/components/typography";
 import { loginAction, type LoginState } from "./actions";
 
 const initialState: LoginState = {};
@@ -16,7 +17,7 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
     <form action={formAction} className="space-y-4">
       <input name="callbackUrl" type="hidden" value={callbackUrl} />
       <label className="block">
-        <span className="text-sm font-bold text-[#15345b]">이메일</span>
+        <FormLabel>이메일</FormLabel>
         <input
           autoComplete="email"
           className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
@@ -28,7 +29,7 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
         />
       </label>
       <label className="block">
-        <span className="text-sm font-bold text-[#15345b]">비밀번호</span>
+        <FormLabel>비밀번호</FormLabel>
         <input
           autoComplete="current-password"
           className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
@@ -39,7 +40,7 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
         />
       </label>
       {state.error ? (
-        <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{state.error}</p>
+        <ErrorText className="rounded-xl bg-red-50 px-4 py-3">{state.error}</ErrorText>
       ) : null}
       <button
         className="primary-action-blue w-full rounded-xl px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-70"
@@ -48,9 +49,9 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
       >
         {pending ? "로그인 중..." : "로그인"}
       </button>
-      <p className="text-center text-xs leading-5 text-[#64748b]">
+      <Caption className="text-center">
         내부 테스트용 계정입니다. 이메일 인증이나 비밀번호 재설정 메일은 발송되지 않습니다.
-      </p>
+      </Caption>
     </form>
   );
 }

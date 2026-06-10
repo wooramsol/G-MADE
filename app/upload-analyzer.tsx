@@ -1,6 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  Badge,
+  Caption,
+  ErrorText,
+  FieldLabel,
+  FormLabel,
+  MutedText,
+  StatValue,
+  StepTitle,
+} from "@/components/typography";
 import { evaluationItems } from "@/lib/demo-data";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import type { ProjectFile, UploadAnalysisSession } from "@/lib/types";
@@ -117,13 +127,13 @@ export default function UploadAnalyzer({
     <div className="mt-5 space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-[#d7dee8] bg-white px-4 py-3">
         <div>
-          <p className="text-sm font-bold text-[#15345b]">분석 AI 선택</p>
-          <p className="mt-1 text-xs text-[#64748b]">
+          <FormLabel as="p">분석 AI 선택</FormLabel>
+          <Caption className="mt-1">
             기본값은 Gemini입니다. Claude는 CLAUDE_API_KEY, ChatGPT는 OPENAI_API_KEY가 필요합니다.
-          </p>
+          </Caption>
         </div>
         <label className="text-sm">
-          <span className="mb-2 block font-bold text-[#15345b]">AI 엔진</span>
+          <FieldLabel className="mb-2 block">AI 엔진</FieldLabel>
           <select
             className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white"
             value={provider}
@@ -138,7 +148,7 @@ export default function UploadAnalyzer({
 
       <div className="grid gap-4 xl:grid-cols-2">
         <label className="flex min-h-56 cursor-pointer flex-col rounded-xl border border-dashed border-[#2463b3] bg-white p-4 text-sm text-[#475569]">
-          <span className="font-bold text-[#15345b]">1. 파일 선택</span>
+          <StepTitle>1. 파일 선택</StepTitle>
           <span className="mt-1 leading-6">PDF, DOCX, PPTX, JPG, PNG, DWG, ZIP 파일을 업로드할 수 있습니다.</span>
           <input
             className="mt-4 text-sm"
@@ -161,10 +171,10 @@ export default function UploadAnalyzer({
 
         <div className="min-h-56 rounded-xl border border-[#d7dee8] bg-white p-4 text-sm">
           <div className="flex items-center justify-between gap-3">
-            <span className="font-bold text-[#15345b]">2. 평가 가중치 조정</span>
-            <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+            <StepTitle>2. 평가 가중치 조정</StepTitle>
+            <Badge className="bg-[#e8f1ff] text-[#2463b3]">
               AI {aiWeight}% · 전문가 {100 - aiWeight}%
-            </span>
+            </Badge>
           </div>
           <input
             aria-label="AI 평가 가중치"
@@ -178,12 +188,12 @@ export default function UploadAnalyzer({
           />
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-lg bg-[#e8f1ff] p-3">
-              <p className="text-xs font-bold text-[#2463b3]">AI 평가</p>
-              <p className="mt-1 text-xl font-black text-[#15345b]">{aiWeight}%</p>
+              <FieldLabel className="text-[#2463b3]">AI 평가</FieldLabel>
+              <StatValue className="mt-1 text-[#2463b3]">{aiWeight}%</StatValue>
             </div>
             <div className="rounded-lg bg-slate-100 p-3">
-              <p className="text-xs font-bold text-slate-600">전문가 평가</p>
-              <p className="mt-1 text-xl font-black text-[#15345b]">{100 - aiWeight}%</p>
+              <FieldLabel className="text-slate-600">전문가 평가</FieldLabel>
+              <StatValue className="mt-1">{100 - aiWeight}%</StatValue>
             </div>
           </div>
           <p className="mt-3 rounded-xl bg-[#f8fafc] p-3 text-xs leading-5 text-[#64748b]">
@@ -195,10 +205,12 @@ export default function UploadAnalyzer({
       <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-bold text-[#15345b]">3. 평가항목 배점 수정</p>
-            <p className="mt-1 text-sm text-[#64748b]">업로드 자료 분석 전에 항목별 배점을 조정합니다. 현재 총 배점 {totalPoints}점</p>
+            <StepTitle>3. 평가항목 배점 수정</StepTitle>
+            <MutedText className="mt-1">
+              업로드 자료 분석 전에 항목별 배점을 조정합니다. 현재 총 배점 {totalPoints}점
+            </MutedText>
           </div>
-          <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">DB 기반 평가항목</span>
+          <Badge className="bg-[#e8f1ff] text-[#2463b3]">DB 기반 평가항목</Badge>
         </div>
         <div className="mt-4 overflow-hidden rounded-xl border border-[#d7dee8]">
           <table className="w-full min-w-[980px] border-collapse text-left text-sm">
@@ -238,8 +250,8 @@ export default function UploadAnalyzer({
       <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-bold text-[#15345b]">4. AI 자동 분석 실행</p>
-            <p className="mt-1 text-sm text-[#64748b]">파일, 가중치, 배점 설정을 확인한 뒤 분석을 실행합니다.</p>
+            <StepTitle>4. AI 자동 분석 실행</StepTitle>
+            <MutedText className="mt-1">파일, 가중치, 배점 설정을 확인한 뒤 분석을 실행합니다.</MutedText>
           </div>
           <button
             className="primary-action rounded-xl px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
@@ -252,7 +264,7 @@ export default function UploadAnalyzer({
         </div>
       </div>
 
-      {error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p> : null}
+      {error ? <ErrorText className="rounded-xl bg-red-50 p-3">{error}</ErrorText> : null}
 
       <UploadAnalysisResultsPanel sessions={savedAnalyses} />
     </div>

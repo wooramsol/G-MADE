@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { Caption, FormLabel, MutedText, SubsectionTitle } from "@/components/typography";
 import { useCallback, useEffect, useState } from "react";
 
 export type LocationSelection = {
@@ -264,9 +265,9 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
         <div className="rounded-xl border border-[#2463b3]/30 bg-[#e8f1ff]/40 p-4 space-y-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-[#15345b]">선택된 위치</p>
-              <p className="mt-1 text-sm text-[#64748b] break-words">{value.address}</p>
-              <p className="mt-1 text-xs text-[#64748b]">
+              <SubsectionTitle className="text-base">선택된 위치</SubsectionTitle>
+              <MutedText className="mt-1 break-words">{value.address}</MutedText>
+              <Caption className="mt-1">
                 좌표: {value.x.toFixed(5)}, {value.y.toFixed(5)}
                 <span className="ml-2">
                   (
@@ -277,11 +278,11 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
                       : "주소 검색"}
                   )
                 </span>
-              </p>
+              </Caption>
             </div>
             <button
               type="button"
-              className="shrink-0 text-xs font-bold text-[#2463b3] hover:underline"
+              className="type-label shrink-0 text-[#2463b3] hover:underline"
               onClick={() => onChange(null)}
               disabled={disabled}
             >
@@ -292,9 +293,9 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
       ) : null}
 
       <label className="block space-y-1.5">
-        <span className="text-sm font-bold text-[#15345b]">
+        <FormLabel>
           위치 보조 설명 <span className="font-normal text-[#64748b]">(선택)</span>
-        </span>
+        </FormLabel>
         <input
           className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
           placeholder="예: 한강변 일원, 예정 부지, 3블록 남측 등"

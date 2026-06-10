@@ -7,7 +7,7 @@ import type { AiProviderPreference } from "@/lib/ai/types";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
-import { FieldLabel, MutedText, StepTitle } from "@/components/typography";
+import { ErrorText, FieldLabel, MutedText, StepTitle } from "@/components/typography";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
 
@@ -202,7 +202,7 @@ export default function ParallelEvaluationForm({
         </div>
       </div>
 
-      {error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p> : null}
+      {error ? <ErrorText className="rounded-xl bg-red-50 p-3">{error}</ErrorText> : null}
     </div>
   );
 }

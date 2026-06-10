@@ -1,5 +1,7 @@
 "use client";
 
+import { Caption, MutedText, SubsectionTitle } from "@/components/typography";
+
 type AnalysisBlockingOverlayProps = {
   message?: string;
 };
@@ -19,9 +21,9 @@ export default function AnalysisBlockingOverlay({
           aria-hidden="true"
           className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[#e2e8f0] border-t-[#2463b3]"
         />
-        <p className="mt-4 text-base font-bold text-[#15345b]">분석 중</p>
-        <p className="mt-2 text-sm leading-6 text-[#64748b]">{message}</p>
-        <p className="mt-3 text-xs text-[#94a3b8]">최대 20초 정도 소요될 수 있습니다.</p>
+        <SubsectionTitle className="mt-4">분석 중</SubsectionTitle>
+        <MutedText className="mt-2">{message}</MutedText>
+        <Caption className="mt-3 text-[#94a3b8]">최대 20초 정도 소요될 수 있습니다.</Caption>
       </div>
     </div>
   );

@@ -1,6 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  Badge,
+  Caption,
+  ErrorText,
+  FieldLabel,
+  MutedText,
+  StepTitle,
+} from "@/components/typography";
 import { evaluationItems } from "@/lib/demo-data";
 import type { HumanEvaluationSession, ProjectFile } from "@/lib/types";
 import { ExpertEvaluationResultsPanel } from "./expert-evaluation-panels";
@@ -130,16 +138,16 @@ export default function ExpertEvaluationUploader({
   return (
     <div className="space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
       <div className="rounded-xl border border-[#d7dee8] bg-white px-4 py-3">
-        <p className="text-sm font-bold text-[#15345b]">인간 전문가 평가</p>
-        <p className="mt-1 text-xs leading-5 text-[#64748b]">
+        <StepTitle>인간 전문가 평가</StepTitle>
+        <Caption className="mt-1">
           심사위원·전문가가 작성한 평가표, 의견서, 보완자료를 업로드하고 항목별 점수를 입력합니다.
           AI 분석과 병행하여 하이브리드 종합 점수에 반영됩니다.
-        </p>
+        </Caption>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <label className="flex min-h-48 cursor-pointer flex-col rounded-xl border border-dashed border-[#15345b] bg-white p-4 text-sm text-[#475569]">
-          <span className="font-bold text-[#15345b]">1. 평가 자료 선택</span>
+          <StepTitle>1. 평가 자료 선택</StepTitle>
           <span className="mt-1 leading-6">
             PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG 등 전문가 평가 자료를 업로드합니다.
           </span>
@@ -167,9 +175,9 @@ export default function ExpertEvaluationUploader({
         </label>
 
         <div className="min-h-48 rounded-xl border border-[#d7dee8] bg-white p-4 text-sm">
-          <p className="font-bold text-[#15345b]">2. 평가자 정보</p>
+          <StepTitle>2. 평가자 정보</StepTitle>
           <label className="mt-4 block">
-            <span className="mb-2 block text-xs font-bold text-[#64748b]">평가자 / 심사위원</span>
+            <FieldLabel className="mb-2 block">평가자 / 심사위원</FieldLabel>
             <input
               className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#15345b] focus:bg-white"
               placeholder="예: 홍길동 위원"
@@ -178,7 +186,7 @@ export default function ExpertEvaluationUploader({
             />
           </label>
           <label className="mt-4 block">
-            <span className="mb-2 block text-xs font-bold text-[#64748b]">종합 의견 (선택)</span>
+            <FieldLabel className="mb-2 block">종합 의견 (선택)</FieldLabel>
             <textarea
               className="min-h-24 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 text-sm leading-6 text-[#15345b] outline-none focus:border-[#15345b] focus:bg-white"
               placeholder="전문가 종합 의견을 입력합니다."
@@ -192,14 +200,12 @@ export default function ExpertEvaluationUploader({
       <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-bold text-[#15345b]">3. 항목별 점수 입력</p>
-            <p className="mt-1 text-sm text-[#64748b]">
+            <StepTitle>3. 항목별 점수 입력</StepTitle>
+            <MutedText className="mt-1">
               업로드한 평가 자료를 바탕으로 항목별 점수와 의견을 입력합니다.
-            </p>
+            </MutedText>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-            전문가 평가
-          </span>
+          <Badge className="bg-slate-100 text-slate-700">전문가 평가</Badge>
         </div>
         <div className="mt-4 overflow-hidden rounded-xl border border-[#d7dee8]">
           <table className="w-full min-w-[980px] border-collapse text-left text-sm">
@@ -249,10 +255,8 @@ export default function ExpertEvaluationUploader({
       <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-bold text-[#15345b]">4. 전문가 평가 등록</p>
-            <p className="mt-1 text-sm text-[#64748b]">
-              자료와 점수를 확인한 뒤 전문가 평가를 등록합니다.
-            </p>
+            <StepTitle>4. 전문가 평가 등록</StepTitle>
+            <MutedText className="mt-1">자료와 점수를 확인한 뒤 전문가 평가를 등록합니다.</MutedText>
           </div>
           <button
             className="rounded-xl bg-[#15345b] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
@@ -265,7 +269,7 @@ export default function ExpertEvaluationUploader({
         </div>
       </div>
 
-      {error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p> : null}
+      {error ? <ErrorText className="rounded-xl bg-red-50 p-3">{error}</ErrorText> : null}
 
       <ExpertEvaluationResultsPanel sessions={savedSessions} />
     </div>

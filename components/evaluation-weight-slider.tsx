@@ -1,5 +1,7 @@
 "use client";
 
+import { FieldLabel, MicroText, StatValue } from "@/components/typography";
+
 type EvaluationWeightSliderProps = {
   aiWeight: number;
   onChange: (value: number) => void;
@@ -12,8 +14,8 @@ export default function EvaluationWeightSlider({ aiWeight, onChange }: Evaluatio
     <div className="mt-5">
       <div className="flex items-stretch gap-4">
         <div className="flex w-[104px] shrink-0 flex-col justify-center rounded-xl border border-[#2463b3]/20 bg-[#eef4fb] px-3 py-3 text-center">
-          <p className="text-[11px] font-bold text-[#2463b3]">AI 평가</p>
-          <p className="mt-1 text-2xl font-black leading-none text-[#2463b3]">{aiWeight}%</p>
+          <FieldLabel className="text-[11px] text-[#2463b3]">AI 평가</FieldLabel>
+          <StatValue className="mt-1 text-[#2463b3]">{aiWeight}%</StatValue>
         </div>
 
         <div className="flex flex-1 flex-col justify-center gap-2 py-1">
@@ -33,15 +35,15 @@ export default function EvaluationWeightSlider({ aiWeight, onChange }: Evaluatio
               onChange={(event) => onChange(Number(event.target.value))}
             />
           </div>
-          <div className="flex justify-between text-[11px] font-semibold text-[#64748b]">
-            <span>왼쪽: AI 비중</span>
-            <span>오른쪽: 전문가 비중</span>
+          <div className="flex justify-between">
+            <MicroText className="font-semibold">왼쪽: AI 비중</MicroText>
+            <MicroText className="font-semibold">오른쪽: 전문가 비중</MicroText>
           </div>
         </div>
 
         <div className="flex w-[104px] shrink-0 flex-col justify-center rounded-xl border border-[#15345b]/15 bg-slate-100 px-3 py-3 text-center">
-          <p className="text-[11px] font-bold text-[#15345b]">전문가 평가</p>
-          <p className="mt-1 text-2xl font-black leading-none text-[#15345b]">{expertWeight}%</p>
+          <FieldLabel className="text-[11px]">전문가 평가</FieldLabel>
+          <StatValue className="mt-1">{expertWeight}%</StatValue>
         </div>
       </div>
     </div>

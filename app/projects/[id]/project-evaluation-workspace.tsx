@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
-import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/typography";
+import {
+  Badge,
+  BodyText,
+  Caption,
+  FieldLabel,
+  ScoreValue,
+  SectionDescription,
+  SectionTitle,
+  SubsectionTitle,
+  TabTitle,
+} from "@/components/typography";
 import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
@@ -158,9 +168,7 @@ export default function ProjectEvaluationWorkspace({
         ) : null}
 
         <div className={`flex flex-wrap items-center gap-3 ${showHeader ? "mt-5" : ""}`}>
-          <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-            총 {sorted.length}차
-          </span>
+          <Badge className="bg-[#e8f1ff] text-[#2463b3]">총 {sorted.length}차</Badge>
         </div>
 
         <ConfirmDialog
@@ -211,7 +219,7 @@ export default function ProjectEvaluationWorkspace({
                     }`}
                     onClick={() => setSelectedId(round.id)}
                   >
-                    <span className="block text-sm font-bold">{round.roundNumber}차 평가</span>
+                    <TabTitle className="block">{round.roundNumber}차 평가</TabTitle>
                     <span className="mt-0.5 block text-[11px] text-[#64748b]">
                       {formatUploadDateTime(round.evaluatedAt)}
                     </span>
@@ -227,27 +235,17 @@ export default function ProjectEvaluationWorkspace({
 
         <div className="mt-5 space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#15345b] px-3 py-1 text-xs font-bold text-white">
-              {selectedRound.roundNumber}차
-            </span>
-            <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+            <Badge className="bg-[#15345b] text-white">{selectedRound.roundNumber}차</Badge>
+            <Badge className="bg-[#e8f1ff] text-[#2463b3]">
               AI {selectedRound.aiWeight}% · 전문가 {selectedRound.expertWeight}%
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-              {selectedRound.reviewerName}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-              총 배점 {selectedRound.totalPoints}점
-            </span>
+            </Badge>
+            <Badge className="bg-slate-100 text-slate-700">{selectedRound.reviewerName}</Badge>
+            <Badge className="bg-slate-100 text-slate-700">총 배점 {selectedRound.totalPoints}점</Badge>
             {aiAvg !== null ? (
-              <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-                AI 평균 {aiAvg}점
-              </span>
+              <Badge className="bg-[#e8f1ff] text-[#2463b3]">AI 평균 {aiAvg}점</Badge>
             ) : null}
             {expertAvg !== null ? (
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                전문가 평균 {expertAvg}점
-              </span>
+              <Badge className="bg-slate-100 text-slate-700">전문가 평균 {expertAvg}점</Badge>
             ) : null}
           </div>
 
@@ -273,7 +271,7 @@ export default function ProjectEvaluationWorkspace({
               <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
               <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
             </div>
-            <p className="mb-3 text-xs font-bold text-[#64748b]">평가항목 총 {hybridView.results.length}개</p>
+            <FieldLabel as="p" className="mb-3">평가항목 총 {hybridView.results.length}개</FieldLabel>
             <EvaluationTable results={hybridView.results} reviewerName={selectedRound.reviewerName} />
           </div>
 
@@ -516,7 +514,7 @@ function EvaluationTable({
                 {result.humanEvaluation.score}
               </td>
               <td className="px-3 py-2.5 align-top text-center">
-                <p className="text-base font-black text-[#15345b]">{result.finalScore}</p>
+                <ScoreValue>{result.finalScore}</ScoreValue>
                 <p className="text-[11px] text-[#64748b]">
                   {result.finalGrade} (
                   {Math.round(toAchievementPercent(result.finalScore, result.item.points) * 10) / 10}%)

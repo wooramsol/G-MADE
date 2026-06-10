@@ -29,7 +29,7 @@ export default async function MyPage() {
               {initial}
             </div>
             <div>
-              <p className="text-xl font-bold text-[#15345b]">{user?.name ?? "사용자"}</p>
+              <SubsectionTitle>{user?.name ?? "사용자"}</SubsectionTitle>
               <p className="mt-1 text-sm text-[#64748b]">
                 {user?.role ? getRoleLabel(user.role) : "내부 사용자"} · G-MADE HIVE
               </p>
@@ -56,7 +56,7 @@ export default async function MyPage() {
               "관리자 계정은 환경 변수 또는 DB 시드로 관리",
             ].map((activity) => (
               <div
-                className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm font-semibold text-[#475569]"
+                className="type-body rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 font-semibold"
                 key={activity}
               >
                 {activity}

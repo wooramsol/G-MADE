@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BrandTitle } from "@/components/typography";
+import { BrandSubtitle, BrandTitle, Caption, FormLabel } from "@/components/typography";
 import { auth } from "@/auth";
 import { getRoleLabel } from "@/lib/role-labels";
 import TopNavigation from "./top-navigation";
@@ -25,16 +25,16 @@ export default async function GlobalHeader() {
               />
             </div>
             <div>
-              <p className="text-xs font-semibold text-blue-100">경관·공공디자인 사전심의 지원</p>
+              <BrandSubtitle>경관·공공디자인 사전심의 지원</BrandSubtitle>
               <BrandTitle>AI·전문가 하이브리드 평가 시스템</BrandTitle>
             </div>
           </Link>
           {user ? (
             <div className="hidden text-right sm:block">
-              <p className="text-sm font-bold text-white">{user.name}</p>
-              <p className="text-xs text-blue-100">
+              <FormLabel className="text-white">{user.name}</FormLabel>
+              <Caption className="text-blue-100">
                 {getRoleLabel(user.role)} · {user.email}
-              </p>
+              </Caption>
             </div>
           ) : null}
         </div>

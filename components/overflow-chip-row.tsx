@@ -85,7 +85,7 @@ export default function OverflowChipRow({
         ref={measureRef}
       >
         {items.map((item) => (
-          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${chipClassName}`} data-chip key={item.key}>
+          <span className={`type-badge shrink-0 rounded-full px-2.5 py-1 ${chipClassName}`} data-chip key={item.key}>
             {item.name}
           </span>
         ))}
@@ -95,7 +95,7 @@ export default function OverflowChipRow({
         <div className={`flex gap-2 ${expanded ? "flex-wrap" : "flex-nowrap overflow-hidden"}`}>
           {visibleItems.map((item) => (
             <span
-              className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${chipClassName}`}
+              className={`type-badge shrink-0 rounded-full px-2.5 py-1 ${chipClassName}`}
               key={item.key}
               title={item.title ?? item.name}
             >
@@ -105,7 +105,7 @@ export default function OverflowChipRow({
         </div>
         {hiddenCount > 0 ? (
           <button
-            className="shrink-0 text-xs font-bold text-[#2463b3] underline underline-offset-2"
+            className="type-label shrink-0 text-[#2463b3] underline underline-offset-2"
             type="button"
             onClick={onToggleExpand}
           >

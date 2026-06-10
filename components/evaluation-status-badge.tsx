@@ -1,3 +1,4 @@
+import { Badge } from "@/components/typography";
 import {
   evaluationStatusToneClassName,
   getProjectEvaluationStatus,
@@ -8,10 +9,6 @@ export default function EvaluationStatusBadge({ project }: { project: Project })
   const status = getProjectEvaluationStatus(project);
 
   return (
-    <span
-      className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${evaluationStatusToneClassName(status.tone)}`}
-    >
-      {status.label}
-    </span>
+    <Badge className={`shrink-0 ${evaluationStatusToneClassName(status.tone)}`}>{status.label}</Badge>
   );
 }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
-import { Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
+import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
 import type { Project } from "@/lib/types";
 import {
   deleteLocalProject,
@@ -90,7 +90,7 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
             <div className="grid gap-3 text-sm sm:grid-cols-2">
               <Info label="사업명" value={project.name} />
               <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]">사업위치</p>
+                <Eyebrow>사업위치</Eyebrow>
                 <p className="mt-2 font-semibold leading-6 text-[#172033]">{project.location}</p>
                 <ProjectLocationEditor project={project} onUpdated={setProject} />
               </div>
@@ -120,7 +120,7 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-5 flex items-center justify-between gap-4">
         <SubsectionTitle>{title}</SubsectionTitle>
-        {action ? <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{action}</span> : null}
+        {action ? <Badge className="bg-[#e8f1ff] text-[#2463b3]">{action}</Badge> : null}
       </div>
       {children}
     </div>

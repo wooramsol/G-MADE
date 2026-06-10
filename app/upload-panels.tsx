@@ -6,6 +6,16 @@ import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
 import { buildLawReferenceUrl } from "@/lib/reference-links";
+import {
+  Badge,
+  BodyText,
+  Caption,
+  MicroText,
+  MutedText,
+  SubsectionTitle,
+  SummaryTitle,
+  TabTitle,
+} from "@/components/typography";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { filterStaleLawWarnings, hadLawOcMissingWarning } from "@/lib/law/warnings";
 import type { UploadAnalysisSession } from "@/lib/types";
@@ -63,14 +73,12 @@ export function UploadAnalysisResultsPanel({ sessions }: { sessions: UploadAnaly
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="font-bold text-[#15345b]">분석 결과</p>
-          <p className="mt-1 text-sm text-[#64748b]">
+          <SubsectionTitle>분석 결과</SubsectionTitle>
+          <MutedText className="mt-1">
             차수별로 결과를 선택해 확인합니다. 최신 분석이 기본으로 표시됩니다.
-          </p>
+          </MutedText>
         </div>
-        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-          총 {sortedSessions.length}회
-        </span>
+        <Badge className="bg-[#e8f1ff] text-[#2463b3]">총 {sortedSessions.length}회</Badge>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-1">
@@ -89,13 +97,13 @@ export function UploadAnalysisResultsPanel({ sessions }: { sessions: UploadAnaly
                 }`}
                 onClick={() => setSelectedId(session.id)}
               >
-                <span className="block text-sm font-bold">{session.round}차 분석</span>
-                <span className="mt-0.5 block text-[11px] leading-4 text-[#64748b]">
+                <TabTitle className="block">{session.round}차 분석</TabTitle>
+                <MicroText className="mt-0.5 block">
                   {formatUploadDateTime(session.analyzedAt)}
-                </span>
-                <span className="mt-1 block text-[11px] text-[#64748b]">
+                </MicroText>
+                <MicroText className="mt-1 block">
                   {fileCount}개 파일 · {formatProviderBadgeLabel(session.analysis.provider)}
-                </span>
+                </MicroText>
               </button>
             );
           })}
@@ -144,38 +152,30 @@ function AnalysisSessionDetail({
   return (
     <article className="space-y-4 rounded-xl border border-[#d7dee8] bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-[#15345b] px-3 py-1 text-xs font-bold text-white">
-          {session.round}차 분석
-        </span>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-          {formatUploadDateTime(session.analyzedAt)}
-        </span>
-        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+        <Badge className="bg-[#15345b] text-white">{session.round}차 분석</Badge>
+        <Badge className="bg-slate-100 text-slate-700">{formatUploadDateTime(session.analyzedAt)}</Badge>
+        <Badge className="bg-[#e8f1ff] text-[#2463b3]">
           {formatProviderBadgeLabel(session.analysis.provider)}
-        </span>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+        </Badge>
+        <Badge className="bg-slate-100 text-slate-700">
           {session.analysis.mode === "live" ? "실제 AI API 분석" : "데모 분석"}
-        </span>
-        <span className="rounded-full bg-[#eef4fb] px-3 py-1 text-xs font-bold text-[#15345b]">
+        </Badge>
+        <Badge className="bg-[#eef4fb] text-[#15345b]">
           AI {session.aiWeight}% · 전문가 {session.expertWeight}%
-        </span>
-        <span className="rounded-full bg-[#eef4fb] px-3 py-1 text-xs font-bold text-[#15345b]">
-          총 배점 {session.totalPoints}점
-        </span>
+        </Badge>
+        <Badge className="bg-[#eef4fb] text-[#15345b]">총 배점 {session.totalPoints}점</Badge>
         {avgScore !== null ? (
-          <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-            평균 {avgScore}점
-          </span>
+          <Badge className="bg-[#e8f1ff] text-[#2463b3]">평균 {avgScore}점</Badge>
         ) : null}
       </div>
 
-      <p className="text-sm leading-6 text-[#475569]">{session.analysis.summary}</p>
+      <BodyText>{session.analysis.summary}</BodyText>
 
       {session.analysis.spatialContext || (session.analysis.referenceLaws?.length ?? 0) > 0 ? (
         <div className="grid gap-3 md:grid-cols-2">
           {session.analysis.spatialContext ? (
             <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-3 text-sm">
-              <p className="font-bold text-[#15345b]">경관지구 (브이월드)</p>
+              <SubsectionTitle className="text-base">경관지구 (브이월드)</SubsectionTitle>
               <p className="mt-1 text-[#64748b]">{session.analysis.spatialContext.address}</p>
               <p className="mt-2 font-semibold text-[#15345b]">
                 {session.analysis.spatialContext.inLandscapeZone ? "경관지구 해당 가능" : "인근 조회 결과 없음"}
@@ -189,9 +189,9 @@ function AnalysisSessionDetail({
           ) : null}
           {(session.analysis.referenceLaws?.length ?? 0) > 0 ? (
             <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-3 text-sm">
-              <p className="font-bold text-[#15345b]">
+              <SubsectionTitle className="text-base">
                 실시간 법령 근거 ({session.analysis.lawSource === "law.go.kr" ? "국가법령정보" : "내장 요약"})
-              </p>
+              </SubsectionTitle>
               {dedupeReferenceLaws(session.analysis.referenceLaws ?? [])
                 .filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
                 .map((law) => (
@@ -209,9 +209,7 @@ function AnalysisSessionDetail({
       ) : null}
 
       <details className="rounded-xl border border-[#d7dee8] bg-[#f8fafc]">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-[#15345b]">
-          업로드 파일 ({session.files.length}건)
-        </summary>
+        <SummaryTitle>업로드 파일 ({session.files.length}건)</SummaryTitle>
         <div className="overflow-hidden border-t border-[#d7dee8]">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="bg-[#eef4fb] text-[#15345b]">
@@ -229,7 +227,7 @@ function AnalysisSessionDetail({
                   <td className="px-4 py-4 text-[#64748b]">{file.fileType}</td>
                   <td className="px-4 py-4 text-[#64748b]">{formatBytes(file.sizeBytes)}</td>
                   <td className="px-4 py-4">
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">분석 완료</span>
+                    <Badge className="bg-blue-50 text-blue-700">분석 완료</Badge>
                   </td>
                 </tr>
               ))}
@@ -259,13 +257,11 @@ function AnalysisSessionDetail({
       ) : null}
 
       <details className="rounded-xl border border-[#d7dee8] bg-white" open>
-        <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-[#15345b]">
-          문서 섹션 분석 ({session.analysis.documentSections.length}건)
-        </summary>
+        <SummaryTitle>문서 섹션 분석 ({session.analysis.documentSections.length}건)</SummaryTitle>
         <div className="grid gap-3 border-t border-[#d7dee8] p-4 md:grid-cols-2 xl:grid-cols-3">
           {session.analysis.documentSections.map((section) => (
             <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-3" key={`${session.id}-${section.label}`}>
-              <div className="flex justify-between text-sm font-bold text-[#15345b]">
+              <div className="type-tab-title flex justify-between">
                 <span>{section.label}</span>
                 <span>{section.confidence}%</span>
               </div>
@@ -279,19 +275,17 @@ function AnalysisSessionDetail({
       </details>
 
       <details className="rounded-xl border border-[#d7dee8] bg-white" open>
-        <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-[#15345b]">
-          평가 항목 ({session.analysis.evaluationPreview.length}건)
-        </summary>
+        <SummaryTitle>평가 항목 ({session.analysis.evaluationPreview.length}건)</SummaryTitle>
         <div className="space-y-3 border-t border-[#d7dee8] p-4">
           {session.analysis.evaluationPreview.map((row) => (
             <div className="rounded-xl border border-[#d7dee8] p-3" key={`${session.id}-${row.itemName}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-bold text-[#15345b]">{row.itemName}</p>
-                <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+                <SubsectionTitle className="text-base">{row.itemName}</SubsectionTitle>
+                <Badge className="bg-[#e8f1ff] text-[#2463b3]">
                   {row.score}점 · {row.grade}
-                </span>
+                </Badge>
               </div>
-              <p className="mt-2 text-sm leading-6 text-[#475569]">{row.rationale}</p>
+              <BodyText className="mt-2">{row.rationale}</BodyText>
               {row.laws.length > 0 ? (
                 <p className="mt-2 text-xs leading-5 text-[#64748b]">법령 근거: {row.laws.join(" · ")}</p>
               ) : null}

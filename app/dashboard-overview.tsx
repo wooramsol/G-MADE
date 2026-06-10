@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/typography";
+import {
+  Badge,
+  MetricLabel,
+  MetricValue,
+  MutedText,
+  SectionDescription,
+  SectionTitle,
+  SubsectionTitle,
+} from "@/components/typography";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import {
   buildDashboardStats,
@@ -125,11 +133,11 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
         <SubsectionTitle>{title}</SubsectionTitle>
         {action ? (
           action === "프로젝트 관리" ? (
-            <Link className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]" href="/projects">
+            <Link className="type-badge rounded-full bg-[#e8f1ff] px-3 py-1 text-[#2463b3]" href="/projects">
               {action}
             </Link>
           ) : (
-            <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{action}</span>
+            <Badge className="bg-[#e8f1ff] text-[#2463b3]">{action}</Badge>
           )
         ) : null}
       </div>
@@ -141,9 +149,9 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
 function MetricCard({ label, value, delta }: { label: string; value: string; delta: string }) {
   return (
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
-      <p className="text-sm font-semibold text-[#64748b]">{label}</p>
-      <p className="mt-3 text-3xl font-black text-[#15345b]">{value}</p>
-      <p className="mt-3 text-sm text-[#2463b3]">{delta}</p>
+      <MetricLabel>{label}</MetricLabel>
+      <MetricValue className="mt-3">{value}</MetricValue>
+      <p className="type-body-muted mt-3 text-[#2463b3]">{delta}</p>
     </div>
   );
 }

@@ -48,7 +48,7 @@ function IntegrationStatusRow({ row }: { row: IntegrationRow }) {
     <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-3 py-2.5">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-[#15345b]">{row.name}</p>
+          <p className="type-form-label truncate">{row.name}</p>
           <p className="truncate text-xs text-[#64748b]">{row.provider}</p>
         </div>
         <span

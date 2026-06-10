@@ -21,7 +21,7 @@ export default function TopNavigation({ isAuthenticated }: { isAuthenticated: bo
 
           return (
             <Link
-              className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+              className={`type-nav-link rounded-lg px-4 py-2 transition ${
                 active ? "bg-[#15345b] !text-white shadow-sm" : "text-[#15345b] hover:bg-[#e8f1ff]"
               }`}
               href={item.href}
@@ -33,7 +33,7 @@ export default function TopNavigation({ isAuthenticated }: { isAuthenticated: bo
         })}
         </div>
         {!isAuthenticated ? (
-          <Link className="rounded-lg bg-[#15345b] px-4 py-2 text-sm font-bold text-white" href="/login">
+          <Link className="type-nav-link rounded-lg bg-[#15345b] px-4 py-2 text-white" href="/login">
             로그인
           </Link>
         ) : null}

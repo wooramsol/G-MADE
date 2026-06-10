@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Badge,
+  BodyText,
+  MicroText,
+  MutedText,
+  SubsectionTitle,
+  SummaryTitle,
+  TabTitle,
+} from "@/components/typography";
 import { evaluationItems } from "@/lib/demo-data";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import type { HumanEvaluationSession } from "@/lib/types";
@@ -45,12 +54,10 @@ export function ExpertEvaluationResultsPanel({ sessions }: { sessions: HumanEval
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="font-bold text-[#15345b]">전문가 평가 결과</p>
-          <p className="mt-1 text-sm text-[#64748b]">차수별로 업로드된 전문가 평가 자료와 점수를 확인합니다.</p>
+          <SubsectionTitle>전문가 평가 결과</SubsectionTitle>
+          <MutedText className="mt-1">차수별로 업로드된 전문가 평가 자료와 점수를 확인합니다.</MutedText>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-          총 {sortedSessions.length}회
-        </span>
+        <Badge className="bg-slate-100 text-slate-700">총 {sortedSessions.length}회</Badge>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-1">
@@ -68,13 +75,11 @@ export function ExpertEvaluationResultsPanel({ sessions }: { sessions: HumanEval
                 }`}
                 onClick={() => setSelectedId(session.id)}
               >
-                <span className="block text-sm font-bold">{session.round}차 평가</span>
-                <span className="mt-0.5 block text-[11px] leading-4 text-[#64748b]">
-                  {formatUploadDateTime(session.uploadedAt)}
-                </span>
-                <span className="mt-1 block text-[11px] text-[#64748b]">
+                <TabTitle className="block">{session.round}차 평가</TabTitle>
+                <MicroText className="mt-0.5 block">{formatUploadDateTime(session.uploadedAt)}</MicroText>
+                <MicroText className="mt-1 block">
                   {session.reviewerName} · {session.files.length}개 파일
-                </span>
+                </MicroText>
               </button>
             );
           })}
@@ -83,30 +88,20 @@ export function ExpertEvaluationResultsPanel({ sessions }: { sessions: HumanEval
 
       <article className="space-y-4 rounded-xl border border-[#d7dee8] bg-white p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-[#15345b] px-3 py-1 text-xs font-bold text-white">
-            {selectedSession.round}차 평가
-          </span>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+          <Badge className="bg-[#15345b] text-white">{selectedSession.round}차 평가</Badge>
+          <Badge className="bg-slate-100 text-slate-700">
             {formatUploadDateTime(selectedSession.uploadedAt)}
-          </span>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-            {selectedSession.reviewerName}
-          </span>
+          </Badge>
+          <Badge className="bg-slate-100 text-slate-700">{selectedSession.reviewerName}</Badge>
           {avgScore !== null ? (
-            <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-              평균 {avgScore}점
-            </span>
+            <Badge className="bg-[#e8f1ff] text-[#2463b3]">평균 {avgScore}점</Badge>
           ) : null}
         </div>
 
-        {selectedSession.summary ? (
-          <p className="text-sm leading-6 text-[#475569]">{selectedSession.summary}</p>
-        ) : null}
+        {selectedSession.summary ? <BodyText>{selectedSession.summary}</BodyText> : null}
 
         <details className="rounded-xl border border-[#d7dee8] bg-[#f8fafc]">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-[#15345b]">
-            업로드 파일 ({selectedSession.files.length}건)
-          </summary>
+          <SummaryTitle>업로드 파일 ({selectedSession.files.length}건)</SummaryTitle>
           <div className="overflow-hidden border-t border-[#d7dee8]">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-[#eef4fb] text-[#15345b]">
@@ -130,23 +125,17 @@ export function ExpertEvaluationResultsPanel({ sessions }: { sessions: HumanEval
         </details>
 
         <details className="rounded-xl border border-[#d7dee8] bg-white" open>
-          <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-[#15345b]">
-            항목별 점수 ({selectedSession.itemScores.length}건)
-          </summary>
+          <SummaryTitle>항목별 점수 ({selectedSession.itemScores.length}건)</SummaryTitle>
           <div className="space-y-3 border-t border-[#d7dee8] p-4">
             {selectedSession.itemScores.map((row) => {
               const item = evaluationItems.find((entry) => entry.id === row.itemId);
               return (
                 <div className="rounded-xl border border-[#d7dee8] p-3" key={row.itemId}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-bold text-[#15345b]">{item?.detailItem ?? row.itemId}</p>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                      {row.score}점
-                    </span>
+                    <SubsectionTitle className="text-base">{item?.detailItem ?? row.itemId}</SubsectionTitle>
+                    <Badge className="bg-slate-100 text-slate-700">{row.score}점</Badge>
                   </div>
-                  {row.comment ? (
-                    <p className="mt-2 text-sm leading-6 text-[#475569]">{row.comment}</p>
-                  ) : null}
+                  {row.comment ? <BodyText className="mt-2">{row.comment}</BodyText> : null}
                 </div>
               );
             })}

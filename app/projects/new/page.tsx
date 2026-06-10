@@ -1,4 +1,4 @@
-import { SectionDescription, SubsectionTitle } from "@/components/typography";
+import { Badge, SectionDescription, SubsectionTitle } from "@/components/typography";
 import ProjectCreateForm from "./project-create-form";
 
 export default function NewProjectPage() {
@@ -14,7 +14,7 @@ export default function NewProjectPage() {
                 자료 업로드, 하이브리드 평가 분석을 진행할 수 있습니다.
               </SectionDescription>
             </div>
-            <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">신규 등록</span>
+            <Badge className="bg-[#e8f1ff] text-[#2463b3]">신규 등록</Badge>
           </div>
 
           <ProjectCreateForm />

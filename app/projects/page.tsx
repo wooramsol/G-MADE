@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PageTitle, SectionDescription } from "@/components/typography";
+import { FormLabel, MutedText, PageTitle, SectionDescription } from "@/components/typography";
 import ProjectManagementGrid from "./project-management-grid";
 import { getAllProjects } from "@/lib/project-store";
 
@@ -31,9 +31,9 @@ export default async function ProjectManagementPage({
         </div>
 
         <form action="/projects" className="rounded-2xl border border-[#d7dee8] bg-white p-4 panel-shadow">
-          <label className="block text-sm font-bold text-[#15345b]" htmlFor="project-search">
+          <FormLabel as="label" className="block" htmlFor="project-search">
             프로젝트 검색
-          </label>
+          </FormLabel>
           <div className="mt-2 grid gap-3 md:grid-cols-[1fr_120px]">
             <input
               className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
@@ -47,7 +47,7 @@ export default async function ProjectManagementPage({
               검색
             </button>
           </div>
-          {query ? <p className="mt-3 text-sm font-semibold text-[#64748b]">“{query}” 검색 결과</p> : null}
+          {query ? <MutedText className="mt-3 font-semibold">“{query}” 검색 결과</MutedText> : null}
         </form>
 
         <div className="grid items-stretch gap-5 xl:grid-cols-3">

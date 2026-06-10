@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LocationPicker, type LocationSelection } from "@/components/location-picker";
+import { ErrorText, FormLabel, MutedText } from "@/components/typography";
 import { saveLocalProject } from "../local-project-storage";
 import { showToast } from "../../toast";
 
@@ -85,7 +86,7 @@ export default function ProjectCreateForm() {
     <form className="grid gap-4 lg:grid-cols-2" id="new-project-form" onSubmit={submitProject}>
       <Field label="사업명" placeholder="예: 동부역세권 복합문화시설 경관사전심의" value={form.name} onChange={(value) => updateField("name", value)} />
       <div className="lg:col-span-2">
-        <p className="text-sm font-bold text-[#15345b]">사업위치</p>
+        <FormLabel as="p">사업위치</FormLabel>
         <div className="mt-2 rounded-xl border border-[#d7dee8] bg-white p-4">
           <LocationPicker value={location} onChange={setLocation} disabled={loading} />
         </div>
@@ -97,7 +98,7 @@ export default function ProjectCreateForm() {
       <Field label="규모" placeholder="예: 지하 4층 / 지상 18층, 연면적 42,600㎡" value={form.scale} onChange={(value) => updateField("scale", value)} />
       <Field label="접수일" placeholder="예: 2026-06-04" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
       <label className="lg:col-span-2">
-        <span className="text-sm font-bold text-[#15345b]">사업개요</span>
+        <FormLabel>사업개요</FormLabel>
         <textarea
           className="mt-2 min-h-28 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
           placeholder="사업 목적, 주변 현황, 심의 요청사항을 입력하세요."
@@ -105,14 +106,14 @@ export default function ProjectCreateForm() {
           onChange={(event) => updateField("summary", event.target.value)}
         />
       </label>
-      {error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700 lg:col-span-2">{error}</p> : null}
+      {error ? <ErrorText className="rounded-xl bg-red-50 p-3 lg:col-span-2">{error}</ErrorText> : null}
       <div className="flex flex-wrap gap-3 lg:col-span-2">
         <button className="primary-action rounded-lg px-5 py-3 text-sm font-bold shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" disabled={loading} type="submit">
           {loading ? "프로젝트 생성 중..." : "프로젝트 생성하기"}
         </button>
-        <p className="self-center text-sm text-[#64748b]">
+        <MutedText className="self-center">
           생성 후 프로젝트 상세 화면에서 평가기준·자료 업로드를 진행합니다.
-        </p>
+        </MutedText>
       </div>
     </form>
   );
@@ -121,7 +122,7 @@ export default function ProjectCreateForm() {
 function Field({ label, placeholder, type = "text", value, onChange }: { label: string; placeholder: string; type?: string; value: string; onChange: (value: string) => void }) {
   return (
     <label>
-      <span className="text-sm font-bold text-[#15345b]">{label}</span>
+      <FormLabel>{label}</FormLabel>
       <input
         className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
         placeholder={placeholder}
@@ -136,7 +137,7 @@ function Field({ label, placeholder, type = "text", value, onChange }: { label: 
 function SelectField({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
   return (
     <label>
-      <span className="text-sm font-bold text-[#15345b]">{label}</span>
+      <FormLabel>{label}</FormLabel>
       <select className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white" value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">선택</option>
         {options.map((option) => (

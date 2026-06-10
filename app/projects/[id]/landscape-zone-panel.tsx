@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import OverflowChipRow from "@/components/overflow-chip-row";
-import { SubsectionTitle } from "@/components/typography";
+import { Badge, SubsectionTitle } from "@/components/typography";
 import type { ProjectLocationPoint } from "@/lib/types";
 
 const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
@@ -131,9 +131,7 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
         <div>
           <SubsectionTitle>공간정보 (브이월드)</SubsectionTitle>
         </div>
-        <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-          경관지구·용도지역·문화재
-        </span>
+        <Badge className="bg-[#e8f1ff] text-[#2463b3]">경관지구·용도지역·문화재</Badge>
       </div>
 
       {loading ? (
