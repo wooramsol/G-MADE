@@ -96,8 +96,7 @@ export default function ParallelEvaluationForm({
       setAiFiles([]);
       setExpertFiles([]);
       showToast({ message: "하이브리드 평가 분석이 완료되었습니다.", tone: "success" });
-      const nextRounds =
-        payload.project?.evaluationRounds ?? [...(project.evaluationRounds ?? []), payload.round];
+      const nextRounds = resolveNextEvaluationRounds(project, payload);
       onRoundsChange?.(nextRounds, projectFiles);
       scrollToHybridEvaluationResults();
     } catch (submitError) {
@@ -256,6 +255,22 @@ function MaterialColumn({
       <div className="mt-4 rounded-xl border border-[#d7dee8] bg-white p-4">{children}</div>
     </section>
   );
+}
+
+function resolveNextEvaluationRounds(
+  project: ParallelEvaluationFormProps["project"],
+  payload: EvaluationRoundApiResponse,
+): EvaluationRound[] {
+  if (payload.project?.evaluationRounds?.length) {
+    return payload.project.evaluationRounds;
+  }
+
+  const existing = project.evaluationRounds ?? [];
+  if (existing.some((round) => round.id === payload.round.id)) {
+    return existing;
+  }
+
+  return [...existing, payload.round];
 }
 
 function toProjectFile(

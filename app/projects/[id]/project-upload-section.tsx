@@ -27,9 +27,23 @@ export default function ProjectUploadSection({
     const timeout = window.setTimeout(() => {
       const localProject = getLocalProjects().find((item) => item.id === project.id);
       const mergedProject = mergeProjectWithLocal(project, localProject);
+      const mergedRounds = getProjectEvaluationRounds(mergedProject);
+
       setActiveProject(mergedProject);
       setFiles(mergedProject.files);
-      setRounds(getProjectEvaluationRounds(mergedProject));
+      setRounds((current) => {
+        if (mergedRounds.length >= current.length) {
+          return mergedRounds;
+        }
+
+        // 서버 응답이 잠시 늦을 때 로컬에만 있는 신규 차수를 유지합니다.
+        const localRounds = localProject?.evaluationRounds;
+        if (Array.isArray(localRounds) && localRounds.length > mergedRounds.length) {
+          return getProjectEvaluationRounds({ ...mergedProject, evaluationRounds: localRounds });
+        }
+
+        return mergedRounds;
+      });
     }, 0);
 
     return () => window.clearTimeout(timeout);
@@ -48,7 +62,7 @@ export default function ProjectUploadSection({
       scrollToHybridEvaluationResults();
     }
 
-    router.refresh();
+    window.setTimeout(() => router.refresh(), 0);
   }
 
   return (
