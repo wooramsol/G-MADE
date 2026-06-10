@@ -12,11 +12,11 @@ export const EVALUATION_GRADE_SCALE: ReadonlyArray<{
   grade: EvaluationGrade;
   label: string;
 }> = [
-  { grade: "매우우수", label: "90점 이상" },
-  { grade: "우수", label: "80~89점" },
-  { grade: "보통", label: "70~79점" },
-  { grade: "미흡", label: "60~69점" },
-  { grade: "매우미흡", label: "60점 미만" },
+  { grade: "매우우수", label: "90% 이상" },
+  { grade: "우수", label: "80~89%" },
+  { grade: "보통", label: "70~79%" },
+  { grade: "미흡", label: "60~69%" },
+  { grade: "매우미흡", label: "60% 미만" },
 ];
 
 export function gradeScore(score: number): EvaluationGrade {
@@ -31,19 +31,14 @@ export function clampScore(score: number): number {
   return Math.max(0, Math.min(100, score));
 }
 
-/** 0~100 만점 점수를 항목 배점 스케일로 환산하고 배점을 넘지 않게 제한합니다. */
-export function scaleScoreToPoints(score: number, maxPoints: number): number {
-  if (maxPoints <= 0) return 0;
-
-  const scaled = (clampScore(score) / 100) * maxPoints;
-  return Math.round(Math.min(maxPoints, scaled) * 10) / 10;
+export function formatScorePercent(score: number): string {
+  return `${Math.round(clampScore(score) * 10) / 10}%`;
 }
 
 export function calculateHybridScore(input: {
   aiScore: number;
   humanScore: number;
   settings: HybridSettings;
-  maxPoints: number;
 }): number {
   const { aiWeight, humanWeight } = input.settings;
   const totalWeight = aiWeight + humanWeight;
@@ -52,11 +47,10 @@ export function calculateHybridScore(input: {
     throw new Error("AI weight and human weight cannot both be zero.");
   }
 
-  const aiOnPoints = scaleScoreToPoints(input.aiScore, input.maxPoints);
-  const humanOnPoints = scaleScoreToPoints(input.humanScore, input.maxPoints);
-  const weightedScore = (aiOnPoints * aiWeight + humanOnPoints * humanWeight) / totalWeight;
+  const weightedScore =
+    (clampScore(input.aiScore) * aiWeight + clampScore(input.humanScore) * humanWeight) / totalWeight;
 
-  return Math.round(Math.min(input.maxPoints, weightedScore) * 10) / 10;
+  return Math.round(clampScore(weightedScore) * 10) / 10;
 }
 
 export function calculateHybridResults(input: {
@@ -75,42 +69,44 @@ export function calculateHybridResults(input: {
       throw new Error(`Missing evaluation data for item ${item.id}.`);
     }
 
-    const aiScoreOnPoints = scaleScoreToPoints(aiEvaluation.score, item.points);
-    const humanScoreOnPoints = scaleScoreToPoints(humanEvaluation.score, item.points);
+    const aiPercent = clampScore(aiEvaluation.score);
+    const humanPercent = clampScore(humanEvaluation.score);
     const finalScore = calculateHybridScore({
-      aiScore: aiEvaluation.score,
-      humanScore: humanEvaluation.score,
+      aiScore: aiPercent,
+      humanScore: humanPercent,
       settings: input.settings,
-      maxPoints: item.points,
     });
-    const scorePercent = item.points > 0 ? (finalScore / item.points) * 100 : 0;
 
     return {
       item,
       aiEvaluation: {
         ...aiEvaluation,
-        score: aiScoreOnPoints,
-        grade: gradeScore(item.points > 0 ? (aiScoreOnPoints / item.points) * 100 : 0),
+        score: aiPercent,
+        grade: gradeScore(aiPercent),
       },
       humanEvaluation: {
         ...humanEvaluation,
-        score: humanScoreOnPoints,
+        score: humanPercent,
       },
       finalScore,
-      finalGrade: gradeScore(scorePercent),
+      finalGrade: gradeScore(finalScore),
       finalComment: buildFinalComment(aiEvaluation.scoreTrace, humanEvaluation.comment),
     };
   });
 }
 
+/** 배점 가중 평균으로 종합 달성률(%)을 계산합니다. */
 export function calculateProjectScore(results: HybridResult[]): number {
   const totalPoints = results.reduce((sum, result) => sum + result.item.points, 0);
 
   if (totalPoints <= 0) return 0;
 
-  const earned = results.reduce((sum, result) => sum + result.finalScore, 0);
+  const weighted = results.reduce(
+    (sum, result) => sum + result.finalScore * result.item.points,
+    0,
+  );
 
-  return Math.round(Math.min(totalPoints, earned) * 10) / 10;
+  return Math.round((weighted / totalPoints) * 10) / 10;
 }
 
 export function buildFinalComment(trace: ScoreTrace[], reviewerComment: string): string {
