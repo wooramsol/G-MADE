@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { interactiveCardClassName } from "@/components/interactive-card";
 import { createEmptyEvaluationItem, isCustomEvaluationItem } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, Project } from "@/lib/types";
 import { getLocalProjects, saveLocalProjectEvaluationItems } from "./projects/local-project-storage";
@@ -135,7 +136,7 @@ export default function EvaluationItemsEditor({
   }
 
   return (
-    <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
+    <div className={`rounded-xl border border-[#d7dee8] bg-white p-4 ${interactiveCardClassName}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-bold text-[#15345b]">공통 평가항목 · 배점</p>

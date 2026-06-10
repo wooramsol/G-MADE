@@ -107,13 +107,6 @@ export default async function MyPage() {
         </Panel>
       </section>
 
-      <section className="grid items-stretch gap-6 xl:grid-cols-2">
-        <Panel title="평가 가중치 기본값">
-          <SettingRow label="AI 평가 기본 비율" value="30%" />
-          <SettingRow label="전문가 평가 기본 비율" value="70%" />
-          <SettingRow label="프로젝트별 가중치 수정" value="허용" />
-        </Panel>
-      </section>
     </SaasPageShell>
   );
 }
@@ -136,11 +129,3 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function SettingRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid items-center gap-3 rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm md:grid-cols-[1fr_180px]">
-      <span className="font-semibold text-[#475569]">{label}</span>
-      <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-center font-bold text-[#2463b3]">{value}</span>
-    </div>
-  );
-}

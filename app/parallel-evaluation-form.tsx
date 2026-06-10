@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { interactiveCardClassName } from "@/components/interactive-card";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
@@ -117,7 +118,7 @@ export default function ParallelEvaluationForm({
         onSaved={setEvaluationItems}
       />
 
-      <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
+      <div className={`rounded-xl border border-[#d7dee8] bg-white p-4 ${interactiveCardClassName}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-bold text-[#15345b]">평가 가중치</p>
@@ -191,7 +192,7 @@ export default function ParallelEvaluationForm({
         </MaterialColumn>
       </div>
 
-      <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
+      <div className={`rounded-xl border border-[#d7dee8] bg-white p-4 ${interactiveCardClassName}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-bold text-[#15345b]">하이브리드 평가 분석</p>
@@ -237,7 +238,9 @@ function MaterialColumn({
   const borderClass = isAi ? "border-[#2463b3]" : "border-[#15345b]";
 
   return (
-    <section className="flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+    <section
+      className={`flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4 ${interactiveCardClassName}`}
+    >
       <div className={`rounded-xl px-4 py-3 ${headerClass}`}>
         <p className="text-sm font-bold">{title}</p>
         <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
