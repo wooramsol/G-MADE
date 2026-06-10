@@ -105,7 +105,7 @@ npm run dev
 
 ### DB 테이블 (Prisma)
 
-Vercel **Environment Variables**에 `DATABASE_URL`이 있고, 해당 환경(Production/Preview)에 체크되어 있으면 **배포(Redeploy) 시** `prisma db push`가 자동 실행됩니다. `DATABASE_URL`이 없는 Preview 빌드는 DB 단계를 건너뜁니다.
+Vercel Postgres를 연결하면 `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING` 등이 자동 주입됩니다. **배포(Redeploy) 시** `prisma db push`가 direct URL로 실행되어 테이블이 맞춰집니다. Postgres 연결이 없는 Preview 빌드는 DB 단계를 건너뜁니다.
 
 로컬에서 수동으로 맞추려면 프로젝트 폴더에서 `.env`에 `DATABASE_URL`을 넣은 뒤 `npx prisma db push`를 실행합니다.
 

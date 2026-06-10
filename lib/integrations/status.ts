@@ -1,6 +1,7 @@
 import { getConfiguredProviders } from "../ai/env-keys";
 import { getDefaultAiProvider, isProviderConfigured } from "../ai/select-provider";
 import { getLawReferer, isLawApiConfigured } from "../law/config";
+import { isPostgresConfigured } from "../postgres-env";
 import { isDatabaseAvailable } from "../prisma";
 import { readServerEnv, readServerEnvHint } from "../server-env";
 import { getVWorldDomain, isVWorldConfigured } from "../vworld/config";
@@ -139,10 +140,10 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       name: "PostgreSQL",
       provider: "Prisma",
       configured: databaseConfigured,
-      envKeys: ["DATABASE_URL"],
+      envKeys: ["DATABASE_URL", "POSTGRES_PRISMA_URL", "POSTGRES_URL"],
       detail: databaseConfigured
         ? "사용자·역할 등 DB 연동 사용 중"
-        : readServerEnv("DATABASE_URL")
+        : isPostgresConfigured()
           ? "연결 문자열은 있으나 DB 응답 없음"
           : undefined,
       fallback: "미설정 시 데모 데이터·로컬 저장 사용",

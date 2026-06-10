@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { getPostgresRuntimeUrl } from "./postgres-env";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -8,9 +9,9 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  const connectionString = process.env.DATABASE_URL?.trim();
+  const connectionString = getPostgresRuntimeUrl();
   if (!connectionString) {
-    throw new Error("DATABASE_URL is not configured");
+    throw new Error("Postgres connection string is not configured");
   }
 
   const pool = globalForPrisma.prismaPool ?? new Pool({ connectionString });
@@ -21,7 +22,7 @@ function createPrismaClient(): PrismaClient {
 }
 
 export function getPrismaClient(): PrismaClient | null {
-  if (!process.env.DATABASE_URL?.trim()) return null;
+  if (!getPostgresRuntimeUrl()) return null;
 
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = createPrismaClient();
