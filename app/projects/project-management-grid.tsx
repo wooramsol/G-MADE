@@ -63,10 +63,10 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
     <>
       {visibleProjects.map((project) => (
         <article
-          className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow transition hover:-translate-y-0.5 hover:border-[#2463b3]"
+          className="flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow transition hover:-translate-y-0.5 hover:border-[#2463b3]"
           key={project.id}
         >
-          <Link href={`/projects/${project.id}`} className="block">
+          <Link href={`/projects/${project.id}`} className="flex h-full flex-col">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2463b3]">{project.reviewType}</p>
@@ -74,7 +74,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
               </div>
               <EvaluationStatusBadge project={project} />
             </div>
-            <dl className="mt-5 space-y-3 text-sm text-[#475569]">
+            <dl className="mt-5 flex-1 space-y-3 text-sm text-[#475569]">
               <Info label="사업위치" value={project.location} />
               <Info label="시행자" value={project.client} />
               <Info label="사업유형" value={project.projectType} />

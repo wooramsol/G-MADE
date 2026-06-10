@@ -49,7 +49,7 @@ export default async function ProjectManagementPage({
           {query ? <p className="mt-3 text-sm font-semibold text-[#64748b]">“{query}” 검색 결과</p> : null}
         </form>
 
-        <div className="grid gap-5 xl:grid-cols-3">
+        <div className="grid items-stretch gap-5 xl:grid-cols-3">
           <ProjectManagementGrid serverProjects={projects} query={query} />
         </div>
       </div>
