@@ -1,6 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
+import { formatUploadDateTime } from "@/lib/format-datetime";
+import ReferenceLinkTitle from "@/components/reference-link-title";
+import { buildLawReferenceUrl } from "@/lib/reference-links";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
 import { showToast } from "../../toast";
@@ -11,27 +15,42 @@ type Props = {
   onRoundsChange?: (rounds: EvaluationRound[]) => void;
 };
 
+type RoundWithNumber = EvaluationRound & { roundNumber: number };
+
 export default function ProjectEvaluationWorkspace({ project, rounds, onRoundsChange }: Props) {
-  const sorted = useMemo(
-    () =>
-      [...rounds].sort(
-        (a, b) => new Date(b.evaluatedAt).getTime() - new Date(a.evaluatedAt).getTime(),
-      ),
-    [rounds],
-  );
+  const sorted = useMemo<RoundWithNumber[]>(() => {
+    const ordered = [...rounds].sort(
+      (a, b) => new Date(b.evaluatedAt).getTime() - new Date(a.evaluatedAt).getTime(),
+    );
+    return ordered.map((round, index) => ({
+      ...round,
+      roundNumber: ordered.length - index,
+    }));
+  }, [rounds]);
 
   const [selectedId, setSelectedId] = useState<string | null>(sorted[0]?.id ?? null);
   const selectedRound = sorted.find((round) => round.id === selectedId) ?? sorted[0];
-  const roundNumber = selectedRound
-    ? sorted.length - sorted.findIndex((round) => round.id === selectedRound.id)
-    : 0;
+  const hybridView = selectedRound ? buildHybridViewFromRound(selectedRound, selectedRound.roundNumber) : null;
 
-  const hybridView = selectedRound ? buildHybridViewFromRound(selectedRound, roundNumber) : null;
+  const aiAvg =
+    selectedRound && selectedRound.aiAnalysis.evaluationPreview.length > 0
+      ? Math.round(
+          selectedRound.aiAnalysis.evaluationPreview.reduce((sum, row) => sum + row.score, 0) /
+            selectedRound.aiAnalysis.evaluationPreview.length,
+        )
+      : null;
+  const expertAvg =
+    selectedRound && selectedRound.expertItemScores.length > 0
+      ? Math.round(
+          selectedRound.expertItemScores.reduce((sum, row) => sum + row.score, 0) /
+            selectedRound.expertItemScores.length,
+        )
+      : null;
 
   async function deleteRound(roundId: string) {
     if (!window.confirm("이 평가 차수를 삭제할까요?")) return;
 
-    let next = sorted.filter((round) => round.id !== roundId);
+    let next: EvaluationRound[] = sorted.filter((round) => round.id !== roundId);
 
     try {
       const response = await fetch(`/api/projects/${project.id}/evaluation-rounds/${roundId}`, {
@@ -64,66 +83,160 @@ export default function ProjectEvaluationWorkspace({ project, rounds, onRoundsCh
   if (!selectedRound || !hybridView) {
     return (
       <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm text-[#64748b]">
-        AI·전문가 자료를 업로드하고 하이브리드 평가 분석을 실행하면 종합 점수가 이 영역에 표시됩니다.
+        AI·전문가 자료를 업로드하고 하이브리드 평가 분석을 실행하면 통합 평가 결과가 이 영역에 표시됩니다.
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      <section id="ai-document-analysis">
+      <section id="hybrid-evaluation-results">
         <SectionTitle
           eyebrow="Hybrid Evaluation"
           title="통합 평가 결과"
-          description={`${roundNumber}차 평가 · ${selectedRound.reviewerName} 전문가와 AI 병행 분석`}
+          description="AI·전문가 자료를 함께 분석한 차수별 통합 결과와 종합 점수입니다."
         />
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {sorted.map((round, index) => (
-            <button
-              key={round.id}
-              type="button"
-              className={`rounded-lg px-3 py-2 text-sm font-bold ${
-                round.id === selectedRound.id ? "bg-[#15345b] text-white" : "bg-[#eef4fb] text-[#15345b]"
-              }`}
-              onClick={() => setSelectedId(round.id)}
-            >
-              {sorted.length - index}차
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section id="hybrid-score-engine">
-        <div className="mt-5 space-y-5">
-          <Panel
-            title="현재 가중치"
-            action={
-              <button
-                type="button"
-                className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
-                onClick={() => deleteRound(selectedRound.id)}
-              >
-                이 차수 삭제
-              </button>
-            }
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+            총 {sorted.length}차
+          </span>
+          <button
+            type="button"
+            className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
+            onClick={() => deleteRound(selectedRound.id)}
           >
-            <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
-            <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
-          </Panel>
+            이 차수 삭제
+          </button>
+        </div>
+
+        <div className="mt-4 overflow-x-auto rounded-xl border border-[#d7dee8] bg-white p-1">
+          <div className="flex min-w-max gap-1">
+            {sorted.map((round) => {
+              const active = round.id === selectedRound.id;
+              return (
+                <button
+                  key={round.id}
+                  type="button"
+                  className={`rounded-lg px-3 py-2 text-left transition sm:min-w-[160px] ${
+                    active
+                      ? "bg-[#eef4fb] text-[#15345b] shadow-sm ring-1 ring-[#2463b3]/25"
+                      : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#15345b]"
+                  }`}
+                  onClick={() => setSelectedId(round.id)}
+                >
+                  <span className="block text-sm font-bold">{round.roundNumber}차 평가</span>
+                  <span className="mt-0.5 block text-[11px] text-[#64748b]">
+                    {formatUploadDateTime(round.evaluatedAt)}
+                  </span>
+                  <span className="mt-1 block text-[11px] text-[#64748b]">
+                    AI {round.aiFiles.length} · 전문가 {round.expertFiles.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-[#15345b] px-3 py-1 text-xs font-bold text-white">
+              {selectedRound.roundNumber}차
+            </span>
+            <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+              AI {selectedRound.aiWeight}% · 전문가 {selectedRound.expertWeight}%
+            </span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+              {selectedRound.reviewerName}
+            </span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+              총 배점 {selectedRound.totalPoints}점
+            </span>
+            {aiAvg !== null ? (
+              <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
+                AI 평균 {aiAvg}점
+              </span>
+            ) : null}
+            {expertAvg !== null ? (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                전문가 평균 {expertAvg}점
+              </span>
+            ) : null}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <FileList title="AI 평가 자료" files={selectedRound.aiFiles} tone="ai" />
+            <FileList title="전문가 평가 자료" files={selectedRound.expertFiles} tone="expert" />
+          </div>
+
+          {selectedRound.expertSummary ? (
+            <p className="rounded-xl bg-white p-3 text-sm leading-6 text-[#475569]">{selectedRound.expertSummary}</p>
+          ) : null}
+
+          <p className="text-sm leading-6 text-[#475569]">{selectedRound.aiAnalysis.summary}</p>
 
           <Panel title={`종합 점수 ${hybridView.projectScore}점`}>
+            <div className="mb-5 grid gap-4 sm:grid-cols-2">
+              <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
+              <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
+            </div>
             <EvaluationTable results={hybridView.results} reviewerName={selectedRound.reviewerName} />
           </Panel>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            {selectedRound.aiAnalysis.evaluationPreview.map((row) => {
+              const item = selectedRound.evaluationItems.find(
+                (entry) => entry.id === row.itemId || entry.detailItem === row.itemName,
+              );
+              const expert = selectedRound.expertItemScores.find((score) => score.itemId === item?.id);
+              return (
+                <div className="rounded-xl border border-[#d7dee8] bg-white p-3" key={`${selectedRound.id}-${row.itemName}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-bold text-[#15345b]">{row.itemName}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-[#e8f1ff] px-2.5 py-1 text-[11px] font-bold text-[#2463b3]">
+                        AI {row.score}점
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
+                        전문가 {expert?.score ?? "-"}점
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[#475569]">{row.rationale}</p>
+                  {expert?.comment ? (
+                    <p className="mt-2 text-xs leading-5 text-[#64748b]">전문가 의견: {expert.comment}</p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+
+          {(selectedRound.aiAnalysis.referenceLaws?.length ?? 0) > 0 ? (
+            <div className="rounded-xl border border-[#d7dee8] bg-white p-3 text-sm">
+              <p className="font-bold text-[#15345b]">법령 근거</p>
+              {selectedRound.aiAnalysis.referenceLaws
+                ?.filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
+                .slice(0, 3)
+                .map((law) => (
+                  <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${law.title}`}>
+                    <ReferenceLinkTitle
+                      title={`${law.title} ${law.article}`}
+                      href={buildLawReferenceUrl(law.title, law.sourceUrl)}
+                    />
+                  </div>
+                ))}
+            </div>
+          ) : null}
+
+          <p className="text-xs text-[#64748b]">
+            AI 엔진: {formatProviderBadgeLabel(selectedRound.aiAnalysis.provider)} ·{" "}
+            {selectedRound.aiAnalysis.mode === "live" ? "실제 API 분석" : "데모 분석"}
+          </p>
         </div>
       </section>
 
       <section id="explainable-ai">
-        <SectionTitle
-          eyebrow="Explainable AI"
-          title="AI 평가 근거"
-          description="선택 차수의 AI 분석 근거입니다."
-        />
+        <SectionTitle eyebrow="Explainable AI" title="AI 평가 근거" description="선택 차수의 AI 분석 근거입니다." />
         <div className="mt-5 grid gap-5 xl:grid-cols-2">
           {hybridView.results.slice(0, 4).map((result) => (
             <Panel
@@ -145,11 +258,11 @@ export default function ProjectEvaluationWorkspace({ project, rounds, onRoundsCh
         </div>
       </section>
 
-      <section>
+      <section id="ai-document-analysis">
         <SectionTitle
           eyebrow="Document Analysis"
           title="AI 문서 섹션 추출"
-          description={`${roundNumber}차 AI 자료 분석 결과`}
+          description={`${selectedRound.roundNumber}차 AI 자료 분석 결과`}
         />
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {selectedRound.aiAnalysis.documentSections.map((section) => (
@@ -199,7 +312,7 @@ function Panel({
 
 function WeightBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="mb-4">
+    <div>
       <div className="mb-2 flex justify-between text-sm font-bold text-[#15345b]">
         <span>{label}</span>
         <span>{value}%</span>
@@ -207,6 +320,32 @@ function WeightBar({ label, value, color }: { label: string; value: number; colo
       <div className="h-3 overflow-hidden rounded-full bg-[#e2e8f0]">
         <div className="h-full rounded-full" style={{ width: `${value}%`, backgroundColor: color }} />
       </div>
+    </div>
+  );
+}
+
+function FileList({
+  title,
+  files,
+  tone,
+}: {
+  title: string;
+  files: EvaluationRound["aiFiles"];
+  tone: "ai" | "expert";
+}) {
+  const headerClass = tone === "ai" ? "text-[#2463b3]" : "text-[#15345b]";
+  return (
+    <div className="rounded-xl border border-[#d7dee8] bg-white p-3">
+      <p className={`text-sm font-bold ${headerClass}`}>
+        {title} ({files.length})
+      </p>
+      <ul className="mt-2 space-y-1 text-xs text-[#64748b]">
+        {files.map((file) => (
+          <li key={file.id}>
+            {file.originalName} · {file.fileType}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

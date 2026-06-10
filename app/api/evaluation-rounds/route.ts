@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const aiWeight = Number(formData.get("aiWeight") ?? 30);
     const expertWeight = Number(formData.get("expertWeight") ?? 70);
     const evaluationItems = parseEvaluationItems(formData.get("evaluationItems"));
-    const expertItemScores = parseExpertItemScores(formData.get("expertItemScores"));
+    const manualExpertScores = parseExpertItemScores(formData.get("expertItemScores"));
 
     const aiEntries = formData.getAll("aiFiles");
     const expertEntries = formData.getAll("expertFiles");
@@ -92,6 +92,32 @@ export async function POST(request: NextRequest) {
       evaluationContext,
       evaluationItems,
     });
+
+    const expertFilesForAnalysis = await Promise.all(
+      savedExpertFiles.map(async (file) => ({
+        ...file,
+        extractedTextPreview: await extractDocumentText(
+          await readFile(file.storagePath),
+          file.originalName,
+        ),
+      })),
+    );
+
+    const expertAnalysis = await analyzeUploadedFiles({
+      providerPreference,
+      files: expertFilesForAnalysis,
+      evaluationContext,
+      evaluationItems,
+    });
+
+    const expertItemScores =
+      manualExpertScores.length > 0
+        ? manualExpertScores
+        : expertAnalysis.evaluationPreview.map((row) => ({
+            itemId: row.itemId,
+            score: row.score,
+            comment: row.rationale,
+          }));
 
     const totalPoints = evaluationItems.reduce((sum, item) => sum + item.points, 0);
     const round: EvaluationRound = {

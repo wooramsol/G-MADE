@@ -61,7 +61,6 @@ export default function ProjectUploadSection({
     <>
       <ParallelEvaluationForm
         project={activeProject}
-        savedRounds={rounds}
         onRoundSaved={persistRound}
         onRoundsChange={(nextRounds) => syncRounds(nextRounds)}
       />

@@ -5,12 +5,10 @@ import type { AiProviderPreference } from "@/lib/ai/types";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import EvaluationItemsEditor from "./evaluation-items-editor";
-import UnifiedEvaluationResults from "./unified-evaluation-results";
 import { showToast } from "./toast";
 
 type ParallelEvaluationFormProps = {
   project: Project;
-  savedRounds: EvaluationRound[];
   onRoundSaved?: (round: EvaluationRound, files: ProjectFile[]) => void;
   onRoundsChange?: (rounds: EvaluationRound[]) => void;
 };
@@ -25,14 +23,10 @@ const FILE_ACCEPT = ".pdf,.docx,.xlsx,.xls,.hwp,.pptx,.jpg,.jpeg,.png,.dwg,.zip,
 
 export default function ParallelEvaluationForm({
   project,
-  savedRounds,
   onRoundSaved,
   onRoundsChange,
 }: ParallelEvaluationFormProps) {
   const [evaluationItems, setEvaluationItems] = useState<EvaluationItem[]>(createDefaultEvaluationItems);
-  const [expertScores, setExpertScores] = useState<Record<string, { score: number; comment: string }>>(
-    Object.fromEntries(createDefaultEvaluationItems().map((item) => [item.id, { score: 75, comment: "" }])),
-  );
   const [aiFiles, setAiFiles] = useState<File[]>([]);
   const [expertFiles, setExpertFiles] = useState<File[]>([]);
   const [reviewerName, setReviewerName] = useState("");
@@ -75,16 +69,6 @@ export default function ParallelEvaluationForm({
     formData.append("reviewerName", reviewerName.trim());
     if (expertSummary.trim()) formData.append("expertSummary", expertSummary.trim());
     formData.append("evaluationItems", JSON.stringify(evaluationItems));
-    formData.append(
-      "expertItemScores",
-      JSON.stringify(
-        evaluationItems.map((item) => ({
-          itemId: item.id,
-          score: expertScores[item.id]?.score ?? 0,
-          comment: expertScores[item.id]?.comment?.trim() || undefined,
-        })),
-      ),
-    );
     aiFiles.forEach((file) => formData.append("aiFiles", file));
     expertFiles.forEach((file) => formData.append("expertFiles", file));
 
@@ -122,21 +106,7 @@ export default function ParallelEvaluationForm({
 
   return (
     <div className="space-y-5">
-      <EvaluationItemsEditor
-        expertScores={expertScores}
-        items={evaluationItems}
-        onExpertScoresChange={setExpertScores}
-        onItemsChange={(items) => {
-          setEvaluationItems(items);
-          setExpertScores((current) => {
-            const next = { ...current };
-            items.forEach((item) => {
-              if (!next[item.id]) next[item.id] = { score: 75, comment: "" };
-            });
-            return next;
-          });
-        }}
-      />
+      <EvaluationItemsEditor items={evaluationItems} onItemsChange={setEvaluationItems} />
 
       <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -232,8 +202,6 @@ export default function ParallelEvaluationForm({
       </div>
 
       {error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p> : null}
-
-      <UnifiedEvaluationResults rounds={savedRounds} />
     </div>
   );
 }
