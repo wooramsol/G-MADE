@@ -22,6 +22,7 @@ export default function ProjectUploadSection({
   onProjectUpdated?: () => void;
 }) {
   const router = useRouter();
+  const [activeProject, setActiveProject] = useState<Project>(project);
   const [files, setFiles] = useState<ProjectFile[]>(project.files);
   const [rounds, setRounds] = useState<EvaluationRound[]>(getProjectEvaluationRounds(project));
 
@@ -29,6 +30,7 @@ export default function ProjectUploadSection({
     const timeout = window.setTimeout(() => {
       const localProject = getLocalProjects().find((item) => item.id === project.id);
       const mergedProject = localProject ? { ...project, ...localProject } : project;
+      setActiveProject(mergedProject);
       setFiles(mergedProject.files);
       setRounds(getProjectEvaluationRounds(mergedProject));
     }, 0);
@@ -39,7 +41,8 @@ export default function ProjectUploadSection({
   function syncRounds(nextRounds: EvaluationRound[], nextFiles = files) {
     setRounds(nextRounds);
     setFiles(nextFiles);
-    syncLocalProjectRounds(project.id, project, nextFiles, nextRounds);
+    syncLocalProjectRounds(project.id, activeProject, nextFiles, nextRounds);
+    setActiveProject((current) => ({ ...current, files: nextFiles, evaluationRounds: nextRounds }));
     onProjectUpdated?.();
     router.refresh();
   }
@@ -57,7 +60,7 @@ export default function ProjectUploadSection({
   return (
     <>
       <ParallelEvaluationForm
-        projectId={project.id}
+        project={activeProject}
         savedRounds={rounds}
         onRoundSaved={persistRound}
         onRoundsChange={(nextRounds) => syncRounds(nextRounds)}

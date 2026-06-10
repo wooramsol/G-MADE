@@ -132,6 +132,33 @@ export async function removeProjectHumanEvaluationSession(
   }));
 }
 
+export async function upsertProjectRecord(project: Project): Promise<Project> {
+  const allProjects = await getAllProjects();
+  const existing = allProjects.find((item) => item.id === project.id);
+  const storedProjects = await readCreatedProjects();
+  const storedIndex = storedProjects.findIndex((item) => item.id === project.id);
+  const base = existing ?? project;
+
+  const nextProject: Project = {
+    ...base,
+    ...project,
+    files: project.files ?? base.files ?? [],
+    uploadAnalyses: project.uploadAnalyses ?? base.uploadAnalyses ?? [],
+    humanEvaluationSessions: project.humanEvaluationSessions ?? base.humanEvaluationSessions ?? [],
+    evaluationRounds: project.evaluationRounds ?? base.evaluationRounds ?? [],
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (storedIndex >= 0) {
+    storedProjects[storedIndex] = nextProject;
+  } else {
+    storedProjects.unshift(nextProject);
+  }
+
+  await writeCreatedProjects(storedProjects);
+  return nextProject;
+}
+
 export async function addProjectEvaluationRound(
   id: string,
   round: EvaluationRound,

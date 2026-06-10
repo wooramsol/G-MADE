@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { buildEvaluationContext } from "@/lib/evaluation-context";
-import { addProjectEvaluationRound } from "@/lib/project-store";
+import { addProjectEvaluationRound, getProjectById, upsertProjectRecord } from "@/lib/project-store";
 import { isFileLike, saveUploadedFiles, toProjectFiles } from "@/lib/save-uploaded-files";
-import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore } from "@/lib/types";
+import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project } from "@/lib/types";
 import { analyzeUploadedFiles } from "@/lib/upload-analysis";
 import type { AiProviderPreference } from "@/lib/ai/types";
 
@@ -35,6 +35,21 @@ export async function POST(request: NextRequest) {
 
     if (!projectId) {
       return NextResponse.json({ error: "프로젝트 ID가 필요합니다." }, { status: 400 });
+    }
+
+    let project = await getProjectById(projectId);
+    if (!project) {
+      const snapshot = parseProjectSnapshot(formData.get("projectSnapshot"));
+      if (snapshot?.id === projectId) {
+        project = await upsertProjectRecord(snapshot);
+      }
+    }
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "프로젝트를 찾을 수 없습니다. 프로젝트를 다시 등록하거나 페이지를 새로고침해 주세요." },
+        { status: 404 },
+      );
     }
 
     if (evaluationItems.length === 0) {
@@ -94,10 +109,13 @@ export async function POST(request: NextRequest) {
       expertItemScores,
     };
 
-    const updatedProject = await addProjectEvaluationRound(projectId, round, persistedFiles);
-    if (!updatedProject) {
-      return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
-    }
+    const updatedProject =
+      (await addProjectEvaluationRound(projectId, round, persistedFiles)) ??
+      (await upsertProjectRecord({
+        ...project,
+        files: [...project.files, ...persistedFiles],
+        evaluationRounds: [...(project.evaluationRounds ?? []), round],
+      }));
 
     return NextResponse.json({ round, project: updatedProject });
   } catch (error) {
@@ -115,16 +133,33 @@ function toSessionFile(file: { id: string; originalName: string; fileType: strin
   };
 }
 
+function parseProjectSnapshot(value: FormDataEntryValue | null): Project | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+
+  try {
+    const parsed = JSON.parse(value) as Project;
+    return parsed?.id ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function parseEvaluationItems(value: FormDataEntryValue | null): EvaluationItem[] {
   if (typeof value !== "string" || !value.trim()) return [];
 
   try {
     const parsed = JSON.parse(value) as EvaluationItem[];
     return Array.isArray(parsed)
-      ? parsed.filter((item) => item.id && item.detailItem).map((item) => ({
-          ...item,
-          points: Math.max(0, Number(item.points) || 0),
-        }))
+      ? parsed
+          .filter((item) => item.id)
+          .map((item) => ({
+            ...item,
+            majorCategory: String(item.majorCategory ?? "").trim() || "미분류",
+            middleCategory: String(item.middleCategory ?? "").trim() || "미분류",
+            detailItem: String(item.detailItem ?? "").trim() || "평가항목",
+            criteria: String(item.criteria ?? "").trim() || "평가 기준 미입력",
+            points: Math.max(0, Number(item.points) || 0),
+          }))
       : [];
   } catch {
     return [];

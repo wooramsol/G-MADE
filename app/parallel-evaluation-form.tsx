@@ -3,13 +3,13 @@
 import { useMemo, useState } from "react";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
-import type { EvaluationItem, EvaluationRound, ProjectFile } from "@/lib/types";
+import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import UnifiedEvaluationResults from "./unified-evaluation-results";
 import { showToast } from "./toast";
 
 type ParallelEvaluationFormProps = {
-  projectId: string;
+  project: Project;
   savedRounds: EvaluationRound[];
   onRoundSaved?: (round: EvaluationRound, files: ProjectFile[]) => void;
   onRoundsChange?: (rounds: EvaluationRound[]) => void;
@@ -24,7 +24,7 @@ type EvaluationRoundApiResponse = {
 const FILE_ACCEPT = ".pdf,.docx,.xlsx,.xls,.hwp,.pptx,.jpg,.jpeg,.png,.dwg,.zip,.txt,.md";
 
 export default function ParallelEvaluationForm({
-  projectId,
+  project,
   savedRounds,
   onRoundSaved,
   onRoundsChange,
@@ -67,7 +67,8 @@ export default function ParallelEvaluationForm({
     setError("");
 
     const formData = new FormData();
-    formData.append("projectId", projectId);
+    formData.append("projectId", project.id);
+    formData.append("projectSnapshot", JSON.stringify(project));
     formData.append("provider", provider);
     formData.append("aiWeight", String(aiWeight));
     formData.append("expertWeight", String(100 - aiWeight));

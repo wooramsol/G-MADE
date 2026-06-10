@@ -54,13 +54,17 @@ export function getProjectEvaluationRounds(project: Project): EvaluationRound[] 
 export function createEmptyEvaluationItem(index: number): EvaluationItem {
   return {
     id: `item-custom-${Date.now()}-${index}`,
-    majorCategory: "대분류",
-    middleCategory: "중분류",
-    detailItem: "세부 평가항목",
+    majorCategory: "",
+    middleCategory: "",
+    detailItem: "",
     points: 10,
     description: "",
-    criteria: "평가 기준을 입력합니다.",
+    criteria: "",
     lawIds: [],
     guidelineIds: [],
   };
+}
+
+export function isCustomEvaluationItem(item: EvaluationItem): boolean {
+  return item.id.startsWith("item-custom-");
 }

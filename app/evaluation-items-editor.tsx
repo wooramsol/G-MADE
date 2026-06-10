@@ -1,7 +1,7 @@
 "use client";
 
+import { createEmptyEvaluationItem, isCustomEvaluationItem } from "@/lib/evaluation-rounds";
 import type { EvaluationItem } from "@/lib/types";
-import { createEmptyEvaluationItem } from "@/lib/evaluation-rounds";
 
 type ExpertScoreRow = {
   score: number;
@@ -14,6 +14,14 @@ type EvaluationItemsEditorProps = {
   onItemsChange: (items: EvaluationItem[]) => void;
   onExpertScoresChange: (scores: Record<string, ExpertScoreRow>) => void;
 };
+
+const PLACEHOLDERS = {
+  majorCategory: "대분류 입력",
+  middleCategory: "중분류 입력",
+  detailItem: "세부 평가항목 입력",
+  criteria: "평가 기준을 입력합니다.",
+  expertComment: "항목별 평가 의견",
+} as const;
 
 export default function EvaluationItemsEditor({
   items,
@@ -84,84 +92,93 @@ export default function EvaluationItemsEditor({
               <th className="px-3 py-3">중분류</th>
               <th className="px-3 py-3">세부항목</th>
               <th className="w-24 px-3 py-3">배점</th>
-              <th className="px-3 py-3">평가기준</th>
+              <th className="min-w-[220px] px-3 py-3">평가기준</th>
               <th className="w-24 px-3 py-3">전문가점수</th>
               <th className="px-3 py-3">전문가 의견</th>
               <th className="w-16 px-3 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-[#d7dee8] bg-white">
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td className="px-3 py-3">
-                  <input
-                    className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
-                    value={item.majorCategory}
-                    onChange={(event) => updateItem(item.id, { majorCategory: event.target.value })}
-                  />
-                </td>
-                <td className="px-3 py-3">
-                  <input
-                    className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
-                    value={item.middleCategory}
-                    onChange={(event) => updateItem(item.id, { middleCategory: event.target.value })}
-                  />
-                </td>
-                <td className="px-3 py-3">
-                  <input
-                    className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm font-semibold outline-none focus:border-[#2463b3] focus:bg-white"
-                    value={item.detailItem}
-                    onChange={(event) => updateItem(item.id, { detailItem: event.target.value })}
-                  />
-                </td>
-                <td className="px-3 py-3">
-                  <input
-                    className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm font-bold outline-none focus:border-[#2463b3] focus:bg-white"
-                    min="0"
-                    type="number"
-                    value={item.points}
-                    onChange={(event) =>
-                      updateItem(item.id, { points: Math.max(0, Number(event.target.value) || 0) })
-                    }
-                  />
-                </td>
-                <td className="px-3 py-3">
-                  <input
-                    className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
-                    value={item.criteria}
-                    onChange={(event) => updateItem(item.id, { criteria: event.target.value })}
-                  />
-                </td>
-                <td className="px-3 py-3">
-                  <input
-                    className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm font-bold outline-none focus:border-[#15345b] focus:bg-white"
-                    max="100"
-                    min="0"
-                    type="number"
-                    value={expertScores[item.id]?.score ?? 0}
-                    onChange={(event) => updateExpertScore(item.id, "score", event.target.value)}
-                  />
-                </td>
-                <td className="px-3 py-3">
-                  <input
-                    className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none focus:border-[#15345b] focus:bg-white"
-                    placeholder="항목별 의견"
-                    value={expertScores[item.id]?.comment ?? ""}
-                    onChange={(event) => updateExpertScore(item.id, "comment", event.target.value)}
-                  />
-                </td>
-                <td className="px-3 py-3 text-center">
-                  <button
-                    className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    disabled={items.length <= 1}
-                    type="button"
-                    onClick={() => removeItem(item.id)}
-                  >
-                    삭제
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {items.map((item) => {
+              const isNew = isCustomEvaluationItem(item);
+              return (
+                <tr key={item.id}>
+                  <td className="align-top px-3 py-3">
+                    <input
+                      className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"
+                      placeholder={isNew ? PLACEHOLDERS.majorCategory : undefined}
+                      value={item.majorCategory}
+                      onChange={(event) => updateItem(item.id, { majorCategory: event.target.value })}
+                    />
+                  </td>
+                  <td className="align-top px-3 py-3">
+                    <input
+                      className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"
+                      placeholder={isNew ? PLACEHOLDERS.middleCategory : undefined}
+                      value={item.middleCategory}
+                      onChange={(event) => updateItem(item.id, { middleCategory: event.target.value })}
+                    />
+                  </td>
+                  <td className="align-top px-3 py-3">
+                    <input
+                      className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm font-semibold outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"
+                      placeholder={isNew ? PLACEHOLDERS.detailItem : undefined}
+                      value={item.detailItem}
+                      onChange={(event) => updateItem(item.id, { detailItem: event.target.value })}
+                    />
+                  </td>
+                  <td className="align-top px-3 py-3">
+                    <input
+                      className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm font-bold outline-none focus:border-[#2463b3] focus:bg-white"
+                      min="0"
+                      type="number"
+                      value={item.points}
+                      onChange={(event) =>
+                        updateItem(item.id, { points: Math.max(0, Number(event.target.value) || 0) })
+                      }
+                    />
+                  </td>
+                  <td className="align-top px-3 py-3">
+                    <textarea
+                      className="min-h-20 w-full resize-y rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm leading-6 outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"
+                      placeholder={PLACEHOLDERS.criteria}
+                      rows={3}
+                      value={item.criteria}
+                      onChange={(event) => updateItem(item.id, { criteria: event.target.value })}
+                    />
+                  </td>
+                  <td className="align-top px-3 py-3">
+                    <input
+                      className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm font-bold outline-none focus:border-[#15345b] focus:bg-white"
+                      max="100"
+                      min="0"
+                      type="number"
+                      value={expertScores[item.id]?.score ?? 0}
+                      onChange={(event) => updateExpertScore(item.id, "score", event.target.value)}
+                    />
+                  </td>
+                  <td className="align-top px-3 py-3">
+                    <textarea
+                      className="min-h-20 w-full resize-y rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm leading-6 outline-none placeholder:text-[#94a3b8] focus:border-[#15345b] focus:bg-white"
+                      placeholder={PLACEHOLDERS.expertComment}
+                      rows={3}
+                      value={expertScores[item.id]?.comment ?? ""}
+                      onChange={(event) => updateExpertScore(item.id, "comment", event.target.value)}
+                    />
+                  </td>
+                  <td className="align-top px-3 py-3 text-center">
+                    <button
+                      className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={items.length <= 1}
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                    >
+                      삭제
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
