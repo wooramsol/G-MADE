@@ -97,6 +97,39 @@ export default async function MyPage() {
         </div>
       </section>
 
+
+      <section>
+        <Panel title="로그인 히스토리">
+          <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-[#eef4fb] text-[#15345b]">
+                <tr>
+                  <th className="px-4 py-3">IP</th>
+                  <th className="px-4 py-3">로그인 일시</th>
+                  <th className="px-4 py-3">상태</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#d7dee8] bg-white">
+                {[
+                  { ip: "121.134.82.17", loggedAt: "2026-06-10 09:00:00", status: "성공" },
+                  { ip: "121.134.82.17", loggedAt: "2026-06-09 18:32:14", status: "성공" },
+                  { ip: "211.245.63.104", loggedAt: "2026-06-08 08:47:02", status: "성공" },
+                  { ip: "121.134.82.17", loggedAt: "2026-06-07 20:15:39", status: "성공" },
+                ].map((row) => (
+                  <tr key={row.ip + row.loggedAt}>
+                    <td className="px-4 py-4 font-semibold text-[#15345b]">{row.ip}</td>
+                    <td className="px-4 py-4 text-[#475569]">{row.loggedAt}</td>
+                    <td className="px-4 py-4">
+                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{row.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      </section>
+
       <section className="grid items-stretch gap-6 xl:grid-cols-2">
         <Panel title="평가 가중치 기본값">
           <SettingRow label="AI 평가 기본 비율" value="30%" />

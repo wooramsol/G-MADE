@@ -135,8 +135,10 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
   };
 
   useEffect(() => {
-    if (value?.note !== undefined) {
-      setPlannedNote(value.note);
+    const nextNote = value?.note;
+    if (nextNote !== undefined) {
+      const timeout = window.setTimeout(() => setPlannedNote(nextNote), 0);
+      return () => window.clearTimeout(timeout);
     }
   }, [value?.note]);
 

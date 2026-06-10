@@ -1,9 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { caseStudies, guidelines } from "@/lib/demo-data";
-import ReferenceLinkTitle from "@/components/reference-link-title";
-import { buildGuidelineReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
 import { buildHybridViewFromSession } from "@/lib/upload-to-hybrid";
 import type { HybridResult, Project, UploadAnalysisSession } from "@/lib/types";
 import { showToast } from "../../toast";
@@ -25,11 +22,6 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
 
   const [selectedId, setSelectedId] = useState<string | null>(sorted[0]?.id ?? null);
   const [humanScores, setHumanScores] = useState<Record<string, number>>({});
-  const [lawQuery, setLawQuery] = useState("");
-  const [lawResults, setLawResults] = useState<
-    Array<{ title: string; article: string; summary: string; sourceUrl: string }>
-  >([]);
-
   const selectedSession = sorted.find((s) => s.id === selectedId) ?? sorted[0];
   const round = selectedSession
     ? sorted.length - sorted.findIndex((s) => s.id === selectedSession.id)
@@ -72,23 +64,6 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
     }
   }
 
-  async function searchLaws() {
-    if (lawQuery.trim().length < 2) return;
-    try {
-      const res = await fetch(
-        `/api/law/search?q=${encodeURIComponent(lawQuery)}&articles=true`,
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "검색 실패");
-      setLawResults(data.references ?? []);
-    } catch (error) {
-      showToast({
-        message: error instanceof Error ? error.message : "법령 검색 실패",
-        tone: "error",
-      });
-    }
-  }
-
   function exportReport(format: "pdf" | "docx") {
     if (!selectedSession) {
       showToast({ message: "보낼 분석 결과가 없습니다.", tone: "error" });
@@ -105,11 +80,6 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
       </div>
     );
   }
-
-  const referenceLaws =
-    selectedSession.analysis.referenceLaws?.length
-      ? selectedSession.analysis.referenceLaws
-      : lawResults;
 
   return (
     <div className="space-y-8">
@@ -234,66 +204,7 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
         </div>
       </section>
 
-      <section id="laws-and-case-search" className="grid gap-5 xl:grid-cols-3">
-        <Panel title="관련 법령 (실시간)" action={selectedSession.analysis.lawSource ?? "law.go.kr"}>
-          <div className="mb-3 flex gap-2">
-            <input
-              className="w-full rounded-lg border border-[#d7dee8] px-3 py-2 text-sm"
-              placeholder="법령 검색"
-              value={lawQuery}
-              onChange={(e) => setLawQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && searchLaws()}
-            />
-            <button
-              type="button"
-              className="shrink-0 rounded-lg bg-[#eef4fb] px-3 py-2 text-xs font-bold text-[#15345b]"
-              onClick={searchLaws}
-            >
-              검색
-            </button>
-          </div>
-          <div className="space-y-3">
-            {referenceLaws
-              .filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
-              .slice(0, 6)
-              .map((law) => (
-                <ReferenceCard
-                  title={`${law.title} ${law.article}`}
-                  href={buildLawReferenceUrl(law.title, law.sourceUrl)}
-                  body={law.summary}
-                  key={`${law.title}-${law.article}`}
-                />
-              ))}
-          </div>
-        </Panel>
-        <Panel title="관련 지침" action="지침 관리">
-          <div className="space-y-3">
-            {guidelines
-              .filter((guide) => buildGuidelineReferenceUrl(guide) !== null)
-              .slice(0, 5)
-              .map((guide) => (
-                <ReferenceCard
-                  title={guide.title}
-                  href={buildGuidelineReferenceUrl(guide)}
-                  body={guide.summary}
-                  key={guide.id}
-                />
-              ))}
-          </div>
-        </Panel>
-        <Panel title="유사사례 검색" action="사례 추천">
-          <div className="space-y-3">
-            {caseStudies.map((item) => (
-              <ReferenceCard
-                title={item.title}
-                meta={`${item.location} · 유사도 ${item.similarityScore}%`}
-                body={item.keyLearning}
-                key={item.id}
-              />
-            ))}
-          </div>
-        </Panel>
-      </section>
+
     </div>
   );
 }
@@ -401,26 +312,6 @@ function EvaluationTable({
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function ReferenceCard({
-  title,
-  href,
-  meta,
-  body,
-}: {
-  title: string;
-  href?: string | null;
-  meta?: string;
-  body: string;
-}) {
-  return (
-    <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <ReferenceLinkTitle title={title} href={href} />
-      {meta ? <p className="mt-1 text-xs font-semibold text-[#64748b]">{meta}</p> : null}
-      <p className="mt-2 text-sm leading-6 text-[#64748b]">{body}</p>
     </div>
   );
 }

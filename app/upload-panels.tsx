@@ -48,7 +48,8 @@ export function UploadAnalysisResultsPanel({ sessions }: { sessions: UploadAnaly
     if (sortedSessions.length === 0) return;
     const stillExists = sortedSessions.some((session) => session.id === selectedId);
     if (!selectedId || !stillExists) {
-      setSelectedId(sortedSessions[0].id);
+      const timeout = window.setTimeout(() => setSelectedId(sortedSessions[0].id), 0);
+      return () => window.clearTimeout(timeout);
     }
   }, [sortedSessions, selectedId]);
 

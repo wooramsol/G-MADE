@@ -39,7 +39,7 @@ export async function lookupLandscapeZoneByAddress(address: string, point: GeoPo
   const layerFeatures = await querySpatialLayersNearPoint(point);
   const matchedZones = layerFeatures
     .filter((feature) => feature.layerId === "landscape-zone")
-    .map((feature, index) => mapLayerToLandscapeZone(feature, index));
+    .map((feature) => mapLayerToLandscapeZone(feature));
 
   return {
     address,
@@ -57,7 +57,7 @@ export async function lookupLandscapeZoneByAddress(address: string, point: GeoPo
   };
 }
 
-function mapLayerToLandscapeZone(feature: SpatialLayerFeature, index: number): LandscapeZoneFeature {
+function mapLayerToLandscapeZone(feature: SpatialLayerFeature): LandscapeZoneFeature {
   const props = feature.properties;
   return {
     id: feature.id,

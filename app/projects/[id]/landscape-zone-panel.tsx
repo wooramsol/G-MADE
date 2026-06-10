@@ -109,8 +109,11 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
     if (locationPoint || address.trim()) {
       void loadLandscapeZone();
     } else {
-      setLoading(false);
-      setError("사업위치가 없어 공간정보를 조회할 수 없습니다.");
+      const timeout = window.setTimeout(() => {
+        setLoading(false);
+        setError("사업위치가 없어 공간정보를 조회할 수 없습니다.");
+      }, 0);
+      return () => window.clearTimeout(timeout);
     }
 
     return () => {
