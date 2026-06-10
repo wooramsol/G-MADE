@@ -168,6 +168,7 @@ export type Project = {
   updatedAt?: string;
   status: "접수" | "심사 진행중" | "완료";
   files: ProjectFile[];
+  savedEvaluationItems?: EvaluationItem[];
   uploadAnalyses?: UploadAnalysisSession[];
   humanEvaluationSessions?: HumanEvaluationSession[];
   evaluationRounds?: EvaluationRound[];

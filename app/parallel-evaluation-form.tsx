@@ -26,7 +26,11 @@ export default function ParallelEvaluationForm({
   onRoundSaved,
   onRoundsChange,
 }: ParallelEvaluationFormProps) {
-  const [evaluationItems, setEvaluationItems] = useState<EvaluationItem[]>(createDefaultEvaluationItems);
+  const [evaluationItems, setEvaluationItems] = useState<EvaluationItem[]>(() =>
+    project.savedEvaluationItems?.length
+      ? project.savedEvaluationItems.map((item) => ({ ...item }))
+      : createDefaultEvaluationItems(),
+  );
   const [aiFiles, setAiFiles] = useState<File[]>([]);
   const [expertFiles, setExpertFiles] = useState<File[]>([]);
   const [reviewerName, setReviewerName] = useState("");
@@ -106,7 +110,12 @@ export default function ParallelEvaluationForm({
 
   return (
     <div className="space-y-5">
-      <EvaluationItemsEditor items={evaluationItems} onItemsChange={setEvaluationItems} />
+      <EvaluationItemsEditor
+        items={evaluationItems}
+        project={project}
+        onItemsChange={setEvaluationItems}
+        onSaved={setEvaluationItems}
+      />
 
       <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">

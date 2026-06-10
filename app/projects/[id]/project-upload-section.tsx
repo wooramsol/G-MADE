@@ -31,7 +31,13 @@ export default function ProjectUploadSection({
     const timeout = window.setTimeout(() => {
       const localProject = getLocalProjects().find((item) => item.id === project.id);
       const mergedProject = localProject ? { ...project, ...localProject } : project;
-      setActiveProject(mergedProject);
+      setActiveProject({
+        ...mergedProject,
+        savedEvaluationItems:
+          localProject?.savedEvaluationItems ??
+          mergedProject.savedEvaluationItems ??
+          project.savedEvaluationItems,
+      });
       setFiles(mergedProject.files);
       setRounds(getProjectEvaluationRounds(mergedProject));
     }, 0);

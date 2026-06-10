@@ -1,11 +1,16 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { createEmptyEvaluationItem, isCustomEvaluationItem } from "@/lib/evaluation-rounds";
-import type { EvaluationItem } from "@/lib/types";
+import type { EvaluationItem, Project } from "@/lib/types";
+import { getLocalProjects, saveLocalProjectEvaluationItems } from "./projects/local-project-storage";
+import { showToast } from "./toast";
 
 type EvaluationItemsEditorProps = {
+  project: Project;
   items: EvaluationItem[];
   onItemsChange: (items: EvaluationItem[]) => void;
+  onSaved?: (items: EvaluationItem[]) => void;
 };
 
 const PLACEHOLDERS = {
@@ -15,8 +20,33 @@ const PLACEHOLDERS = {
   criteria: "평가 기준을 입력합니다.",
 } as const;
 
-export default function EvaluationItemsEditor({ items, onItemsChange }: EvaluationItemsEditorProps) {
+function serializeItems(items: EvaluationItem[]): string {
+  return JSON.stringify(items);
+}
+
+export default function EvaluationItemsEditor({
+  project,
+  items,
+  onItemsChange,
+  onSaved,
+}: EvaluationItemsEditorProps) {
   const totalPoints = items.reduce((sum, item) => sum + Number(item.points || 0), 0);
+  const [focusItemId, setFocusItemId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState(() =>
+    serializeItems(project.savedEvaluationItems ?? items),
+  );
+
+  const isDirty = useMemo(() => serializeItems(items) !== savedSnapshot, [items, savedSnapshot]);
+
+  useEffect(() => {
+    if (!focusItemId) return;
+
+    const row = document.querySelector<HTMLElement>(`[data-evaluation-item-id="${focusItemId}"]`);
+    const input = row?.querySelector<HTMLInputElement>("input, textarea");
+    input?.focus();
+    setFocusItemId(null);
+  }, [focusItemId, items]);
 
   function updateItem(itemId: string, patch: Partial<EvaluationItem>) {
     onItemsChange(items.map((item) => (item.id === itemId ? { ...item, ...patch } : item)));
@@ -28,7 +58,80 @@ export default function EvaluationItemsEditor({ items, onItemsChange }: Evaluati
   }
 
   function addItem() {
-    onItemsChange([...items, createEmptyEvaluationItem(items.length + 1)]);
+    const newItem = createEmptyEvaluationItem(items.length + 1);
+    onItemsChange([newItem, ...items]);
+    setFocusItemId(newItem.id);
+  }
+
+  async function saveItems() {
+    if (saving || !isDirty) return;
+
+    const validItems = items.filter(
+      (item) =>
+        item.majorCategory.trim() ||
+        item.middleCategory.trim() ||
+        item.detailItem.trim() ||
+        item.criteria.trim(),
+    );
+
+    if (validItems.length === 0) {
+      showToast({ message: "저장할 평가항목 내용을 입력해 주세요.", tone: "error" });
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ savedEvaluationItems: validItems }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        project?: Project;
+      };
+
+      let nextItems = validItems;
+
+      if (response.ok && payload.project?.savedEvaluationItems) {
+        nextItems = payload.project.savedEvaluationItems;
+        saveLocalProjectEvaluationItems(project.id, payload.project, nextItems);
+      } else if (response.status === 404 || response.status === 401) {
+        saveLocalProjectEvaluationItems(project.id, project, validItems);
+      } else if (!response.ok) {
+        throw new Error(payload.error ?? "평가항목 저장에 실패했습니다.");
+      } else {
+        saveLocalProjectEvaluationItems(project.id, project, validItems);
+      }
+
+      onItemsChange(nextItems);
+      setSavedSnapshot(serializeItems(nextItems));
+      onSaved?.(nextItems);
+      showToast({ message: "평가항목이 저장되었습니다.", tone: "success" });
+    } catch (error) {
+      const local = getLocalProjects().find((item) => item.id === project.id);
+      const validItems = items.filter(
+        (item) =>
+          item.majorCategory.trim() ||
+          item.middleCategory.trim() ||
+          item.detailItem.trim() ||
+          item.criteria.trim(),
+      );
+      saveLocalProjectEvaluationItems(project.id, local ?? project, validItems);
+      onItemsChange(validItems);
+      setSavedSnapshot(serializeItems(validItems));
+      onSaved?.(validItems);
+      showToast({
+        message:
+          error instanceof Error
+            ? `${error.message} 브라우저 저장소에 임시 저장했습니다.`
+            : "서버 저장에 실패해 브라우저 저장소에 임시 저장했습니다.",
+        tone: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -41,21 +144,31 @@ export default function EvaluationItemsEditor({ items, onItemsChange }: Evaluati
             있습니다. 현재 총 배점 {totalPoints}점
           </p>
         </div>
-        <button
-          className="rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#15345b] hover:bg-white"
-          type="button"
-          onClick={addItem}
-        >
-          + 항목 추가
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#15345b] hover:bg-white"
+            type="button"
+            onClick={addItem}
+          >
+            + 항목 추가
+          </button>
+          <button
+            className="primary-action rounded-lg px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
+            disabled={saving || !isDirty}
+            type="button"
+            onClick={saveItems}
+          >
+            {saving ? "저장 중..." : "평가항목 저장"}
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-[#d7dee8]">
-        <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-sm">
+        <table className="w-full min-w-[1280px] table-fixed border-collapse text-left text-sm">
           <colgroup>
-            <col className="w-[88px]" />
-            <col className="w-[88px]" />
-            <col className="w-[120px]" />
+            <col className="w-[264px]" />
+            <col className="w-[264px]" />
+            <col className="w-[360px]" />
             <col className="w-[72px]" />
             <col />
             <col className="w-[56px]" />
@@ -74,7 +187,7 @@ export default function EvaluationItemsEditor({ items, onItemsChange }: Evaluati
             {items.map((item) => {
               const isNew = isCustomEvaluationItem(item);
               return (
-                <tr key={item.id}>
+                <tr data-evaluation-item-id={item.id} key={item.id}>
                   <td className="align-top px-3 py-3">
                     <input
                       className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"

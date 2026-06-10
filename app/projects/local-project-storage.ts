@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  EvaluationItem,
   EvaluationRound,
   HumanEvaluationSession,
   Project,
@@ -153,6 +154,21 @@ export function addLocalProjectHumanEvaluation(
     ...project,
     files: mergeProjectFiles(project.files, files),
     humanEvaluationSessions: [...(project.humanEvaluationSessions ?? []), session],
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
+export function saveLocalProjectEvaluationItems(
+  projectId: string,
+  baseProject: Project,
+  savedEvaluationItems: EvaluationItem[],
+): Project {
+  const local = getLocalProjects().find((item) => item.id === projectId);
+  const nextProject = {
+    ...(local ?? baseProject),
+    savedEvaluationItems,
+    updatedAt: new Date().toISOString(),
   };
   saveLocalProject(nextProject);
   return nextProject;

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+import OverflowChipRow from "@/components/overflow-chip-row";
 import type { ProjectLocationPoint } from "@/lib/types";
 
 const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
@@ -168,40 +169,28 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
             <div className="space-y-3">
               {zoneGroups.map((group) => {
                 const expanded = expandedGroups[group.id] ?? false;
-                const visibleItems = expanded ? group.items : group.items.slice(0, 2);
-                const hiddenCount = Math.max(0, group.items.length - visibleItems.length);
 
                 return (
                   <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={group.id}>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-[#15345b]">
-                        {group.label} <span className="text-[#64748b]">({group.items.length}건)</span>
-                      </p>
-                      {group.items.length > 2 ? (
-                        <button
-                          className="text-xs font-bold text-[#2463b3] underline underline-offset-2"
-                          type="button"
-                          onClick={() =>
-                            setExpandedGroups((current) => ({
-                              ...current,
-                              [group.id]: !expanded,
-                            }))
-                          }
-                        >
-                          {expanded ? "접기" : `외 ${hiddenCount}건 더보기`}
-                        </button>
-                      ) : null}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {visibleItems.map((item) => (
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${LAYER_CHIP_COLORS[group.id] ?? "bg-[#eef4fb] text-[#15345b]"}`}
-                          key={`${group.id}-${item.key}`}
-                          title={item.detail ?? item.name}
-                        >
-                          {item.name}
-                        </span>
-                      ))}
+                    <p className="text-sm font-bold text-[#15345b]">
+                      {group.label} <span className="text-[#64748b]">({group.items.length}건)</span>
+                    </p>
+                    <div className="mt-3">
+                      <OverflowChipRow
+                        chipClassName={LAYER_CHIP_COLORS[group.id] ?? "bg-[#eef4fb] text-[#15345b]"}
+                        expanded={expanded}
+                        items={group.items.map((item) => ({
+                          key: item.key,
+                          name: item.name,
+                          title: item.detail ?? item.name,
+                        }))}
+                        onToggleExpand={() =>
+                          setExpandedGroups((current) => ({
+                            ...current,
+                            [group.id]: !expanded,
+                          }))
+                        }
+                      />
                     </div>
                   </div>
                 );

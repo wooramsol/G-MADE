@@ -38,6 +38,7 @@ export async function getAllProjects(): Promise<Project[]> {
           humanEvaluationSessions:
             stored.humanEvaluationSessions ?? project.humanEvaluationSessions ?? [],
           evaluationRounds: stored.evaluationRounds ?? project.evaluationRounds ?? [],
+          savedEvaluationItems: stored.savedEvaluationItems ?? project.savedEvaluationItems,
         }
       : project;
   });
@@ -90,7 +91,22 @@ export async function addProjectUploadAnalysis(
 
 export async function updateProject(
   id: string,
-  patch: Partial<Pick<Project, "name" | "location" | "locationPoint" | "client" | "designer" | "projectType" | "scale" | "reviewType" | "receivedAt" | "status">>,
+  patch: Partial<
+    Pick<
+      Project,
+      | "name"
+      | "location"
+      | "locationPoint"
+      | "client"
+      | "designer"
+      | "projectType"
+      | "scale"
+      | "reviewType"
+      | "receivedAt"
+      | "status"
+      | "savedEvaluationItems"
+    >
+  >,
 ): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => ({
     ...project,
@@ -146,6 +162,7 @@ export async function upsertProjectRecord(project: Project): Promise<Project> {
     uploadAnalyses: project.uploadAnalyses ?? base.uploadAnalyses ?? [],
     humanEvaluationSessions: project.humanEvaluationSessions ?? base.humanEvaluationSessions ?? [],
     evaluationRounds: project.evaluationRounds ?? base.evaluationRounds ?? [],
+    savedEvaluationItems: project.savedEvaluationItems ?? base.savedEvaluationItems,
     updatedAt: new Date().toISOString(),
   };
 
