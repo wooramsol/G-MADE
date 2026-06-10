@@ -123,7 +123,6 @@ export default function ProjectEvaluationWorkspace({
       <section>
         {showHeader ? (
           <SectionTitle
-            eyebrow="Hybrid Evaluation"
             title="통합 평가 결과"
             description="AI·전문가 자료를 함께 분석한 차수별 통합 결과와 종합 점수입니다."
           />
@@ -287,7 +286,7 @@ export default function ProjectEvaluationWorkspace({
       </section>
 
       <section id="explainable-ai">
-        <SectionTitle eyebrow="Explainable AI" title="AI 평가 근거" description="선택 차수의 AI 분석 근거입니다." />
+        <SectionTitle title="AI 평가 근거" description="선택 차수의 AI 분석 근거입니다." />
         <div className="mt-5 grid gap-5 xl:grid-cols-2">
           {hybridView.results.slice(0, 4).map((result) => (
             <Panel
@@ -311,7 +310,6 @@ export default function ProjectEvaluationWorkspace({
 
       <section id="ai-document-analysis">
         <SectionTitle
-          eyebrow="Document Analysis"
           title="AI 문서 섹션 추출"
           description={`${selectedRound.roundNumber}차 AI 자료 분석 결과`}
         />
@@ -331,11 +329,10 @@ export default function ProjectEvaluationWorkspace({
   );
 }
 
-function SectionTitle({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
+function SectionTitle({ title, description }: { title: string; description: string }) {
   return (
     <div>
-      <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#2463b3]">{eyebrow}</p>
-      <h2 className="mt-2 text-2xl font-bold text-[#15345b]">{title}</h2>
+      <h2 className="text-2xl font-bold text-[#15345b]">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-[#64748b]">{description}</p>
     </div>
   );

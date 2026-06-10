@@ -36,8 +36,7 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
     <>
       <section className="space-y-5">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#2463b3]">Dashboard</p>
-          <h2 className="mt-2 text-2xl font-bold text-[#15345b]">전체 프로젝트 대시보드</h2>
+          <h2 className="text-2xl font-bold text-[#15345b]">전체 프로젝트 대시보드</h2>
           <p className="mt-2 text-sm leading-6 text-[#64748b]">
             프로젝트 관리에 등록된 심의 프로젝트의 평가대기·평가 진행 현황을 한 화면에서 확인합니다.
           </p>

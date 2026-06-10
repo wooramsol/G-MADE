@@ -18,8 +18,7 @@ export default async function ProjectManagementPage({
       <div className="mx-auto max-w-[1500px] space-y-6 px-6 py-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#2463b3]">Project Management</p>
-            <h3 className="mt-2 text-2xl font-bold text-[#15345b]">심의 프로젝트 목록</h3>
+            <h3 className="text-2xl font-bold text-[#15345b]">심의 프로젝트 목록</h3>
             <p className="mt-2 text-sm leading-6 text-[#64748b]">
               프로젝트를 선택하면 평가항목·배점 설정, AI·전문가 자료 업로드, 하이브리드 평가 분석과 통합 평가 결과
               확인을 한 화면에서 진행할 수 있습니다.

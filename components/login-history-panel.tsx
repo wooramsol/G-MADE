@@ -29,7 +29,7 @@ export default function LoginHistoryPanel({ entries }: LoginHistoryPanelProps) {
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-[#eef4fb] text-[#15345b]">
             <tr>
-              <th className="px-4 py-3">IP</th>
+              <th className="px-4 py-3">접속 IP</th>
               <th className="px-4 py-3">로그인 일시</th>
               <th className="px-4 py-3">상태</th>
             </tr>

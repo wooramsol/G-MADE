@@ -14,7 +14,7 @@ export default function SiteFooter() {
         </nav>
       </div>
       <div className="mx-auto mt-4 flex max-w-[1500px] flex-col gap-2 border-t border-[#d7dee8] pt-4 lg:flex-row lg:items-center lg:justify-between">
-        <p>Copyright © 2026 G-MADE HIVE. All rights reserved.</p>
+        <p>© 2026 G-MADE HIVE. 무단 복제·배포를 금합니다.</p>
         <p className="font-semibold text-[#475569]">대한민국</p>
       </div>
     </footer>

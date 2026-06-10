@@ -18,7 +18,6 @@ export default async function MyPage() {
 
   return (
     <SaasPageShell
-      eyebrow="Account"
       title="내 정보"
       description="로그인된 내부 사용자의 계정 정보와 서비스 설정을 확인합니다."
     >
@@ -46,7 +45,7 @@ export default async function MyPage() {
         <div className="h-full rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
           <h3 className="text-xl font-bold text-[#15345b]">내부 테스트 안내</h3>
           <p className="mt-3 text-sm leading-6 text-[#64748b]">
-            현재는 내부 MVP 단계로, 로그인한 모든 사용자가 동일한 프로젝트 목록과 대시보드를 공유합니다. 이메일
+            현재는 내부 시범 운영 단계로, 로그인한 모든 사용자가 동일한 프로젝트 목록과 대시보드를 공유합니다. 이메일
             인증이나 비밀번호 재설정 메일은 발송되지 않습니다.
           </p>
           <div className="mt-6 space-y-3">

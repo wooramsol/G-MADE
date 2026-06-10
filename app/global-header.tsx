@@ -24,8 +24,8 @@ export default async function GlobalHeader() {
               />
             </div>
             <div>
-              <p className="text-xs font-semibold text-blue-100">AI-전문가 사전심의 시스템</p>
-              <h1 className="text-lg font-black text-white">AI-Human Hybrid Evaluation System</h1>
+              <p className="text-xs font-semibold text-blue-100">경관·공공디자인 사전심의 지원</p>
+              <h1 className="text-lg font-black text-white">AI·전문가 하이브리드 평가 시스템</h1>
             </div>
           </Link>
           {user ? (
