@@ -105,9 +105,9 @@ npm run dev
 
 ### DB 테이블 (Prisma)
 
-Vercel에 `DATABASE_URL`이 설정되어 있으면 **배포(Redeploy)할 때** `prisma db push`가 자동 실행되어 테이블이 맞춰집니다. 로컬 터미널에서 따로 실행할 필요 없습니다.
+Vercel **Environment Variables**에 `DATABASE_URL`이 있고, 해당 환경(Production/Preview)에 체크되어 있으면 **배포(Redeploy) 시** `prisma db push`가 자동 실행됩니다. `DATABASE_URL`이 없는 Preview 빌드는 DB 단계를 건너뜁니다.
 
-로컬에서만 수동으로 맞추려면 프로젝트 폴더에서 `.env`에 `DATABASE_URL`을 넣은 뒤 `npx prisma db push`를 실행합니다.
+로컬에서 수동으로 맞추려면 프로젝트 폴더에서 `.env`에 `DATABASE_URL`을 넣은 뒤 `npx prisma db push`를 실행합니다.
 
 ### 가비아 DNS 설정
 
