@@ -155,17 +155,10 @@ export default function ProjectEvaluationWorkspace({
           />
         ) : null}
 
-        <div className={`flex flex-wrap items-center justify-between gap-3 ${showHeader ? "mt-5" : ""}`}>
+        <div className={`flex flex-wrap items-center gap-3 ${showHeader ? "mt-5" : ""}`}>
           <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
             총 {sorted.length}차
           </span>
-          <button
-            type="button"
-            className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
-            onClick={() => requestDeleteRound(selectedRound.id)}
-          >
-            이 차수 삭제
-          </button>
         </div>
 
         <ConfirmDialog
@@ -190,24 +183,41 @@ export default function ProjectEvaluationWorkspace({
             {sorted.map((round) => {
               const active = round.id === selectedRound.id;
               return (
-                <button
+                <div
                   key={round.id}
-                  type="button"
-                  className={`rounded-lg px-3 py-2 text-left transition sm:min-w-[160px] ${
+                  className={`relative rounded-lg sm:min-w-[160px] ${
                     active
-                      ? "bg-[#eef4fb] text-[#15345b] shadow-sm ring-1 ring-[#2463b3]/25"
-                      : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#15345b]"
+                      ? "bg-[#eef4fb] shadow-sm ring-1 ring-[#2463b3]/25"
+                      : "hover:bg-[#f8fafc]"
                   }`}
-                  onClick={() => setSelectedId(round.id)}
                 >
-                  <span className="block text-sm font-bold">{round.roundNumber}차 평가</span>
-                  <span className="mt-0.5 block text-[11px] text-[#64748b]">
-                    {formatUploadDateTime(round.evaluatedAt)}
-                  </span>
-                  <span className="mt-1 block text-[11px] text-[#64748b]">
-                    AI {round.aiFiles.length} · 전문가 {round.expertFiles.length}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    aria-label={`${round.roundNumber}차 평가 삭제`}
+                    className="absolute right-1 top-1 z-10 rounded p-0.5 text-[10px] font-bold leading-none text-red-500 hover:bg-red-50 hover:text-red-700"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      requestDeleteRound(round.id);
+                    }}
+                  >
+                    ✕
+                  </button>
+                  <button
+                    type="button"
+                    className={`w-full rounded-lg px-3 py-2 pr-6 text-left transition ${
+                      active ? "text-[#15345b]" : "text-[#64748b] hover:text-[#15345b]"
+                    }`}
+                    onClick={() => setSelectedId(round.id)}
+                  >
+                    <span className="block text-sm font-bold">{round.roundNumber}차 평가</span>
+                    <span className="mt-0.5 block text-[11px] text-[#64748b]">
+                      {formatUploadDateTime(round.evaluatedAt)}
+                    </span>
+                    <span className="mt-1 block text-[11px] text-[#64748b]">
+                      AI {round.aiFiles.length} · 전문가 {round.expertFiles.length}
+                    </span>
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -261,6 +271,7 @@ export default function ProjectEvaluationWorkspace({
               <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
               <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
             </div>
+            <p className="mb-3 text-xs font-bold text-[#64748b]">평가항목 총 {hybridView.results.length}개</p>
             <EvaluationTable results={hybridView.results} reviewerName={selectedRound.reviewerName} />
           </div>
 
@@ -433,15 +444,17 @@ function EvaluationTable({
     <div className="overflow-auto rounded-xl border border-[#d7dee8]">
       <table className="w-full min-w-[920px] table-fixed border-collapse text-left text-sm">
         <colgroup>
-          <col className="w-[14%]" />
+          <col className="w-[40px]" />
+          <col className="w-[13%]" />
           <col className="w-[6%]" />
           <col className="w-[9%]" />
           <col className="w-[9%]" />
           <col className="w-[8%]" />
-          <col className="w-[54%]" />
+          <col className="w-[52%]" />
         </colgroup>
         <thead className="bg-[#eef4fb] text-[#15345b]">
           <tr>
+            <th className="px-2 py-2.5 text-center">#</th>
             <th className="px-3 py-2.5">평가항목</th>
             <th className="px-3 py-2.5 text-center">배점</th>
             <th className="px-3 py-2.5 text-center">AI 점수</th>
@@ -451,8 +464,11 @@ function EvaluationTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-[#d7dee8] bg-white">
-          {results.map((result) => (
+          {results.map((result, index) => (
             <tr key={result.item.id}>
+              <td className="px-2 py-2.5 align-top text-center text-xs font-bold text-[#64748b]">
+                {index + 1}
+              </td>
               <td className="px-3 py-2.5 align-top">
                 <p className="line-clamp-2 text-sm font-bold leading-5 text-[#15345b]" title={result.item.detailItem}>
                   {result.item.detailItem}

@@ -6,6 +6,7 @@ import { interactiveCardClassName } from "@/components/interactive-card";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
+import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
 
@@ -109,6 +110,8 @@ export default function ParallelEvaluationForm({
 
   return (
     <div className="space-y-5">
+      {loading ? <AnalysisBlockingOverlay /> : null}
+
       <EvaluationItemsEditor
         items={evaluationItems}
         project={project}

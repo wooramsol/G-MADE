@@ -144,7 +144,7 @@ export default function EvaluationItemsEditor({
           <p className="font-bold text-[#15345b]">공통 평가항목 · 배점</p>
           <p className="mt-1 text-sm text-[#64748b]">
             AI와 전문가가 동일한 평가항목과 배점을 기준으로 평가합니다. 심사마다 항목을 추가·삭제할 수
-            있습니다. 현재 총 배점 {totalPoints}점
+            있습니다. 총 {items.length}개 항목 · 배점 {totalPoints}점
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -169,6 +169,7 @@ export default function EvaluationItemsEditor({
       <div className="mt-4 overflow-x-auto rounded-xl border border-[#d7dee8]">
         <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-sm">
           <colgroup>
+            <col className="w-[44px]" />
             <col className={CATEGORY_COL_WIDTH} />
             <col className={CATEGORY_COL_WIDTH} />
             <col className={CATEGORY_COL_WIDTH} />
@@ -178,6 +179,7 @@ export default function EvaluationItemsEditor({
           </colgroup>
           <thead className="bg-[#eef4fb] text-[#15345b]">
             <tr>
+              <th className="px-2 py-3 text-center">#</th>
               <th className="px-3 py-3">대분류</th>
               <th className="px-3 py-3">중분류</th>
               <th className="px-3 py-3">세부항목</th>
@@ -187,10 +189,13 @@ export default function EvaluationItemsEditor({
             </tr>
           </thead>
           <tbody className="divide-y divide-[#d7dee8] bg-white">
-            {items.map((item) => {
+            {items.map((item, index) => {
               const isNew = isCustomEvaluationItem(item);
               return (
                 <tr data-evaluation-item-id={item.id} key={item.id}>
+                  <td className="align-top px-2 py-3 text-center text-xs font-bold text-[#64748b]">
+                    {index + 1}
+                  </td>
                   <td className="align-top px-3 py-3">
                     <input
                       className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"
