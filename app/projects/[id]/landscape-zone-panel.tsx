@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import OverflowChipRow from "@/components/overflow-chip-row";
+import { SubsectionTitle } from "@/components/typography";
 import type { ProjectLocationPoint } from "@/lib/types";
 
 const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
@@ -128,7 +129,7 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-bold text-[#15345b]">공간정보 (브이월드)</h3>
+          <SubsectionTitle>공간정보 (브이월드)</SubsectionTitle>
         </div>
         <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
           경관지구·용도지역·문화재

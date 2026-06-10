@@ -7,6 +7,7 @@ import type { AiProviderPreference } from "@/lib/ai/types";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
+import { FieldLabel, MutedText, StepTitle } from "@/components/typography";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
 
@@ -131,10 +132,10 @@ export default function ParallelEvaluationForm({
 
       <div className={`rounded-xl border border-[#d7dee8] bg-white p-4 ${interactiveCardClassName}`}>
         <div>
-          <p className="font-bold text-[#15345b]">2. 평가 가중치</p>
-          <p className="mt-1 text-sm text-[#64748b]">
+          <StepTitle>2. 평가 가중치</StepTitle>
+          <MutedText className="mt-1">
             슬라이더를 움직여 AI(왼쪽)와 전문가(오른쪽) 평가 비율을 조정합니다.
-          </p>
+          </MutedText>
         </div>
         <EvaluationWeightSlider aiWeight={aiWeight} onChange={setAiWeight} />
       </div>
@@ -149,7 +150,7 @@ export default function ParallelEvaluationForm({
           onFilesChange={setAiFiles}
         >
           <label className="block text-sm">
-            <span className="mb-2 block text-xs font-bold text-[#64748b]">AI 엔진</span>
+            <FieldLabel className="mb-2 block">AI 엔진</FieldLabel>
             <select
               className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white"
               value={provider}
@@ -171,7 +172,7 @@ export default function ParallelEvaluationForm({
           onFilesChange={setExpertFiles}
         >
           <label className="block text-sm">
-            <span className="mb-2 block text-xs font-bold text-[#64748b]">평가자 / 심사위원</span>
+            <FieldLabel className="mb-2 block">평가자 / 심사위원</FieldLabel>
             <input
               className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#15345b] focus:bg-white"
               placeholder="예: 홍길동 위원"
@@ -186,10 +187,10 @@ export default function ParallelEvaluationForm({
         className={`rounded-2xl border-2 border-[#2463b3]/35 bg-gradient-to-b from-[#eef4fb] to-white p-6 shadow-sm ring-1 ring-[#2463b3]/10 ${interactiveCardClassName}`}
       >
         <div className="text-center">
-          <p className="text-lg font-black text-[#15345b]">5. 하이브리드 평가 분석</p>
-          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#64748b]">
+          <StepTitle>5. 하이브리드 평가 분석</StepTitle>
+          <MutedText className="mx-auto mt-2 max-w-lg">
             AI·전문가 양쪽 자료와 공통 평가항목을 바탕으로 한 번에 분석합니다.
-          </p>
+          </MutedText>
           <button
             className="primary-action mt-5 rounded-xl px-8 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
             disabled={loading}
@@ -232,7 +233,7 @@ function MaterialColumn({
       className={`flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4 ${interactiveCardClassName}`}
     >
       <div className={`rounded-xl px-4 py-3 ${headerClass}`}>
-        <p className="font-bold">{title}</p>
+        <StepTitle>{title}</StepTitle>
         <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
       </div>
 

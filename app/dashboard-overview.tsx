@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/typography";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import {
   buildDashboardStats,
@@ -36,10 +37,10 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
     <>
       <section className="space-y-5">
         <div>
-          <h2 className="text-2xl font-bold text-[#15345b]">전체 프로젝트 대시보드</h2>
-          <p className="mt-2 text-sm leading-6 text-[#64748b]">
+          <SectionTitle>전체 프로젝트 대시보드</SectionTitle>
+          <SectionDescription>
             프로젝트 관리에 등록된 심의 프로젝트의 평가대기·평가 진행 현황을 한 화면에서 확인합니다.
-          </p>
+          </SectionDescription>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="평가대기 중" value={stats.waiting.toString()} delta="프로젝트 관리 기준" />
@@ -121,7 +122,7 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
   return (
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-5 flex items-center justify-between gap-4">
-        <h3 className="text-lg font-bold text-[#15345b]">{title}</h3>
+        <SubsectionTitle>{title}</SubsectionTitle>
         {action ? (
           action === "프로젝트 관리" ? (
             <Link className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]" href="/projects">

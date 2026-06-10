@@ -1,3 +1,4 @@
+import { Eyebrow, PageTitle, SubsectionTitle } from "@/components/typography";
 import { getProjectById, isCreatedProjectId } from "@/lib/project-store";
 import DeleteProjectButton from "../delete-project-button";
 import ProjectUploadSection from "./project-upload-section";
@@ -22,8 +23,8 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
         <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]">사업명</p>
-              <h2 className="mt-2 text-2xl font-bold text-[#15345b]">{project.name}</h2>
+              <Eyebrow>사업명</Eyebrow>
+              <PageTitle className="mt-2">{project.name}</PageTitle>
             </div>
             {canDelete ? <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" /> : null}
           </div>
@@ -59,7 +60,7 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
   return (
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-5 flex items-center justify-between gap-4">
-        <h3 className="text-lg font-bold text-[#15345b]">{title}</h3>
+        <SubsectionTitle>{title}</SubsectionTitle>
         {action ? <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{action}</span> : null}
       </div>
       {children}
@@ -70,7 +71,7 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]">{label}</p>
+      <Eyebrow>{label}</Eyebrow>
       <p className="mt-2 font-semibold leading-6 text-[#172033]">{value}</p>
     </div>
   );

@@ -1,5 +1,7 @@
 "use client";
 
+import { MutedText, SubsectionTitle } from "@/components/typography";
+
 type ConfirmDialogProps = {
   open: boolean;
   title?: string;
@@ -35,10 +37,8 @@ export default function ConfirmDialog({
         role="dialog"
         onClick={(event) => event.stopPropagation()}
       >
-        <h3 className="text-lg font-bold text-[#15345b]" id="confirm-dialog-title">
-          {title}
-        </h3>
-        {description ? <p className="mt-2 text-sm leading-6 text-[#64748b]">{description}</p> : null}
+        <SubsectionTitle id="confirm-dialog-title">{title}</SubsectionTitle>
+        {description ? <MutedText className="mt-2">{description}</MutedText> : null}
         <div className="mt-6 flex justify-end gap-2">
           <button
             className="rounded-lg border border-[#d7dee8] bg-white px-4 py-2 text-sm font-bold text-[#475569] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-60"

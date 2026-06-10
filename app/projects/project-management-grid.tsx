@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { CardTitle, Eyebrow } from "@/components/typography";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { getProjectEvaluationStatus } from "@/lib/project-evaluation-status";
 import { sortProjectsByUpdatedAt } from "@/lib/project-sort";
@@ -69,8 +70,8 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
           <Link href={`/projects/${project.id}`} className="flex h-full flex-col">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2463b3]">{project.reviewType}</p>
-                <h4 className="mt-3 text-lg font-bold leading-7 text-[#15345b]">{project.name}</h4>
+                <Eyebrow className="text-[#2463b3] tracking-[0.16em]">{project.reviewType}</Eyebrow>
+                <CardTitle className="mt-3">{project.name}</CardTitle>
               </div>
               <EvaluationStatusBadge project={project} />
             </div>

@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import IntegrationStatusPanel from "@/components/integration-status-panel";
+import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/typography";
 import LoginHistoryPanel from "@/components/login-history-panel";
 import { getIntegrationStatuses } from "@/lib/integrations/status";
 import { getLoginHistoryForEmail } from "@/lib/login-history";
@@ -43,8 +44,8 @@ export default async function MyPage() {
         </div>
 
         <div className="h-full rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
-          <h3 className="text-xl font-bold text-[#15345b]">내부 테스트 안내</h3>
-          <p className="mt-3 text-sm leading-6 text-[#64748b]">
+          <SubsectionTitle>내부 테스트 안내</SubsectionTitle>
+          <p className="type-body-muted mt-3">
             현재는 내부 시범 운영 단계로, 로그인한 모든 사용자가 동일한 프로젝트 목록과 대시보드를 공유합니다. 이메일
             인증이나 비밀번호 재설정 메일은 발송되지 않습니다.
           </p>
@@ -67,11 +68,11 @@ export default async function MyPage() {
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#15345b]">API 연동 상태</h2>
-          <p className="mt-2 text-sm leading-6 text-[#64748b]">
+          <SectionTitle>API 연동 상태</SectionTitle>
+          <SectionDescription>
             운영 서버 환경 변수 기준으로 AI, 법령, 공간정보, 데이터베이스 연동 여부를 표시합니다. 키 값 전체는
             노출하지 않습니다.
-          </p>
+          </SectionDescription>
         </div>
 
         <div className="grid items-stretch gap-4 xl:grid-cols-2">
@@ -122,7 +123,7 @@ function Info({ label, value }: { label: string; value: string }) {
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
-      <h3 className="text-xl font-bold text-[#15345b]">{title}</h3>
+      <SubsectionTitle>{title}</SubsectionTitle>
       <div className="mt-5 flex flex-1 flex-col gap-3">{children}</div>
     </div>
   );

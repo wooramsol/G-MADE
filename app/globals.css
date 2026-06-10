@@ -52,3 +52,49 @@ textarea {
     color: #ffffff !important;
   }
 }
+
+@layer components {
+  .type-page-title {
+    @apply text-2xl font-bold leading-8 text-[#15345b];
+  }
+
+  .type-section-title {
+    @apply text-2xl font-bold leading-8 text-[#15345b];
+  }
+
+  .type-subsection-title {
+    @apply text-lg font-bold leading-7 text-[#15345b];
+  }
+
+  .type-card-title {
+    @apply text-lg font-bold leading-7 text-[#15345b];
+  }
+
+  .type-step-title {
+    @apply text-lg font-bold leading-7 text-[#15345b];
+  }
+
+  .type-brand-title {
+    @apply text-lg font-black leading-7 text-white;
+  }
+
+  .type-eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.12em] text-[#64748b];
+  }
+
+  .type-body {
+    @apply text-sm leading-6 text-[#475569];
+  }
+
+  .type-body-muted {
+    @apply text-sm leading-6 text-[#64748b];
+  }
+
+  .type-caption {
+    @apply text-xs leading-5 text-[#64748b];
+  }
+
+  .type-label {
+    @apply text-xs font-bold text-[#64748b];
+  }
+}

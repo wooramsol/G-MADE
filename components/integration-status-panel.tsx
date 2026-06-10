@@ -1,3 +1,4 @@
+import { MutedText, SubsectionTitle } from "@/components/typography";
 import type { IntegrationGroup, IntegrationRow, IntegrationTone } from "@/lib/integrations/status";
 import { formatKoreaCheckedAt } from "@/lib/format-datetime";
 
@@ -19,8 +20,8 @@ export default function IntegrationStatusPanel({ group, checkedAt }: Integration
     <div className="flex h-full min-h-[148px] flex-col rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-lg font-bold text-[#15345b]">{group.title}</h3>
-          <p className="mt-1 line-clamp-2 text-sm leading-5 text-[#64748b]">{group.description}</p>
+          <SubsectionTitle>{group.title}</SubsectionTitle>
+          <MutedText className="mt-1 line-clamp-2">{group.description}</MutedText>
         </div>
         <span className="shrink-0 rounded-full bg-[#f8fafc] px-3 py-1 text-xs font-bold text-[#475569]">
           {activeCount}/{group.rows.length} 연동

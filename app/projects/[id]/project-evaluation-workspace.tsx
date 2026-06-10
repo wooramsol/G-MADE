@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
+import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/typography";
 import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
@@ -150,7 +151,7 @@ export default function ProjectEvaluationWorkspace({
     <div className="space-y-8">
       <section>
         {showHeader ? (
-          <SectionTitle
+          <WorkspaceSectionHeading
             title="통합 평가 결과"
             description="AI·전문가 자료를 함께 분석한 차수별 통합 결과와 종합 점수입니다."
           />
@@ -263,9 +264,9 @@ export default function ProjectEvaluationWorkspace({
 
           <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-              <h3 className="text-lg font-bold text-[#15345b]">
+              <SubsectionTitle>
                 종합 점수 {hybridView.projectScore} / {selectedRound.totalPoints}점
-              </h3>
+              </SubsectionTitle>
               <EvaluationGradeLegend />
             </div>
             <div className="mb-5 grid gap-4 sm:grid-cols-2">
@@ -335,7 +336,7 @@ export default function ProjectEvaluationWorkspace({
       </section>
 
       <section id="explainable-ai">
-        <SectionTitle title="AI 평가 근거" description="선택 차수의 AI 분석 근거입니다." />
+        <WorkspaceSectionHeading title="AI 평가 근거" description="선택 차수의 AI 분석 근거입니다." />
         <div className="mt-5 grid gap-5 xl:grid-cols-2">
           {hybridView.results.slice(0, 4).map((result) => (
             <Panel
@@ -358,7 +359,7 @@ export default function ProjectEvaluationWorkspace({
       </section>
 
       <section id="ai-document-analysis">
-        <SectionTitle
+        <WorkspaceSectionHeading
           title="AI 문서 섹션 추출"
           description={`${selectedRound.roundNumber}차 AI 자료 분석 결과`}
         />
@@ -391,11 +392,11 @@ function AnalysisWarningText({ warning }: { warning: string }) {
   );
 }
 
-function SectionTitle({ title, description }: { title: string; description: string }) {
+function WorkspaceSectionHeading({ title, description }: { title: string; description: string }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-[#15345b]">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-[#64748b]">{description}</p>
+      <SectionTitle>{title}</SectionTitle>
+      <SectionDescription>{description}</SectionDescription>
     </div>
   );
 }
@@ -412,7 +413,7 @@ function Panel({
   return (
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-        <h3 className="text-lg font-bold text-[#15345b]">{title}</h3>
+        <SubsectionTitle>{title}</SubsectionTitle>
         {action}
       </div>
       {children}

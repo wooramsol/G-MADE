@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
+import { Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
 import type { Project } from "@/lib/types";
 import {
   deleteLocalProject,
@@ -38,8 +39,8 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
     return (
       <main className="min-h-screen bg-[#f4f7fb] px-6 py-8 text-[#172033]">
         <div className="mx-auto max-w-[1500px] rounded-2xl border border-[#d7dee8] bg-white p-8 panel-shadow">
-          <h2 className="text-2xl font-bold text-[#15345b]">프로젝트를 찾을 수 없습니다.</h2>
-          <p className="mt-2 text-sm text-[#64748b]">브라우저 저장소 또는 서버 저장소에 해당 프로젝트가 없습니다.</p>
+          <PageTitle>프로젝트를 찾을 수 없습니다.</PageTitle>
+          <MutedText className="mt-2">브라우저 저장소 또는 서버 저장소에 해당 프로젝트가 없습니다.</MutedText>
           <Link className="primary-action-blue mt-5 inline-flex rounded-lg px-4 py-2 text-sm font-bold" href="/projects">
             프로젝트 관리로 이동
           </Link>
@@ -54,8 +55,8 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
         <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]">사업명</p>
-              <h2 className="mt-2 text-2xl font-bold text-[#15345b]">{project.name}</h2>
+              <Eyebrow>사업명</Eyebrow>
+              <PageTitle className="mt-2">{project.name}</PageTitle>
             </div>
             <button
               className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100"
@@ -118,7 +119,7 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
   return (
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-5 flex items-center justify-between gap-4">
-        <h3 className="text-lg font-bold text-[#15345b]">{title}</h3>
+        <SubsectionTitle>{title}</SubsectionTitle>
         {action ? <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">{action}</span> : null}
       </div>
       {children}
@@ -129,7 +130,7 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]">{label}</p>
+      <Eyebrow>{label}</Eyebrow>
       <p className="mt-2 font-semibold leading-6 text-[#172033]">{value}</p>
     </div>
   );

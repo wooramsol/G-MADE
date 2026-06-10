@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SectionDescription, SectionTitle } from "@/components/typography";
 
 export function WorkspaceSectionTitle({
   title,
@@ -9,8 +10,8 @@ export function WorkspaceSectionTitle({
 }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-[#15345b]">{title}</h2>
-      {description ? <p className="mt-2 text-sm leading-6 text-[#64748b]">{description}</p> : null}
+      <SectionTitle>{title}</SectionTitle>
+      {description ? <SectionDescription>{description}</SectionDescription> : null}
     </div>
   );
 }

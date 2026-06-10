@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { BrandTitle } from "@/components/typography";
 import { auth } from "@/auth";
 import { getRoleLabel } from "@/lib/role-labels";
 import TopNavigation from "./top-navigation";
@@ -25,7 +26,7 @@ export default async function GlobalHeader() {
             </div>
             <div>
               <p className="text-xs font-semibold text-blue-100">경관·공공디자인 사전심의 지원</p>
-              <h1 className="text-lg font-black text-white">AI·전문가 하이브리드 평가 시스템</h1>
+              <BrandTitle>AI·전문가 하이브리드 평가 시스템</BrandTitle>
             </div>
           </Link>
           {user ? (
