@@ -43,18 +43,20 @@ export default function ProjectEvaluationWorkspace({
   const hybridView = selectedRound ? buildHybridViewFromRound(selectedRound, selectedRound.roundNumber) : null;
 
   const aiAvg =
-    selectedRound && selectedRound.aiAnalysis.evaluationPreview.length > 0
+    hybridView && hybridView.results.length > 0
       ? Math.round(
-          selectedRound.aiAnalysis.evaluationPreview.reduce((sum, row) => sum + row.score, 0) /
-            selectedRound.aiAnalysis.evaluationPreview.length,
-        )
+          (hybridView.results.reduce((sum, row) => sum + row.aiEvaluation.score, 0) /
+            hybridView.results.length) *
+            10,
+        ) / 10
       : null;
   const expertAvg =
-    selectedRound && selectedRound.expertItemScores.length > 0
+    hybridView && hybridView.results.length > 0
       ? Math.round(
-          selectedRound.expertItemScores.reduce((sum, row) => sum + row.score, 0) /
-            selectedRound.expertItemScores.length,
-        )
+          (hybridView.results.reduce((sum, row) => sum + row.humanEvaluation.score, 0) /
+            hybridView.results.length) *
+            10,
+        ) / 10
       : null;
 
   const deletingRound = sorted.find((round) => round.id === deletingRoundId);
@@ -218,7 +220,7 @@ export default function ProjectEvaluationWorkspace({
 
           <p className="text-sm leading-6 text-[#475569]">{selectedRound.aiAnalysis.summary}</p>
 
-          <Panel title={`종합 점수 ${hybridView.projectScore}점`}>
+          <Panel title={`종합 점수 ${hybridView.projectScore} / ${selectedRound.totalPoints}점`}>
             <div className="mb-5 grid gap-4 sm:grid-cols-2">
               <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
               <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
@@ -227,31 +229,27 @@ export default function ProjectEvaluationWorkspace({
           </Panel>
 
           <div className="grid gap-3 lg:grid-cols-2">
-            {selectedRound.aiAnalysis.evaluationPreview.map((row) => {
-              const item = selectedRound.evaluationItems.find(
-                (entry) => entry.id === row.itemId || entry.detailItem === row.itemName,
-              );
-              const expert = selectedRound.expertItemScores.find((score) => score.itemId === item?.id);
-              return (
-                <div className="rounded-xl border border-[#d7dee8] bg-white p-3" key={`${selectedRound.id}-${row.itemName}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-bold text-[#15345b]">{row.itemName}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-[#e8f1ff] px-2.5 py-1 text-[11px] font-bold text-[#2463b3]">
-                        AI {row.score}점
-                      </span>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
-                        전문가 {expert?.score ?? "-"}점
-                      </span>
-                    </div>
+            {hybridView.results.map((result) => (
+              <div className="rounded-xl border border-[#d7dee8] bg-white p-3" key={`${selectedRound.id}-${result.item.id}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-bold text-[#15345b]">{result.item.detailItem}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-[#e8f1ff] px-2.5 py-1 text-[11px] font-bold text-[#2463b3]">
+                      AI {result.aiEvaluation.score}점
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
+                      전문가 {result.humanEvaluation.score}점
+                    </span>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-[#475569]">{row.rationale}</p>
-                  {expert?.comment ? (
-                    <p className="mt-2 text-xs leading-5 text-[#64748b]">전문가 의견: {expert.comment}</p>
-                  ) : null}
                 </div>
-              );
-            })}
+                <p className="mt-2 text-sm leading-6 text-[#475569]">{result.aiEvaluation.rationale}</p>
+                {result.humanEvaluation.comment ? (
+                  <p className="mt-2 text-xs leading-5 text-[#64748b]">
+                    전문가 의견: {result.humanEvaluation.comment}
+                  </p>
+                ) : null}
+              </div>
+            ))}
           </div>
 
           {(selectedRound.aiAnalysis.referenceLaws?.length ?? 0) > 0 ? (
@@ -402,40 +400,53 @@ function EvaluationTable({
 }) {
   return (
     <div className="overflow-auto rounded-xl border border-[#d7dee8]">
-      <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
+        <colgroup>
+          <col className="w-[24%]" />
+          <col className="w-[8%]" />
+          <col className="w-[11%]" />
+          <col className="w-[11%]" />
+          <col className="w-[10%]" />
+          <col className="w-[36%]" />
+        </colgroup>
         <thead className="bg-[#eef4fb] text-[#15345b]">
           <tr>
             <th className="px-4 py-3">평가항목</th>
             <th className="px-4 py-3">배점</th>
-            <th className="px-4 py-3">AI 점수</th>
-            <th className="px-4 py-3">전문가 점수 ({reviewerName})</th>
-            <th className="px-4 py-3">최종 점수</th>
+            <th className="px-4 py-3 text-center">AI 점수</th>
+            <th className="px-4 py-3 text-center">전문가 점수 ({reviewerName})</th>
+            <th className="px-4 py-3 text-center">최종점수</th>
             <th className="px-4 py-3">평가 근거 / 의견</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#d7dee8] bg-white">
           {results.map((result) => (
             <tr key={result.item.id}>
-              <td className="px-4 py-4">
+              <td className="px-4 py-4 align-top">
                 <p className="font-bold text-[#15345b]">{result.item.detailItem}</p>
                 <p className="mt-1 text-xs text-[#64748b]">
                   {result.item.majorCategory} · {result.item.middleCategory}
                 </p>
               </td>
-              <td className="px-4 py-4 font-semibold text-[#15345b]">{result.item.points}</td>
-              <td className="px-4 py-4 font-bold text-[#2463b3]">{result.aiEvaluation.score}</td>
-              <td className="px-4 py-4">
-                <p className="font-bold text-[#15345b]">{result.humanEvaluation.score}</p>
-                {result.humanEvaluation.comment ? (
-                  <p className="mt-1 text-xs leading-5 text-[#64748b]">{result.humanEvaluation.comment}</p>
-                ) : null}
+              <td className="px-4 py-4 align-top font-semibold text-[#15345b]">{result.item.points}</td>
+              <td className="px-4 py-4 align-top text-center font-bold text-[#2463b3]">
+                {result.aiEvaluation.score}
               </td>
-              <td className="px-4 py-4">
+              <td className="px-4 py-4 align-top text-center font-bold text-[#15345b]">
+                {result.humanEvaluation.score}
+              </td>
+              <td className="px-4 py-4 align-top text-center">
                 <p className="text-lg font-black text-[#15345b]">{result.finalScore}</p>
                 <p className="text-xs text-[#64748b]">{result.finalGrade}</p>
               </td>
-              <td className="px-4 py-4 leading-6 text-[#64748b]">
+              <td className="px-4 py-4 align-top leading-6 text-[#64748b]">
                 <p>{result.aiEvaluation.rationale}</p>
+                {result.humanEvaluation.comment ? (
+                  <p className="mt-2 text-sm text-[#475569]">
+                    <span className="font-semibold text-[#15345b]">전문가 의견:</span>{" "}
+                    {result.humanEvaluation.comment}
+                  </p>
+                ) : null}
                 <p className="mt-2 font-semibold text-[#9a3412]">{result.aiEvaluation.recommendation}</p>
               </td>
             </tr>

@@ -20,10 +20,19 @@ export function clampScore(score: number): number {
   return Math.max(0, Math.min(100, score));
 }
 
+/** 0~100 만점 점수를 항목 배점 스케일로 환산하고 배점을 넘지 않게 제한합니다. */
+export function scaleScoreToPoints(score: number, maxPoints: number): number {
+  if (maxPoints <= 0) return 0;
+
+  const scaled = (clampScore(score) / 100) * maxPoints;
+  return Math.round(Math.min(maxPoints, scaled) * 10) / 10;
+}
+
 export function calculateHybridScore(input: {
   aiScore: number;
   humanScore: number;
   settings: HybridSettings;
+  maxPoints: number;
 }): number {
   const { aiWeight, humanWeight } = input.settings;
   const totalWeight = aiWeight + humanWeight;
@@ -32,11 +41,11 @@ export function calculateHybridScore(input: {
     throw new Error("AI weight and human weight cannot both be zero.");
   }
 
-  const weightedScore =
-    (clampScore(input.aiScore) * aiWeight + clampScore(input.humanScore) * humanWeight) /
-    totalWeight;
+  const aiOnPoints = scaleScoreToPoints(input.aiScore, input.maxPoints);
+  const humanOnPoints = scaleScoreToPoints(input.humanScore, input.maxPoints);
+  const weightedScore = (aiOnPoints * aiWeight + humanOnPoints * humanWeight) / totalWeight;
 
-  return Math.round(weightedScore * 10) / 10;
+  return Math.round(Math.min(input.maxPoints, weightedScore) * 10) / 10;
 }
 
 export function calculateHybridResults(input: {
@@ -55,18 +64,29 @@ export function calculateHybridResults(input: {
       throw new Error(`Missing evaluation data for item ${item.id}.`);
     }
 
+    const aiScoreOnPoints = scaleScoreToPoints(aiEvaluation.score, item.points);
+    const humanScoreOnPoints = scaleScoreToPoints(humanEvaluation.score, item.points);
     const finalScore = calculateHybridScore({
       aiScore: aiEvaluation.score,
       humanScore: humanEvaluation.score,
       settings: input.settings,
+      maxPoints: item.points,
     });
+    const scorePercent = item.points > 0 ? (finalScore / item.points) * 100 : 0;
 
     return {
       item,
-      aiEvaluation,
-      humanEvaluation,
+      aiEvaluation: {
+        ...aiEvaluation,
+        score: aiScoreOnPoints,
+        grade: gradeScore(item.points > 0 ? (aiScoreOnPoints / item.points) * 100 : 0),
+      },
+      humanEvaluation: {
+        ...humanEvaluation,
+        score: humanScoreOnPoints,
+      },
       finalScore,
-      finalGrade: gradeScore(finalScore),
+      finalGrade: gradeScore(scorePercent),
       finalComment: buildFinalComment(aiEvaluation.scoreTrace, humanEvaluation.comment),
     };
   });
@@ -77,12 +97,9 @@ export function calculateProjectScore(results: HybridResult[]): number {
 
   if (totalPoints <= 0) return 0;
 
-  const weighted = results.reduce(
-    (sum, result) => sum + result.finalScore * result.item.points,
-    0,
-  );
+  const earned = results.reduce((sum, result) => sum + result.finalScore, 0);
 
-  return Math.round((weighted / totalPoints) * 10) / 10;
+  return Math.round(Math.min(totalPoints, earned) * 10) / 10;
 }
 
 export function buildFinalComment(trace: ScoreTrace[], reviewerComment: string): string {
