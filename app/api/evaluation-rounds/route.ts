@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { mergeRoundAnalysisWarnings } from "@/lib/analysis-warnings";
 import { requireApiSession } from "@/lib/api-auth";
 import { buildEvaluationContext } from "@/lib/evaluation-context";
 import { addProjectEvaluationRound, getProjectById, upsertProjectRecord } from "@/lib/project-store";
@@ -141,13 +142,14 @@ export async function POST(request: NextRequest) {
       expertFiles: savedExpertFiles.map(toSessionFile),
       aiAnalysis: {
         ...aiAnalysis,
-        warnings: [
-          ...(aiAnalysis.warnings ?? []),
-          ...(expertAnalysis.warnings ?? []),
-          ...(aiAnalysis.mode === "demo"
+        warnings: mergeRoundAnalysisWarnings(
+          evaluationContext.warnings,
+          aiAnalysis.warnings ?? [],
+          expertAnalysis.warnings ?? [],
+          aiAnalysis.mode === "demo"
             ? ["AI API 키가 없거나 오류로 데모 분석 결과가 저장되었습니다. 점수는 참고용입니다."]
-            : []),
-        ],
+            : [],
+        ),
       },
       expertItemScores,
     };

@@ -3,7 +3,7 @@ import { guidelines, laws as demoLaws } from "./demo-data";
 import { buildGuidelineReferenceUrl, buildLawReferenceUrl } from "./reference-links";
 import { fetchLawReferences, type FetchedLawReference } from "./law/articles";
 import { isLawApiConfigured } from "./law/config";
-import { LAW_OC_MISSING_WARNING } from "./law/warnings";
+import { formatLawSearchFailure, LAW_OC_MISSING_WARNING } from "./law/warnings";
 import { searchLaws } from "./law/search";
 import { getProjectById } from "./project-store";
 import type { Project, ProjectLocationPoint } from "./types";
@@ -130,9 +130,7 @@ async function loadReferenceLaws(
         try {
           return await searchLaws(query, 4);
         } catch (error) {
-          warnings.push(
-            error instanceof Error ? error.message : `법령 검색 실패: ${query}`,
-          );
+          warnings.push(formatLawSearchFailure(query, error));
           return [];
         }
       }),

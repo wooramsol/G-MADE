@@ -6,6 +6,7 @@ import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
 import { buildLawReferenceUrl } from "@/lib/reference-links";
+import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { filterStaleLawWarnings, hadLawOcMissingWarning } from "@/lib/law/warnings";
 import type { UploadAnalysisSession } from "@/lib/types";
 
@@ -124,7 +125,9 @@ function AnalysisSessionDetail({
   lawApiConfigured: boolean | null;
   session: SessionWithRound;
 }) {
-  const warnings = filterStaleLawWarnings(session.analysis.warnings, lawApiConfigured);
+  const warnings = dedupeWarnings(
+    filterStaleLawWarnings(session.analysis.warnings, lawApiConfigured),
+  );
   const showStaleLawNotice =
     lawApiConfigured === true &&
     hadLawOcMissingWarning(session.analysis.warnings) &&

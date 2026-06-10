@@ -6,6 +6,7 @@ import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
+import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
 import { buildLawReferenceUrl } from "@/lib/reference-links";
 import { toAchievementPercent } from "@/lib/hybrid-evaluation";
@@ -67,6 +68,7 @@ export default function ProjectEvaluationWorkspace({
   const referenceLaws = dedupeReferenceLaws(selectedRound?.aiAnalysis.referenceLaws ?? []).filter(
     (law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null,
   );
+  const analysisWarnings = dedupeWarnings(selectedRound?.aiAnalysis.warnings ?? []);
 
   useEffect(() => {
     if (sorted.length === 0) {
@@ -312,12 +314,14 @@ export default function ProjectEvaluationWorkspace({
             </div>
           ) : null}
 
-          {selectedRound.aiAnalysis.warnings && selectedRound.aiAnalysis.warnings.length > 0 ? (
+          {analysisWarnings.length > 0 ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
               <p className="font-bold">분석 참고 사항</p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 leading-6">
-                {selectedRound.aiAnalysis.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
+              <ul className="mt-2 list-disc space-y-2 pl-5 leading-6">
+                {analysisWarnings.map((warning, index) => (
+                  <li key={`${index}-${warning}`}>
+                    <AnalysisWarningText warning={warning} />
+                  </li>
                 ))}
               </ul>
             </div>
@@ -371,6 +375,19 @@ export default function ProjectEvaluationWorkspace({
         </div>
       </section>
     </div>
+  );
+}
+
+function AnalysisWarningText({ warning }: { warning: string }) {
+  const match = warning.match(/^「(.+?)」 법령 조회 실패 — (.+)$/);
+  if (!match) return <span>{warning}</span>;
+
+  return (
+    <span>
+      <span className="font-semibold text-amber-950">「{match[1]}」</span>
+      <span className="text-amber-900"> 법령 조회 실패 — </span>
+      <span className="text-amber-800">{match[2]}</span>
+    </span>
   );
 }
 
