@@ -52,10 +52,14 @@ async function searchByType(
     `검색(${type}/${category})`,
   );
 
-  if (!result.ok) return [];
+  if (!result.ok) {
+    throw new Error(result.error ?? `주소 검색에 실패했습니다. (${query})`);
+  }
 
   const vworldError = extractVWorldError(result.data);
-  if (vworldError) return [];
+  if (vworldError) {
+    throw new Error(vworldError);
+  }
 
   const items = result.data.response?.result?.items;
   if (!Array.isArray(items)) return [];

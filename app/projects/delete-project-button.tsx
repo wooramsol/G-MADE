@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
+import { deleteLocalProject } from "./local-project-storage";
 import { showToast } from "../toast";
 
 type DeleteProjectButtonProps = {
@@ -29,6 +30,7 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
         throw new Error(payload.error ?? "프로젝트 삭제에 실패했습니다.");
       }
 
+      deleteLocalProject(projectId);
       setConfirmOpen(false);
       showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
       if (redirectTo) {

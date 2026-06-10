@@ -7,7 +7,6 @@ import type { AiProviderPreference } from "@/lib/ai/types";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
-import { scrollToHybridEvaluationResults } from "@/lib/scroll-to-hybrid-evaluation-results";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
 
@@ -19,6 +18,8 @@ type ParallelEvaluationFormProps = {
 type EvaluationRoundApiResponse = {
   round: EvaluationRound;
   project?: { evaluationRounds?: EvaluationRound[] };
+  analysisMode?: "live" | "demo";
+  warnings?: string[];
   error?: string;
 };
 
@@ -95,10 +96,21 @@ export default function ParallelEvaluationForm({
 
       setAiFiles([]);
       setExpertFiles([]);
-      showToast({ message: "하이브리드 평가 분석이 완료되었습니다.", tone: "success" });
+
+      const isDemo =
+        payload.analysisMode === "demo" || payload.round.aiAnalysis.mode === "demo";
+      if (isDemo) {
+        showToast({
+          message:
+            "데모 분석 결과가 저장되었습니다. AI API 키를 설정한 뒤 다시 분석하면 실제 결과를 받을 수 있습니다.",
+          tone: "error",
+        });
+      } else {
+        showToast({ message: "하이브리드 평가 분석이 완료되었습니다.", tone: "success" });
+      }
+
       const nextRounds = resolveNextEvaluationRounds(project, payload);
       onRoundsChange?.(nextRounds, projectFiles);
-      scrollToHybridEvaluationResults();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "하이브리드 평가 분석에 실패했습니다.");
     } finally {
@@ -184,7 +196,7 @@ export default function ParallelEvaluationForm({
             type="button"
             onClick={submitEvaluation}
           >
-            {loading ? "분석 중 (최대 20초)..." : "하이브리드 평가 분석"}
+            {loading ? "분석 중 (최대 2분)..." : "하이브리드 평가 분석"}
           </button>
         </div>
       </div>
@@ -228,13 +240,21 @@ function MaterialColumn({
         className={`mt-4 flex min-h-52 flex-1 cursor-pointer flex-col rounded-xl border border-dashed bg-white p-4 text-sm text-[#475569] ${borderClass}`}
       >
         <span className="font-bold text-[#15345b]">자료 업로드</span>
-        <span className="mt-1 leading-6">PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP</span>
+        <span className="mt-1 leading-6">
+          PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP · DOCX/PPTX/TXT 본문 추출 지원
+        </span>
         <input
           className="mt-4 text-sm"
           multiple
           type="file"
           accept={FILE_ACCEPT}
-          onChange={(event) => onFilesChange(Array.from(event.target.files ?? []))}
+          onChange={(event) => {
+            const picked = Array.from(event.target.files ?? []);
+            if (picked.length > 0) {
+              onFilesChange([...files, ...picked]);
+            }
+            event.target.value = "";
+          }}
         />
         {files.length > 0 ? (
           <div className="mt-4 rounded-xl bg-[#f8fafc] p-3">
@@ -242,8 +262,8 @@ function MaterialColumn({
               선택 {files.length}개 · {formatBytes(totalSize)}
             </p>
             <ul className="mt-2 space-y-1 text-xs">
-              {files.map((file) => (
-                <li key={`${file.name}-${file.size}`}>
+              {files.map((file, index) => (
+                <li key={`${file.name}-${file.size}-${index}`}>
                   {file.name} ({formatBytes(file.size)})
                 </li>
               ))}

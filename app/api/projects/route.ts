@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiSession } from "@/lib/api-auth";
 import { createProject, getAllProjects } from "@/lib/project-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
+
   const projects = await getAllProjects();
   return NextResponse.json({ projects });
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
+
   try {
     const payload = await request.json();
     const requiredFields = ["name", "location", "client", "designer", "projectType", "scale", "reviewType", "receivedAt"];

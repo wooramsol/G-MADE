@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
+import { requireApiSession } from "@/lib/api-auth";
 import { getConfiguredProviders } from "@/lib/ai/env-keys";
 import { getDefaultAiProvider } from "@/lib/ai/select-provider";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
+
   const providers = getConfiguredProviders();
 
   return NextResponse.json({

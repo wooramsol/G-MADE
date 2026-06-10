@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireApiSession } from "@/lib/api-auth";
 import { deleteCreatedProject, getProjectById, isDemoProjectId, updateProject } from "@/lib/project-store";
+
+const PROJECT_STATUSES = new Set(["접수", "심사 진행중", "완료"]);
 import type { EvaluationItem } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  }
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
 
   const { id } = await params;
   const existing = await getProjectById(id);
@@ -36,6 +36,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (payload[key] !== undefined) {
         patch[key] = String(payload[key]).trim();
       }
+    }
+
+    if (patch.status !== undefined && !PROJECT_STATUSES.has(String(patch.status))) {
+      return NextResponse.json({ error: "유효하지 않은 프로젝트 상태입니다." }, { status: 400 });
     }
 
     if (payload.locationPoint) {
@@ -116,6 +120,9 @@ function normalizeSavedEvaluationItem(item: unknown, index: number): EvaluationI
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
+
   const { id } = await params;
 
   if (isDemoProjectId(id)) {

@@ -32,7 +32,9 @@ export async function searchLaws(query: string, display = 5): Promise<LawSearchH
     `법령검색(${query})`,
   );
 
-  if (!result.ok) return [];
+  if (!result.ok) {
+    throw new Error(result.error ?? `법령 검색에 실패했습니다. (${query})`);
+  }
 
   return parseLawSearchHits(result.data);
 }

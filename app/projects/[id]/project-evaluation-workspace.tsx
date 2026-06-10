@@ -312,6 +312,17 @@ export default function ProjectEvaluationWorkspace({
             </div>
           ) : null}
 
+          {selectedRound.aiAnalysis.warnings && selectedRound.aiAnalysis.warnings.length > 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+              <p className="font-bold">분석 참고 사항</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 leading-6">
+                {selectedRound.aiAnalysis.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <p className="text-xs text-[#64748b]">
             AI 엔진: {formatProviderBadgeLabel(selectedRound.aiAnalysis.provider)} ·{" "}
             {selectedRound.aiAnalysis.mode === "live" ? "실제 API 분석" : "데모 분석"}

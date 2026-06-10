@@ -131,7 +131,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       configured: databaseConfigured,
       envKeys: ["DATABASE_URL", "POSTGRES_PRISMA_URL", "POSTGRES_URL"],
       detail: databaseConfigured
-        ? "사용자·역할 등 DB 연동 사용 중"
+        ? "로그인·역할·로그인 히스토리용 (프로젝트·평가 데이터는 JSON/로컬 저장)"
         : isPostgresConfigured()
           ? "연결 문자열은 있으나 DB 응답 없음"
           : undefined,
@@ -163,7 +163,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       {
         id: "database",
         title: "데이터베이스 연동 상태",
-        description: "계정·역할 등 영구 저장에 사용합니다.",
+        description: "계정·역할·로그인 기록에 사용합니다. 프로젝트·평가 결과는 서버 JSON과 브라우저 저장소를 사용합니다.",
         rows: databaseRows,
       },
     ],

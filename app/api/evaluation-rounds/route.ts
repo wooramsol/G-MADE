@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireApiSession } from "@/lib/api-auth";
 import { buildEvaluationContext } from "@/lib/evaluation-context";
 import { addProjectEvaluationRound, getProjectById, upsertProjectRecord } from "@/lib/project-store";
-import { isFileLike, saveUploadedFiles, toProjectFiles } from "@/lib/save-uploaded-files";
+import { projectFromClientSnapshot } from "@/lib/safe-project-snapshot";
+import { deleteSavedUploadFiles, isFileLike, saveUploadedFiles, toProjectFiles } from "@/lib/save-uploaded-files";
 import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project } from "@/lib/types";
 import { analyzeUploadedFiles } from "@/lib/upload-analysis";
 import type { AiProviderPreference } from "@/lib/ai/types";
+import type { SavedUploadFile } from "@/lib/save-uploaded-files";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  let savedFiles: SavedUploadFile[] = [];
+
   try {
-    const authSession = await auth();
-    if (!authSession?.user) {
-      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-    }
+    const authResult = await requireApiSession();
+    if (authResult.response) return authResult.response;
 
     const formData = await request.formData();
     const projectId = String(formData.get("projectId") ?? "").trim();
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
     if (!project) {
       const snapshot = parseProjectSnapshot(formData.get("projectSnapshot"));
       if (snapshot?.id === projectId) {
-        project = await upsertProjectRecord(snapshot);
+        project = await upsertProjectRecord(projectFromClientSnapshot(snapshot));
       }
     }
 
@@ -70,45 +72,51 @@ export async function POST(request: NextRequest) {
 
     const savedAiFiles = await saveUploadedFiles(aiFiles);
     const savedExpertFiles = await saveUploadedFiles(expertFiles);
+    savedFiles = [...savedAiFiles, ...savedExpertFiles];
+
     const evaluatedAt = new Date().toISOString();
-    const persistedFiles = toProjectFiles([...savedAiFiles, ...savedExpertFiles], evaluatedAt);
+    const persistedFiles = toProjectFiles(savedFiles, evaluatedAt);
 
     const { readFile } = await import("fs/promises");
     const { extractDocumentText } = await import("@/lib/document-extract");
-    const aiFilesForAnalysis = await Promise.all(
-      savedAiFiles.map(async (file) => ({
-        ...file,
-        extractedTextPreview: await extractDocumentText(
-          await readFile(file.storagePath),
-          file.originalName,
-        ),
-      })),
-    );
+
+    const [aiFilesForAnalysis, expertFilesForAnalysis] = await Promise.all([
+      Promise.all(
+        savedAiFiles.map(async (file) => ({
+          ...file,
+          extractedTextPreview: await extractDocumentText(
+            await readFile(file.storagePath),
+            file.originalName,
+          ),
+        })),
+      ),
+      Promise.all(
+        savedExpertFiles.map(async (file) => ({
+          ...file,
+          extractedTextPreview: await extractDocumentText(
+            await readFile(file.storagePath),
+            file.originalName,
+          ),
+        })),
+      ),
+    ]);
 
     const evaluationContext = await buildEvaluationContext(projectId);
-    const aiAnalysis = await analyzeUploadedFiles({
-      providerPreference,
-      files: aiFilesForAnalysis,
-      evaluationContext,
-      evaluationItems,
-    });
 
-    const expertFilesForAnalysis = await Promise.all(
-      savedExpertFiles.map(async (file) => ({
-        ...file,
-        extractedTextPreview: await extractDocumentText(
-          await readFile(file.storagePath),
-          file.originalName,
-        ),
-      })),
-    );
-
-    const expertAnalysis = await analyzeUploadedFiles({
-      providerPreference,
-      files: expertFilesForAnalysis,
-      evaluationContext,
-      evaluationItems,
-    });
+    const [aiAnalysis, expertAnalysis] = await Promise.all([
+      analyzeUploadedFiles({
+        providerPreference,
+        files: aiFilesForAnalysis,
+        evaluationContext,
+        evaluationItems,
+      }),
+      analyzeUploadedFiles({
+        providerPreference,
+        files: expertFilesForAnalysis,
+        evaluationContext,
+        evaluationItems,
+      }),
+    ]);
 
     const expertItemScores =
       manualExpertScores.length > 0
@@ -131,7 +139,16 @@ export async function POST(request: NextRequest) {
       expertSummary: expertSummary || undefined,
       aiFiles: savedAiFiles.map(toSessionFile),
       expertFiles: savedExpertFiles.map(toSessionFile),
-      aiAnalysis,
+      aiAnalysis: {
+        ...aiAnalysis,
+        warnings: [
+          ...(aiAnalysis.warnings ?? []),
+          ...(expertAnalysis.warnings ?? []),
+          ...(aiAnalysis.mode === "demo"
+            ? ["AI API 키가 없거나 오류로 데모 분석 결과가 저장되었습니다. 점수는 참고용입니다."]
+            : []),
+        ],
+      },
       expertItemScores,
     };
 
@@ -143,8 +160,19 @@ export async function POST(request: NextRequest) {
         evaluationRounds: [...(project.evaluationRounds ?? []), round],
       }));
 
-    return NextResponse.json({ round, project: updatedProject });
+    savedFiles = [];
+
+    return NextResponse.json({
+      round,
+      project: updatedProject,
+      analysisMode: round.aiAnalysis.mode,
+      warnings: round.aiAnalysis.warnings ?? [],
+    });
   } catch (error) {
+    if (savedFiles.length > 0) {
+      await deleteSavedUploadFiles(savedFiles);
+    }
+
     const message = error instanceof Error ? error.message : "하이브리드 평가 분석 중 오류가 발생했습니다.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

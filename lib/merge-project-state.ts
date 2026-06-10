@@ -33,15 +33,21 @@ export function mergeEvaluationRounds(
   );
 }
 
-/** 서버 프로젝트와 브라우저 저장소를 병합합니다. */
+/** 서버 프로젝트와 브라우저 저장소를 병합합니다. 메타데이터는 서버 우선, 차수·파일은 스마트 병합. */
 export function mergeProjectWithLocal(serverProject: Project, localProject?: Project): Project {
   if (!localProject) return serverProject;
 
+  const savedEvaluationItems =
+    serverProject.savedEvaluationItems?.length
+      ? serverProject.savedEvaluationItems
+      : localProject.savedEvaluationItems;
+
   return {
-    ...serverProject,
     ...localProject,
+    ...serverProject,
+    locationPoint: serverProject.locationPoint ?? localProject.locationPoint,
     files: mergeProjectFiles(serverProject.files, localProject.files),
-    savedEvaluationItems: localProject.savedEvaluationItems ?? serverProject.savedEvaluationItems,
+    savedEvaluationItems,
     evaluationRounds: mergeEvaluationRounds(serverProject.evaluationRounds, localProject.evaluationRounds),
   };
 }

@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { getWritableStoragePath } from "@/lib/runtime-storage";
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiSession } from "@/lib/api-auth";
 import { extractDocumentText } from "@/lib/document-extract";
 import { getDefaultAiProvider } from "@/lib/ai/select-provider";
 import type { AiProviderPreference } from "@/lib/ai/types";
@@ -19,6 +20,9 @@ const maxFileSizeBytes = 25 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiSession();
+    if (authResult.response) return authResult.response;
+
     const formData = await request.formData();
     const projectId = String(formData.get("projectId") ?? "").trim();
     const providerPreference = String(formData.get("provider") ?? getDefaultAiProvider()) as AiProviderPreference;

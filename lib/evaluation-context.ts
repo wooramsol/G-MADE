@@ -125,7 +125,18 @@ async function loadReferenceLaws(
 
   const queries = buildLawQueries(project);
   const hits = (
-    await Promise.all(queries.map((query) => searchLaws(query, 4)))
+    await Promise.all(
+      queries.map(async (query) => {
+        try {
+          return await searchLaws(query, 4);
+        } catch (error) {
+          warnings.push(
+            error instanceof Error ? error.message : `법령 검색 실패: ${query}`,
+          );
+          return [];
+        }
+      }),
+    )
   ).flat();
 
   const uniqueHits = dedupeLawHits(hits);

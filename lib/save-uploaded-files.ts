@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { getWritableStoragePath } from "./runtime-storage";
 import type { ProjectFile } from "./types";
@@ -65,6 +65,10 @@ export function toProjectFiles(savedFiles: SavedUploadFile[], uploadedAt: string
     uploadedAt,
     sizeBytes: file.sizeBytes,
   }));
+}
+
+export async function deleteSavedUploadFiles(files: SavedUploadFile[]): Promise<void> {
+  await Promise.all(files.map((file) => unlink(file.storagePath).catch(() => undefined)));
 }
 
 export function isFileLike(value: FormDataEntryValue): value is File {

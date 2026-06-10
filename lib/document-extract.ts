@@ -2,7 +2,14 @@ import JSZip from "jszip";
 
 const PREVIEW_LIMIT = 8000;
 
-/** PDF/DOCX 추출은 제거. PPTX·텍스트 파일만 미리보기를 생성합니다. */
+const TEXT_EXTRACTABLE = new Set(["pptx", "docx", "txt", "md"]);
+
+export function isTextExtractableFile(fileName: string): boolean {
+  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+  return TEXT_EXTRACTABLE.has(extension);
+}
+
+/** PPTX·DOCX·텍스트 파일에서 본문 미리보기를 생성합니다. PDF 등은 파일명·형식 메타만 사용됩니다. */
 export async function extractDocumentText(buffer: Buffer, fileName: string): Promise<string> {
   const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
 
@@ -10,14 +17,31 @@ export async function extractDocumentText(buffer: Buffer, fileName: string): Pro
     if (extension === "pptx") {
       return await extractPptxText(buffer);
     }
+    if (extension === "docx") {
+      return await extractDocxText(buffer);
+    }
     if (extension === "txt" || extension === "md") {
       return normalizeText(buffer.toString("utf8"));
     }
   } catch {
-    return "";
+    return unsupportedExtractionNotice(fileName);
   }
 
-  return "";
+  return unsupportedExtractionNotice(fileName);
+}
+
+function unsupportedExtractionNotice(fileName: string): string {
+  const extension = fileName.split(".").pop()?.toLowerCase() ?? "unknown";
+  return `[본문 자동 추출 미지원: .${extension}] 파일명 "${fileName}" 및 형식 정보만 분석에 사용됩니다.`;
+}
+
+async function extractDocxText(buffer: Buffer): Promise<string> {
+  const zip = await JSZip.loadAsync(buffer);
+  const xml = await zip.file("word/document.xml")?.async("string");
+  if (!xml) return "";
+
+  const texts = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((match) => match[1]);
+  return normalizeText(texts.join(" "));
 }
 
 async function extractPptxText(buffer: Buffer): Promise<string> {

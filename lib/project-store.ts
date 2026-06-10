@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
+import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import type {
@@ -55,20 +56,22 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
 }
 
 export async function createProject(input: ProjectInput): Promise<Project> {
-  const now = new Date().toISOString();
-  const project: Project = {
-    id: `project-${Date.now()}`,
-    ...input,
-    status: "접수",
-    files: [],
-    evaluationRounds: [],
-    updatedAt: now,
-  };
+  return withProjectStoreLock(async () => {
+    const now = new Date().toISOString();
+    const project: Project = {
+      id: `project-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+      ...input,
+      status: "접수",
+      files: [],
+      evaluationRounds: [],
+      updatedAt: now,
+    };
 
-  const createdProjects = await readCreatedProjects();
-  await writeCreatedProjects([project, ...createdProjects]);
+    const createdProjects = await readCreatedProjects();
+    await writeCreatedProjects([project, ...createdProjects]);
 
-  return project;
+    return project;
+  });
 }
 
 export async function addProjectFiles(id: string, files: ProjectFile[]): Promise<Project | undefined> {
@@ -150,31 +153,33 @@ export async function removeProjectHumanEvaluationSession(
 }
 
 export async function upsertProjectRecord(project: Project): Promise<Project> {
-  const allProjects = await getAllProjects();
-  const existing = allProjects.find((item) => item.id === project.id);
-  const storedProjects = await readCreatedProjects();
-  const storedIndex = storedProjects.findIndex((item) => item.id === project.id);
-  const base = existing ?? project;
+  return withProjectStoreLock(async () => {
+    const allProjects = await getAllProjects();
+    const existing = allProjects.find((item) => item.id === project.id);
+    const storedProjects = await readCreatedProjects();
+    const storedIndex = storedProjects.findIndex((item) => item.id === project.id);
+    const base = existing ?? project;
 
-  const nextProject: Project = {
-    ...base,
-    ...project,
-    files: project.files ?? base.files ?? [],
-    uploadAnalyses: project.uploadAnalyses ?? base.uploadAnalyses ?? [],
-    humanEvaluationSessions: project.humanEvaluationSessions ?? base.humanEvaluationSessions ?? [],
-    evaluationRounds: project.evaluationRounds ?? base.evaluationRounds ?? [],
-    savedEvaluationItems: project.savedEvaluationItems ?? base.savedEvaluationItems,
-    updatedAt: new Date().toISOString(),
-  };
+    const nextProject: Project = {
+      ...base,
+      ...project,
+      files: project.files ?? base.files ?? [],
+      uploadAnalyses: project.uploadAnalyses ?? base.uploadAnalyses ?? [],
+      humanEvaluationSessions: project.humanEvaluationSessions ?? base.humanEvaluationSessions ?? [],
+      evaluationRounds: project.evaluationRounds ?? base.evaluationRounds ?? [],
+      savedEvaluationItems: project.savedEvaluationItems ?? base.savedEvaluationItems,
+      updatedAt: new Date().toISOString(),
+    };
 
-  if (storedIndex >= 0) {
-    storedProjects[storedIndex] = nextProject;
-  } else {
-    storedProjects.unshift(nextProject);
-  }
+    if (storedIndex >= 0) {
+      storedProjects[storedIndex] = nextProject;
+    } else {
+      storedProjects.unshift(nextProject);
+    }
 
-  await writeCreatedProjects(storedProjects);
-  return nextProject;
+    await writeCreatedProjects(storedProjects);
+    return nextProject;
+  });
 }
 
 export async function addProjectEvaluationRound(
@@ -203,30 +208,32 @@ async function updateStoredProject(
   id: string,
   updater: (project: Project) => Project,
 ): Promise<Project | undefined> {
-  const allProjects = await getAllProjects();
-  const existingProject = allProjects.find((project) => project.id === id);
+  return withProjectStoreLock(async () => {
+    const allProjects = await getAllProjects();
+    const existingProject = allProjects.find((project) => project.id === id);
 
-  if (!existingProject) return undefined;
+    if (!existingProject) return undefined;
 
-  const storedProjects = await readCreatedProjects();
-  const storedIndex = storedProjects.findIndex((project) => project.id === id);
-  const baseProject = storedIndex >= 0 ? storedProjects[storedIndex] : existingProject;
-  const nextProject = updater({
-    ...baseProject,
-    uploadAnalyses: baseProject.uploadAnalyses ?? [],
-    humanEvaluationSessions: baseProject.humanEvaluationSessions ?? [],
-    evaluationRounds: baseProject.evaluationRounds ?? [],
-    updatedAt: new Date().toISOString(),
+    const storedProjects = await readCreatedProjects();
+    const storedIndex = storedProjects.findIndex((project) => project.id === id);
+    const baseProject = storedIndex >= 0 ? storedProjects[storedIndex] : existingProject;
+    const nextProject = updater({
+      ...baseProject,
+      uploadAnalyses: baseProject.uploadAnalyses ?? [],
+      humanEvaluationSessions: baseProject.humanEvaluationSessions ?? [],
+      evaluationRounds: baseProject.evaluationRounds ?? [],
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (storedIndex >= 0) {
+      storedProjects[storedIndex] = nextProject;
+    } else {
+      storedProjects.unshift(nextProject);
+    }
+
+    await writeCreatedProjects(storedProjects);
+    return nextProject;
   });
-
-  if (storedIndex >= 0) {
-    storedProjects[storedIndex] = nextProject;
-  } else {
-    storedProjects.unshift(nextProject);
-  }
-
-  await writeCreatedProjects(storedProjects);
-  return nextProject;
 }
 
 function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]): ProjectFile[] {
@@ -238,15 +245,17 @@ function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]
 export async function deleteCreatedProject(id: string): Promise<boolean> {
   if (isDemoProjectId(id)) return false;
 
-  const createdProjects = await readCreatedProjects();
-  const nextProjects = createdProjects.filter((project) => project.id !== id);
+  return withProjectStoreLock(async () => {
+    const createdProjects = await readCreatedProjects();
+    const nextProjects = createdProjects.filter((project) => project.id !== id);
 
-  if (nextProjects.length === createdProjects.length) {
-    return false;
-  }
+    if (nextProjects.length === createdProjects.length) {
+      return false;
+    }
 
-  await writeCreatedProjects(nextProjects);
-  return true;
+    await writeCreatedProjects(nextProjects);
+    return true;
+  });
 }
 
 async function readCreatedProjects(): Promise<Project[]> {
@@ -262,7 +271,9 @@ async function readCreatedProjects(): Promise<Project[]> {
 
 async function writeCreatedProjects(projects: Project[]) {
   await mkdir(storeDir, { recursive: true });
-  await writeFile(storePath, JSON.stringify(projects, null, 2));
+  const tempPath = `${storePath}.${Date.now()}.tmp`;
+  await writeFile(tempPath, JSON.stringify(projects, null, 2), "utf8");
+  await rename(tempPath, storePath);
 }
 
 function isMissingFileError(error: unknown): boolean {
