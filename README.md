@@ -103,6 +103,12 @@ npm run dev
 
 `LAW_OC`가 없으면 업로드 분석 시 **「내장 법령 요약」** 으로 대체되고, 법령 검색 API도 비활성화됩니다. 변수 추가 후 **Redeploy** 해야 반영됩니다.
 
+### DB 테이블 (Prisma)
+
+Vercel에 `DATABASE_URL`이 설정되어 있으면 **배포(Redeploy)할 때** `prisma db push`가 자동 실행되어 테이블이 맞춰집니다. 로컬 터미널에서 따로 실행할 필요 없습니다.
+
+로컬에서만 수동으로 맞추려면 프로젝트 폴더에서 `.env`에 `DATABASE_URL`을 넣은 뒤 `npx prisma db push`를 실행합니다.
+
 ### 가비아 DNS 설정
 
 Vercel Project Settings > Domains에 아래 도메인을 추가합니다.
