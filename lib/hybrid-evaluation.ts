@@ -8,6 +8,17 @@ import type {
   ScoreTrace,
 } from "./types";
 
+export const EVALUATION_GRADE_SCALE: ReadonlyArray<{
+  grade: EvaluationGrade;
+  label: string;
+}> = [
+  { grade: "매우우수", label: "90점 이상" },
+  { grade: "우수", label: "80~89점" },
+  { grade: "보통", label: "70~79점" },
+  { grade: "미흡", label: "60~69점" },
+  { grade: "매우미흡", label: "60점 미만" },
+];
+
 export function gradeScore(score: number): EvaluationGrade {
   if (score >= 90) return "매우우수";
   if (score >= 80) return "우수";

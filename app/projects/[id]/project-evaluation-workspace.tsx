@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
+import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
@@ -222,13 +223,19 @@ export default function ProjectEvaluationWorkspace({
 
           <p className="text-sm leading-6 text-[#475569]">{selectedRound.aiAnalysis.summary}</p>
 
-          <Panel title={`종합 점수 ${hybridView.projectScore} / ${selectedRound.totalPoints}점`}>
+          <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <h3 className="text-lg font-bold text-[#15345b]">
+                종합 점수 {hybridView.projectScore} / {selectedRound.totalPoints}점
+              </h3>
+              <EvaluationGradeLegend />
+            </div>
             <div className="mb-5 grid gap-4 sm:grid-cols-2">
               <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
               <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
             </div>
             <EvaluationTable results={hybridView.results} reviewerName={selectedRound.reviewerName} />
-          </Panel>
+          </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
             {hybridView.results.map((result) => (
@@ -402,54 +409,62 @@ function EvaluationTable({
 }) {
   return (
     <div className="overflow-auto rounded-xl border border-[#d7dee8]">
-      <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
+      <table className="w-full min-w-[920px] table-fixed border-collapse text-left text-sm">
         <colgroup>
-          <col className="w-[24%]" />
+          <col className="w-[14%]" />
+          <col className="w-[6%]" />
+          <col className="w-[9%]" />
+          <col className="w-[9%]" />
           <col className="w-[8%]" />
-          <col className="w-[11%]" />
-          <col className="w-[11%]" />
-          <col className="w-[10%]" />
-          <col className="w-[36%]" />
+          <col className="w-[54%]" />
         </colgroup>
         <thead className="bg-[#eef4fb] text-[#15345b]">
           <tr>
-            <th className="px-4 py-3">평가항목</th>
-            <th className="px-4 py-3">배점</th>
-            <th className="px-4 py-3 text-center">AI 점수</th>
-            <th className="px-4 py-3 text-center">전문가 점수 ({reviewerName})</th>
-            <th className="px-4 py-3 text-center">최종점수</th>
-            <th className="px-4 py-3">평가 근거 / 의견</th>
+            <th className="px-3 py-2.5">평가항목</th>
+            <th className="px-3 py-2.5 text-center">배점</th>
+            <th className="px-3 py-2.5 text-center">AI 점수</th>
+            <th className="px-3 py-2.5 text-center">전문가 점수 ({reviewerName})</th>
+            <th className="px-3 py-2.5 text-center">최종점수</th>
+            <th className="px-3 py-2.5">평가 근거 / 의견</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#d7dee8] bg-white">
           {results.map((result) => (
             <tr key={result.item.id}>
-              <td className="px-4 py-4 align-top">
-                <p className="font-bold text-[#15345b]">{result.item.detailItem}</p>
-                <p className="mt-1 text-xs text-[#64748b]">
+              <td className="px-3 py-2.5 align-top">
+                <p className="line-clamp-2 text-sm font-bold leading-5 text-[#15345b]" title={result.item.detailItem}>
+                  {result.item.detailItem}
+                </p>
+                <p
+                  className="mt-0.5 truncate text-[10px] text-[#64748b]"
+                  title={`${result.item.majorCategory} · ${result.item.middleCategory}`}
+                >
                   {result.item.majorCategory} · {result.item.middleCategory}
                 </p>
               </td>
-              <td className="px-4 py-4 align-top font-semibold text-[#15345b]">{result.item.points}</td>
-              <td className="px-4 py-4 align-top text-center font-bold text-[#2463b3]">
+              <td className="px-3 py-2.5 align-top text-center font-semibold text-[#15345b]">{result.item.points}</td>
+              <td className="px-3 py-2.5 align-top text-center font-bold text-[#2463b3]">
                 {result.aiEvaluation.score}
               </td>
-              <td className="px-4 py-4 align-top text-center font-bold text-[#15345b]">
+              <td className="px-3 py-2.5 align-top text-center font-bold text-[#15345b]">
                 {result.humanEvaluation.score}
               </td>
-              <td className="px-4 py-4 align-top text-center">
-                <p className="text-lg font-black text-[#15345b]">{result.finalScore}</p>
-                <p className="text-xs text-[#64748b]">{result.finalGrade}</p>
+              <td className="px-3 py-2.5 align-top text-center">
+                <p className="text-base font-black text-[#15345b]">{result.finalScore}</p>
+                <p className="text-[11px] text-[#64748b]">{result.finalGrade}</p>
               </td>
-              <td className="px-4 py-4 align-top leading-6 text-[#64748b]">
-                <p>{result.aiEvaluation.rationale}</p>
-                {result.humanEvaluation.comment ? (
-                  <p className="mt-2 text-sm text-[#475569]">
-                    <span className="font-semibold text-[#15345b]">전문가 의견:</span>{" "}
-                    {result.humanEvaluation.comment}
+              <td className="px-3 py-2.5 align-top">
+                <div className="max-h-[4.5rem] space-y-1 overflow-y-auto pr-1 text-xs leading-5 text-[#64748b]">
+                  <p title={result.aiEvaluation.rationale}>{result.aiEvaluation.rationale}</p>
+                  {result.humanEvaluation.comment ? (
+                    <p className="text-[#475569]" title={result.humanEvaluation.comment}>
+                      <span className="font-semibold text-[#15345b]">전문가:</span> {result.humanEvaluation.comment}
+                    </p>
+                  ) : null}
+                  <p className="font-semibold text-[#9a3412]" title={result.aiEvaluation.recommendation}>
+                    {result.aiEvaluation.recommendation}
                   </p>
-                ) : null}
-                <p className="mt-2 font-semibold text-[#9a3412]">{result.aiEvaluation.recommendation}</p>
+                </div>
               </td>
             </tr>
           ))}
