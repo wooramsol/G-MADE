@@ -121,7 +121,7 @@ export default function ParallelEvaluationForm({
 
       <div className={`rounded-xl border border-[#d7dee8] bg-white p-4 ${interactiveCardClassName}`}>
         <div>
-          <p className="font-bold text-[#15345b]">평가 가중치</p>
+          <p className="font-bold text-[#15345b]">2. 평가 가중치</p>
           <p className="mt-1 text-sm text-[#64748b]">
             슬라이더를 움직여 AI(왼쪽)와 전문가(오른쪽) 평가 비율을 조정합니다.
           </p>
@@ -134,7 +134,7 @@ export default function ParallelEvaluationForm({
           accent="ai"
           description="프로젝트 자료·심의서류 등 AI 분석 대상 파일"
           files={aiFiles}
-          title="AI 평가 자료"
+          title="3. AI 평가 자료"
           totalSize={aiTotalSize}
           onFilesChange={setAiFiles}
         >
@@ -156,7 +156,7 @@ export default function ParallelEvaluationForm({
           accent="expert"
           description="심사위원 평가표·의견서·보완자료 등 전문가 평가 파일"
           files={expertFiles}
-          title="전문가 평가 자료"
+          title="4. 전문가 평가 자료"
           totalSize={expertTotalSize}
           onFilesChange={setExpertFiles}
         >
@@ -181,16 +181,16 @@ export default function ParallelEvaluationForm({
         </MaterialColumn>
       </div>
 
-      <div className={`rounded-xl border border-[#d7dee8] bg-white p-4 ${interactiveCardClassName}`}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-bold text-[#15345b]">하이브리드 평가 분석</p>
-            <p className="mt-1 text-sm text-[#64748b]">
-              AI·전문가 양쪽 자료와 공통 평가항목을 바탕으로 한 번에 분석합니다.
-            </p>
-          </div>
+      <div
+        className={`rounded-2xl border-2 border-[#2463b3]/35 bg-gradient-to-b from-[#eef4fb] to-white p-6 shadow-sm ring-1 ring-[#2463b3]/10 ${interactiveCardClassName}`}
+      >
+        <div className="text-center">
+          <p className="text-lg font-black text-[#15345b]">5. 하이브리드 평가 분석</p>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#64748b]">
+            AI·전문가 양쪽 자료와 공통 평가항목을 바탕으로 한 번에 분석합니다.
+          </p>
           <button
-            className="primary-action rounded-xl px-6 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="primary-action mt-5 rounded-xl px-8 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
             disabled={loading}
             type="button"
             onClick={submitEvaluation}

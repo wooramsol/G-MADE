@@ -41,7 +41,6 @@ function rowStatus(configured: boolean, fallback?: string): Pick<IntegrationRow,
 export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapshot> {
   const providers = getConfiguredProviders();
   const defaultProvider = getDefaultAiProvider();
-  const anyAiConfigured = providers.gemini || providers.openai || providers.claude;
   const lawConfigured = isLawApiConfigured();
   const spatialConfigured = isVWorldConfigured();
   const databaseConfigured = await isDatabaseAvailable();
@@ -78,16 +77,6 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       detail: providers.claudeKeyHint ? `키 확인: ${providers.claudeKeyHint}` : undefined,
       fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
       ...rowStatus(providers.claude),
-    },
-    {
-      id: "ai-demo",
-      name: "G-MADE HIVE 데모 분석",
-      provider: "내장",
-      configured: true,
-      statusLabel: anyAiConfigured ? "대체 사용" : "기본 사용",
-      tone: anyAiConfigured ? "fallback" : "active",
-      detail: `기본 제공자: ${defaultProvider}`,
-      fallback: "AI API 키가 없을 때 자동 사용",
     },
     {
       id: "ai-default",

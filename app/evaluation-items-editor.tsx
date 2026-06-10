@@ -141,7 +141,7 @@ export default function EvaluationItemsEditor({
     <div className={`rounded-xl border border-[#d7dee8] bg-white p-4 ${interactiveCardClassName}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-bold text-[#15345b]">공통 평가항목 · 배점</p>
+          <p className="font-bold text-[#15345b]">1. 공통 평가항목 · 배점</p>
           <p className="mt-1 text-sm text-[#64748b]">
             AI와 전문가가 동일한 평가항목과 배점을 기준으로 평가합니다. 심사마다 항목을 추가·삭제할 수
             있습니다. 총 {items.length}개 항목 · 배점 {totalPoints}점

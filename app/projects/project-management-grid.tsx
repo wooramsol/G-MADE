@@ -74,7 +74,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
               <Info label="사업유형" value={project.projectType} />
               <Info label="접수일" value={project.receivedAt} />
             </dl>
-            <div className="primary-action-blue mt-5 rounded-xl px-4 py-3 text-sm font-bold">
+            <div className="primary-action-blue mt-5 rounded-xl px-4 py-3 text-center text-sm font-bold">
               프로젝트 상세 평가로 이동
             </div>
           </Link>
