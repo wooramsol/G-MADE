@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
-import { buildLawReferenceUrl } from "@/lib/reference-links";
+import { buildLawReferenceUrl, dedupeReferenceLaws } from "@/lib/reference-links";
 import { filterStaleLawWarnings, hadLawOcMissingWarning } from "@/lib/law/warnings";
 import type { UploadAnalysisSession } from "@/lib/types";
 
@@ -137,6 +137,14 @@ function AnalysisSessionDetail({
         )
       : null;
 
+  const referenceLaws = useMemo(
+    () =>
+      dedupeReferenceLaws(session.analysis.referenceLaws ?? []).filter(
+        (law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null,
+      ),
+    [session.analysis.referenceLaws],
+  );
+
   return (
     <article className="space-y-4 rounded-xl border border-[#d7dee8] bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -167,7 +175,7 @@ function AnalysisSessionDetail({
 
       <p className="text-sm leading-6 text-[#475569]">{session.analysis.summary}</p>
 
-      {session.analysis.spatialContext || (session.analysis.referenceLaws?.length ?? 0) > 0 ? (
+      {session.analysis.spatialContext || referenceLaws.length > 0 ? (
         <div className="grid gap-3 md:grid-cols-2">
           {session.analysis.spatialContext ? (
             <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-3 text-sm">
@@ -183,23 +191,20 @@ function AnalysisSessionDetail({
               ))}
             </div>
           ) : null}
-          {(session.analysis.referenceLaws?.length ?? 0) > 0 ? (
+          {referenceLaws.length > 0 ? (
             <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-3 text-sm">
               <p className="font-bold text-[#15345b]">
-                실시간 법령 근거 ({session.analysis.lawSource === "law.go.kr" ? "국가법령정보" : "내장 요약"})
+                법령 근거 ({session.analysis.lawSource === "law.go.kr" ? "국가법령정보" : "내장 요약"})
               </p>
-              {session.analysis.referenceLaws
-                ?.filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
-                .slice(0, 3)
-                .map((law) => (
-                  <div className="mt-2 text-[#64748b]" key={`${session.id}-${law.title}-${law.article}`}>
-                    <ReferenceLinkTitle
-                      title={`${law.title} ${law.article}`}
-                      href={buildLawReferenceUrl(law.title, law.sourceUrl)}
-                    />
-                    <p className="mt-0.5 text-xs leading-5">{law.summary}</p>
-                  </div>
-                ))}
+              {referenceLaws.map((law) => (
+                <div className="mt-2 text-[#64748b]" key={`${session.id}-${law.title}-${law.article}`}>
+                  <ReferenceLinkTitle
+                    title={`${law.title} ${law.article}`}
+                    href={buildLawReferenceUrl(law.title, law.sourceUrl)}
+                  />
+                  <p className="mt-0.5 text-xs leading-5">{law.summary}</p>
+                </div>
+              ))}
             </div>
           ) : null}
         </div>
@@ -255,11 +260,16 @@ function AnalysisSessionDetail({
         </div>
       ) : null}
 
-      <details className="rounded-xl border border-[#d7dee8] bg-white" open>
+      <details className="rounded-xl border border-[#d7dee8] bg-white">
         <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-[#15345b]">
-          문서 섹션 분석 ({session.analysis.documentSections.length}건)
+          업로드 자료 구성 점검 ({session.analysis.documentSections.length}건)
         </summary>
         <div className="grid gap-3 border-t border-[#d7dee8] p-4 md:grid-cols-2 xl:grid-cols-3">
+          {session.analysis.mode === "demo" ? (
+            <p className="col-span-full rounded-xl border border-[#fdba74] bg-[#fff7ed] px-3 py-2 text-xs leading-5 text-[#9a3412]">
+              데모 분석 모드에서는 예시 항목이 표시됩니다.
+            </p>
+          ) : null}
           {session.analysis.documentSections.map((section) => (
             <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-3" key={`${session.id}-${section.label}`}>
               <div className="flex justify-between text-sm font-bold text-[#15345b]">
@@ -289,9 +299,6 @@ function AnalysisSessionDetail({
                 </span>
               </div>
               <p className="mt-2 text-sm leading-6 text-[#475569]">{row.rationale}</p>
-              {row.laws.length > 0 ? (
-                <p className="mt-2 text-xs leading-5 text-[#64748b]">법령 근거: {row.laws.join(" · ")}</p>
-              ) : null}
               <p className="mt-2 text-sm font-semibold leading-6 text-[#9a3412]">개선권고: {row.recommendation}</p>
             </div>
           ))}

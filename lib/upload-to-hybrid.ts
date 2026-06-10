@@ -53,7 +53,9 @@ export function buildHybridViewFromRound(round: EvaluationRound, roundNumber: nu
     const score = preview?.score ?? 75;
     const laws = preview?.laws ?? [];
     const lawEvidence =
-      laws.length > 0 ? `적용 법령: ${laws.join(", ")}` : "업로드 자료 및 실시간 법령·공간정보 기반 분석";
+      laws.length > 0
+        ? `항목 관련 근거: ${laws.join(", ")}`
+        : "업로드 자료 분석 및 평가기준 정합성을 기준으로 산출함";
 
     return {
       itemId: item.id,
