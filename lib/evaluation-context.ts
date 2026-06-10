@@ -1,3 +1,4 @@
+import { toStoredReferenceLaws } from "./dedupe-reference-laws";
 import { guidelines, laws as demoLaws } from "./demo-data";
 import { buildGuidelineReferenceUrl, buildLawReferenceUrl } from "./reference-links";
 import { fetchLawReferences, type FetchedLawReference } from "./law/articles";
@@ -119,7 +120,7 @@ async function loadReferenceLaws(
 ): Promise<FetchedLawReference[]> {
   if (!isLawApiConfigured()) {
     warnings.push(LAW_OC_MISSING_WARNING);
-    return demoLawsToReferences();
+    return toStoredReferenceLaws(demoLawsToReferences());
   }
 
   const queries = buildLawQueries(project);
@@ -130,7 +131,7 @@ async function loadReferenceLaws(
   const uniqueHits = dedupeLawHits(hits);
   if (uniqueHits.length === 0) {
     warnings.push("국가법령정보 API 검색 결과가 없어 내장 법령 요약을 사용했습니다.");
-    return demoLawsToReferences();
+    return toStoredReferenceLaws(demoLawsToReferences());
   }
 
   const references = (await fetchLawReferences(uniqueHits, 6)).filter(
@@ -138,10 +139,10 @@ async function loadReferenceLaws(
   );
   if (references.length === 0) {
     warnings.push("법령 본문 조회에 실패해 검색 메타데이터·내장 요약을 사용했습니다.");
-    return uniqueHitsToReferences(uniqueHits);
+    return toStoredReferenceLaws(uniqueHitsToReferences(uniqueHits));
   }
 
-  return references;
+  return toStoredReferenceLaws(references);
 }
 
 function buildLawQueries(project?: Project): string[] {

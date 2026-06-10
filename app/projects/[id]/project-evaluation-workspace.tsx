@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
+import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
 import { buildLawReferenceUrl } from "@/lib/reference-links";
 import { toAchievementPercent } from "@/lib/hybrid-evaluation";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
@@ -38,6 +39,7 @@ export default function ProjectEvaluationWorkspace({
   }, [rounds]);
 
   const [selectedId, setSelectedId] = useState<string | null>(sorted[0]?.id ?? null);
+  const previousRoundCountRef = useRef(rounds.length);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingRoundId, setDeletingRoundId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -62,6 +64,31 @@ export default function ProjectEvaluationWorkspace({
       : null;
 
   const deletingRound = sorted.find((round) => round.id === deletingRoundId);
+  const referenceLaws = dedupeReferenceLaws(selectedRound?.aiAnalysis.referenceLaws ?? []).filter(
+    (law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null,
+  );
+
+  useEffect(() => {
+    if (sorted.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+
+    setSelectedId((current) => {
+      if (!current || !sorted.some((round) => round.id === current)) {
+        return sorted[0].id;
+      }
+      return current;
+    });
+  }, [sorted]);
+
+  useEffect(() => {
+    if (rounds.length > previousRoundCountRef.current && sorted[0]) {
+      setSelectedId(sorted[0].id);
+      document.getElementById("hybrid-evaluation-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    previousRoundCountRef.current = rounds.length;
+  }, [rounds.length, sorted]);
 
   function requestDeleteRound(roundId: string) {
     setDeletingRoundId(roundId);
@@ -261,20 +288,17 @@ export default function ProjectEvaluationWorkspace({
             ))}
           </div>
 
-          {(selectedRound.aiAnalysis.referenceLaws?.length ?? 0) > 0 ? (
+          {referenceLaws.length > 0 ? (
             <div className="rounded-xl border border-[#d7dee8] bg-white p-3 text-sm">
               <p className="font-bold text-[#15345b]">법령 근거</p>
-              {selectedRound.aiAnalysis.referenceLaws
-                ?.filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
-                .slice(0, 3)
-                .map((law) => (
-                  <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${law.title}`}>
-                    <ReferenceLinkTitle
-                      title={`${law.title} ${law.article}`}
-                      href={buildLawReferenceUrl(law.title, law.sourceUrl)}
-                    />
-                  </div>
-                ))}
+              {referenceLaws.map((law) => (
+                <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${law.title}-${law.article}`}>
+                  <ReferenceLinkTitle
+                    title={`${law.title} ${law.article}`}
+                    href={buildLawReferenceUrl(law.title, law.sourceUrl)}
+                  />
+                </div>
+              ))}
             </div>
           ) : null}
 

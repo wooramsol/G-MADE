@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import ReferenceLinkTitle from "@/components/reference-link-title";
+import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
 import { buildLawReferenceUrl } from "@/lib/reference-links";
 import { filterStaleLawWarnings, hadLawOcMissingWarning } from "@/lib/law/warnings";
 import type { UploadAnalysisSession } from "@/lib/types";
@@ -188,9 +189,8 @@ function AnalysisSessionDetail({
               <p className="font-bold text-[#15345b]">
                 실시간 법령 근거 ({session.analysis.lawSource === "law.go.kr" ? "국가법령정보" : "내장 요약"})
               </p>
-              {session.analysis.referenceLaws
-                ?.filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
-                .slice(0, 3)
+              {dedupeReferenceLaws(session.analysis.referenceLaws ?? [])
+                .filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null)
                 .map((law) => (
                   <div className="mt-2 text-[#64748b]" key={`${session.id}-${law.title}-${law.article}`}>
                     <ReferenceLinkTitle

@@ -38,7 +38,7 @@ export async function fetchLawReferences(hits: LawSearchHit[], maxLaws = 5): Pro
 
     const articles = await fetchLawArticleSnippets(hit);
     if (articles.length > 0) {
-      references.push(...articles);
+      references.push(articles[0]);
       continue;
     }
 

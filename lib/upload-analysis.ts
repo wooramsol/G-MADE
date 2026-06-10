@@ -8,6 +8,7 @@ import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
 import { selectProvider } from "./ai/select-provider";
 import type { EvaluationContext } from "./evaluation-context";
 import { evaluationItems as defaultEvaluationItems } from "./demo-data";
+import { toStoredReferenceLaws } from "./dedupe-reference-laws";
 import { gradeScore } from "./hybrid-evaluation";
 import type { EvaluationItem } from "./types";
 
@@ -276,7 +277,6 @@ function normalizeEvaluations(
 ): UploadAnalysisResult["evaluationPreview"] {
   const source = Array.isArray(value) && value.length > 0 ? value : [];
   const rows = source.length > 0 ? source : items.slice(0, 4);
-  const defaultLawRefs = evaluationContext.referenceLaws.slice(0, 3).map((law) => `${law.title} ${law.article}`);
   const defaultGuidelineRefs = evaluationContext.guidelines.slice(0, 2).map((guide) => `${guide.title} ${guide.section}`);
 
   return rows.slice(0, Math.max(items.length, 8)).map((row, index) => {
@@ -296,7 +296,7 @@ function normalizeEvaluations(
       grade: String(row?.grade ?? gradeScore(score)),
       rationale: String(row?.rationale ?? buildFallbackRationale(item.criteria, evaluationContext)),
       recommendation: String(row?.recommendation ?? "심사위원 검토 단계에서 현장 맥락과 보완 조건을 확인해야 합니다."),
-      laws: aiLawRefs.length > 0 ? aiLawRefs : defaultLawRefs,
+      laws: aiLawRefs,
       guidelines: aiGuidelineRefs.length > 0 ? aiGuidelineRefs : defaultGuidelineRefs,
     };
   });
@@ -362,14 +362,16 @@ function attachContextMetadata(
 ): UploadAnalysisResult {
   return {
     ...result,
-    referenceLaws: evaluationContext.referenceLaws
-      .filter((law) => law.sourceUrl)
-      .map((law) => ({
-        title: law.title,
-        article: law.article,
-        summary: law.summary,
-        sourceUrl: law.sourceUrl,
-      })),
+    referenceLaws: toStoredReferenceLaws(
+      evaluationContext.referenceLaws
+        .filter((law) => law.sourceUrl)
+        .map((law) => ({
+          title: law.title,
+          article: law.article,
+          summary: law.summary,
+          sourceUrl: law.sourceUrl,
+        })),
+    ),
     spatialContext: evaluationContext.spatial,
     lawSource: evaluationContext.lawSource,
     contextFetchedAt: evaluationContext.fetchedAt,
