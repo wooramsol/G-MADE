@@ -16,8 +16,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ko">
       <body>
-        <div className="fixed left-0 right-0 top-0 z-50 border-b border-amber-300 bg-amber-100 px-4 py-1.5 text-center text-xs font-bold text-amber-950 shadow-sm">
-          이 사이트는 현재 정식배포가 아닌 테스트서버입니다. 담당자: 연구소장 정우람솔
+        <div className="fixed left-0 right-0 top-0 z-50 border-b border-amber-300 bg-amber-100 px-4 py-1.5 text-center text-xs font-semibold text-amber-950 shadow-sm">
+          <span className="font-bold tracking-wide">STAGING</span>
+          <span className="mx-2 text-amber-700" aria-hidden="true">
+            ·
+          </span>
+          정식 서비스 배포 전 검증용 시범 운영 환경입니다. 문의: G-MADE 연구소 정우람솔 소장
         </div>
         <ToastHost />
         <GlobalHeader />
