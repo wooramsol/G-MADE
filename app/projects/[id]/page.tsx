@@ -48,9 +48,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
             </div>
           </Panel>
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
-          <Panel title="AI · 전문가 병행 평가">
-            <ProjectUploadSection project={project} />
-          </Panel>
+          <ProjectUploadSection project={project} />
         </section>
       </div>
     </main>

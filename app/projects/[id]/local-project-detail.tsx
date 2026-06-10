@@ -89,14 +89,10 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
 
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
 
-          <Panel title="AI · 전문가 병행 평가">
-            <ProjectUploadSection
-              project={project}
-              onProjectUpdated={() =>
-                setProject(getLocalProjects().find((item) => item.id === projectId) ?? null)
-              }
-            />
-          </Panel>
+          <ProjectUploadSection
+            project={project}
+            onProjectUpdated={() => setProject(getLocalProjects().find((item) => item.id === projectId) ?? null)}
+          />
         </section>
       </div>
     </main>

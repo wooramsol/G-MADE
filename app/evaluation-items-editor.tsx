@@ -50,16 +50,24 @@ export default function EvaluationItemsEditor({ items, onItemsChange }: Evaluati
         </button>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-[#d7dee8]">
-        <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+      <div className="mt-4 overflow-x-auto rounded-xl border border-[#d7dee8]">
+        <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-sm">
+          <colgroup>
+            <col className="w-[88px]" />
+            <col className="w-[88px]" />
+            <col className="w-[120px]" />
+            <col className="w-[72px]" />
+            <col />
+            <col className="w-[56px]" />
+          </colgroup>
           <thead className="bg-[#eef4fb] text-[#15345b]">
             <tr>
               <th className="px-3 py-3">대분류</th>
               <th className="px-3 py-3">중분류</th>
               <th className="px-3 py-3">세부항목</th>
-              <th className="w-24 px-3 py-3">배점</th>
-              <th className="min-w-[280px] px-3 py-3">평가기준</th>
-              <th className="w-16 px-3 py-3" />
+              <th className="px-3 py-3">배점</th>
+              <th className="px-3 py-3">평가기준</th>
+              <th className="px-3 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-[#d7dee8] bg-white">
@@ -111,9 +119,9 @@ export default function EvaluationItemsEditor({ items, onItemsChange }: Evaluati
                       onChange={(event) => updateItem(item.id, { criteria: event.target.value })}
                     />
                   </td>
-                  <td className="align-top px-3 py-3 text-center">
+                  <td className="align-top px-2 py-3">
                     <button
-                      className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="whitespace-nowrap rounded-lg px-2 py-1 text-xs font-bold leading-none text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                       disabled={items.length <= 1}
                       type="button"
                       onClick={() => removeItem(item.id)}

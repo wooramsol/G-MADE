@@ -12,12 +12,18 @@ import { showToast } from "../../toast";
 type Props = {
   project: Project;
   rounds: EvaluationRound[];
+  showHeader?: boolean;
   onRoundsChange?: (rounds: EvaluationRound[]) => void;
 };
 
 type RoundWithNumber = EvaluationRound & { roundNumber: number };
 
-export default function ProjectEvaluationWorkspace({ project, rounds, onRoundsChange }: Props) {
+export default function ProjectEvaluationWorkspace({
+  project,
+  rounds,
+  showHeader = true,
+  onRoundsChange,
+}: Props) {
   const sorted = useMemo<RoundWithNumber[]>(() => {
     const ordered = [...rounds].sort(
       (a, b) => new Date(b.evaluatedAt).getTime() - new Date(a.evaluatedAt).getTime(),
@@ -82,7 +88,7 @@ export default function ProjectEvaluationWorkspace({ project, rounds, onRoundsCh
 
   if (!selectedRound || !hybridView) {
     return (
-      <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm text-[#64748b]">
+      <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-[#f8fafc] p-8 text-center text-sm text-[#64748b]">
         AI·전문가 자료를 업로드하고 하이브리드 평가 분석을 실행하면 통합 평가 결과가 이 영역에 표시됩니다.
       </div>
     );
@@ -90,14 +96,16 @@ export default function ProjectEvaluationWorkspace({ project, rounds, onRoundsCh
 
   return (
     <div className="space-y-8">
-      <section id="hybrid-evaluation-results">
-        <SectionTitle
-          eyebrow="Hybrid Evaluation"
-          title="통합 평가 결과"
-          description="AI·전문가 자료를 함께 분석한 차수별 통합 결과와 종합 점수입니다."
-        />
+      <section>
+        {showHeader ? (
+          <SectionTitle
+            eyebrow="Hybrid Evaluation"
+            title="통합 평가 결과"
+            description="AI·전문가 자료를 함께 분석한 차수별 통합 결과와 종합 점수입니다."
+          />
+        ) : null}
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <div className={`flex flex-wrap items-center justify-between gap-3 ${showHeader ? "mt-5" : ""}`}>
           <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
             총 {sorted.length}차
           </span>
