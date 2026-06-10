@@ -1,15 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { getProjectEvaluationRounds } from "@/lib/evaluation-rounds";
 import { mergeProjectWithLocal } from "@/lib/merge-project-state";
+import { resolveProjectRounds } from "@/lib/resolve-project-rounds";
 import { scrollToHybridEvaluationResults } from "@/lib/scroll-to-hybrid-evaluation-results";
 import type { EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import ParallelEvaluationForm from "../../parallel-evaluation-form";
 import { getLocalProjects, syncLocalProjectRounds } from "../local-project-storage";
 import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
+
+function readMergedProject(serverProject: Project): Project {
+  const localProject = getLocalProjects().find((item) => item.id === serverProject.id);
+  return mergeProjectWithLocal(serverProject, localProject);
+}
 
 export default function ProjectUploadSection({
   project,
@@ -19,50 +25,62 @@ export default function ProjectUploadSection({
   onProjectUpdated?: () => void;
 }) {
   const router = useRouter();
-  const [activeProject, setActiveProject] = useState<Project>(project);
-  const [files, setFiles] = useState<ProjectFile[]>(project.files);
-  const [rounds, setRounds] = useState<EvaluationRound[]>(getProjectEvaluationRounds(project));
+  const roundsRef = useRef<EvaluationRound[]>(getProjectEvaluationRounds(project));
+  const [activeProject, setActiveProject] = useState<Project>(() =>
+    typeof window === "undefined" ? project : readMergedProject(project),
+  );
+  const [files, setFiles] = useState<ProjectFile[]>(activeProject.files);
+  const [rounds, setRounds] = useState<EvaluationRound[]>(() =>
+    typeof window === "undefined"
+      ? getProjectEvaluationRounds(project)
+      : resolveProjectRounds({ serverProject: project }),
+  );
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      const localProject = getLocalProjects().find((item) => item.id === project.id);
-      const mergedProject = mergeProjectWithLocal(project, localProject);
-      const mergedRounds = getProjectEvaluationRounds(mergedProject);
+    roundsRef.current = rounds;
+  }, [rounds]);
 
-      setActiveProject(mergedProject);
-      setFiles(mergedProject.files);
-      setRounds((current) => {
-        if (mergedRounds.length >= current.length) {
-          return mergedRounds;
-        }
+  useEffect(() => {
+    const localProject = getLocalProjects().find((item) => item.id === project.id);
+    const mergedProject = mergeProjectWithLocal(project, localProject);
 
-        // 서버 응답이 잠시 늦을 때 로컬에만 있는 신규 차수를 유지합니다.
-        const localRounds = localProject?.evaluationRounds;
-        if (Array.isArray(localRounds) && localRounds.length > mergedRounds.length) {
-          return getProjectEvaluationRounds({ ...mergedProject, evaluationRounds: localRounds });
-        }
-
-        return mergedRounds;
+    setActiveProject(mergedProject);
+    setFiles(mergedProject.files);
+    setRounds((current) => {
+      const next = resolveProjectRounds({
+        serverProject: project,
+        localProject,
+        currentRounds: current.length > 0 ? current : roundsRef.current,
       });
-    }, 0);
-
-    return () => window.clearTimeout(timeout);
+      roundsRef.current = next;
+      return next;
+    });
   }, [project]);
 
-  function syncRounds(nextRounds: EvaluationRound[], nextFiles = files) {
-    const addedRound = nextRounds.length > rounds.length;
+  function syncRounds(
+    nextRounds: EvaluationRound[],
+    nextFiles = files,
+    options?: { refresh?: boolean },
+  ) {
+    const addedRound = nextRounds.length > roundsRef.current.length;
 
+    roundsRef.current = nextRounds;
     setRounds(nextRounds);
     setFiles(nextFiles);
-    syncLocalProjectRounds(project.id, activeProject, nextFiles, nextRounds);
-    setActiveProject((current) => ({ ...current, files: nextFiles, evaluationRounds: nextRounds }));
+
+    setActiveProject((current) => {
+      const syncedProject = syncLocalProjectRounds(project.id, current, nextFiles, nextRounds);
+      return { ...syncedProject, files: nextFiles, evaluationRounds: nextRounds };
+    });
     onProjectUpdated?.();
 
     if (addedRound) {
       scrollToHybridEvaluationResults();
     }
 
-    window.setTimeout(() => router.refresh(), 0);
+    if (options?.refresh) {
+      window.setTimeout(() => router.refresh(), 0);
+    }
   }
 
   return (
@@ -73,7 +91,9 @@ export default function ProjectUploadSection({
       >
         <ParallelEvaluationForm
           project={activeProject}
-          onRoundsChange={(nextRounds, nextFiles) => syncRounds(nextRounds, nextFiles ?? files)}
+          onRoundsChange={(nextRounds, nextFiles) =>
+            syncRounds(nextRounds, nextFiles ?? files, { refresh: false })
+          }
         />
       </WorkspaceSectionCard>
 
@@ -83,10 +103,10 @@ export default function ProjectUploadSection({
         description="AI·전문가 자료를 함께 분석한 차수별 통합 결과와 종합 점수입니다."
       >
         <ProjectEvaluationWorkspace
-          project={project}
+          project={activeProject}
           rounds={rounds}
           showHeader={false}
-          onRoundsChange={(next) => syncRounds(next)}
+          onRoundsChange={(next) => syncRounds(next, files, { refresh: true })}
         />
       </WorkspaceSectionCard>
     </div>

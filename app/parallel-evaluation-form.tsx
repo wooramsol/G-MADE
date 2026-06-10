@@ -281,16 +281,17 @@ function resolveNextEvaluationRounds(
   project: ParallelEvaluationFormProps["project"],
   payload: EvaluationRoundApiResponse,
 ): EvaluationRound[] {
-  if (payload.project?.evaluationRounds?.length) {
-    return payload.project.evaluationRounds;
-  }
-
   const existing = project.evaluationRounds ?? [];
-  if (existing.some((round) => round.id === payload.round.id)) {
-    return existing;
+  const fromServer = payload.project?.evaluationRounds ?? [];
+  const byId = new Map<string, EvaluationRound>();
+
+  for (const round of [...existing, ...fromServer, payload.round]) {
+    byId.set(round.id, round);
   }
 
-  return [...existing, payload.round];
+  return Array.from(byId.values()).sort(
+    (left, right) => new Date(right.evaluatedAt).getTime() - new Date(left.evaluatedAt).getTime(),
+  );
 }
 
 function toProjectFile(

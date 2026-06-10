@@ -24,13 +24,17 @@ export function getLocalProjects(): Project[] {
 }
 
 export function saveLocalProject(project: Project) {
-  const projects = getLocalProjects();
-  const nextProject = {
-    ...project,
-    updatedAt: project.updatedAt ?? new Date().toISOString(),
-  };
-  const nextProjects = [nextProject, ...projects.filter((item) => item.id !== project.id)];
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProjects));
+  try {
+    const projects = getLocalProjects();
+    const nextProject = {
+      ...project,
+      updatedAt: project.updatedAt ?? new Date().toISOString(),
+    };
+    const nextProjects = [nextProject, ...projects.filter((item) => item.id !== project.id)];
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProjects));
+  } catch {
+    // localStorage quota/private mode — 서버 동기화에만 의존합니다.
+  }
 }
 
 export function deleteLocalProject(projectId: string) {
