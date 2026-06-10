@@ -4,6 +4,7 @@ import type {
   AiEvaluation,
   EvaluationGrade,
   HumanEvaluation,
+  HumanEvaluationSession,
   HybridResult,
   HybridSettings,
   UploadAnalysisSession,
@@ -20,7 +21,7 @@ export type SessionHybridView = {
 export function buildHybridViewFromSession(
   session: UploadAnalysisSession,
   round: number,
-  humanScores?: Record<string, number>,
+  humanEvaluationSession?: HumanEvaluationSession | null,
 ): SessionHybridView {
   const settings: HybridSettings = {
     aiWeight: session.aiWeight,
@@ -81,16 +82,24 @@ export function buildHybridViewFromSession(
     };
   });
 
+  const humanScoreByItemId = new Map(
+    (humanEvaluationSession?.itemScores ?? []).map((row) => [row.itemId, row]),
+  );
+
   const humanEvaluations: HumanEvaluation[] = targetItems.map((item) => {
-    const override = humanScores?.[item.id];
-    const aiScore = aiEvaluations.find((row) => row.itemId === item.id)?.score ?? 75;
-    const score = override ?? aiScore;
+    const expertRow = humanScoreByItemId.get(item.id);
+    const score = expertRow?.score ?? 0;
 
     return {
       itemId: item.id,
-      reviewerName: "심사위원",
+      reviewerName: humanEvaluationSession?.reviewerName ?? "전문가",
       score,
-      comment: override !== undefined ? "심사위원이 점수를 조정했습니다." : "AI 초안 점수를 임시 반영했습니다. 검토 후 수정하세요.",
+      comment:
+        expertRow?.comment ??
+        (humanEvaluationSession
+          ? "전문가 평가 자료에 해당 항목 점수가 없습니다."
+          : "전문가 평가 자료를 업로드해 주세요."),
+      attachmentName: humanEvaluationSession?.files[0]?.originalName,
     };
   });
 

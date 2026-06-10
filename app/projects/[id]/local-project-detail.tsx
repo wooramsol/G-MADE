@@ -1,23 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
-import UploadAnalyzer from "../../upload-analyzer";
+import type { Project } from "@/lib/types";
 import {
-  addLocalProjectUploadAnalysis,
   deleteLocalProject,
   getLocalProjects,
-  syncLocalProjectAnalyses,
 } from "../local-project-storage";
 import { showToast } from "../../toast";
 import LandscapeZonePanel from "./landscape-zone-panel";
-import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
 import ProjectLocationEditor from "./project-location-editor";
+import ProjectUploadSection from "./project-upload-section";
 
 export default function LocalProjectDetail({ projectId }: { projectId: string }) {
-  const router = useRouter();
   const [project, setProject] = useState<Project | null | undefined>(undefined);
 
   useEffect(() => {
@@ -27,11 +22,6 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
     );
     return () => window.clearTimeout(timeout);
   }, [projectId]);
-
-  function handleAnalysisSaved(session: UploadAnalysisSession, files: ProjectFile[]) {
-    const updatedProject = addLocalProjectUploadAnalysis(projectId, session, files);
-    if (updatedProject) setProject(updatedProject);
-  }
 
   if (project === undefined) {
     return (
@@ -99,28 +89,17 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
 
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
 
-          <Panel title="프로젝트 자료 업로드 및 AI 자동 분석" action="파일 추가">
-            <UploadAnalyzer
-              projectId={project.id}
-              savedAnalyses={project.uploadAnalyses ?? []}
-              onAnalysisSaved={handleAnalysisSaved}
+          <Panel title="AI · 전문가 병행 평가" action="자료 업로드">
+            <p className="mb-4 text-sm leading-6 text-[#64748b]">
+              프로젝트 자료는 AI가 자동 분석하고, 심사위원·전문가 평가 자료는 별도로 업로드하여 항목별 점수를
+              등록합니다.
+            </p>
+            <ProjectUploadSection
+              project={project}
+              onProjectUpdated={() =>
+                setProject(getLocalProjects().find((item) => item.id === projectId) ?? null)
+              }
             />
-            <div className="mt-8">
-              <ProjectEvaluationWorkspace
-                project={project}
-                analyses={project.uploadAnalyses ?? []}
-                onAnalysesChange={(next) => {
-                  const updated = syncLocalProjectAnalyses(
-                    project.id,
-                    project,
-                    project.files,
-                    next,
-                  );
-                  setProject(updated);
-                  router.refresh();
-                }}
-              />
-            </div>
           </Panel>
         </section>
       </div>

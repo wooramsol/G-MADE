@@ -2,17 +2,25 @@
 
 import { useMemo, useState } from "react";
 import { buildHybridViewFromSession } from "@/lib/upload-to-hybrid";
-import type { HybridResult, Project, UploadAnalysisSession } from "@/lib/types";
+import type { HumanEvaluationSession, HybridResult, Project, UploadAnalysisSession } from "@/lib/types";
 import { showToast } from "../../toast";
 
 type Props = {
   project: Project;
   analyses: UploadAnalysisSession[];
+  humanEvaluations: HumanEvaluationSession[];
   onAnalysesChange?: (analyses: UploadAnalysisSession[]) => void;
+  onHumanEvaluationsChange?: (sessions: HumanEvaluationSession[]) => void;
 };
 
-export default function ProjectEvaluationWorkspace({ project, analyses, onAnalysesChange }: Props) {
-  const sorted = useMemo(
+export default function ProjectEvaluationWorkspace({
+  project,
+  analyses,
+  humanEvaluations,
+  onAnalysesChange,
+  onHumanEvaluationsChange,
+}: Props) {
+  const sortedAnalyses = useMemo(
     () =>
       [...analyses].sort(
         (a, b) => new Date(b.analyzedAt).getTime() - new Date(a.analyzedAt).getTime(),
@@ -20,21 +28,39 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
     [analyses],
   );
 
-  const [selectedId, setSelectedId] = useState<string | null>(sorted[0]?.id ?? null);
-  const [humanScores, setHumanScores] = useState<Record<string, number>>({});
-  const selectedSession = sorted.find((s) => s.id === selectedId) ?? sorted[0];
-  const round = selectedSession
-    ? sorted.length - sorted.findIndex((s) => s.id === selectedSession.id)
+  const sortedHumanEvaluations = useMemo(
+    () =>
+      [...humanEvaluations].sort(
+        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime(),
+      ),
+    [humanEvaluations],
+  );
+
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(sortedAnalyses[0]?.id ?? null);
+  const [selectedHumanId, setSelectedHumanId] = useState<string | null>(
+    sortedHumanEvaluations[0]?.id ?? null,
+  );
+
+  const selectedSession = sortedAnalyses.find((session) => session.id === selectedAnalysisId) ?? sortedAnalyses[0];
+  const selectedHumanSession =
+    sortedHumanEvaluations.find((session) => session.id === selectedHumanId) ?? sortedHumanEvaluations[0];
+
+  const aiRound = selectedSession
+    ? sortedAnalyses.length - sortedAnalyses.findIndex((session) => session.id === selectedSession.id)
+    : 0;
+  const humanRound = selectedHumanSession
+    ? sortedHumanEvaluations.length -
+      sortedHumanEvaluations.findIndex((session) => session.id === selectedHumanSession.id)
     : 0;
 
   const hybridView = selectedSession
-    ? buildHybridViewFromSession(selectedSession, round, humanScores)
+    ? buildHybridViewFromSession(selectedSession, aiRound, selectedHumanSession)
     : null;
 
-  async function deleteSession(sessionId: string) {
-    if (!window.confirm("이 분석 결과를 삭제할까요?")) return;
+  async function deleteAnalysisSession(sessionId: string) {
+    if (!window.confirm("이 AI 분석 결과를 삭제할까요?")) return;
 
-    let next = sorted.filter((session) => session.id !== sessionId);
+    let next = sortedAnalyses.filter((session) => session.id !== sessionId);
 
     try {
       const response = await fetch(`/api/projects/${project.id}/analyses/${sessionId}`, {
@@ -52,10 +78,43 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
       }
 
       onAnalysesChange?.(next);
-      if (selectedId === sessionId) {
-        setSelectedId(next[0]?.id ?? null);
+      if (selectedAnalysisId === sessionId) {
+        setSelectedAnalysisId(next[0]?.id ?? null);
       }
-      showToast({ message: "분석 결과가 삭제되었습니다.", tone: "success" });
+      showToast({ message: "AI 분석 결과가 삭제되었습니다.", tone: "success" });
+    } catch (error) {
+      showToast({
+        message: error instanceof Error ? error.message : "삭제에 실패했습니다.",
+        tone: "error",
+      });
+    }
+  }
+
+  async function deleteHumanSession(sessionId: string) {
+    if (!window.confirm("이 전문가 평가 결과를 삭제할까요?")) return;
+
+    let next = sortedHumanEvaluations.filter((session) => session.id !== sessionId);
+
+    try {
+      const response = await fetch(`/api/projects/${project.id}/expert-evaluations/${sessionId}`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        project?: { humanEvaluationSessions?: HumanEvaluationSession[] };
+      };
+
+      if (response.ok) {
+        next = payload.project?.humanEvaluationSessions ?? next;
+      } else if (response.status !== 404) {
+        throw new Error(payload.error ?? "삭제에 실패했습니다.");
+      }
+
+      onHumanEvaluationsChange?.(next);
+      if (selectedHumanId === sessionId) {
+        setSelectedHumanId(next[0]?.id ?? null);
+      }
+      showToast({ message: "전문가 평가 결과가 삭제되었습니다.", tone: "success" });
     } catch (error) {
       showToast({
         message: error instanceof Error ? error.message : "삭제에 실패했습니다.",
@@ -67,7 +126,7 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
   if (!selectedSession || !hybridView) {
     return (
       <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm text-[#64748b]">
-        업로드 분석을 실행하면 AI 평가·하이브리드 점수·법령 근거가 이 영역에 표시됩니다.
+        AI 분석과 전문가 평가 자료를 각각 업로드하면 종합 점수가 이 영역에 표시됩니다.
       </div>
     );
   }
@@ -78,7 +137,7 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
         <SectionTitle
           eyebrow="AI Document Analysis"
           title="업로드 자료 자동 추출"
-          description={`${round}차 분석 기준 문서 섹션 추출 결과입니다.`}
+          description={`${aiRound}차 AI 분석 기준 문서 섹션 추출 결과입니다.`}
         />
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {selectedSession.analysis.documentSections.map((section) => (
@@ -99,57 +158,100 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
       <section id="hybrid-score-engine">
         <SectionTitle
           eyebrow="Hybrid Score Engine"
-          title="AI 평가와 인간 평가의 종합 산출"
-          description="선택한 분석 차수의 AI 점수와 심사위원 점수를 가중 합산합니다."
+          title="AI 평가와 전문가 평가의 종합 산출"
+          description="선택한 AI 분석 차수와 전문가 평가 차수를 가중 합산합니다."
         />
         <div className="mt-5 space-y-5">
-          <div className="flex flex-wrap gap-2">
-            {sorted.map((session, index) => (
-              <button
-                key={session.id}
-                type="button"
-                className={`rounded-lg px-3 py-2 text-sm font-bold ${
-                  session.id === selectedSession.id
-                    ? "bg-[#15345b] text-white"
-                    : "bg-[#eef4fb] text-[#15345b]"
-                }`}
-                onClick={() => setSelectedId(session.id)}
-              >
-                {sorted.length - index}차
-              </button>
-            ))}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-[#d7dee8] bg-white p-4">
+              <p className="text-sm font-bold text-[#2463b3]">AI 분석 차수</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {sortedAnalyses.map((session, index) => (
+                  <button
+                    key={session.id}
+                    type="button"
+                    className={`rounded-lg px-3 py-2 text-sm font-bold ${
+                      session.id === selectedSession.id
+                        ? "bg-[#2463b3] text-white"
+                        : "bg-[#eef4fb] text-[#15345b]"
+                    }`}
+                    onClick={() => setSelectedAnalysisId(session.id)}
+                  >
+                    {sortedAnalyses.length - index}차
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#d7dee8] bg-white p-4">
+              <p className="text-sm font-bold text-[#15345b]">전문가 평가 차수</p>
+              {sortedHumanEvaluations.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {sortedHumanEvaluations.map((session, index) => (
+                    <button
+                      key={session.id}
+                      type="button"
+                      className={`rounded-lg px-3 py-2 text-sm font-bold ${
+                        session.id === selectedHumanSession?.id
+                          ? "bg-[#15345b] text-white"
+                          : "bg-slate-100 text-[#15345b]"
+                      }`}
+                      onClick={() => setSelectedHumanId(session.id)}
+                    >
+                      {sortedHumanEvaluations.length - index}차 · {session.reviewerName}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-[#64748b]">
+                  전문가 평가 자료를 업로드하면 차수별 점수가 반영됩니다.
+                </p>
+              )}
+            </div>
           </div>
 
-          <Panel title="현재 가중치 설정" action={`${round}차 분석`}>
+          <Panel title="현재 가중치 설정" action={`AI ${aiRound}차 · 전문가 ${humanRound || "-"}차`}>
             <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
-            <WeightBar label="인간 심사위원 평가" value={hybridView.settings.humanWeight} color="#15345b" />
+            <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
           </Panel>
+
+          {!selectedHumanSession ? (
+            <div className="rounded-xl border border-[#fdba74] bg-[#fff7ed] p-4 text-sm leading-6 text-[#9a3412]">
+              전문가 평가 자료가 아직 없습니다. 상단의 인간 전문가 평가 영역에서 자료를 업로드하고 항목별 점수를
+              등록해 주세요.
+            </div>
+          ) : null}
 
           <Panel
             title={`종합 점수 ${hybridView.projectScore}점`}
             action={
-              <button
-                type="button"
-                className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
-                onClick={() => deleteSession(selectedSession.id)}
-              >
-                이 차수 삭제
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
+                  onClick={() => deleteAnalysisSession(selectedSession.id)}
+                >
+                  AI 차수 삭제
+                </button>
+                {selectedHumanSession ? (
+                  <button
+                    type="button"
+                    className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
+                    onClick={() => deleteHumanSession(selectedHumanSession.id)}
+                  >
+                    전문가 차수 삭제
+                  </button>
+                ) : null}
+              </div>
             }
           >
-            <EvaluationTable
-              results={hybridView.results}
-              humanScores={humanScores}
-              onHumanScoreChange={(itemId, score) =>
-                setHumanScores((current) => ({ ...current, [itemId]: score }))
-              }
-            />
+            <EvaluationTable results={hybridView.results} humanReviewer={selectedHumanSession?.reviewerName} />
           </Panel>
         </div>
       </section>
 
       <section id="explainable-ai">
-        <SectionTitle eyebrow="Explainable AI" title="점수 산정 근거 추적" description="선택 차수의 AI 평가 근거입니다." />
+        <SectionTitle eyebrow="Explainable AI" title="점수 산정 근거 추적" description="선택한 AI 분석 차수의 평가 근거입니다." />
         <div className="mt-5 grid gap-5 xl:grid-cols-2">
           {hybridView.results.slice(0, 4).map((result) => (
             <Panel
@@ -178,8 +280,6 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
           ))}
         </div>
       </section>
-
-
     </div>
   );
 }
@@ -236,12 +336,10 @@ function WeightBar({ label, value, color }: { label: string; value: number; colo
 
 function EvaluationTable({
   results,
-  humanScores,
-  onHumanScoreChange,
+  humanReviewer,
 }: {
   results: HybridResult[];
-  humanScores: Record<string, number>;
-  onHumanScoreChange: (itemId: string, score: number) => void;
+  humanReviewer?: string;
 }) {
   return (
     <div className="overflow-auto rounded-xl border border-[#d7dee8]">
@@ -250,7 +348,7 @@ function EvaluationTable({
           <tr>
             <th className="px-4 py-3">평가항목</th>
             <th className="px-4 py-3">AI 점수</th>
-            <th className="px-4 py-3">인간 점수</th>
+            <th className="px-4 py-3">전문가 점수{humanReviewer ? ` (${humanReviewer})` : ""}</th>
             <th className="px-4 py-3">최종 점수</th>
             <th className="px-4 py-3">평가 근거 / 개선 의견</th>
           </tr>
@@ -266,14 +364,12 @@ function EvaluationTable({
               </td>
               <td className="px-4 py-4 font-bold text-[#2463b3]">{result.aiEvaluation.score}</td>
               <td className="px-4 py-4">
-                <input
-                  className="w-16 rounded border border-[#d7dee8] px-2 py-1 text-sm font-bold text-[#15345b]"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={humanScores[result.item.id] ?? result.humanEvaluation.score}
-                  onChange={(e) => onHumanScoreChange(result.item.id, Number(e.target.value))}
-                />
+                <p className="font-bold text-[#15345b]">
+                  {humanReviewer ? result.humanEvaluation.score : "-"}
+                </p>
+                {humanReviewer && result.humanEvaluation.comment ? (
+                  <p className="mt-1 text-xs leading-5 text-[#64748b]">{result.humanEvaluation.comment}</p>
+                ) : null}
               </td>
               <td className="px-4 py-4">
                 <p className="text-lg font-black text-[#15345b]">{result.finalScore}</p>

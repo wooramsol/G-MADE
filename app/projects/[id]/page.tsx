@@ -49,25 +49,36 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
             </div>
           </Panel>
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
-          <Panel title="프로젝트 자료 업로드 및 AI 자동 분석" action="파일 추가">
-            <div className="mb-4 flex flex-wrap gap-2">
+          <Panel title="AI · 전문가 병행 평가" action="자료 업로드">
+            <p className="mb-4 text-sm leading-6 text-[#64748b]">
+              프로젝트 자료는 AI가 자동 분석하고, 심사위원·전문가 평가 자료는 별도로 업로드하여 항목별 점수를
+              등록합니다. 두 평가 결과를 가중 합산해 종합 점수를 산출합니다.
+            </p>
+            <div className="mb-5 flex flex-wrap gap-2">
               {supportedFiles.map((file) => (
                 <Badge tone="gray" key={file}>
                   {file}
                 </Badge>
               ))}
+              <Badge tone="gray">XLSX</Badge>
+              <Badge tone="gray">HWP</Badge>
             </div>
-            <div className="space-y-3">
-              {project.files.map((file) => (
-                <div className="flex items-center justify-between rounded-xl border border-[#d7dee8] bg-white p-4" key={file.id}>
-                  <div>
-                    <p className="font-semibold text-[#172033]">{file.fileName}</p>
-                    <p className="text-sm text-[#64748b]">{file.fileType} · S3 호환 저장소 연결 구조</p>
+            {project.files.length > 0 ? (
+              <div className="mb-5 space-y-3">
+                {project.files.map((file) => (
+                  <div
+                    className="flex items-center justify-between rounded-xl border border-[#d7dee8] bg-white p-4"
+                    key={file.id}
+                  >
+                    <div>
+                      <p className="font-semibold text-[#172033]">{file.fileName}</p>
+                      <p className="text-sm text-[#64748b]">{file.fileType} · S3 호환 저장소 연결 구조</p>
+                    </div>
+                    <Badge tone="blue">{file.analysisStatus}</Badge>
                   </div>
-                  <Badge tone="blue">{file.analysisStatus}</Badge>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : null}
             <ProjectUploadSection project={project} />
           </Panel>
         </section>

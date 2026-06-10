@@ -56,6 +56,26 @@ export type ProjectFile = {
   sizeBytes?: number;
 };
 
+export type HumanEvaluationItemScore = {
+  itemId: string;
+  score: number;
+  comment?: string;
+};
+
+export type HumanEvaluationSession = {
+  id: string;
+  uploadedAt: string;
+  reviewerName: string;
+  summary?: string;
+  files: Array<{
+    id: string;
+    originalName: string;
+    fileType: string;
+    sizeBytes: number;
+  }>;
+  itemScores: HumanEvaluationItemScore[];
+};
+
 export type UploadAnalysisSession = {
   id: string;
   analyzedAt: string;
@@ -127,6 +147,7 @@ export type Project = {
   status: "접수" | "심사 진행중" | "완료";
   files: ProjectFile[];
   uploadAnalyses?: UploadAnalysisSession[];
+  humanEvaluationSessions?: HumanEvaluationSession[];
 };
 
 export type AiEvaluation = {

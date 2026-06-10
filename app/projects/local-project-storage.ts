@@ -1,6 +1,6 @@
 "use client";
 
-import type { Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
+import type { HumanEvaluationSession, Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
 
 const STORAGE_KEY = "gmadehive.localProjects";
 
@@ -93,6 +93,60 @@ export function addLocalProjectUploadAnalysis(
     ...project,
     files: mergeProjectFiles(project.files, files),
     uploadAnalyses: [...(project.uploadAnalyses ?? []), session],
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
+export function syncLocalProjectEvaluations(
+  projectId: string,
+  baseProject: Project,
+  files: ProjectFile[],
+  uploadAnalyses: UploadAnalysisSession[],
+  humanEvaluationSessions: HumanEvaluationSession[],
+): Project {
+  const local = getLocalProjects().find((item) => item.id === projectId);
+  const nextProject = {
+    ...(local ?? baseProject),
+    files,
+    uploadAnalyses,
+    humanEvaluationSessions,
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
+export function removeLocalProjectHumanEvaluation(
+  projectId: string,
+  sessionId: string,
+): Project | undefined {
+  const projects = getLocalProjects();
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) return undefined;
+
+  const nextProject = {
+    ...project,
+    humanEvaluationSessions: (project.humanEvaluationSessions ?? []).filter(
+      (session) => session.id !== sessionId,
+    ),
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
+export function addLocalProjectHumanEvaluation(
+  projectId: string,
+  session: HumanEvaluationSession,
+  files: ProjectFile[],
+): Project | undefined {
+  const projects = getLocalProjects();
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) return undefined;
+
+  const nextProject = {
+    ...project,
+    files: mergeProjectFiles(project.files, files),
+    humanEvaluationSessions: [...(project.humanEvaluationSessions ?? []), session],
   };
   saveLocalProject(nextProject);
   return nextProject;

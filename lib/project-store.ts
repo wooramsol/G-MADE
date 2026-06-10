@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
-import type { Project, ProjectFile, UploadAnalysisSession } from "./types";
+import type { HumanEvaluationSession, Project, ProjectFile, UploadAnalysisSession } from "./types";
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
@@ -29,6 +29,8 @@ export async function getAllProjects(): Promise<Project[]> {
           ...stored,
           files: stored.files ?? project.files,
           uploadAnalyses: stored.uploadAnalyses ?? project.uploadAnalyses ?? [],
+          humanEvaluationSessions:
+            stored.humanEvaluationSessions ?? project.humanEvaluationSessions ?? [],
         }
       : project;
   });
@@ -99,6 +101,30 @@ export async function removeProjectUploadAnalysis(
   }));
 }
 
+export async function addProjectHumanEvaluationSession(
+  id: string,
+  session: HumanEvaluationSession,
+  files: ProjectFile[],
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    files: mergeProjectFiles(project.files, files),
+    humanEvaluationSessions: [...(project.humanEvaluationSessions ?? []), session],
+  }));
+}
+
+export async function removeProjectHumanEvaluationSession(
+  id: string,
+  sessionId: string,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    humanEvaluationSessions: (project.humanEvaluationSessions ?? []).filter(
+      (session) => session.id !== sessionId,
+    ),
+  }));
+}
+
 async function updateStoredProject(
   id: string,
   updater: (project: Project) => Project,
@@ -114,6 +140,7 @@ async function updateStoredProject(
   const nextProject = updater({
     ...baseProject,
     uploadAnalyses: baseProject.uploadAnalyses ?? [],
+    humanEvaluationSessions: baseProject.humanEvaluationSessions ?? [],
     updatedAt: new Date().toISOString(),
   });
 
