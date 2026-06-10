@@ -105,9 +105,9 @@ npm run dev
 
 ### DB 테이블 (Prisma)
 
-Vercel Postgres를 연결하면 `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING` 등이 자동 주입됩니다. **배포(Redeploy) 시** `prisma db push`가 direct URL로 실행되어 테이블이 맞춰집니다. Postgres 연결이 없는 Preview 빌드는 DB 단계를 건너뜁니다.
+Vercel Postgres를 연결하면 `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING` 등이 자동 주입됩니다. **배포(Redeploy) 시** `prisma db push`를 시도합니다. 실패해도 **배포 자체는 계속**됩니다.
 
-로컬에서 수동으로 맞추려면 프로젝트 폴더에서 `.env`에 `DATABASE_URL`을 넣은 뒤 `npx prisma db push`를 실행합니다.
+로그인 히스토리 테이블이 없으면 Vercel Storage → Postgres → **Query** 탭에서 `prisma/sql/login_history.sql` 내용을 한 번 실행합니다.
 
 ### 가비아 DNS 설정
 

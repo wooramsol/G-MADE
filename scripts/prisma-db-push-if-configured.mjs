@@ -27,16 +27,15 @@ if (!directUrl) {
 
 const pushUrl = withSslIfNeeded(directUrl);
 
-console.log("Running prisma db push with direct Postgres URL...");
+console.log("Running prisma db push...");
 try {
-  execSync("npx prisma db push --skip-generate", {
+  execSync(`npx prisma db push --url="${pushUrl.replace(/"/g, '\\"')}"`, {
     stdio: "inherit",
-    env: {
-      ...process.env,
-      DATABASE_URL: pushUrl,
-    },
+    env: process.env,
   });
+  console.log("prisma db push completed.");
 } catch (error) {
-  console.error("prisma db push failed:", error instanceof Error ? error.message : error);
-  process.exit(1);
+  console.warn("prisma db push failed; continuing build without blocking deploy.");
+  console.warn(error instanceof Error ? error.message : error);
+  process.exit(0);
 }
