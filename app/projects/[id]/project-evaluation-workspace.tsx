@@ -64,15 +64,6 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
     }
   }
 
-  function exportReport(format: "pdf" | "docx") {
-    if (!selectedSession) {
-      showToast({ message: "보낼 분석 결과가 없습니다.", tone: "error" });
-      return;
-    }
-    const url = `/api/projects/${project.id}/report?format=${format}&sessionId=${selectedSession.id}`;
-    window.open(url, "_blank");
-  }
-
   if (!selectedSession || !hybridView) {
     return (
       <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm text-[#64748b]">
@@ -137,29 +128,13 @@ export default function ProjectEvaluationWorkspace({ project, analyses, onAnalys
           <Panel
             title={`종합 점수 ${hybridView.projectScore}점`}
             action={
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3] hover:bg-[#d6e8ff]"
-                  onClick={() => exportReport("pdf")}
-                >
-                  PDF(인쇄)
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3] hover:bg-[#d6e8ff]"
-                  onClick={() => exportReport("docx")}
-                >
-                  한글(DOCX)
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
-                  onClick={() => deleteSession(selectedSession.id)}
-                >
-                  이 차수 삭제
-                </button>
-              </div>
+              <button
+                type="button"
+                className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
+                onClick={() => deleteSession(selectedSession.id)}
+              >
+                이 차수 삭제
+              </button>
             }
           >
             <EvaluationTable
