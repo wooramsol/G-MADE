@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import AutoResizeTextarea from "@/components/auto-resize-textarea";
 import { interactiveCardClassName } from "@/components/interactive-card";
 import { createEmptyEvaluationItem, isCustomEvaluationItem } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, Project } from "@/lib/types";
@@ -34,7 +35,6 @@ export default function EvaluationItemsEditor({
 }: EvaluationItemsEditorProps) {
   const totalPoints = items.reduce((sum, item) => sum + Number(item.points || 0), 0);
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
-  const [expandedCriteriaIds, setExpandedCriteriaIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
     serializeItems(project.savedEvaluationItems ?? items),
@@ -64,15 +64,6 @@ export default function EvaluationItemsEditor({
     const newItem = createEmptyEvaluationItem(items.length + 1);
     onItemsChange([newItem, ...items]);
     setFocusItemId(newItem.id);
-  }
-
-  function toggleCriteriaExpanded(itemId: string) {
-    setExpandedCriteriaIds((current) => {
-      const next = new Set(current);
-      if (next.has(itemId)) next.delete(itemId);
-      else next.add(itemId);
-      return next;
-    });
   }
 
   async function saveItems() {
@@ -236,26 +227,11 @@ export default function EvaluationItemsEditor({
                     />
                   </td>
                   <td className="align-top px-3 py-3">
-                    <div className="space-y-1.5">
-                      <textarea
-                        className={`w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm leading-6 outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white ${
-                          expandedCriteriaIds.has(item.id)
-                            ? "min-h-24 resize-y"
-                            : "h-[38px] resize-none overflow-hidden"
-                        }`}
-                        placeholder={PLACEHOLDERS.criteria}
-                        rows={expandedCriteriaIds.has(item.id) ? 3 : 1}
-                        value={item.criteria}
-                        onChange={(event) => updateItem(item.id, { criteria: event.target.value })}
-                      />
-                      <button
-                        className="text-xs font-bold text-[#2463b3] hover:underline"
-                        type="button"
-                        onClick={() => toggleCriteriaExpanded(item.id)}
-                      >
-                        {expandedCriteriaIds.has(item.id) ? "한 줄로" : "늘리기"}
-                      </button>
-                    </div>
+                    <AutoResizeTextarea
+                      placeholder={PLACEHOLDERS.criteria}
+                      value={item.criteria}
+                      onChange={(value) => updateItem(item.id, { criteria: value })}
+                    />
                   </td>
                   <td className="align-top px-2 py-3">
                     <button

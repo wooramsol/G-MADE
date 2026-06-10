@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import EvaluationWeightSlider from "@/components/evaluation-weight-slider";
 import { interactiveCardClassName } from "@/components/interactive-card";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
@@ -119,25 +120,13 @@ export default function ParallelEvaluationForm({
       />
 
       <div className={`rounded-xl border border-[#d7dee8] bg-white p-4 ${interactiveCardClassName}`}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-bold text-[#15345b]">평가 가중치</p>
-            <p className="mt-1 text-sm text-[#64748b]">AI와 전문가 평가 비율을 조정합니다.</p>
-          </div>
-          <span className="rounded-full bg-[#e8f1ff] px-3 py-1 text-xs font-bold text-[#2463b3]">
-            AI {aiWeight}% · 전문가 {100 - aiWeight}%
-          </span>
+        <div>
+          <p className="font-bold text-[#15345b]">평가 가중치</p>
+          <p className="mt-1 text-sm text-[#64748b]">
+            슬라이더를 움직여 AI(왼쪽)와 전문가(오른쪽) 평가 비율을 조정합니다.
+          </p>
         </div>
-        <input
-          aria-label="AI 평가 가중치"
-          className="mt-4 w-full accent-[#2463b3]"
-          max="100"
-          min="0"
-          step="10"
-          type="range"
-          value={aiWeight}
-          onChange={(event) => setAiWeight(Number(event.target.value))}
-        />
+        <EvaluationWeightSlider aiWeight={aiWeight} onChange={setAiWeight} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
