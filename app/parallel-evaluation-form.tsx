@@ -7,6 +7,7 @@ import type { AiProviderPreference } from "@/lib/ai/types";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
+import { scrollToHybridEvaluationResults } from "@/lib/scroll-to-hybrid-evaluation-results";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
 
@@ -98,6 +99,7 @@ export default function ParallelEvaluationForm({
       const nextRounds =
         payload.project?.evaluationRounds ?? [...(project.evaluationRounds ?? []), payload.round];
       onRoundsChange?.(nextRounds, projectFiles);
+      scrollToHybridEvaluationResults();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "하이브리드 평가 분석에 실패했습니다.");
     } finally {

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { getProjectEvaluationRounds } from "@/lib/evaluation-rounds";
 import { mergeProjectWithLocal } from "@/lib/merge-project-state";
+import { scrollToHybridEvaluationResults } from "@/lib/scroll-to-hybrid-evaluation-results";
 import type { EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import ParallelEvaluationForm from "../../parallel-evaluation-form";
 import { getLocalProjects, syncLocalProjectRounds } from "../local-project-storage";
@@ -35,11 +36,18 @@ export default function ProjectUploadSection({
   }, [project]);
 
   function syncRounds(nextRounds: EvaluationRound[], nextFiles = files) {
+    const addedRound = nextRounds.length > rounds.length;
+
     setRounds(nextRounds);
     setFiles(nextFiles);
     syncLocalProjectRounds(project.id, activeProject, nextFiles, nextRounds);
     setActiveProject((current) => ({ ...current, files: nextFiles, evaluationRounds: nextRounds }));
     onProjectUpdated?.();
+
+    if (addedRound) {
+      scrollToHybridEvaluationResults();
+    }
+
     router.refresh();
   }
 
