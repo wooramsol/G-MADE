@@ -14,6 +14,7 @@ type EvaluationItemsEditorProps = {
   onSaved?: (items: EvaluationItem[]) => void;
 };
 
+const CATEGORY_COL_WIDTH = "w-[176px]";
 const PLACEHOLDERS = {
   majorCategory: "대분류 입력",
   middleCategory: "중분류 입력",
@@ -33,6 +34,7 @@ export default function EvaluationItemsEditor({
 }: EvaluationItemsEditorProps) {
   const totalPoints = items.reduce((sum, item) => sum + Number(item.points || 0), 0);
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
+  const [expandedCriteriaIds, setExpandedCriteriaIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
     serializeItems(project.savedEvaluationItems ?? items),
@@ -62,6 +64,15 @@ export default function EvaluationItemsEditor({
     const newItem = createEmptyEvaluationItem(items.length + 1);
     onItemsChange([newItem, ...items]);
     setFocusItemId(newItem.id);
+  }
+
+  function toggleCriteriaExpanded(itemId: string) {
+    setExpandedCriteriaIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
   }
 
   async function saveItems() {
@@ -165,11 +176,11 @@ export default function EvaluationItemsEditor({
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-[#d7dee8]">
-        <table className="w-full min-w-[1280px] table-fixed border-collapse text-left text-sm">
+        <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-sm">
           <colgroup>
-            <col className="w-[264px]" />
-            <col className="w-[264px]" />
-            <col className="w-[360px]" />
+            <col className={CATEGORY_COL_WIDTH} />
+            <col className={CATEGORY_COL_WIDTH} />
+            <col className={CATEGORY_COL_WIDTH} />
             <col className="w-[72px]" />
             <col />
             <col className="w-[56px]" />
@@ -225,13 +236,26 @@ export default function EvaluationItemsEditor({
                     />
                   </td>
                   <td className="align-top px-3 py-3">
-                    <textarea
-                      className="min-h-20 w-full resize-y rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm leading-6 outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"
-                      placeholder={PLACEHOLDERS.criteria}
-                      rows={3}
-                      value={item.criteria}
-                      onChange={(event) => updateItem(item.id, { criteria: event.target.value })}
-                    />
+                    <div className="space-y-1.5">
+                      <textarea
+                        className={`w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm leading-6 outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white ${
+                          expandedCriteriaIds.has(item.id)
+                            ? "min-h-24 resize-y"
+                            : "h-[38px] resize-none overflow-hidden"
+                        }`}
+                        placeholder={PLACEHOLDERS.criteria}
+                        rows={expandedCriteriaIds.has(item.id) ? 3 : 1}
+                        value={item.criteria}
+                        onChange={(event) => updateItem(item.id, { criteria: event.target.value })}
+                      />
+                      <button
+                        className="text-xs font-bold text-[#2463b3] hover:underline"
+                        type="button"
+                        onClick={() => toggleCriteriaExpanded(item.id)}
+                      >
+                        {expandedCriteriaIds.has(item.id) ? "한 줄로" : "늘리기"}
+                      </button>
+                    </div>
                   </td>
                   <td className="align-top px-2 py-3">
                     <button
