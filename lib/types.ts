@@ -125,6 +125,28 @@ export type UploadAnalysisSession = {
   };
 };
 
+export type EvaluationSessionFile = {
+  id: string;
+  originalName: string;
+  fileType: string;
+  sizeBytes: number;
+};
+
+export type EvaluationRound = {
+  id: string;
+  evaluatedAt: string;
+  aiWeight: number;
+  expertWeight: number;
+  evaluationItems: EvaluationItem[];
+  totalPoints: number;
+  reviewerName: string;
+  expertSummary?: string;
+  aiFiles: EvaluationSessionFile[];
+  expertFiles: EvaluationSessionFile[];
+  aiAnalysis: UploadAnalysisSession["analysis"];
+  expertItemScores: HumanEvaluationItemScore[];
+};
+
 export type ProjectLocationPoint = {
   x: number;
   y: number;
@@ -148,6 +170,7 @@ export type Project = {
   files: ProjectFile[];
   uploadAnalyses?: UploadAnalysisSession[];
   humanEvaluationSessions?: HumanEvaluationSession[];
+  evaluationRounds?: EvaluationRound[];
 };
 
 export type AiEvaluation = {

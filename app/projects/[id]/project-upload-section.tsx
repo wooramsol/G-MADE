@@ -2,39 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { HumanEvaluationSession, Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
-import ExpertEvaluationUploader from "../../expert-evaluation-uploader";
-import UploadAnalyzer from "../../upload-analyzer";
-import {
-  addLocalProjectHumanEvaluation,
-  addLocalProjectUploadAnalysis,
-  getLocalProjects,
-  saveLocalProject,
-  syncLocalProjectEvaluations,
-} from "../local-project-storage";
+import { getProjectEvaluationRounds } from "@/lib/evaluation-rounds";
+import type { EvaluationRound, Project, ProjectFile } from "@/lib/types";
+import ParallelEvaluationForm from "../../parallel-evaluation-form";
+import { getLocalProjects, syncLocalProjectRounds } from "../local-project-storage";
 import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
 
-function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]): ProjectFile[] {
-  const byId = new Map<string, ProjectFile>();
-  [...currentFiles, ...nextFiles].forEach((file) => byId.set(file.id, file));
-  return Array.from(byId.values());
-}
-
-function mergeAnalyses(
-  serverAnalyses: UploadAnalysisSession[] = [],
-  localAnalyses: UploadAnalysisSession[] = [],
-): UploadAnalysisSession[] {
-  const byId = new Map<string, UploadAnalysisSession>();
-  [...serverAnalyses, ...localAnalyses].forEach((session) => byId.set(session.id, session));
-  return Array.from(byId.values());
-}
-
-function mergeHumanEvaluations(
-  serverSessions: HumanEvaluationSession[] = [],
-  localSessions: HumanEvaluationSession[] = [],
-): HumanEvaluationSession[] {
-  const byId = new Map<string, HumanEvaluationSession>();
-  [...serverSessions, ...localSessions].forEach((session) => byId.set(session.id, session));
+function mergeRounds(serverRounds: EvaluationRound[] = [], localRounds: EvaluationRound[] = []): EvaluationRound[] {
+  const byId = new Map<string, EvaluationRound>();
+  [...serverRounds, ...localRounds].forEach((round) => byId.set(round.id, round));
   return Array.from(byId.values());
 }
 
@@ -47,130 +23,51 @@ export default function ProjectUploadSection({
 }) {
   const router = useRouter();
   const [files, setFiles] = useState<ProjectFile[]>(project.files);
-  const [analyses, setAnalyses] = useState<UploadAnalysisSession[]>(project.uploadAnalyses ?? []);
-  const [humanEvaluations, setHumanEvaluations] = useState<HumanEvaluationSession[]>(
-    project.humanEvaluationSessions ?? [],
-  );
+  const [rounds, setRounds] = useState<EvaluationRound[]>(getProjectEvaluationRounds(project));
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       const localProject = getLocalProjects().find((item) => item.id === project.id);
-      if (localProject) {
-        setFiles(mergeProjectFiles(project.files, localProject.files));
-        setAnalyses(mergeAnalyses(project.uploadAnalyses, localProject.uploadAnalyses));
-        setHumanEvaluations(
-          mergeHumanEvaluations(project.humanEvaluationSessions, localProject.humanEvaluationSessions),
-        );
-      } else {
-        setFiles(project.files);
-        setAnalyses(project.uploadAnalyses ?? []);
-        setHumanEvaluations(project.humanEvaluationSessions ?? []);
-      }
+      const mergedProject = localProject ? { ...project, ...localProject } : project;
+      setFiles(mergedProject.files);
+      setRounds(getProjectEvaluationRounds(mergedProject));
     }, 0);
 
     return () => window.clearTimeout(timeout);
-  }, [project.files, project.humanEvaluationSessions, project.id, project.uploadAnalyses]);
+  }, [project]);
 
-  function syncAll(
-    nextFiles: ProjectFile[],
-    nextAnalyses: UploadAnalysisSession[],
-    nextHumanEvaluations: HumanEvaluationSession[],
-  ) {
+  function syncRounds(nextRounds: EvaluationRound[], nextFiles = files) {
+    setRounds(nextRounds);
     setFiles(nextFiles);
-    setAnalyses(nextAnalyses);
-    setHumanEvaluations(nextHumanEvaluations);
-    syncLocalProjectEvaluations(project.id, project, nextFiles, nextAnalyses, nextHumanEvaluations);
+    syncLocalProjectRounds(project.id, project, nextFiles, nextRounds);
     onProjectUpdated?.();
     router.refresh();
   }
 
-  function handleAnalysesChange(next: UploadAnalysisSession[]) {
-    syncAll(files, next, humanEvaluations);
-  }
-
-  function handleHumanEvaluationsChange(next: HumanEvaluationSession[]) {
-    syncAll(files, analyses, next);
-  }
-
-  function persistUpload(session: UploadAnalysisSession, uploadedFiles: ProjectFile[]) {
-    const nextFiles = mergeProjectFiles(files, uploadedFiles);
-    const nextAnalyses = mergeAnalyses(analyses, [session]);
-    setFiles(nextFiles);
-    setAnalyses(nextAnalyses);
-
-    const localProject = getLocalProjects().find((item) => item.id === project.id);
-    if (localProject) {
-      addLocalProjectUploadAnalysis(project.id, session, uploadedFiles);
-      onProjectUpdated?.();
-      return;
-    }
-
-    saveLocalProject({
-      ...project,
-      files: nextFiles,
-      uploadAnalyses: nextAnalyses,
-      humanEvaluationSessions: humanEvaluations,
+  function persistRound(round: EvaluationRound, uploadedFiles: ProjectFile[]) {
+    const nextFiles = [...files];
+    uploadedFiles.forEach((file) => {
+      const index = nextFiles.findIndex((row) => row.id === file.id);
+      if (index >= 0) nextFiles[index] = file;
+      else nextFiles.push(file);
     });
-  }
-
-  function persistHumanEvaluation(session: HumanEvaluationSession, uploadedFiles: ProjectFile[]) {
-    const nextFiles = mergeProjectFiles(files, uploadedFiles);
-    const nextHumanEvaluations = mergeHumanEvaluations(humanEvaluations, [session]);
-    setFiles(nextFiles);
-    setHumanEvaluations(nextHumanEvaluations);
-
-    const localProject = getLocalProjects().find((item) => item.id === project.id);
-    if (localProject) {
-      addLocalProjectHumanEvaluation(project.id, session, uploadedFiles);
-      onProjectUpdated?.();
-      return;
-    }
-
-    saveLocalProject({
-      ...project,
-      files: nextFiles,
-      uploadAnalyses: analyses,
-      humanEvaluationSessions: nextHumanEvaluations,
-    });
+    syncRounds(mergeRounds(rounds, [round]), nextFiles);
   }
 
   return (
     <>
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <section className="rounded-2xl border border-[#d7dee8] bg-white p-1">
-          <div className="rounded-xl bg-[#eef4fb] px-4 py-3">
-            <p className="text-sm font-bold text-[#2463b3]">AI 자동 분석</p>
-            <p className="mt-1 text-xs text-[#64748b]">프로젝트 자료를 업로드하고 AI가 평가합니다.</p>
-          </div>
-          <UploadAnalyzer
-            projectId={project.id}
-            savedAnalyses={analyses}
-            onAnalysisSaved={persistUpload}
-          />
-        </section>
-
-        <section className="rounded-2xl border border-[#d7dee8] bg-white p-1">
-          <div className="rounded-xl bg-slate-100 px-4 py-3">
-            <p className="text-sm font-bold text-[#15345b]">인간 전문가 평가</p>
-            <p className="mt-1 text-xs text-[#64748b]">
-              심사위원·전문가 평가 자료를 업로드하고 항목별 점수를 등록합니다.
-            </p>
-          </div>
-          <ExpertEvaluationUploader
-            projectId={project.id}
-            savedSessions={humanEvaluations}
-            onEvaluationSaved={persistHumanEvaluation}
-          />
-        </section>
-      </div>
+      <ParallelEvaluationForm
+        projectId={project.id}
+        savedRounds={rounds}
+        onRoundSaved={persistRound}
+        onRoundsChange={(nextRounds) => syncRounds(nextRounds)}
+      />
 
       <div className="mt-8">
         <ProjectEvaluationWorkspace
           project={project}
-          analyses={analyses}
-          humanEvaluations={humanEvaluations}
-          onAnalysesChange={handleAnalysesChange}
-          onHumanEvaluationsChange={handleHumanEvaluationsChange}
+          rounds={rounds}
+          onRoundsChange={(next) => syncRounds(next)}
         />
       </div>
     </>

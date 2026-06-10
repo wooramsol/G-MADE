@@ -2,7 +2,13 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
-import type { HumanEvaluationSession, Project, ProjectFile, UploadAnalysisSession } from "./types";
+import type {
+  EvaluationRound,
+  HumanEvaluationSession,
+  Project,
+  ProjectFile,
+  UploadAnalysisSession,
+} from "./types";
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
@@ -31,6 +37,7 @@ export async function getAllProjects(): Promise<Project[]> {
           uploadAnalyses: stored.uploadAnalyses ?? project.uploadAnalyses ?? [],
           humanEvaluationSessions:
             stored.humanEvaluationSessions ?? project.humanEvaluationSessions ?? [],
+          evaluationRounds: stored.evaluationRounds ?? project.evaluationRounds ?? [],
         }
       : project;
   });
@@ -125,6 +132,28 @@ export async function removeProjectHumanEvaluationSession(
   }));
 }
 
+export async function addProjectEvaluationRound(
+  id: string,
+  round: EvaluationRound,
+  files: ProjectFile[],
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    files: mergeProjectFiles(project.files, files),
+    evaluationRounds: [...(project.evaluationRounds ?? []), round],
+  }));
+}
+
+export async function removeProjectEvaluationRound(
+  id: string,
+  roundId: string,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    evaluationRounds: (project.evaluationRounds ?? []).filter((round) => round.id !== roundId),
+  }));
+}
+
 async function updateStoredProject(
   id: string,
   updater: (project: Project) => Project,
@@ -141,6 +170,7 @@ async function updateStoredProject(
     ...baseProject,
     uploadAnalyses: baseProject.uploadAnalyses ?? [],
     humanEvaluationSessions: baseProject.humanEvaluationSessions ?? [],
+    evaluationRounds: baseProject.evaluationRounds ?? [],
     updatedAt: new Date().toISOString(),
   });
 

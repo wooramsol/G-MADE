@@ -1,6 +1,12 @@
 "use client";
 
-import type { HumanEvaluationSession, Project, ProjectFile, UploadAnalysisSession } from "@/lib/types";
+import type {
+  EvaluationRound,
+  HumanEvaluationSession,
+  Project,
+  ProjectFile,
+  UploadAnalysisSession,
+} from "@/lib/types";
 
 const STORAGE_KEY = "gmadehive.localProjects";
 
@@ -147,6 +153,22 @@ export function addLocalProjectHumanEvaluation(
     ...project,
     files: mergeProjectFiles(project.files, files),
     humanEvaluationSessions: [...(project.humanEvaluationSessions ?? []), session],
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
+export function syncLocalProjectRounds(
+  projectId: string,
+  baseProject: Project,
+  files: ProjectFile[],
+  evaluationRounds: EvaluationRound[],
+): Project {
+  const local = getLocalProjects().find((item) => item.id === projectId);
+  const nextProject = {
+    ...(local ?? baseProject),
+    files,
+    evaluationRounds,
   };
   saveLocalProject(nextProject);
   return nextProject;

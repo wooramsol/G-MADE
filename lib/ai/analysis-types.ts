@@ -1,4 +1,5 @@
 import type { EvaluationContext } from "../evaluation-context";
+import type { EvaluationItem } from "../types";
 
 export type UploadedFileSummary = {
   id: string;
@@ -46,4 +47,5 @@ export type AnalyzeUploadedFilesInput = {
   providerPreference: import("./types").AiProviderPreference;
   files: UploadedFileSummary[];
   evaluationContext: EvaluationContext;
+  evaluationItems?: EvaluationItem[];
 };

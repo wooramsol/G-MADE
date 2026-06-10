@@ -1,4 +1,5 @@
 import type { EvaluationContext } from "../evaluation-context";
+import type { EvaluationItem } from "../types";
 import type { UploadedFileSummary, UploadAnalysisResult } from "./analysis-types";
 import { buildAnalysisPrompt } from "./analysis-prompt";
 import { getClaudeModelsToTry } from "./claude-models";
@@ -20,6 +21,7 @@ type ClaudeDeps = {
 export async function analyzeWithClaude(
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
+  items: EvaluationItem[],
   deps: ClaudeDeps,
 ): Promise<UploadAnalysisResult> {
   const apiKey = getClaudeApiKey();
@@ -40,7 +42,7 @@ export async function analyzeWithClaude(
   let lastBody = "";
 
   for (const model of modelsToTry) {
-    const response = await requestClaude(apiKey, model, files, evaluationContext);
+    const response = await requestClaude(apiKey, model, files, evaluationContext, items);
 
     if (response.ok) {
       const payload = (await response.json()) as {
@@ -71,6 +73,7 @@ async function requestClaude(
   model: string,
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
+  items: EvaluationItem[],
 ) {
   return fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -87,7 +90,7 @@ async function requestClaude(
       messages: [
         {
           role: "user",
-          content: buildAnalysisPrompt(files, evaluationContext),
+          content: buildAnalysisPrompt(files, evaluationContext, items),
         },
       ],
     }),

@@ -1,8 +1,13 @@
-import { evaluationItems } from "../demo-data";
+import { evaluationItems as defaultEvaluationItems } from "../demo-data";
 import type { EvaluationContext } from "../evaluation-context";
+import type { EvaluationItem } from "../types";
 import type { UploadedFileSummary } from "./analysis-types";
 
-export function buildAnalysisPrompt(files: UploadedFileSummary[], context: EvaluationContext): string {
+export function buildAnalysisPrompt(
+  files: UploadedFileSummary[],
+  context: EvaluationContext,
+  items: EvaluationItem[] = defaultEvaluationItems,
+): string {
   const projectBlock = context.project
     ? `프로젝트 정보:
 - 사업명: ${context.project.name}
@@ -80,8 +85,7 @@ ${files
 }
 
 평가항목 후보:
-${evaluationItems
-  .slice(0, 8)
-  .map((item) => `- ${item.detailItem}: ${item.criteria}`)
+${items
+  .map((item) => `- ${item.detailItem} (배점 ${item.points}): ${item.criteria}`)
   .join("\n")}`;
 }

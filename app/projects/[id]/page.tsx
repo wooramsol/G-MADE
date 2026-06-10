@@ -51,8 +51,8 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
           <Panel title="AI · 전문가 병행 평가" action="자료 업로드">
             <p className="mb-4 text-sm leading-6 text-[#64748b]">
-              프로젝트 자료는 AI가 자동 분석하고, 심사위원·전문가 평가 자료는 별도로 업로드하여 항목별 점수를
-              등록합니다. 두 평가 결과를 가중 합산해 종합 점수를 산출합니다.
+              공통 평가항목·배점을 설정한 뒤, AI·전문가 자료를 대칭 구조로 업로드하고 한 번에 하이브리드 평가
+              분석을 실행합니다.
             </p>
             <div className="mb-5 flex flex-wrap gap-2">
               {supportedFiles.map((file) => (

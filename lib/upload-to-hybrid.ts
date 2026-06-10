@@ -1,49 +1,54 @@
-import { evaluationItems } from "./demo-data";
 import { gradeScore, calculateHybridResults, calculateProjectScore } from "./hybrid-evaluation";
 import type {
   AiEvaluation,
   EvaluationGrade,
+  EvaluationItem,
+  EvaluationRound,
   HumanEvaluation,
-  HumanEvaluationSession,
   HybridResult,
   HybridSettings,
   UploadAnalysisSession,
 } from "./types";
 
 export type SessionHybridView = {
-  session: UploadAnalysisSession;
+  round: EvaluationRound;
   settings: HybridSettings;
   results: HybridResult[];
   projectScore: number;
-  round: number;
+  roundNumber: number;
 };
 
-export function buildHybridViewFromSession(
-  session: UploadAnalysisSession,
-  round: number,
-  humanEvaluationSession?: HumanEvaluationSession | null,
-): SessionHybridView {
+export function buildHybridViewFromRound(round: EvaluationRound, roundNumber: number): SessionHybridView {
   const settings: HybridSettings = {
-    aiWeight: session.aiWeight,
-    humanWeight: session.expertWeight,
+    aiWeight: round.aiWeight,
+    humanWeight: round.expertWeight,
   };
 
+  const items = round.evaluationItems;
   const previewByItemId = new Map(
-    session.analysis.evaluationPreview.map((row) => [row.itemId ?? row.itemName, row]),
+    round.aiAnalysis.evaluationPreview.map((row) => [row.itemId ?? row.itemName, row]),
   );
 
-  const items = evaluationItems.filter((item) => {
-    if (previewByItemId.has(item.id)) return true;
-    return session.analysis.evaluationPreview.some((row) => row.itemName === item.detailItem);
-  });
-
-  const targetItems = items.length > 0 ? items : evaluationItems.slice(0, session.analysis.evaluationPreview.length);
+  const targetItems =
+    items.length > 0
+      ? items
+      : round.aiAnalysis.evaluationPreview.map((row, index) => ({
+          id: row.itemId ?? `preview-${index}`,
+          majorCategory: "분석",
+          middleCategory: "항목",
+          detailItem: row.itemName,
+          points: 10,
+          description: "",
+          criteria: row.rationale,
+          lawIds: [],
+          guidelineIds: [],
+        }));
 
   const aiEvaluations: AiEvaluation[] = targetItems.map((item, index) => {
     const preview =
       previewByItemId.get(item.id) ??
-      session.analysis.evaluationPreview.find((row) => row.itemName === item.detailItem) ??
-      session.analysis.evaluationPreview[index];
+      round.aiAnalysis.evaluationPreview.find((row) => row.itemName === item.detailItem) ??
+      round.aiAnalysis.evaluationPreview[index];
 
     const score = preview?.score ?? 75;
     const laws = preview?.laws ?? [];
@@ -61,7 +66,7 @@ export function buildHybridViewFromSession(
           label: "문서 분석",
           weight: 40,
           score: clamp(score + 2),
-          evidence: session.analysis.summary,
+          evidence: round.aiAnalysis.summary,
         },
         {
           label: "법령·공간 맥락",
@@ -82,24 +87,17 @@ export function buildHybridViewFromSession(
     };
   });
 
-  const humanScoreByItemId = new Map(
-    (humanEvaluationSession?.itemScores ?? []).map((row) => [row.itemId, row]),
-  );
+  const humanScoreByItemId = new Map(round.expertItemScores.map((row) => [row.itemId, row]));
 
   const humanEvaluations: HumanEvaluation[] = targetItems.map((item) => {
     const expertRow = humanScoreByItemId.get(item.id);
-    const score = expertRow?.score ?? 0;
 
     return {
       itemId: item.id,
-      reviewerName: humanEvaluationSession?.reviewerName ?? "전문가",
-      score,
-      comment:
-        expertRow?.comment ??
-        (humanEvaluationSession
-          ? "전문가 평가 자료에 해당 항목 점수가 없습니다."
-          : "전문가 평가 자료를 업로드해 주세요."),
-      attachmentName: humanEvaluationSession?.files[0]?.originalName,
+      reviewerName: round.reviewerName,
+      score: expertRow?.score ?? 0,
+      comment: expertRow?.comment ?? "전문가 평가 자료에 해당 항목 점수가 없습니다.",
+      attachmentName: round.expertFiles[0]?.originalName,
     };
   });
 
@@ -111,12 +109,36 @@ export function buildHybridViewFromSession(
   });
 
   return {
-    session,
+    round,
     settings,
     results,
     projectScore: calculateProjectScore(results),
-    round,
+    roundNumber,
   };
+}
+
+/** @deprecated Use buildHybridViewFromRound */
+export function buildHybridViewFromSession(
+  session: UploadAnalysisSession,
+  round: number,
+  humanEvaluationSession?: import("./types").HumanEvaluationSession | null,
+): SessionHybridView {
+  const evaluationRound: EvaluationRound = {
+    id: session.id,
+    evaluatedAt: session.analyzedAt,
+    aiWeight: session.aiWeight,
+    expertWeight: session.expertWeight,
+    evaluationItems: [],
+    totalPoints: session.totalPoints,
+    reviewerName: humanEvaluationSession?.reviewerName ?? "전문가",
+    expertSummary: humanEvaluationSession?.summary,
+    aiFiles: session.files,
+    expertFiles: humanEvaluationSession?.files ?? [],
+    aiAnalysis: session.analysis,
+    expertItemScores: humanEvaluationSession?.itemScores ?? [],
+  };
+
+  return buildHybridViewFromRound(evaluationRound, round);
 }
 
 function clamp(value: number): number {
