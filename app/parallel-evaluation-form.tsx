@@ -35,7 +35,6 @@ export default function ParallelEvaluationForm({
   const [aiFiles, setAiFiles] = useState<File[]>([]);
   const [expertFiles, setExpertFiles] = useState<File[]>([]);
   const [reviewerName, setReviewerName] = useState("");
-  const [expertSummary, setExpertSummary] = useState("");
   const [aiWeight, setAiWeight] = useState(30);
   const [provider, setProvider] = useState<AiProviderPreference>("gemini");
   const [loading, setLoading] = useState(false);
@@ -72,7 +71,6 @@ export default function ParallelEvaluationForm({
     formData.append("aiWeight", String(aiWeight));
     formData.append("expertWeight", String(100 - aiWeight));
     formData.append("reviewerName", reviewerName.trim());
-    if (expertSummary.trim()) formData.append("expertSummary", expertSummary.trim());
     formData.append("evaluationItems", JSON.stringify(evaluationItems));
     aiFiles.forEach((file) => formData.append("aiFiles", file));
     expertFiles.forEach((file) => formData.append("expertFiles", file));
@@ -96,7 +94,6 @@ export default function ParallelEvaluationForm({
 
       setAiFiles([]);
       setExpertFiles([]);
-      setExpertSummary("");
       showToast({ message: "하이브리드 평가 분석이 완료되었습니다.", tone: "success" });
       const nextRounds =
         payload.project?.evaluationRounds ?? [...(project.evaluationRounds ?? []), payload.round];
@@ -169,15 +166,6 @@ export default function ParallelEvaluationForm({
               onChange={(event) => setReviewerName(event.target.value)}
             />
           </label>
-          <label className="mt-3 block text-sm">
-            <span className="mb-2 block text-xs font-bold text-[#64748b]">종합 의견 (선택)</span>
-            <textarea
-              className="min-h-20 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 text-sm leading-6 outline-none focus:border-[#15345b] focus:bg-white"
-              placeholder="전문가 종합 의견"
-              value={expertSummary}
-              onChange={(event) => setExpertSummary(event.target.value)}
-            />
-          </label>
         </MaterialColumn>
       </div>
 
@@ -231,7 +219,7 @@ function MaterialColumn({
       className={`flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4 ${interactiveCardClassName}`}
     >
       <div className={`rounded-xl px-4 py-3 ${headerClass}`}>
-        <p className="text-sm font-bold">{title}</p>
+        <p className="font-bold">{title}</p>
         <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
       </div>
 
