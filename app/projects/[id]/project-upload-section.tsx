@@ -4,16 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { getProjectEvaluationRounds } from "@/lib/evaluation-rounds";
+import { mergeProjectWithLocal } from "@/lib/merge-project-state";
 import type { EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import ParallelEvaluationForm from "../../parallel-evaluation-form";
 import { getLocalProjects, syncLocalProjectRounds } from "../local-project-storage";
 import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
-
-function mergeRounds(serverRounds: EvaluationRound[] = [], localRounds: EvaluationRound[] = []): EvaluationRound[] {
-  const byId = new Map<string, EvaluationRound>();
-  [...serverRounds, ...localRounds].forEach((round) => byId.set(round.id, round));
-  return Array.from(byId.values());
-}
 
 export default function ProjectUploadSection({
   project,
@@ -30,14 +25,8 @@ export default function ProjectUploadSection({
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       const localProject = getLocalProjects().find((item) => item.id === project.id);
-      const mergedProject = localProject ? { ...project, ...localProject } : project;
-      setActiveProject({
-        ...mergedProject,
-        savedEvaluationItems:
-          localProject?.savedEvaluationItems ??
-          mergedProject.savedEvaluationItems ??
-          project.savedEvaluationItems,
-      });
+      const mergedProject = mergeProjectWithLocal(project, localProject);
+      setActiveProject(mergedProject);
       setFiles(mergedProject.files);
       setRounds(getProjectEvaluationRounds(mergedProject));
     }, 0);
@@ -54,16 +43,6 @@ export default function ProjectUploadSection({
     router.refresh();
   }
 
-  function persistRound(round: EvaluationRound, uploadedFiles: ProjectFile[]) {
-    const nextFiles = [...files];
-    uploadedFiles.forEach((file) => {
-      const index = nextFiles.findIndex((row) => row.id === file.id);
-      if (index >= 0) nextFiles[index] = file;
-      else nextFiles.push(file);
-    });
-    syncRounds(mergeRounds(rounds, [round]), nextFiles);
-  }
-
   return (
     <div className="space-y-8">
       <WorkspaceSectionCard
@@ -73,8 +52,7 @@ export default function ProjectUploadSection({
       >
         <ParallelEvaluationForm
           project={activeProject}
-          onRoundSaved={persistRound}
-          onRoundsChange={(nextRounds) => syncRounds(nextRounds)}
+          onRoundsChange={(nextRounds, nextFiles) => syncRounds(nextRounds, nextFiles ?? files)}
         />
       </WorkspaceSectionCard>
 

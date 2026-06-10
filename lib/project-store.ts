@@ -61,6 +61,7 @@ export async function createProject(input: ProjectInput): Promise<Project> {
     ...input,
     status: "접수",
     files: [],
+    evaluationRounds: [],
     updatedAt: now,
   };
 

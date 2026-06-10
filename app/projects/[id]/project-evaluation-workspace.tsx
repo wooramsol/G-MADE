@@ -85,7 +85,9 @@ export default function ProjectEvaluationWorkspace({
 
       if (response.ok) {
         next = payload.project?.evaluationRounds ?? next;
-      } else if (response.status !== 404) {
+      } else if (response.status === 404) {
+        // 브라우저 전용 프로젝트 등 서버에 없는 경우 로컬 상태만 반영합니다.
+      } else {
         throw new Error(payload.error ?? "삭제에 실패했습니다.");
       }
 

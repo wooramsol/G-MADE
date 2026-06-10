@@ -6,7 +6,7 @@ export function createDefaultEvaluationItems(): EvaluationItem[] {
 }
 
 export function getProjectEvaluationRounds(project: Project): EvaluationRound[] {
-  if (project.evaluationRounds && project.evaluationRounds.length > 0) {
+  if (Array.isArray(project.evaluationRounds)) {
     return project.evaluationRounds;
   }
 

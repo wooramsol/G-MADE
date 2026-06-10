@@ -11,8 +11,7 @@ import { showToast } from "./toast";
 
 type ParallelEvaluationFormProps = {
   project: Project;
-  onRoundSaved?: (round: EvaluationRound, files: ProjectFile[]) => void;
-  onRoundsChange?: (rounds: EvaluationRound[]) => void;
+  onRoundsChange?: (rounds: EvaluationRound[], files?: ProjectFile[]) => void;
 };
 
 type EvaluationRoundApiResponse = {
@@ -25,7 +24,6 @@ const FILE_ACCEPT = ".pdf,.docx,.xlsx,.xls,.hwp,.pptx,.jpg,.jpeg,.png,.dwg,.zip,
 
 export default function ParallelEvaluationForm({
   project,
-  onRoundSaved,
   onRoundsChange,
 }: ParallelEvaluationFormProps) {
   const [evaluationItems, setEvaluationItems] = useState<EvaluationItem[]>(() =>
@@ -99,10 +97,9 @@ export default function ParallelEvaluationForm({
       setExpertFiles([]);
       setExpertSummary("");
       showToast({ message: "하이브리드 평가 분석이 완료되었습니다.", tone: "success" });
-      onRoundSaved?.(payload.round, projectFiles);
-      if (payload.project?.evaluationRounds) {
-        onRoundsChange?.(payload.project.evaluationRounds);
-      }
+      const nextRounds =
+        payload.project?.evaluationRounds ?? [...(project.evaluationRounds ?? []), payload.round];
+      onRoundsChange?.(nextRounds, projectFiles);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "하이브리드 평가 분석에 실패했습니다.");
     } finally {
