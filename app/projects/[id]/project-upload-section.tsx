@@ -26,6 +26,7 @@ export default function ProjectUploadSection({
 }) {
   const router = useRouter();
   const roundsRef = useRef<EvaluationRound[]>(getProjectEvaluationRounds(project));
+  const excludedRoundIdsRef = useRef<Set<string>>(new Set());
   const [activeProject, setActiveProject] = useState<Project>(() =>
     typeof window === "undefined" ? project : readMergedProject(project),
   );
@@ -51,6 +52,7 @@ export default function ProjectUploadSection({
         serverProject: project,
         localProject,
         currentRounds: current.length > 0 ? current : roundsRef.current,
+        excludedRoundIds: excludedRoundIdsRef.current,
       });
       roundsRef.current = next;
       return next;
@@ -62,6 +64,15 @@ export default function ProjectUploadSection({
     nextFiles = files,
     options?: { refresh?: boolean },
   ) {
+    const previousIds = new Set(roundsRef.current.map((round) => round.id));
+    const nextIds = new Set(nextRounds.map((round) => round.id));
+
+    for (const roundId of previousIds) {
+      if (!nextIds.has(roundId)) {
+        excludedRoundIdsRef.current.add(roundId);
+      }
+    }
+
     const addedRound = nextRounds.length > roundsRef.current.length;
 
     roundsRef.current = nextRounds;
@@ -107,7 +118,7 @@ export default function ProjectUploadSection({
           project={activeProject}
           rounds={rounds}
           showHeader={false}
-          onRoundsChange={(next) => syncRounds(next, files, { refresh: true })}
+          onRoundsChange={(next) => syncRounds(next, files, { refresh: false })}
         />
       </WorkspaceSectionCard>
     </div>

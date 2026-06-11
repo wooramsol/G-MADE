@@ -21,20 +21,34 @@ function unionRounds(...lists: Array<EvaluationRound[] | undefined>): Evaluation
   return sortRounds(Array.from(byId.values()));
 }
 
+function withoutExcluded(rounds: EvaluationRound[], excludedRoundIds?: ReadonlySet<string>): EvaluationRound[] {
+  if (!excludedRoundIds?.size) return rounds;
+  return rounds.filter((round) => !excludedRoundIds.has(round.id));
+}
+
 /** 서버·로컬·현재 React 상태의 평가 차수를 합칩니다. 신규 분석 직후 서버가 비어 있어도 차수가 줄지 않습니다. */
 export function resolveProjectRounds({
   serverProject,
   localProject,
   currentRounds,
+  excludedRoundIds,
 }: {
   serverProject: Project;
   localProject?: Project;
   currentRounds?: EvaluationRound[];
+  excludedRoundIds?: ReadonlySet<string>;
 }): EvaluationRound[] {
-  const serverRounds = getProjectEvaluationRounds(serverProject);
-  const localRounds = localProject ? getProjectEvaluationRounds(localProject) : [];
+  const serverRounds = withoutExcluded(getProjectEvaluationRounds(serverProject), excludedRoundIds);
+  const localRounds = withoutExcluded(
+    localProject ? getProjectEvaluationRounds(localProject) : [],
+    excludedRoundIds,
+  );
   const mergedMeta = mergeEvaluationRounds(serverProject.evaluationRounds, localProject?.evaluationRounds);
-  const mergedFromMeta = mergedMeta ? getProjectEvaluationRounds({ ...serverProject, evaluationRounds: mergedMeta }) : [];
+  const mergedFromMeta = withoutExcluded(
+    mergedMeta ? getProjectEvaluationRounds({ ...serverProject, evaluationRounds: mergedMeta }) : [],
+    excludedRoundIds,
+  );
+  const safeCurrent = withoutExcluded(currentRounds ?? [], excludedRoundIds);
 
-  return unionRounds(currentRounds, mergedFromMeta, localRounds, serverRounds);
+  return unionRounds(safeCurrent, mergedFromMeta, localRounds, serverRounds);
 }

@@ -126,7 +126,7 @@ export default function ProjectEvaluationWorkspace({
       };
 
       if (response.ok) {
-        next = payload.project?.evaluationRounds ?? next;
+        // 서버 삭제 성공. 화면은 필터된 next를 유지합니다(병합 시 삭제 차수가 되살아나지 않도록).
       } else if (response.status === 404) {
         // 브라우저 전용 프로젝트 등 서버에 없는 경우 로컬 상태만 반영합니다.
       } else {
@@ -134,9 +134,12 @@ export default function ProjectEvaluationWorkspace({
       }
 
       onRoundsChange?.(next);
-      if (selectedId === roundId) {
-        setSelectedId(next[0]?.id ?? null);
-      }
+      setSelectedId((current) => {
+        if (current === roundId) {
+          return next[0]?.id ?? null;
+        }
+        return current && next.some((round) => round.id === current) ? current : (next[0]?.id ?? null);
+      });
       setDeleteConfirmOpen(false);
       setDeletingRoundId(null);
       showToast({ message: "평가 차수가 삭제되었습니다.", tone: "success" });
