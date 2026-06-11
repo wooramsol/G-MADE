@@ -11,6 +11,8 @@ type ConfirmDialogProps = {
   confirmLabel?: string;
   cancelLabel?: string;
   loading?: boolean;
+  confirmTone?: "danger" | "primary";
+  loadingLabel?: string;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -22,9 +24,15 @@ export default function ConfirmDialog({
   confirmLabel = "삭제",
   cancelLabel = "취소",
   loading = false,
+  confirmTone = "danger",
+  loadingLabel,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
+  const confirmClassName =
+    confirmTone === "primary"
+      ? "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+      : "rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60";
   useBodyScrollLock(open);
 
   useEffect(() => {
@@ -66,12 +74,12 @@ export default function ConfirmDialog({
             {cancelLabel}
           </button>
           <button
-            className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className={confirmClassName}
             disabled={loading}
             type="button"
             onClick={onConfirm}
           >
-            {loading ? "삭제 중..." : confirmLabel}
+            {loading ? (loadingLabel ?? "처리 중...") : confirmLabel}
           </button>
         </div>
       </div>

@@ -6,6 +6,7 @@ import ConfirmDialog from "@/components/confirm-dialog";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
 import type { Project } from "@/lib/types";
+import CompleteEvaluationButton from "../complete-evaluation-button";
 import {
   deleteLocalProject,
   getLocalProjects,
@@ -65,7 +66,8 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
               </div>
               <PageTitle className="mt-2">{project.name}</PageTitle>
             </div>
-            <button
+            <div className="flex flex-wrap items-center gap-3">
+              <button
                 className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100"
                 type="button"
                 onClick={() => setDeleteConfirmOpen(true)}
@@ -89,6 +91,8 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
                   }, 650);
                 }}
               />
+              <CompleteEvaluationButton project={project} onUpdated={setProject} />
+            </div>
           </div>
         </div>
       </div>
