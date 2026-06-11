@@ -28,6 +28,18 @@ function formatLocationLabel(selection: LocationSelection): string {
   return selection.address;
 }
 
+function validateForm(form: typeof initialState, location: LocationSelection | null): string {
+  if (!form.name.trim()) return "사업명을 입력해 주세요.";
+  if (!location) return "사업위치를 검색하거나 지도에서 선택해 주세요.";
+  if (!form.client.trim()) return "시행자를 입력해 주세요.";
+  if (!form.designer.trim()) return "설계자를 입력해 주세요.";
+  if (!form.projectType) return "사업유형을 선택해 주세요.";
+  if (!form.scale.trim()) return "규모를 입력해 주세요.";
+  if (!form.reviewType) return "심의종류를 선택해 주세요.";
+  if (!form.receivedAt.trim()) return "접수일을 입력해 주세요.";
+  return "";
+}
+
 export default function ProjectCreateForm() {
   const router = useRouter();
   const [form, setForm] = useState(initialState);
@@ -37,17 +49,19 @@ export default function ProjectCreateForm() {
 
   function updateField(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+    if (error) setError("");
   }
 
   async function submitProject(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
 
-    if (!location) {
-      setError("사업위치를 검색하거나 지도에서 선택해 주세요.");
+    const validationError = validateForm(form, location);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
+    setError("");
     setLoading(true);
 
     try {
@@ -56,12 +70,12 @@ export default function ProjectCreateForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          location: formatLocationLabel(location),
+          location: formatLocationLabel(location!),
           locationPoint: {
-            x: location.x,
-            y: location.y,
-            source: location.source,
-            note: location.note,
+            x: location!.x,
+            y: location!.y,
+            source: location!.source,
+            note: location!.note,
           },
         }),
       });
@@ -84,19 +98,22 @@ export default function ProjectCreateForm() {
 
   return (
     <form className="grid gap-4 lg:grid-cols-2" id="new-project-form" onSubmit={submitProject}>
-      <Field label="사업명" placeholder="예: 동부역세권 복합문화시설 경관사전심의" value={form.name} onChange={(value) => updateField("name", value)} />
+      {error ? <ErrorText className="rounded-xl bg-red-50 p-3 lg:col-span-2">{error}</ErrorText> : null}
+      <Field label="사업명" required placeholder="예: 동부역세권 복합문화시설 경관사전심의" value={form.name} onChange={(value) => updateField("name", value)} />
       <div className="lg:col-span-2">
-        <FormLabel as="p">사업위치</FormLabel>
+        <FormLabel as="p">
+          사업위치 <span className="text-red-600">*</span>
+        </FormLabel>
         <div className="mt-2 rounded-xl border border-[#d7dee8] bg-white p-4">
           <LocationPicker value={location} onChange={setLocation} disabled={loading} />
         </div>
       </div>
-      <Field label="시행자" placeholder="예: 서울도시개발공사" value={form.client} onChange={(value) => updateField("client", value)} />
-      <Field label="설계자" placeholder="예: GMA 도시건축사사무소" value={form.designer} onChange={(value) => updateField("designer", value)} />
-      <SelectField label="사업유형" options={projectTypes} value={form.projectType} onChange={(value) => updateField("projectType", value)} />
-      <SelectField label="심의종류" options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
-      <Field label="규모" placeholder="예: 지하 4층 / 지상 18층, 연면적 42,600㎡" value={form.scale} onChange={(value) => updateField("scale", value)} />
-      <Field label="접수일" placeholder="예: 2026-06-04" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
+      <Field label="시행자" required placeholder="예: 서울도시개발공사" value={form.client} onChange={(value) => updateField("client", value)} />
+      <Field label="설계자" required placeholder="예: GMA 도시건축사사무소" value={form.designer} onChange={(value) => updateField("designer", value)} />
+      <SelectField label="사업유형" required options={projectTypes} value={form.projectType} onChange={(value) => updateField("projectType", value)} />
+      <SelectField label="심의종류" required options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
+      <Field label="규모" required placeholder="예: 지하 4층 / 지상 18층, 연면적 42,600㎡" value={form.scale} onChange={(value) => updateField("scale", value)} />
+      <Field label="접수일" required placeholder="예: 2026-06-04" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
       <label className="lg:col-span-2">
         <FormLabel>사업개요</FormLabel>
         <textarea
@@ -106,7 +123,6 @@ export default function ProjectCreateForm() {
           onChange={(event) => updateField("summary", event.target.value)}
         />
       </label>
-      {error ? <ErrorText className="rounded-xl bg-red-50 p-3 lg:col-span-2">{error}</ErrorText> : null}
       <div className="flex flex-wrap gap-3 lg:col-span-2">
         <button className="primary-action rounded-lg px-5 py-3 text-sm font-bold shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" disabled={loading} type="submit">
           {loading ? "프로젝트 생성 중..." : "프로젝트 생성하기"}
@@ -119,13 +135,31 @@ export default function ProjectCreateForm() {
   );
 }
 
-function Field({ label, placeholder, type = "text", value, onChange }: { label: string; placeholder: string; type?: string; value: string; onChange: (value: string) => void }) {
+function Field({
+  label,
+  placeholder,
+  type = "text",
+  value,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  placeholder: string;
+  type?: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
   return (
     <label>
-      <FormLabel>{label}</FormLabel>
+      <FormLabel>
+        {label}
+        {required ? <span className="text-red-600"> *</span> : null}
+      </FormLabel>
       <input
         className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
         placeholder={placeholder}
+        required={required}
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -134,14 +168,36 @@ function Field({ label, placeholder, type = "text", value, onChange }: { label: 
   );
 }
 
-function SelectField({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
+function SelectField({
+  label,
+  options,
+  value,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
   return (
     <label>
-      <FormLabel>{label}</FormLabel>
-      <select className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white" value={value} onChange={(event) => onChange(event.target.value)}>
+      <FormLabel>
+        {label}
+        {required ? <span className="text-red-600"> *</span> : null}
+      </FormLabel>
+      <select
+        className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+        required={required}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
         <option value="">선택</option>
         {options.map((option) => (
-          <option key={option} value={option}>{option}</option>
+          <option key={option} value={option}>
+            {option}
+          </option>
         ))}
       </select>
     </label>

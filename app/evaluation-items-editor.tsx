@@ -14,6 +14,7 @@ type EvaluationItemsEditorProps = {
   items: EvaluationItem[];
   onItemsChange: (items: EvaluationItem[]) => void;
   onSaved?: (items: EvaluationItem[]) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 const CATEGORY_COL_WIDTH = "w-[176px]";
@@ -33,6 +34,7 @@ export default function EvaluationItemsEditor({
   items,
   onItemsChange,
   onSaved,
+  onDirtyChange,
 }: EvaluationItemsEditorProps) {
   const totalPoints = items.reduce((sum, item) => sum + Number(item.points || 0), 0);
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
@@ -42,6 +44,10 @@ export default function EvaluationItemsEditor({
   );
 
   const isDirty = useMemo(() => serializeItems(items) !== savedSnapshot, [items, savedSnapshot]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   useEffect(() => {
     if (!focusItemId) return;
@@ -149,6 +155,11 @@ export default function EvaluationItemsEditor({
           </MutedText>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {isDirty ? (
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">
+              저장되지 않은 변경
+            </span>
+          ) : null}
           <button
             className="rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-3 py-2 text-sm font-bold text-[#15345b] hover:bg-white"
             type="button"

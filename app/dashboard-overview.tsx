@@ -72,8 +72,8 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
             </Link>
           </p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
-            <table className="w-full border-collapse text-left text-sm">
+          <div className="overflow-x-auto rounded-xl border border-[#d7dee8]">
+            <table className="w-full min-w-[720px] border-collapse text-left text-sm">
               <thead className="bg-[#eef4fb] text-[#15345b]">
                 <tr>
                   <th className="px-4 py-3">사업명</th>

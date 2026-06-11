@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Badge, Eyebrow, PageTitle, SubsectionTitle } from "@/components/typography";
+import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { getProjectById, isCreatedProjectId } from "@/lib/project-store";
 import DeleteProjectButton from "../delete-project-button";
 import ProjectUploadSection from "./project-upload-section";
@@ -23,10 +25,23 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
         <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <Eyebrow>사업명</Eyebrow>
+              <div className="flex flex-wrap items-center gap-3">
+                <Eyebrow>사업명</Eyebrow>
+                <EvaluationStatusBadge project={project} />
+              </div>
               <PageTitle className="mt-2">{project.name}</PageTitle>
             </div>
-            {canDelete ? <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" /> : null}
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                className="rounded-lg border border-[#2463b3] bg-[#eef4fb] px-4 py-2 text-sm font-bold text-[#2463b3] hover:bg-white"
+                href="#hybrid-evaluation-form"
+              >
+                평가 바로가기
+              </Link>
+              {canDelete ? (
+                <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" />
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -46,6 +61,12 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <Info label="규모" value={project.scale} />
               <Info label="심의종류" value={project.reviewType} />
               <Info label="접수일" value={project.receivedAt} />
+              {project.summary ? (
+                <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
+                  <Eyebrow>사업개요</Eyebrow>
+                  <p className="mt-2 whitespace-pre-wrap font-semibold leading-6 text-[#172033]">{project.summary}</p>
+                </div>
+              ) : null}
             </div>
           </Panel>
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />

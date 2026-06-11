@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
       scale: String(payload.scale).trim(),
       reviewType: String(payload.reviewType).trim(),
       receivedAt: String(payload.receivedAt).trim(),
+      summary: String(payload.summary ?? "").trim() || undefined,
     });
 
     return NextResponse.json({ project }, { status: 201 });

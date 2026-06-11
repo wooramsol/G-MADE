@@ -1,4 +1,5 @@
 import { getProjectEvaluationRounds } from "./evaluation-rounds";
+import { mergeProjectWithLocal } from "./merge-project-state";
 import { getProjectEvaluationRoundCount } from "./project-evaluation-status";
 import type { Project } from "./types";
 
@@ -10,9 +11,14 @@ export type DashboardStats = {
 };
 
 export function mergeManagedProjects(serverProjects: Project[], localProjects: Project[]): Project[] {
+  const localById = new Map(localProjects.map((project) => [project.id, project]));
+  const mergedServer = serverProjects.map((project) => {
+    const local = localById.get(project.id);
+    return local ? mergeProjectWithLocal(project, local) : project;
+  });
   const serverIds = new Set(serverProjects.map((project) => project.id));
   const localOnly = localProjects.filter((project) => !serverIds.has(project.id));
-  return sortProjectsByReceivedAt([...serverProjects, ...localOnly]);
+  return sortProjectsByReceivedAt([...mergedServer, ...localOnly]);
 }
 
 export function buildDashboardStats(projects: Project[]): DashboardStats {

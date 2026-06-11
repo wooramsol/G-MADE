@@ -8,10 +8,12 @@ import { deleteSavedUploadFiles, isFileLike, saveUploadedFiles, toProjectFiles }
 import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project } from "@/lib/types";
 import { analyzeUploadedFiles } from "@/lib/upload-analysis";
 import type { AiProviderPreference } from "@/lib/ai/types";
+import { resolveAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import type { SavedUploadFile } from "@/lib/save-uploaded-files";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+export const preferredRegion = "icn1";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
@@ -23,7 +25,9 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const projectId = String(formData.get("projectId") ?? "").trim();
-    const providerPreference = String(formData.get("provider") ?? "gemini") as AiProviderPreference;
+    const providerPreference = resolveAiProviderPreference(
+      String(formData.get("provider") ?? ""),
+    ) as AiProviderPreference;
     const reviewerName = String(formData.get("reviewerName") ?? "").trim();
     const expertSummary = String(formData.get("expertSummary") ?? "").trim();
     const aiWeight = Number(formData.get("aiWeight") ?? 30);

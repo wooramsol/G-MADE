@@ -1,5 +1,5 @@
 const RESULTS_SECTION_ID = "hybrid-evaluation-results";
-const SCROLL_OFFSET = 24;
+const SCROLL_OFFSET = 120;
 const RETRY_MS = 100;
 const MAX_ATTEMPTS = 30;
 

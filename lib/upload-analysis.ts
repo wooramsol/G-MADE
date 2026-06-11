@@ -9,6 +9,7 @@ import { selectProvider } from "./ai/select-provider";
 import type { EvaluationContext } from "./evaluation-context";
 import { evaluationItems as defaultEvaluationItems } from "./demo-data";
 import { toStoredReferenceLaws } from "./dedupe-reference-laws";
+import { fetchWithTimeout } from "./fetch-with-timeout";
 import { gradeScore } from "./hybrid-evaluation";
 import type { EvaluationItem } from "./types";
 
@@ -92,7 +93,7 @@ async function analyzeWithOpenAi(
     ]);
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -199,7 +200,7 @@ async function requestGemini(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
 ) {
-  return fetch(
+  return fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",

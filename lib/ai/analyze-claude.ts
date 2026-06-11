@@ -5,6 +5,7 @@ import { buildAnalysisPrompt } from "./analysis-prompt";
 import { getClaudeModelsToTry } from "./claude-models";
 import { getClaudeApiKey, getClaudeModel } from "./env-keys";
 import { extractJsonContent } from "./extract-json";
+import { fetchWithTimeout } from "../fetch-with-timeout";
 import { formatProviderApiError } from "./format-api-error";
 
 type ClaudeDeps = {
@@ -75,7 +76,7 @@ async function requestClaude(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
 ) {
-  return fetch("https://api.anthropic.com/v1/messages", {
+  return fetchWithTimeout("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "x-api-key": apiKey,

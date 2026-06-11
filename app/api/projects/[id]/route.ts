@@ -38,6 +38,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
+    if (payload.summary !== undefined) {
+      patch.summary = String(payload.summary).trim() || undefined;
+    }
+
     if (patch.status !== undefined && !PROJECT_STATUSES.has(String(patch.status))) {
       return NextResponse.json({ error: "유효하지 않은 프로젝트 상태입니다." }, { status: 400 });
     }

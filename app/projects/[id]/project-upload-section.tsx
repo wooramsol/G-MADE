@@ -86,6 +86,7 @@ export default function ProjectUploadSection({
   return (
     <div className="space-y-8">
       <WorkspaceSectionCard
+        id="hybrid-evaluation-form"
         title="AI · 전문가 병행 평가 준비"
         description="공통 평가항목·배점을 설정한 뒤, AI·전문가 자료를 대칭 구조로 업로드하고 한 번에 하이브리드 평가 분석을 실행합니다."
       >

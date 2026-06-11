@@ -17,14 +17,19 @@ type ProjectManagementGridProps = {
 
 export default function ProjectManagementGrid({ serverProjects, query }: ProjectManagementGridProps) {
   const [localProjects, setLocalProjects] = useState<Project[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setLocalProjects(getLocalProjects()), 0);
+    const timeout = window.setTimeout(() => {
+      setLocalProjects(getLocalProjects());
+      setHydrated(true);
+    }, 0);
     return () => window.clearTimeout(timeout);
   }, []);
 
   const normalizedQuery = query.trim().toLowerCase();
-  const visibleProjects = useMemo(() => {
+
+  const allProjects = useMemo(() => {
     const localById = new Map(localProjects.map((project) => [project.id, project]));
     const mergedServer = serverProjects.map((project) => {
       const local = localById.get(project.id);
@@ -32,11 +37,13 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
     });
     const serverIds = new Set(serverProjects.map((project) => project.id));
     const localOnly = localProjects.filter((project) => !serverIds.has(project.id));
-    const merged = sortProjectsByUpdatedAt([...mergedServer, ...localOnly]);
+    return sortProjectsByUpdatedAt([...mergedServer, ...localOnly]);
+  }, [localProjects, serverProjects]);
 
-    if (!normalizedQuery) return merged;
+  const visibleProjects = useMemo(() => {
+    if (!normalizedQuery) return allProjects;
 
-    return merged.filter((project) =>
+    return allProjects.filter((project) =>
       [
         project.name,
         project.location,
@@ -50,12 +57,34 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
         .toLowerCase()
         .includes(normalizedQuery),
     );
-  }, [localProjects, normalizedQuery, serverProjects]);
+  }, [allProjects, normalizedQuery]);
+
+  if (!hydrated && serverProjects.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm font-semibold text-[#64748b] xl:col-span-3">
+        프로젝트 목록을 불러오는 중입니다.
+      </div>
+    );
+  }
+
+  if (allProjects.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm text-[#64748b] xl:col-span-3">
+        등록된 프로젝트가 없습니다.{" "}
+        <Link className="font-bold text-[#2463b3]" href="/projects/new">
+          새 프로젝트 등록
+        </Link>
+      </div>
+    );
+  }
 
   if (visibleProjects.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm font-semibold text-[#64748b] xl:col-span-3">
-        검색 조건에 맞는 프로젝트가 없습니다.
+        “{query}” 검색 조건에 맞는 프로젝트가 없습니다.{" "}
+        <Link className="font-bold text-[#2463b3]" href="/projects">
+          전체 목록 보기
+        </Link>
       </div>
     );
   }
@@ -99,4 +128,3 @@ function Info({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

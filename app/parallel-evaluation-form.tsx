@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EvaluationWeightSlider from "@/components/evaluation-weight-slider";
 import { interactiveCardClassName } from "@/components/interactive-card";
 import type { AiProviderPreference } from "@/lib/ai/types";
+import { toClientAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
+import DemoModeBanner from "@/components/demo-mode-banner";
 import { ErrorText, FieldLabel, MutedText, StepTitle } from "@/components/typography";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
@@ -35,6 +37,7 @@ export default function ParallelEvaluationForm({
       ? project.savedEvaluationItems.map((item) => ({ ...item }))
       : createDefaultEvaluationItems(),
   );
+  const [itemsDirty, setItemsDirty] = useState(false);
   const [aiFiles, setAiFiles] = useState<File[]>([]);
   const [expertFiles, setExpertFiles] = useState<File[]>([]);
   const [reviewerName, setReviewerName] = useState("");
@@ -42,12 +45,40 @@ export default function ParallelEvaluationForm({
   const [provider, setProvider] = useState<AiProviderPreference>("gemini");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [lastAnalysisMode, setLastAnalysisMode] = useState<"live" | "demo" | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDefaultProvider() {
+      try {
+        const response = await fetch("/api/ai-status");
+        if (!response.ok) return;
+        const payload = (await response.json()) as { defaultProvider?: string };
+        if (!cancelled && payload.defaultProvider) {
+          setProvider(toClientAiProviderPreference(payload.defaultProvider));
+        }
+      } catch {
+        // 기본값 gemini 유지
+      }
+    }
+
+    void loadDefaultProvider();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const aiTotalSize = useMemo(() => aiFiles.reduce((sum, file) => sum + file.size, 0), [aiFiles]);
   const expertTotalSize = useMemo(() => expertFiles.reduce((sum, file) => sum + file.size, 0), [expertFiles]);
 
   async function submitEvaluation() {
     if (loading) return;
+
+    if (itemsDirty) {
+      setError("평가항목을 먼저 저장한 뒤 분석을 실행해 주세요.");
+      return;
+    }
 
     if (aiFiles.length === 0) {
       setError("AI 평가 자료를 선택해 주세요.");
@@ -100,11 +131,13 @@ export default function ParallelEvaluationForm({
 
       const isDemo =
         payload.analysisMode === "demo" || payload.round.aiAnalysis.mode === "demo";
+      setLastAnalysisMode(isDemo ? "demo" : "live");
+
       if (isDemo) {
         showToast({
           message:
             "데모 분석 결과가 저장되었습니다. AI API 키를 설정한 뒤 다시 분석하면 실제 결과를 받을 수 있습니다.",
-          tone: "error",
+          tone: "info",
         });
       } else {
         showToast({ message: "하이브리드 평가 분석이 완료되었습니다.", tone: "success" });
@@ -121,11 +154,14 @@ export default function ParallelEvaluationForm({
 
   return (
     <div className="space-y-5">
-      {loading ? <AnalysisBlockingOverlay /> : null}
+      {loading ? <AnalysisBlockingOverlay estimatedSeconds={120} /> : null}
+
+      {lastAnalysisMode === "demo" ? <DemoModeBanner /> : null}
 
       <EvaluationItemsEditor
         items={evaluationItems}
         project={project}
+        onDirtyChange={setItemsDirty}
         onItemsChange={setEvaluationItems}
         onSaved={setEvaluationItems}
       />
@@ -156,7 +192,7 @@ export default function ParallelEvaluationForm({
               value={provider}
               onChange={(event) => setProvider(event.target.value as AiProviderPreference)}
             >
-              <option value="gemini">Gemini (기본)</option>
+              <option value="gemini">Gemini</option>
               <option value="openai">ChatGPT</option>
               <option value="claude">Claude</option>
             </select>
@@ -193,12 +229,17 @@ export default function ParallelEvaluationForm({
           </MutedText>
           <button
             className="primary-action mt-5 rounded-xl px-8 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
-            disabled={loading}
+            disabled={loading || itemsDirty}
             type="button"
             onClick={submitEvaluation}
           >
             {loading ? "분석 중 (최대 2분)..." : "하이브리드 평가 분석"}
           </button>
+          {itemsDirty ? (
+            <p className="mt-3 text-xs font-semibold text-amber-800">
+              평가항목 변경 사항을 저장한 뒤 분석을 실행할 수 있습니다.
+            </p>
+          ) : null}
         </div>
       </div>
 

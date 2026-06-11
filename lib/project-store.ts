@@ -107,6 +107,7 @@ export async function updateProject(
       | "scale"
       | "reviewType"
       | "receivedAt"
+      | "summary"
       | "status"
       | "savedEvaluationItems"
     >

@@ -16,6 +16,7 @@ import {
 import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatUploadDateTime } from "@/lib/format-datetime";
+import DemoModeBanner from "@/components/demo-mode-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
@@ -234,6 +235,7 @@ export default function ProjectEvaluationWorkspace({
         </div>
 
         <div className="mt-5 space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+          {selectedRound.aiAnalysis.mode === "demo" ? <DemoModeBanner /> : null}
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-[#15345b] text-white">{selectedRound.roundNumber}차</Badge>
             <Badge className="bg-[#e8f1ff] text-[#2463b3]">
