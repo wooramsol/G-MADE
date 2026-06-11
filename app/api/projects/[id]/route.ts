@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
-import { deleteCreatedProject, getProjectById, isDemoProjectId, updateProject } from "@/lib/project-store";
+import { deleteProjectRecord, getProjectById, updateProject } from "@/lib/project-store";
 
 const PROJECT_STATUSES = new Set(["접수", "심사 진행중", "완료"]);
 import type { EvaluationItem } from "@/lib/types";
@@ -129,11 +129,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
 
   const { id } = await params;
 
-  if (isDemoProjectId(id)) {
-    return NextResponse.json({ error: "기본 예시 프로젝트는 삭제할 수 없습니다." }, { status: 400 });
-  }
-
-  const deleted = await deleteCreatedProject(id);
+  const deleted = await deleteProjectRecord(id);
 
   if (!deleted) {
     return NextResponse.json({ error: "삭제할 프로젝트를 찾을 수 없습니다." }, { status: 404 });

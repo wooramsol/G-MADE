@@ -244,8 +244,11 @@ function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]
 }
 
 export async function deleteCreatedProject(id: string): Promise<boolean> {
-  if (isDemoProjectId(id)) return false;
+  return deleteProjectRecord(id);
+}
 
+/** 저장소에 있는 프로젝트 레코드를 삭제합니다. 평가 진행 여부와 관계없이 제거됩니다. */
+export async function deleteProjectRecord(id: string): Promise<boolean> {
   return withProjectStoreLock(async () => {
     const createdProjects = await readCreatedProjects();
     const nextProjects = createdProjects.filter((project) => project.id !== id);

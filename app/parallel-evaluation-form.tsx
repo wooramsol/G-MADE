@@ -8,7 +8,8 @@ import { toClientAiProviderPreference } from "@/lib/resolve-ai-provider-preferen
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
-import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
+import type { EvaluationAnalysisProgressEvent } from "@/lib/evaluation-analysis-progress";
+import { submitEvaluationRoundStream } from "@/lib/client-evaluation-stream";
 import { ErrorText, FieldLabel, MutedText, StepTitle } from "@/components/typography";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
@@ -44,6 +45,8 @@ export default function ParallelEvaluationForm({
   const [aiWeight, setAiWeight] = useState(30);
   const [provider, setProvider] = useState<AiProviderPreference | null>(null);
   const [loading, setLoading] = useState(false);
+  const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<EvaluationAnalysisProgressEvent | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -107,6 +110,8 @@ export default function ParallelEvaluationForm({
     }
 
     setLoading(true);
+    setAnalysisStartedAt(Date.now());
+    setAnalysisProgress(null);
     setError("");
 
     const formData = new FormData();
@@ -121,15 +126,9 @@ export default function ParallelEvaluationForm({
     expertFiles.forEach((file) => formData.append("expertFiles", file));
 
     try {
-      const response = await clientFetchWithTimeout("/api/evaluation-rounds", {
-        method: "POST",
-        body: formData,
+      const payload = await submitEvaluationRoundStream(formData, (progress) => {
+        setAnalysisProgress(progress);
       });
-      const payload = (await response.json()) as EvaluationRoundApiResponse;
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? "하이브리드 평가 분석에 실패했습니다.");
-      }
 
       const uploadedAt = payload.round.evaluatedAt;
       const projectFiles: ProjectFile[] = [
@@ -153,18 +152,26 @@ export default function ParallelEvaluationForm({
         showToast({ message: "하이브리드 평가 분석이 완료되었습니다.", tone: "success" });
       }
 
-      const nextRounds = resolveNextEvaluationRounds(project, payload);
+      const nextRounds = resolveNextEvaluationRounds(project, {
+        round: payload.round,
+        project: payload.project,
+        analysisMode: payload.analysisMode,
+      });
       onRoundsChange?.(nextRounds, projectFiles);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "하이브리드 평가 분석에 실패했습니다.");
     } finally {
       setLoading(false);
+      setAnalysisStartedAt(null);
+      setAnalysisProgress(null);
     }
   }
 
   return (
     <div className="space-y-5">
-      {loading ? <AnalysisBlockingOverlay estimatedSeconds={120} /> : null}
+      {loading && analysisStartedAt ? (
+        <AnalysisBlockingOverlay progress={analysisProgress} startedAt={analysisStartedAt} />
+      ) : null}
 
       <EvaluationItemsEditor
         items={evaluationItems}

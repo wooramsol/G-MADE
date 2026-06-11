@@ -65,14 +65,7 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
               </div>
               <PageTitle className="mt-2">{project.name}</PageTitle>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                className="rounded-lg border border-[#2463b3] bg-[#eef4fb] px-4 py-2 text-sm font-bold text-[#2463b3] hover:bg-white"
-                href="#hybrid-evaluation-form"
-              >
-                평가 바로가기
-              </Link>
-              <button
+            <button
                 className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100"
                 type="button"
                 onClick={() => setDeleteConfirmOpen(true)}
@@ -80,7 +73,7 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
                 프로젝트 삭제
               </button>
               <ConfirmDialog
-                description={`"${project.name}" 프로젝트와 평가 결과가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
+                description={`"${project.name}" 프로젝트와 평가 결과가 삭제됩니다. 평가 진행 중이어도 삭제할 수 있으며, 되돌릴 수 없습니다.`}
                 loading={deleting}
                 open={deleteConfirmOpen}
                 onCancel={() => {
@@ -96,7 +89,6 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
                   }, 650);
                 }}
               />
-            </div>
           </div>
         </div>
       </div>

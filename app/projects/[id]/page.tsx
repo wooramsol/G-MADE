@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { Badge, Eyebrow, PageTitle, SubsectionTitle } from "@/components/typography";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
-import { getProjectById, isCreatedProjectId } from "@/lib/project-store";
+import { getProjectById } from "@/lib/project-store";
 import DeleteProjectButton from "../delete-project-button";
 import ProjectUploadSection from "./project-upload-section";
 import LocalProjectDetail from "./local-project-detail";
@@ -18,8 +17,6 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   if (!project) {
     return <LocalProjectDetail projectId={id} />;
   }
-  const canDelete = isCreatedProjectId(project.id);
-
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
       <div className="mx-auto max-w-[1500px] px-6 pt-8">
@@ -32,17 +29,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               </div>
               <PageTitle className="mt-2">{project.name}</PageTitle>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                className="rounded-lg border border-[#2463b3] bg-[#eef4fb] px-4 py-2 text-sm font-bold text-[#2463b3] hover:bg-white"
-                href="#hybrid-evaluation-form"
-              >
-                평가 바로가기
-              </Link>
-              {canDelete ? (
-                <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" />
-              ) : null}
-            </div>
+            <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" />
           </div>
         </div>
       </div>
