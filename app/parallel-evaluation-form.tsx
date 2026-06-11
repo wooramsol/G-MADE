@@ -8,7 +8,7 @@ import { toClientAiProviderPreference } from "@/lib/resolve-ai-provider-preferen
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
-import DemoModeBanner from "@/components/demo-mode-banner";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 import { ErrorText, FieldLabel, MutedText, StepTitle } from "@/components/typography";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
@@ -42,10 +42,9 @@ export default function ParallelEvaluationForm({
   const [expertFiles, setExpertFiles] = useState<File[]>([]);
   const [reviewerName, setReviewerName] = useState("");
   const [aiWeight, setAiWeight] = useState(30);
-  const [provider, setProvider] = useState<AiProviderPreference>("gemini");
+  const [provider, setProvider] = useState<AiProviderPreference | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [lastAnalysisMode, setLastAnalysisMode] = useState<"live" | "demo" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,13 +52,16 @@ export default function ParallelEvaluationForm({
     async function loadDefaultProvider() {
       try {
         const response = await fetch("/api/ai-status");
-        if (!response.ok) return;
+        if (!response.ok) {
+          if (!cancelled) setProvider("gemini");
+          return;
+        }
         const payload = (await response.json()) as { defaultProvider?: string };
-        if (!cancelled && payload.defaultProvider) {
-          setProvider(toClientAiProviderPreference(payload.defaultProvider));
+        if (!cancelled) {
+          setProvider(toClientAiProviderPreference(payload.defaultProvider ?? "gemini"));
         }
       } catch {
-        // 기본값 gemini 유지
+        if (!cancelled) setProvider("gemini");
       }
     }
 
@@ -69,11 +71,20 @@ export default function ParallelEvaluationForm({
     };
   }, []);
 
+  useEffect(() => {
+    if (itemsDirty) return;
+
+    const nextItems = project.savedEvaluationItems?.length
+      ? project.savedEvaluationItems.map((item) => ({ ...item }))
+      : createDefaultEvaluationItems();
+    setEvaluationItems(nextItems);
+  }, [itemsDirty, project.id, project.savedEvaluationItems]);
+
   const aiTotalSize = useMemo(() => aiFiles.reduce((sum, file) => sum + file.size, 0), [aiFiles]);
   const expertTotalSize = useMemo(() => expertFiles.reduce((sum, file) => sum + file.size, 0), [expertFiles]);
 
   async function submitEvaluation() {
-    if (loading) return;
+    if (loading || !provider) return;
 
     if (itemsDirty) {
       setError("평가항목을 먼저 저장한 뒤 분석을 실행해 주세요.");
@@ -110,7 +121,7 @@ export default function ParallelEvaluationForm({
     expertFiles.forEach((file) => formData.append("expertFiles", file));
 
     try {
-      const response = await fetch("/api/evaluation-rounds", {
+      const response = await clientFetchWithTimeout("/api/evaluation-rounds", {
         method: "POST",
         body: formData,
       });
@@ -131,7 +142,6 @@ export default function ParallelEvaluationForm({
 
       const isDemo =
         payload.analysisMode === "demo" || payload.round.aiAnalysis.mode === "demo";
-      setLastAnalysisMode(isDemo ? "demo" : "live");
 
       if (isDemo) {
         showToast({
@@ -155,8 +165,6 @@ export default function ParallelEvaluationForm({
   return (
     <div className="space-y-5">
       {loading ? <AnalysisBlockingOverlay estimatedSeconds={120} /> : null}
-
-      {lastAnalysisMode === "demo" ? <DemoModeBanner /> : null}
 
       <EvaluationItemsEditor
         items={evaluationItems}
@@ -188,8 +196,9 @@ export default function ParallelEvaluationForm({
           <label className="block text-sm">
             <FieldLabel className="mb-2 block">AI 엔진</FieldLabel>
             <select
-              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white"
-              value={provider}
+              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white disabled:opacity-60"
+              disabled={!provider}
+              value={provider ?? "gemini"}
               onChange={(event) => setProvider(event.target.value as AiProviderPreference)}
             >
               <option value="gemini">Gemini</option>
@@ -229,7 +238,7 @@ export default function ParallelEvaluationForm({
           </MutedText>
           <button
             className="primary-action mt-5 rounded-xl px-8 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
-            disabled={loading || itemsDirty}
+            disabled={loading || itemsDirty || !provider}
             type="button"
             onClick={submitEvaluation}
           >

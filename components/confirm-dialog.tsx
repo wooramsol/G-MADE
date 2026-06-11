@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { MutedText, SubsectionTitle } from "@/components/typography";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -23,6 +25,21 @@ export default function ConfirmDialog({
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
+  useBodyScrollLock(open);
+
+  useEffect(() => {
+    if (!open || loading) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onCancel();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [loading, onCancel, open]);
+
   if (!open) return null;
 
   return (

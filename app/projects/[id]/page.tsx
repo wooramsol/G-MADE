@@ -7,6 +7,7 @@ import ProjectUploadSection from "./project-upload-section";
 import LocalProjectDetail from "./local-project-detail";
 import LandscapeZonePanel from "./landscape-zone-panel";
 import ProjectLocationEditor from "./project-location-editor";
+import ProjectMetadataEditor from "./project-metadata-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,8 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
       <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
         <section id="project-management" className="space-y-5">
           <Panel title="프로젝트 개요" action="프로젝트 정보">
-            <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <ProjectMetadataEditor project={project} />
+            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
               <Info label="사업명" value={project.name} />
               <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
                 <Eyebrow>사업위치</Eyebrow>
@@ -61,6 +63,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <Info label="규모" value={project.scale} />
               <Info label="심의종류" value={project.reviewType} />
               <Info label="접수일" value={project.receivedAt} />
+              <Info label="상태" value={project.status} />
               {project.summary ? (
                 <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
                   <Eyebrow>사업개요</Eyebrow>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { Caption, MutedText, SubsectionTitle } from "@/components/typography";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 type AnalysisBlockingOverlayProps = {
   message?: string;
@@ -12,13 +12,7 @@ export default function AnalysisBlockingOverlay({
   message = "하이브리드 평가를 분석하고 있습니다. 잠시만 기다려 주세요.",
   estimatedSeconds = 120,
 }: AnalysisBlockingOverlayProps) {
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
+  useBodyScrollLock(true);
 
   const estimatedLabel =
     estimatedSeconds >= 60

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
+import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
 import type { Project } from "@/lib/types";
 import {
@@ -12,6 +13,7 @@ import {
 import { showToast } from "../../toast";
 import LandscapeZonePanel from "./landscape-zone-panel";
 import ProjectLocationEditor from "./project-location-editor";
+import ProjectMetadataEditor from "./project-metadata-editor";
 import ProjectUploadSection from "./project-upload-section";
 
 export default function LocalProjectDetail({ projectId }: { projectId: string }) {
@@ -30,7 +32,9 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
   if (project === undefined) {
     return (
       <main className="min-h-screen bg-[#f4f7fb] px-6 py-8 text-[#172033]">
-        <div className="mx-auto max-w-[1500px] rounded-2xl border border-[#d7dee8] bg-white p-8 panel-shadow">프로젝트 정보를 불러오는 중입니다.</div>
+        <div className="mx-auto max-w-[1500px] rounded-2xl border border-[#d7dee8] bg-white p-8 panel-shadow">
+          <MutedText>프로젝트 정보를 불러오는 중입니다.</MutedText>
+        </div>
       </main>
     );
   }
@@ -51,43 +55,57 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
-      <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
+      <div className="mx-auto max-w-[1500px] px-6 pt-8">
         <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <Eyebrow>사업명</Eyebrow>
+              <div className="flex flex-wrap items-center gap-3">
+                <Eyebrow>사업명</Eyebrow>
+                <EvaluationStatusBadge project={project} />
+              </div>
               <PageTitle className="mt-2">{project.name}</PageTitle>
             </div>
-            <button
-              className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100"
-              type="button"
-              onClick={() => setDeleteConfirmOpen(true)}
-            >
-              프로젝트 삭제
-            </button>
-            <ConfirmDialog
-              description={`"${project.name}" 프로젝트와 평가 결과가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
-              loading={deleting}
-              open={deleteConfirmOpen}
-              onCancel={() => {
-                if (!deleting) setDeleteConfirmOpen(false);
-              }}
-              onConfirm={() => {
-                setDeleting(true);
-                deleteLocalProject(project.id);
-                setDeleteConfirmOpen(false);
-                showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
-                window.setTimeout(() => {
-                  window.location.href = "/projects";
-                }, 650);
-              }}
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                className="rounded-lg border border-[#2463b3] bg-[#eef4fb] px-4 py-2 text-sm font-bold text-[#2463b3] hover:bg-white"
+                href="#hybrid-evaluation-form"
+              >
+                평가 바로가기
+              </Link>
+              <button
+                className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100"
+                type="button"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                프로젝트 삭제
+              </button>
+              <ConfirmDialog
+                description={`"${project.name}" 프로젝트와 평가 결과가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
+                loading={deleting}
+                open={deleteConfirmOpen}
+                onCancel={() => {
+                  if (!deleting) setDeleteConfirmOpen(false);
+                }}
+                onConfirm={() => {
+                  setDeleting(true);
+                  deleteLocalProject(project.id);
+                  setDeleteConfirmOpen(false);
+                  showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
+                  window.setTimeout(() => {
+                    window.location.href = "/projects";
+                  }, 650);
+                }}
+              />
+            </div>
           </div>
         </div>
+      </div>
 
+      <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
         <section className="space-y-5">
           <Panel title="프로젝트 개요" action="브라우저 저장 프로젝트">
-            <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <ProjectMetadataEditor project={project} onUpdated={setProject} />
+            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
               <Info label="사업명" value={project.name} />
               <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
                 <Eyebrow>사업위치</Eyebrow>
@@ -100,6 +118,13 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
               <Info label="규모" value={project.scale} />
               <Info label="심의종류" value={project.reviewType} />
               <Info label="접수일" value={project.receivedAt} />
+              <Info label="상태" value={project.status} />
+              {project.summary ? (
+                <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
+                  <Eyebrow>사업개요</Eyebrow>
+                  <p className="mt-2 whitespace-pre-wrap font-semibold leading-6 text-[#172033]">{project.summary}</p>
+                </div>
+              ) : null}
             </div>
           </Panel>
 

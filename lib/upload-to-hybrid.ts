@@ -7,7 +7,6 @@ import type {
   HumanEvaluation,
   HybridResult,
   HybridSettings,
-  UploadAnalysisSession,
 } from "./types";
 
 export type SessionHybridView = {
@@ -115,30 +114,6 @@ export function buildHybridViewFromRound(round: EvaluationRound, roundNumber: nu
     projectScore: calculateProjectScore(results),
     roundNumber,
   };
-}
-
-/** @deprecated Use buildHybridViewFromRound */
-export function buildHybridViewFromSession(
-  session: UploadAnalysisSession,
-  round: number,
-  humanEvaluationSession?: import("./types").HumanEvaluationSession | null,
-): SessionHybridView {
-  const evaluationRound: EvaluationRound = {
-    id: session.id,
-    evaluatedAt: session.analyzedAt,
-    aiWeight: session.aiWeight,
-    expertWeight: session.expertWeight,
-    evaluationItems: [],
-    totalPoints: session.totalPoints,
-    reviewerName: humanEvaluationSession?.reviewerName ?? "전문가",
-    expertSummary: humanEvaluationSession?.summary,
-    aiFiles: session.files,
-    expertFiles: humanEvaluationSession?.files ?? [],
-    aiAnalysis: session.analysis,
-    expertItemScores: humanEvaluationSession?.itemScores ?? [],
-  };
-
-  return buildHybridViewFromRound(evaluationRound, round);
 }
 
 function clamp(value: number): number {

@@ -71,7 +71,7 @@ export default function ProjectLocationEditor({
 
       if (response.ok && payload.project) {
         updatedProject = payload.project;
-      } else if (response.status === 404) {
+      } else if (response.status === 404 || response.status === 401) {
         const local = getLocalProjects().find((item) => item.id === project.id);
         updatedProject = {
           ...(local ?? project),
