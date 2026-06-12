@@ -3,6 +3,7 @@
 import { useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import { Caption, SubsectionTitle } from "@/components/typography";
+import { getProjectEvaluationRounds } from "@/lib/evaluation-rounds";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import type { EvaluationRound, Project } from "@/lib/types";
 import { showToast } from "../../toast";
@@ -11,7 +12,11 @@ import { restoreLocalProjectRound } from "../local-project-storage";
 type TrashedRoundsPanelProps = {
   project: Project;
   trashedRounds: EvaluationRound[];
-  onRestored?: (activeRounds: EvaluationRound[], trashedRounds: EvaluationRound[]) => void;
+  onRestored?: (
+    activeRounds: EvaluationRound[],
+    trashedRounds: EvaluationRound[],
+    restoredRoundId?: string,
+  ) => void;
 };
 
 export default function TrashedRoundsPanel({ project, trashedRounds, onRestored }: TrashedRoundsPanelProps) {
@@ -41,19 +46,19 @@ export default function TrashedRoundsPanel({ project, trashedRounds, onRestored 
       let nextTrashed = trashedRounds.filter((round) => round.id !== roundId);
 
       if (response.ok && payload.project) {
-        activeRounds = payload.project.evaluationRounds ?? activeRounds;
+        activeRounds = getProjectEvaluationRounds(payload.project);
         nextTrashed = payload.project.trashedEvaluationRounds ?? nextTrashed;
       } else if (response.status === 404) {
         const restored = restoreLocalProjectRound(project.id, roundId);
         if (restored) {
-          activeRounds = restored.evaluationRounds ?? activeRounds;
+          activeRounds = getProjectEvaluationRounds(restored);
           nextTrashed = restored.trashedEvaluationRounds ?? nextTrashed;
         }
       } else {
         throw new Error(payload.error ?? "평가 차수 복원에 실패했습니다.");
       }
 
-      onRestored?.(activeRounds, nextTrashed);
+      onRestored?.(activeRounds, nextTrashed, roundId);
       setRestoringRoundId(null);
       showToast({ message: "평가 차수가 복원되었습니다.", tone: "success" });
     } catch (error) {

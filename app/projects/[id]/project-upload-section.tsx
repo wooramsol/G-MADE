@@ -29,6 +29,7 @@ export default function ProjectUploadSection({
   const router = useRouter();
   const roundsRef = useRef<EvaluationRound[]>(getProjectEvaluationRounds(project));
   const excludedRoundIdsRef = useRef<Set<string>>(new Set());
+  const [focusRoundId, setFocusRoundId] = useState<string | null>(null);
   const [activeProject, setActiveProject] = useState<Project>(() =>
     typeof window === "undefined" ? project : readMergedProject(project),
   );
@@ -68,7 +69,11 @@ export default function ProjectUploadSection({
   function syncRounds(
     nextRounds: EvaluationRound[],
     nextFiles = files,
-    options?: { refresh?: boolean; trashedEvaluationRounds?: EvaluationRound[] },
+    options?: {
+      refresh?: boolean;
+      trashedEvaluationRounds?: EvaluationRound[];
+      focusRoundId?: string;
+    },
   ) {
     const previousIds = new Set(roundsRef.current.map((round) => round.id));
     const nextIds = new Set(nextRounds.map((round) => round.id));
@@ -76,6 +81,12 @@ export default function ProjectUploadSection({
     for (const roundId of previousIds) {
       if (!nextIds.has(roundId)) {
         excludedRoundIdsRef.current.add(roundId);
+      }
+    }
+
+    for (const roundId of nextIds) {
+      if (!previousIds.has(roundId)) {
+        excludedRoundIdsRef.current.delete(roundId);
       }
     }
 
@@ -105,7 +116,11 @@ export default function ProjectUploadSection({
     });
     onProjectUpdated?.();
 
-    if (addedRound) {
+    if (options?.focusRoundId) {
+      setFocusRoundId(options.focusRoundId);
+    }
+
+    if (addedRound || options?.focusRoundId) {
       scrollToHybridEvaluationResults();
     }
 
@@ -135,9 +150,11 @@ export default function ProjectUploadSection({
         description="AI·전문가 자료를 함께 분석한 차수별 통합 결과와 종합 점수입니다."
       >
         <ProjectEvaluationWorkspace
+          focusRoundId={focusRoundId}
           project={activeProject}
           rounds={rounds}
           showHeader={false}
+          onFocusRoundHandled={() => setFocusRoundId(null)}
           onRoundsChange={(next, nextTrashedRounds) =>
             syncRounds(next, files, {
               refresh: false,
@@ -150,8 +167,9 @@ export default function ProjectUploadSection({
       <TrashedRoundsPanel
         project={activeProject}
         trashedRounds={trashedRounds}
-        onRestored={(nextRounds, nextTrashedRounds) =>
+        onRestored={(nextRounds, nextTrashedRounds, restoredRoundId) =>
           syncRounds(nextRounds, files, {
+            focusRoundId: restoredRoundId,
             refresh: false,
             trashedEvaluationRounds: nextTrashedRounds,
           })

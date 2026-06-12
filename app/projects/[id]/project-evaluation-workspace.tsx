@@ -30,7 +30,9 @@ import { showToast } from "../../toast";
 type Props = {
   project: Project;
   rounds: EvaluationRound[];
+  focusRoundId?: string | null;
   showHeader?: boolean;
+  onFocusRoundHandled?: () => void;
   onRoundsChange?: (rounds: EvaluationRound[], trashedRounds?: EvaluationRound[]) => void;
 };
 
@@ -39,7 +41,9 @@ type RoundWithNumber = EvaluationRound & { roundNumber: number };
 export default function ProjectEvaluationWorkspace({
   project,
   rounds,
+  focusRoundId,
   showHeader = true,
+  onFocusRoundHandled,
   onRoundsChange,
 }: Props) {
   const sorted = useMemo<RoundWithNumber[]>(() => {
@@ -103,6 +107,15 @@ export default function ProjectEvaluationWorkspace({
     }
     previousRoundCountRef.current = rounds.length;
   }, [rounds.length, sorted]);
+
+  useEffect(() => {
+    if (!focusRoundId) return;
+
+    if (sorted.some((round) => round.id === focusRoundId)) {
+      setSelectedId(focusRoundId);
+      onFocusRoundHandled?.();
+    }
+  }, [focusRoundId, onFocusRoundHandled, sorted]);
 
   function requestDeleteRound(roundId: string) {
     setDeletingRoundId(roundId);
