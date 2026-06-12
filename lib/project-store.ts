@@ -300,6 +300,12 @@ export async function restoreProjectRecord(id: string): Promise<Project | undefi
   });
 }
 
+/** JSON 저장소의 원본 프로젝트 레코드를 조회합니다. (데모 병합 없음) */
+export async function getStoredProjectRecord(id: string): Promise<Project | undefined> {
+  const storedProjects = await readCreatedProjects();
+  return storedProjects.find((project) => project.id === id);
+}
+
 /** 저장소에서 프로젝트 레코드를 영구 삭제합니다. */
 export async function purgeProjectRecord(id: string): Promise<boolean> {
   return withProjectStoreLock(async () => {

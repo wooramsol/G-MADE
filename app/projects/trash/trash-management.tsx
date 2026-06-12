@@ -75,17 +75,21 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
         restoreLocalProject(confirmAction.project.id);
         showToast({ message: "프로젝트가 복원되었습니다.", tone: "success" });
       } else {
-        const response = await fetch(`/api/projects/${confirmAction.project.id}?permanent=true`, {
+        const project = confirmAction.project;
+        const response = await fetch(`/api/projects/${project.id}?permanent=true`, {
           method: "DELETE",
         });
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
-        if (!response.ok && response.status !== 404) {
+        if (response.ok || response.status === 404) {
+          purgeLocalProject(project.id);
+          showToast({ message: "프로젝트가 영구 삭제되었습니다.", tone: "success" });
+        } else if (response.status === 400 && isProjectTrashed(project)) {
+          purgeLocalProject(project.id);
+          showToast({ message: "프로젝트가 영구 삭제되었습니다.", tone: "success" });
+        } else {
           throw new Error(payload.error ?? "영구 삭제에 실패했습니다.");
         }
-
-        purgeLocalProject(confirmAction.project.id);
-        showToast({ message: "프로젝트가 영구 삭제되었습니다.", tone: "success" });
       }
 
       setLocalProjects(getLocalProjects());

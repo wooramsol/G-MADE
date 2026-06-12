@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import {
   getProjectById,
-  getProjectRecordById,
+  getStoredProjectRecord,
   purgeProjectRecord,
-  restoreProjectRecord,
   trashProjectRecord,
   updateProject,
 } from "@/lib/project-store";
@@ -138,8 +137,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const permanent = request.nextUrl.searchParams.get("permanent") === "true";
 
   if (permanent) {
-    const existing = await getProjectRecordById(id);
-    if (!existing?.deletedAt) {
+    const stored = await getStoredProjectRecord(id);
+
+    if (!stored) {
+      return NextResponse.json({ ok: true });
+    }
+
+    if (!stored.deletedAt) {
       return NextResponse.json({ error: "휴지통에 있는 프로젝트만 영구 삭제할 수 있습니다." }, { status: 400 });
     }
 

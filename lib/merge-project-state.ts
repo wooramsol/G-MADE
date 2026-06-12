@@ -46,8 +46,26 @@ export function mergeProjectWithLocal(serverProject: Project, localProject?: Pro
     ...localProject,
     ...serverProject,
     locationPoint: serverProject.locationPoint ?? localProject.locationPoint,
+    deletedAt: serverProject.deletedAt ?? localProject.deletedAt,
     files: mergeProjectFiles(serverProject.files, localProject.files),
     savedEvaluationItems,
     evaluationRounds: mergeEvaluationRounds(serverProject.evaluationRounds, localProject.evaluationRounds),
+    trashedEvaluationRounds: mergeTrashedEvaluationRounds(
+      serverProject.trashedEvaluationRounds,
+      localProject.trashedEvaluationRounds,
+    ),
   };
+}
+
+function mergeTrashedEvaluationRounds(
+  serverRounds?: EvaluationRound[],
+  localRounds?: EvaluationRound[],
+): EvaluationRound[] | undefined {
+  const byId = new Map<string, EvaluationRound>();
+
+  for (const round of [...(serverRounds ?? []), ...(localRounds ?? [])]) {
+    byId.set(round.id, round);
+  }
+
+  return byId.size > 0 ? Array.from(byId.values()) : undefined;
 }
