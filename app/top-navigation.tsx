@@ -33,7 +33,7 @@ export default function TopNavigation({ isAuthenticated }: { isAuthenticated: bo
         })}
         </div>
         {!isAuthenticated ? (
-          <Link className="type-nav-link rounded-lg bg-[#15345b] px-4 py-2 text-white" href="/login">
+          <Link className="type-nav-link rounded-lg bg-[#15345b] px-4 py-2 !text-white shadow-sm" href="/login">
             로그인
           </Link>
         ) : null}
