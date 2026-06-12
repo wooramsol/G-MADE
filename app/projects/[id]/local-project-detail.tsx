@@ -8,8 +8,8 @@ import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/compone
 import type { Project } from "@/lib/types";
 import CompleteEvaluationButton from "../complete-evaluation-button";
 import {
-  deleteLocalProject,
   getLocalProjects,
+  trashLocalProject,
 } from "../local-project-storage";
 import { showToast } from "../../toast";
 import LandscapeZonePanel from "./landscape-zone-panel";
@@ -72,10 +72,10 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
                 type="button"
                 onClick={() => setDeleteConfirmOpen(true)}
               >
-                프로젝트 삭제
+                휴지통으로 이동
               </button>
               <ConfirmDialog
-                description={`"${project.name}" 프로젝트와 평가 결과가 삭제됩니다. 평가 진행 중이어도 삭제할 수 있으며, 되돌릴 수 없습니다.`}
+                description={`"${project.name}" 프로젝트를 휴지통으로 이동합니다. 평가 진행 중이어도 이동할 수 있으며, 휴지통에서 복원하거나 영구 삭제할 수 있습니다.`}
                 loading={deleting}
                 open={deleteConfirmOpen}
                 onCancel={() => {
@@ -83,9 +83,9 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
                 }}
                 onConfirm={() => {
                   setDeleting(true);
-                  deleteLocalProject(project.id);
+                  trashLocalProject(project.id);
                   setDeleteConfirmOpen(false);
-                  showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
+                  showToast({ message: "프로젝트가 휴지통으로 이동했습니다.", tone: "success" });
                   window.setTimeout(() => {
                     window.location.href = "/projects";
                   }, 650);

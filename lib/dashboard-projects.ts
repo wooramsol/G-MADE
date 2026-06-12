@@ -3,6 +3,7 @@ import {
   getProjectEvaluationRoundCount,
   isProjectEvaluationComplete,
 } from "./project-evaluation-status";
+import { filterActiveProjects } from "./trash";
 import type { Project } from "./types";
 
 export type DashboardStats = {
@@ -20,7 +21,7 @@ export function mergeManagedProjects(serverProjects: Project[], localProjects: P
   });
   const serverIds = new Set(serverProjects.map((project) => project.id));
   const localOnly = localProjects.filter((project) => !serverIds.has(project.id));
-  return sortProjectsByReceivedAt([...mergedServer, ...localOnly]);
+  return filterActiveProjects(sortProjectsByReceivedAt([...mergedServer, ...localOnly]));
 }
 
 export function buildDashboardStats(projects: Project[]): DashboardStats {

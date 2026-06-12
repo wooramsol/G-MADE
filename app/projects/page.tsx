@@ -25,9 +25,17 @@ export default async function ProjectManagementPage({
               확인을 한 화면에서 진행할 수 있습니다.
             </SectionDescription>
           </div>
-          <Link href="/projects/new" className="primary-action-blue rounded-lg px-4 py-3 text-sm font-bold shadow-sm">
-            새 프로젝트 추가하기
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              className="rounded-lg border border-[#d7dee8] bg-white px-4 py-3 text-sm font-bold text-[#15345b] shadow-sm transition hover:bg-[#f8fafc]"
+              href="/projects/trash"
+            >
+              휴지통
+            </Link>
+            <Link href="/projects/new" className="primary-action-blue rounded-lg px-4 py-3 text-sm font-bold shadow-sm">
+              새 프로젝트 추가하기
+            </Link>
+          </div>
         </div>
 
         <form action="/projects" className="rounded-2xl border border-[#d7dee8] bg-white p-4 panel-shadow">

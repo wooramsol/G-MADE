@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getProjectById, trashProjectEvaluationRound } from "@/lib/project-store";
+import { getProjectById, restoreProjectEvaluationRound } from "@/lib/project-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function DELETE(
+export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string; roundId: string }> },
 ) {
@@ -20,9 +20,9 @@ export async function DELETE(
     return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  const project = await trashProjectEvaluationRound(id, roundId);
+  const project = await restoreProjectEvaluationRound(id, roundId);
   if (!project) {
-    return NextResponse.json({ error: "평가 차수를 휴지통으로 이동하지 못했습니다." }, { status: 404 });
+    return NextResponse.json({ error: "평가 차수를 복원할 수 없습니다." }, { status: 404 });
   }
 
   return NextResponse.json({ project });

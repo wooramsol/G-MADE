@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
-import { deleteProjectRecord, getProjectById, updateProject } from "@/lib/project-store";
+import {
+  getProjectById,
+  getProjectRecordById,
+  purgeProjectRecord,
+  restoreProjectRecord,
+  trashProjectRecord,
+  updateProject,
+} from "@/lib/project-store";
 
 const PROJECT_STATUSES = new Set(["접수", "심사 진행중", "완료"]);
 import type { EvaluationItem } from "@/lib/types";
@@ -123,17 +130,36 @@ function normalizeSavedEvaluationItem(item: unknown, index: number): EvaluationI
   };
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult.response;
 
   const { id } = await params;
+  const permanent = request.nextUrl.searchParams.get("permanent") === "true";
 
-  const deleted = await deleteProjectRecord(id);
+  if (permanent) {
+    const existing = await getProjectRecordById(id);
+    if (!existing?.deletedAt) {
+      return NextResponse.json({ error: "휴지통에 있는 프로젝트만 영구 삭제할 수 있습니다." }, { status: 400 });
+    }
 
-  if (!deleted) {
+    const purged = await purgeProjectRecord(id);
+    if (!purged) {
+      return NextResponse.json({ error: "영구 삭제할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  }
+
+  const existing = await getProjectById(id);
+  if (!existing) {
     return NextResponse.json({ error: "삭제할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  return NextResponse.json({ ok: true });
+  const project = await trashProjectRecord(id);
+  if (!project) {
+    return NextResponse.json({ error: "프로젝트를 휴지통으로 이동하지 못했습니다." }, { status: 404 });
+  }
+
+  return NextResponse.json({ project });
 }

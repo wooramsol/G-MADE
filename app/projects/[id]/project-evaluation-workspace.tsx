@@ -24,13 +24,14 @@ import { buildLawReferenceUrl } from "@/lib/reference-links";
 import { toAchievementPercent } from "@/lib/hybrid-evaluation";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
+import { trashLocalProjectRound } from "../local-project-storage";
 import { showToast } from "../../toast";
 
 type Props = {
   project: Project;
   rounds: EvaluationRound[];
   showHeader?: boolean;
-  onRoundsChange?: (rounds: EvaluationRound[]) => void;
+  onRoundsChange?: (rounds: EvaluationRound[], trashedRounds?: EvaluationRound[]) => void;
 };
 
 type RoundWithNumber = EvaluationRound & { roundNumber: number };
@@ -122,18 +123,25 @@ export default function ProjectEvaluationWorkspace({
       });
       const payload = (await response.json().catch(() => ({}))) as {
         error?: string;
-        project?: { evaluationRounds?: EvaluationRound[] };
+        project?: { evaluationRounds?: EvaluationRound[]; trashedEvaluationRounds?: EvaluationRound[] };
       };
 
-      if (response.ok) {
-        // 서버 삭제 성공. 화면은 필터된 next를 유지합니다(병합 시 삭제 차수가 되살아나지 않도록).
+      let nextTrashedRounds: EvaluationRound[] | undefined;
+
+      if (response.ok && payload.project) {
+        next = payload.project.evaluationRounds ?? next;
+        nextTrashedRounds = payload.project.trashedEvaluationRounds;
       } else if (response.status === 404) {
-        // 브라우저 전용 프로젝트 등 서버에 없는 경우 로컬 상태만 반영합니다.
+        const trashedProject = trashLocalProjectRound(project.id, roundId);
+        if (trashedProject) {
+          next = trashedProject.evaluationRounds ?? next;
+          nextTrashedRounds = trashedProject.trashedEvaluationRounds;
+        }
       } else {
         throw new Error(payload.error ?? "삭제에 실패했습니다.");
       }
 
-      onRoundsChange?.(next);
+      onRoundsChange?.(next, nextTrashedRounds);
       setSelectedId((current) => {
         if (current === roundId) {
           return next[0]?.id ?? null;
@@ -142,7 +150,7 @@ export default function ProjectEvaluationWorkspace({
       });
       setDeleteConfirmOpen(false);
       setDeletingRoundId(null);
-      showToast({ message: "평가 차수가 삭제되었습니다.", tone: "success" });
+      showToast({ message: "평가 차수가 휴지통으로 이동했습니다.", tone: "success" });
     } catch (error) {
       showToast({
         message: error instanceof Error ? error.message : "삭제에 실패했습니다.",
@@ -178,8 +186,8 @@ export default function ProjectEvaluationWorkspace({
         <ConfirmDialog
           description={
             deletingRound
-              ? `${deletingRound.roundNumber}차 평가 결과가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`
-              : "선택한 평가 차수가 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+              ? `${deletingRound.roundNumber}차 평가 결과를 휴지통으로 이동합니다. 프로젝트 상세 화면 하단에서 복원할 수 있습니다.`
+              : "선택한 평가 차수를 휴지통으로 이동합니다. 프로젝트 상세 화면 하단에서 복원할 수 있습니다."
           }
           loading={deleting}
           open={deleteConfirmOpen}

@@ -8,6 +8,7 @@ import { getProjectEvaluationStatus } from "@/lib/project-evaluation-status";
 import { sortProjectsByUpdatedAt } from "@/lib/project-sort";
 import type { Project } from "@/lib/types";
 import { mergeProjectWithLocal } from "@/lib/merge-project-state";
+import { filterActiveProjects } from "@/lib/trash";
 import { getLocalProjects } from "./local-project-storage";
 
 type ProjectManagementGridProps = {
@@ -37,7 +38,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
     });
     const serverIds = new Set(serverProjects.map((project) => project.id));
     const localOnly = localProjects.filter((project) => !serverIds.has(project.id));
-    return sortProjectsByUpdatedAt([...mergedServer, ...localOnly]);
+    return filterActiveProjects(sortProjectsByUpdatedAt([...mergedServer, ...localOnly]));
   }, [localProjects, serverProjects]);
 
   const visibleProjects = useMemo(() => {

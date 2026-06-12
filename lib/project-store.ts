@@ -3,6 +3,11 @@ import { projects as demoProjects } from "./demo-data";
 import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
+import {
+  isProjectTrashed,
+  restoreEvaluationRound,
+  trashEvaluationRound,
+} from "./trash";
 import type {
   EvaluationRound,
   HumanEvaluationSession,
@@ -26,32 +31,23 @@ export function isCreatedProjectId(id: string): boolean {
 }
 
 export async function getAllProjects(): Promise<Project[]> {
-  const storedProjects = await readCreatedProjects();
-  const storedById = new Map(storedProjects.map((project) => [project.id, project]));
-  const mergedDemoProjects = demoProjects.map((project) => {
-    const stored = storedById.get(project.id);
-    return stored
-      ? {
-          ...project,
-          ...stored,
-          files: stored.files ?? project.files,
-          uploadAnalyses: stored.uploadAnalyses ?? project.uploadAnalyses ?? [],
-          humanEvaluationSessions:
-            stored.humanEvaluationSessions ?? project.humanEvaluationSessions ?? [],
-          evaluationRounds: stored.evaluationRounds ?? project.evaluationRounds ?? [],
-          savedEvaluationItems: stored.savedEvaluationItems ?? project.savedEvaluationItems,
-        }
-      : project;
-  });
+  const allProjects = await getAllProjectsIncludingTrashed();
+  return allProjects.filter((project) => !isProjectTrashed(project));
+}
 
-  return sortProjectsByUpdatedAt([
-    ...mergedDemoProjects,
-    ...storedProjects.filter((project) => !demoProjectIds.has(project.id)),
-  ]);
+export async function getTrashedProjects(): Promise<Project[]> {
+  const allProjects = await getAllProjectsIncludingTrashed();
+  return allProjects.filter((project) => isProjectTrashed(project));
 }
 
 export async function getProjectById(id: string): Promise<Project | undefined> {
-  const allProjects = await getAllProjects();
+  const project = await getProjectRecordById(id);
+  if (!project || isProjectTrashed(project)) return undefined;
+  return project;
+}
+
+export async function getProjectRecordById(id: string): Promise<Project | undefined> {
+  const allProjects = await getAllProjectsIncludingTrashed();
   return allProjects.find((project) => project.id === id);
 }
 
@@ -64,6 +60,7 @@ export async function createProject(input: ProjectInput): Promise<Project> {
       status: "접수",
       files: [],
       evaluationRounds: [],
+      trashedEvaluationRounds: [],
       updatedAt: now,
     };
 
@@ -155,7 +152,7 @@ export async function removeProjectHumanEvaluationSession(
 
 export async function upsertProjectRecord(project: Project): Promise<Project> {
   return withProjectStoreLock(async () => {
-    const allProjects = await getAllProjects();
+    const allProjects = await getAllProjectsIncludingTrashed();
     const existing = allProjects.find((item) => item.id === project.id);
     const storedProjects = await readCreatedProjects();
     const storedIndex = storedProjects.findIndex((item) => item.id === project.id);
@@ -168,6 +165,7 @@ export async function upsertProjectRecord(project: Project): Promise<Project> {
       uploadAnalyses: project.uploadAnalyses ?? base.uploadAnalyses ?? [],
       humanEvaluationSessions: project.humanEvaluationSessions ?? base.humanEvaluationSessions ?? [],
       evaluationRounds: project.evaluationRounds ?? base.evaluationRounds ?? [],
+      trashedEvaluationRounds: project.trashedEvaluationRounds ?? base.trashedEvaluationRounds ?? [],
       savedEvaluationItems: project.savedEvaluationItems ?? base.savedEvaluationItems,
       updatedAt: new Date().toISOString(),
     };
@@ -195,14 +193,55 @@ export async function addProjectEvaluationRound(
   }));
 }
 
+/** 평가 차수를 휴지통으로 이동합니다. */
+export async function trashProjectEvaluationRound(
+  id: string,
+  roundId: string,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    const result = trashEvaluationRound(
+      project.evaluationRounds ?? [],
+      project.trashedEvaluationRounds ?? [],
+      roundId,
+    );
+
+    if (!result) return project;
+
+    return {
+      ...project,
+      evaluationRounds: result.activeRounds,
+      trashedEvaluationRounds: result.trashedRounds,
+    };
+  });
+}
+
+/** @deprecated trashProjectEvaluationRound를 사용하세요. */
 export async function removeProjectEvaluationRound(
   id: string,
   roundId: string,
 ): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    evaluationRounds: (project.evaluationRounds ?? []).filter((round) => round.id !== roundId),
-  }));
+  return trashProjectEvaluationRound(id, roundId);
+}
+
+export async function restoreProjectEvaluationRound(
+  id: string,
+  roundId: string,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    const result = restoreEvaluationRound(
+      project.evaluationRounds ?? [],
+      project.trashedEvaluationRounds ?? [],
+      roundId,
+    );
+
+    if (!result) return project;
+
+    return {
+      ...project,
+      evaluationRounds: result.activeRounds,
+      trashedEvaluationRounds: result.trashedRounds,
+    };
+  });
 }
 
 async function updateStoredProject(
@@ -210,7 +249,7 @@ async function updateStoredProject(
   updater: (project: Project) => Project,
 ): Promise<Project | undefined> {
   return withProjectStoreLock(async () => {
-    const allProjects = await getAllProjects();
+    const allProjects = await getAllProjectsIncludingTrashed();
     const existingProject = allProjects.find((project) => project.id === id);
 
     if (!existingProject) return undefined;
@@ -223,6 +262,7 @@ async function updateStoredProject(
       uploadAnalyses: baseProject.uploadAnalyses ?? [],
       humanEvaluationSessions: baseProject.humanEvaluationSessions ?? [],
       evaluationRounds: baseProject.evaluationRounds ?? [],
+      trashedEvaluationRounds: baseProject.trashedEvaluationRounds ?? [],
       updatedAt: new Date().toISOString(),
     });
 
@@ -243,12 +283,25 @@ function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]
   return Array.from(byId.values());
 }
 
-export async function deleteCreatedProject(id: string): Promise<boolean> {
-  return deleteProjectRecord(id);
+/** 프로젝트를 휴지통으로 이동합니다. */
+export async function trashProjectRecord(id: string): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    deletedAt: new Date().toISOString(),
+  }));
 }
 
-/** 저장소에 있는 프로젝트 레코드를 삭제합니다. 평가 진행 여부와 관계없이 제거됩니다. */
-export async function deleteProjectRecord(id: string): Promise<boolean> {
+/** 휴지통에서 프로젝트를 복원합니다. */
+export async function restoreProjectRecord(id: string): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    const nextProject = { ...project };
+    delete nextProject.deletedAt;
+    return nextProject;
+  });
+}
+
+/** 저장소에서 프로젝트 레코드를 영구 삭제합니다. */
+export async function purgeProjectRecord(id: string): Promise<boolean> {
   return withProjectStoreLock(async () => {
     const createdProjects = await readCreatedProjects();
     const nextProjects = createdProjects.filter((project) => project.id !== id);
@@ -260,6 +313,42 @@ export async function deleteProjectRecord(id: string): Promise<boolean> {
     await writeCreatedProjects(nextProjects);
     return true;
   });
+}
+
+export async function deleteCreatedProject(id: string): Promise<boolean> {
+  const trashed = await trashProjectRecord(id);
+  return Boolean(trashed);
+}
+
+/** @deprecated trashProjectRecord 또는 purgeProjectRecord를 사용하세요. */
+export async function deleteProjectRecord(id: string): Promise<boolean> {
+  const trashed = await trashProjectRecord(id);
+  return Boolean(trashed);
+}
+
+async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
+  const storedProjects = await readCreatedProjects();
+  const storedById = new Map(storedProjects.map((project) => [project.id, project]));
+  const mergedDemoProjects = demoProjects.map((project) => {
+    const stored = storedById.get(project.id);
+    return stored
+      ? {
+          ...project,
+          ...stored,
+          files: stored.files ?? project.files,
+          uploadAnalyses: stored.uploadAnalyses ?? project.uploadAnalyses ?? [],
+          humanEvaluationSessions:
+            stored.humanEvaluationSessions ?? project.humanEvaluationSessions ?? [],
+          evaluationRounds: stored.evaluationRounds ?? project.evaluationRounds ?? [],
+          trashedEvaluationRounds: stored.trashedEvaluationRounds ?? project.trashedEvaluationRounds ?? [],
+          savedEvaluationItems: stored.savedEvaluationItems ?? project.savedEvaluationItems,
+        }
+      : project;
+  });
+
+  const activeStored = storedProjects.filter((project) => !demoProjectIds.has(project.id));
+
+  return sortProjectsByUpdatedAt([...mergedDemoProjects, ...activeStored]);
 }
 
 async function readCreatedProjects(): Promise<Project[]> {

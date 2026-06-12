@@ -134,6 +134,8 @@ export type EvaluationSessionFile = {
 
 export type EvaluationRound = {
   id: string;
+  /** 휴지통으로 이동한 시각 (ISO). trashedEvaluationRounds에 보관될 때 설정됩니다. */
+  deletedAt?: string;
   evaluatedAt: string;
   aiWeight: number;
   expertWeight: number;
@@ -173,6 +175,10 @@ export type Project = {
   uploadAnalyses?: UploadAnalysisSession[];
   humanEvaluationSessions?: HumanEvaluationSession[];
   evaluationRounds?: EvaluationRound[];
+  /** 휴지통에 보관된 평가 차수 */
+  trashedEvaluationRounds?: EvaluationRound[];
+  /** 휴지통으로 이동한 시각 (ISO). 설정되면 목록에서 숨깁니다. */
+  deletedAt?: string;
 };
 
 export type AiEvaluation = {

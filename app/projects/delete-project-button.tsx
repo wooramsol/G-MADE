@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
-import { deleteLocalProject } from "./local-project-storage";
+import { saveLocalProject, trashLocalProject } from "./local-project-storage";
+import type { Project } from "@/lib/types";
 import { showToast } from "../toast";
 
 type DeleteProjectButtonProps = {
@@ -22,15 +23,22 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
 
     try {
       const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
-      const payload = await response.json().catch(() => ({}));
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        project?: Project;
+      };
 
       if (!response.ok && response.status !== 404) {
         throw new Error(payload.error ?? "프로젝트 삭제에 실패했습니다.");
       }
 
-      deleteLocalProject(projectId);
+      if (payload.project) {
+        saveLocalProject(payload.project);
+      } else {
+        trashLocalProject(projectId);
+      }
       setConfirmOpen(false);
-      showToast({ message: "프로젝트가 삭제되었습니다.", tone: "success" });
+      showToast({ message: "프로젝트가 휴지통으로 이동했습니다.", tone: "success" });
 
       if (redirectTo) {
         window.setTimeout(() => router.push(redirectTo), 650);
@@ -55,10 +63,10 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
         type="button"
         onClick={() => setConfirmOpen(true)}
       >
-        프로젝트 삭제
+        휴지통으로 이동
       </button>
       <ConfirmDialog
-        description={`"${projectName}" 프로젝트와 평가 결과가 삭제됩니다. 평가 진행 중이어도 삭제할 수 있으며, 되돌릴 수 없습니다.`}
+        description={`"${projectName}" 프로젝트를 휴지통으로 이동합니다. 평가 진행 중이어도 이동할 수 있으며, 휴지통에서 복원하거나 영구 삭제할 수 있습니다.`}
         loading={loading}
         open={confirmOpen}
         onCancel={() => {

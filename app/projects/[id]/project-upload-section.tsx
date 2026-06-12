@@ -11,6 +11,8 @@ import type { EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import ParallelEvaluationForm from "../../parallel-evaluation-form";
 import { getLocalProjects, syncLocalProjectRounds } from "../local-project-storage";
 import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
+import TrashedRoundsPanel from "./trashed-rounds-panel";
+import { getTrashedEvaluationRounds } from "@/lib/trash";
 
 function readMergedProject(serverProject: Project): Project {
   const localProject = getLocalProjects().find((item) => item.id === serverProject.id);
@@ -36,6 +38,9 @@ export default function ProjectUploadSection({
       ? getProjectEvaluationRounds(project)
       : resolveProjectRounds({ serverProject: project }),
   );
+  const [trashedRounds, setTrashedRounds] = useState<EvaluationRound[]>(() =>
+    getTrashedEvaluationRounds(project),
+  );
 
   useEffect(() => {
     roundsRef.current = rounds;
@@ -47,6 +52,7 @@ export default function ProjectUploadSection({
 
     setActiveProject(mergedProject);
     setFiles(mergedProject.files);
+    setTrashedRounds(getTrashedEvaluationRounds(mergedProject));
     setRounds((current) => {
       const next = resolveProjectRounds({
         serverProject: project,
@@ -62,7 +68,7 @@ export default function ProjectUploadSection({
   function syncRounds(
     nextRounds: EvaluationRound[],
     nextFiles = files,
-    options?: { refresh?: boolean },
+    options?: { refresh?: boolean; trashedEvaluationRounds?: EvaluationRound[] },
   ) {
     const previousIds = new Set(roundsRef.current.map((round) => round.id));
     const nextIds = new Set(nextRounds.map((round) => round.id));
@@ -75,13 +81,27 @@ export default function ProjectUploadSection({
 
     const addedRound = nextRounds.length > roundsRef.current.length;
 
+    const nextTrashedRounds = options?.trashedEvaluationRounds ?? trashedRounds;
+
     roundsRef.current = nextRounds;
     setRounds(nextRounds);
+    setTrashedRounds(nextTrashedRounds);
     setFiles(nextFiles);
 
     setActiveProject((current) => {
-      const syncedProject = syncLocalProjectRounds(project.id, current, nextFiles, nextRounds);
-      return { ...syncedProject, files: nextFiles, evaluationRounds: nextRounds };
+      const syncedProject = syncLocalProjectRounds(
+        project.id,
+        current,
+        nextFiles,
+        nextRounds,
+        nextTrashedRounds,
+      );
+      return {
+        ...syncedProject,
+        files: nextFiles,
+        evaluationRounds: nextRounds,
+        trashedEvaluationRounds: nextTrashedRounds,
+      };
     });
     onProjectUpdated?.();
 
@@ -118,9 +138,25 @@ export default function ProjectUploadSection({
           project={activeProject}
           rounds={rounds}
           showHeader={false}
-          onRoundsChange={(next) => syncRounds(next, files, { refresh: false })}
+          onRoundsChange={(next, nextTrashedRounds) =>
+            syncRounds(next, files, {
+              refresh: false,
+              trashedEvaluationRounds: nextTrashedRounds,
+            })
+          }
         />
       </WorkspaceSectionCard>
+
+      <TrashedRoundsPanel
+        project={activeProject}
+        trashedRounds={trashedRounds}
+        onRestored={(nextRounds, nextTrashedRounds) =>
+          syncRounds(nextRounds, files, {
+            refresh: false,
+            trashedEvaluationRounds: nextTrashedRounds,
+          })
+        }
+      />
     </div>
   );
 }

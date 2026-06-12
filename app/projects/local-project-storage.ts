@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  filterActiveProjects,
+  filterTrashedProjects,
+  restoreEvaluationRound,
+  trashEvaluationRound,
+} from "@/lib/trash";
 import type {
   EvaluationItem,
   EvaluationRound,
@@ -23,6 +29,14 @@ export function getLocalProjects(): Project[] {
   }
 }
 
+export function getActiveLocalProjects(): Project[] {
+  return filterActiveProjects(getLocalProjects());
+}
+
+export function getTrashedLocalProjects(): Project[] {
+  return filterTrashedProjects(getLocalProjects());
+}
+
 export function saveLocalProject(project: Project) {
   try {
     const projects = getLocalProjects();
@@ -37,9 +51,83 @@ export function saveLocalProject(project: Project) {
   }
 }
 
-export function deleteLocalProject(projectId: string) {
+export function trashLocalProject(projectId: string): Project | undefined {
+  const projects = getLocalProjects();
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) return undefined;
+
+  const nextProject = {
+    ...project,
+    deletedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
+export function restoreLocalProject(projectId: string): Project | undefined {
+  const projects = getLocalProjects();
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) return undefined;
+
+  const nextProject = { ...project, updatedAt: new Date().toISOString() };
+  delete nextProject.deletedAt;
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
+export function purgeLocalProject(projectId: string) {
   const projects = getLocalProjects().filter((project) => project.id !== projectId);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+}
+
+/** @deprecated trashLocalProject를 사용하세요. */
+export function deleteLocalProject(projectId: string) {
+  trashLocalProject(projectId);
+}
+
+export function trashLocalProjectRound(projectId: string, roundId: string): Project | undefined {
+  const projects = getLocalProjects();
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) return undefined;
+
+  const result = trashEvaluationRound(
+    project.evaluationRounds ?? [],
+    project.trashedEvaluationRounds ?? [],
+    roundId,
+  );
+  if (!result) return undefined;
+
+  const nextProject = {
+    ...project,
+    evaluationRounds: result.activeRounds,
+    trashedEvaluationRounds: result.trashedRounds,
+    updatedAt: new Date().toISOString(),
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
+export function restoreLocalProjectRound(projectId: string, roundId: string): Project | undefined {
+  const projects = getLocalProjects();
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) return undefined;
+
+  const result = restoreEvaluationRound(
+    project.evaluationRounds ?? [],
+    project.trashedEvaluationRounds ?? [],
+    roundId,
+  );
+  if (!result) return undefined;
+
+  const nextProject = {
+    ...project,
+    evaluationRounds: result.activeRounds,
+    trashedEvaluationRounds: result.trashedRounds,
+    updatedAt: new Date().toISOString(),
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
 }
 
 function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]): ProjectFile[] {
@@ -183,12 +271,15 @@ export function syncLocalProjectRounds(
   baseProject: Project,
   files: ProjectFile[],
   evaluationRounds: EvaluationRound[],
+  trashedEvaluationRounds?: EvaluationRound[],
 ): Project {
   const local = getLocalProjects().find((item) => item.id === projectId);
   const nextProject = {
     ...(local ?? baseProject),
     files,
     evaluationRounds,
+    trashedEvaluationRounds:
+      trashedEvaluationRounds ?? local?.trashedEvaluationRounds ?? baseProject.trashedEvaluationRounds ?? [],
   };
   saveLocalProject(nextProject);
   return nextProject;
