@@ -4,7 +4,7 @@ import GlobalHeader from "./global-header";
 import SiteFooter from "./site-footer";
 import ToastHost from "./toast-host";
 
-const PROJECT_NAME = "G-MADE AI·전문가 하이브리드 평가 시스템";
+const PROJECT_NAME = "G-MADE AI-전문가 하이브리드 평가 시스템";
 
 export const metadata: Metadata = {
   title: PROJECT_NAME,

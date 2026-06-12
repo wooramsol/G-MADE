@@ -26,7 +26,7 @@ export default async function GlobalHeader() {
             </div>
             <div>
               <BrandSubtitle>경관·공공디자인 사전심의 지원</BrandSubtitle>
-              <BrandTitle>AI·전문가 하이브리드 평가 시스템</BrandTitle>
+              <BrandTitle>AI-전문가 하이브리드 평가 시스템</BrandTitle>
             </div>
           </Link>
           {user ? (
