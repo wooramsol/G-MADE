@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 
-/** PDF는 100장 이상 심의자료를 고려해 상한을 넉넉히 둡니다. */
-const PDF_TEXT_CHAR_LIMIT = 300_000;
+/** PDF 전체 추출 상한(메모리·처리 시간). AI 전달량은 document-text-budget에서 별도 조절합니다. */
+const PDF_TEXT_CHAR_LIMIT = 120_000;
 /** DOCX·PPTX 등은 전체 페이지 추출 후 이 길이까지 AI에 전달합니다. */
 const DEFAULT_TEXT_CHAR_LIMIT = 80_000;
 
