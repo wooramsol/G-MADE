@@ -1,11 +1,10 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
-import {
-  getExtension,
-  validateUploadExtension,
-} from "@/lib/upload-validation";
+import { getBlobClientUploadSetupMessage, hasBlobClientUploadToken } from "@/lib/blob-config";
+import { getBlobUploadStatus } from "@/lib/blob-upload-status";
 import { getProjectById } from "@/lib/project-store";
+import { getExtension, validateUploadExtension } from "@/lib/upload-validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,12 +24,32 @@ const allowedContentTypes = [
   "application/octet-stream",
 ];
 
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
+
+  const { id: projectId } = await context.params;
+  const project = await getProjectById(projectId);
+  if (!project) {
+    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  return NextResponse.json(getBlobUploadStatus());
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult.response;
+
+  if (!hasBlobClientUploadToken()) {
+    return NextResponse.json({ error: getBlobClientUploadSetupMessage() }, { status: 503 });
+  }
 
   const { id: projectId } = await context.params;
   const project = await getProjectById(projectId);
@@ -44,6 +63,7 @@ export async function POST(
     const jsonResponse = await handleUpload({
       body,
       request,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
       onBeforeGenerateToken: async (pathname) => {
         if (!pathname.startsWith(`projects/${projectId}/files/`)) {
           throw new Error("허용되지 않은 업로드 경로입니다.");

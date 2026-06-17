@@ -1,6 +1,7 @@
 import { del, head, put } from "@vercel/blob";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
+import { getBlobAccess, isBlobStorageConfigured } from "./blob-config";
 import { getWritableStoragePath } from "./runtime-storage";
 import {
   buildProjectBlobPathname,
@@ -21,7 +22,7 @@ export type PersistedUploadFile = {
 };
 
 export function isBlobStorageEnabled(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
+  return isBlobStorageConfigured();
 }
 
 export async function uploadBufferToProjectBlob(
@@ -37,7 +38,7 @@ export async function uploadBufferToProjectBlob(
 
   if (isBlobStorageEnabled()) {
     const blob = await put(pathname, buffer, {
-      access: "public",
+      access: getBlobAccess(),
       contentType: inferUploadContentType(fileName, contentType),
       addRandomSuffix: false,
     });

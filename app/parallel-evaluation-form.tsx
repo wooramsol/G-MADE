@@ -5,6 +5,7 @@ import EvaluationWeightSlider from "@/components/evaluation-weight-slider";
 import { interactiveCardClassName } from "@/components/interactive-card";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
+import { exceedsServerlessUploadLimit, SERVERLESS_UPLOAD_LIMIT_LABEL } from "@/lib/blob-config";
 import { toClientAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
@@ -154,46 +155,35 @@ export default function ParallelEvaluationForm({
 
     let uploadedAiRefs: StoredFileRef[] = [];
     let uploadedExpertRefs: StoredFileRef[] = [];
-    let useLegacyFileUpload = false;
+    const newUploadBytes =
+      newAiFiles.reduce((sum, file) => sum + file.size, 0) +
+      newExpertFiles.reduce((sum, file) => sum + file.size, 0);
 
     try {
       if (newAiFiles.length > 0 || newExpertFiles.length > 0) {
         setUploadProgress("자료를 Blob에 업로드하는 중...");
-        try {
-          uploadedAiRefs =
-            newAiFiles.length > 0
-              ? await uploadProjectFilesToBlob(project.id, newAiFiles, (fileIndex, ratio) => {
-                  setUploadProgress(
-                    `AI 자료 업로드 중 (${fileIndex + 1}/${newAiFiles.length}) · ${Math.round(ratio * 100)}%`,
-                  );
-                })
-              : [];
-          uploadedExpertRefs =
-            newExpertFiles.length > 0
-              ? await uploadProjectFilesToBlob(project.id, newExpertFiles, (fileIndex, ratio) => {
-                  setUploadProgress(
-                    `전문가 자료 업로드 중 (${fileIndex + 1}/${newExpertFiles.length}) · ${Math.round(ratio * 100)}%`,
-                  );
-                })
-              : [];
-        } catch (uploadError) {
-          console.warn("Blob upload failed, falling back to direct upload", uploadError);
-          useLegacyFileUpload = true;
-          newAiFiles.forEach((file) => formData.append("aiFiles", file));
-          newExpertFiles.forEach((file) => formData.append("expertFiles", file));
-        }
+        uploadedAiRefs =
+          newAiFiles.length > 0
+            ? await uploadProjectFilesToBlob(project.id, newAiFiles, (fileIndex, ratio) => {
+                setUploadProgress(
+                  `AI 자료 업로드 중 (${fileIndex + 1}/${newAiFiles.length}) · ${Math.round(ratio * 100)}%`,
+                );
+              })
+            : [];
+        uploadedExpertRefs =
+          newExpertFiles.length > 0
+            ? await uploadProjectFilesToBlob(project.id, newExpertFiles, (fileIndex, ratio) => {
+                setUploadProgress(
+                  `전문가 자료 업로드 중 (${fileIndex + 1}/${newExpertFiles.length}) · ${Math.round(ratio * 100)}%`,
+                );
+              })
+            : [];
       }
 
-      if (!useLegacyFileUpload) {
-        const aiFileRefs = [...selectedAiRefs, ...uploadedAiRefs];
-        const expertFileRefs = [...selectedExpertRefs, ...uploadedExpertRefs];
-        formData.append("aiFileRefs", JSON.stringify(aiFileRefs));
-        formData.append("expertFileRefs", JSON.stringify(expertFileRefs));
-      } else if (selectedAiRefs.length > 0 || selectedExpertRefs.length > 0) {
-        throw new Error(
-          "저장된 자료 재사용은 Blob 업로드가 필요합니다. Vercel Blob 스토어 연결을 확인해 주세요.",
-        );
-      }
+      const aiFileRefs = [...selectedAiRefs, ...uploadedAiRefs];
+      const expertFileRefs = [...selectedExpertRefs, ...uploadedExpertRefs];
+      formData.append("aiFileRefs", JSON.stringify(aiFileRefs));
+      formData.append("expertFileRefs", JSON.stringify(expertFileRefs));
 
       setUploadProgress(null);
 
@@ -232,7 +222,15 @@ export default function ParallelEvaluationForm({
       });
       onRoundsChange?.(nextRounds, projectFiles);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "하이브리드 평가 분석에 실패했습니다.");
+      const message =
+        submitError instanceof Error ? submitError.message : "하이브리드 평가 분석에 실패했습니다.";
+      if (exceedsServerlessUploadLimit(newUploadBytes) && message.includes("Request Entity Too Large")) {
+        setError(
+          `대용량 파일은 Blob 업로드가 필요합니다. Vercel Storage → g-made-blob에서 BLOB_READ_WRITE_TOKEN을 Production·Preview에 연결한 뒤 Redeploy 해 주세요. (서버 직접 업로드 한도: ${SERVERLESS_UPLOAD_LIMIT_LABEL})`,
+        );
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
       setUploadProgress(null);
