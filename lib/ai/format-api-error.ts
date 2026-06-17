@@ -49,5 +49,18 @@ export function formatProviderApiError(
     return `${providerLabel} API 키가 올바르지 않습니다. Vercel의 API 키 설정을 확인해 주세요.`;
   }
 
+  if (
+    code === 413 ||
+    status === 413 ||
+    lowerMessage.includes("context length") ||
+    lowerMessage.includes("token") ||
+    lowerMessage.includes("too large") ||
+    lowerMessage.includes("payload") ||
+    lowerMessage.includes("resource exhausted") ||
+    lowerMessage.includes("request too large")
+  ) {
+    return `${providerLabel} 입력 분량이 너무 큽니다. 대용량 PDF는 일부만 분석에 사용됩니다. 같은 오류가 반복되면 파일을 나누거나 압축한 뒤 다시 시도해 주세요.`;
+  }
+
   return `${providerLabel} API 호출 실패: ${message.slice(0, 220)}`;
 }

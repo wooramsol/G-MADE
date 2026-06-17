@@ -23,6 +23,7 @@ import {
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project } from "@/lib/types";
 import { analyzeUploadedFiles } from "@/lib/upload-analysis";
+import { applyFilesTextBudget } from "@/lib/ai/document-text-budget";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import type { SavedUploadFile } from "@/lib/save-uploaded-files";
 
@@ -184,14 +185,22 @@ export async function runEvaluationRound(
         )
       : [];
 
+    const aiTextBudget = applyFilesTextBudget(aiFilesForAnalysis);
+    const expertTextBudget = applyFilesTextBudget(expertFilesForAnalysis);
+
     emitStep(emit, "law-context");
     const evaluationContext = await buildEvaluationContext(projectId);
+    evaluationContext.warnings = [
+      ...evaluationContext.warnings,
+      ...aiTextBudget.warnings,
+      ...expertTextBudget.warnings,
+    ];
 
     emitStep(emit, "ai-analysis");
     const aiAnalysisPromise = needsAiMaterials
       ? analyzeUploadedFiles({
           providerPreference,
-          files: aiFilesForAnalysis,
+          files: aiTextBudget.files,
           evaluationContext,
           evaluationItems,
         })
@@ -203,7 +212,7 @@ export async function runEvaluationRound(
     const expertAnalysisPromise = needsExpertMaterials
       ? analyzeUploadedFiles({
           providerPreference,
-          files: expertFilesForAnalysis,
+          files: expertTextBudget.files,
           evaluationContext,
           evaluationItems,
         })

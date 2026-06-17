@@ -93,41 +93,48 @@ async function analyzeWithOpenAi(
     ]);
   }
 
-  const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            "너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 제공된 실시간 법령·경관지구 정보를 근거로 반드시 JSON만 반환한다.",
-        },
-        {
-          role: "user",
-          content: buildAnalysisPrompt(files, evaluationContext, items),
-        },
-      ],
-      temperature: 0.2,
-    }),
-  });
+  try {
+    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 제공된 실시간 법령·경관지구 정보를 근거로 반드시 JSON만 반환한다.",
+          },
+          {
+            role: "user",
+            content: buildAnalysisPrompt(files, evaluationContext, items),
+          },
+        ],
+        temperature: 0.2,
+      }),
+    });
 
-  if (!response.ok) {
-    const message = await response.text();
+    if (!response.ok) {
+      const message = await response.text();
+      return createDemoAnalysis(files, evaluationContext, items, "openai", [
+        ...baseWarnings,
+        formatProviderApiError("openai", "OpenAI", response.status, message),
+      ]);
+    }
+
+    const payload = await response.json();
+    const content = payload.choices?.[0]?.message?.content;
+    return normalizeAiJson(content, files, "openai", evaluationContext, items, baseWarnings);
+  } catch (error) {
     return createDemoAnalysis(files, evaluationContext, items, "openai", [
       ...baseWarnings,
-      formatProviderApiError("openai", "OpenAI", response.status, message),
+      formatProviderTransportError("OpenAI", error),
     ]);
   }
-
-  const payload = await response.json();
-  const content = payload.choices?.[0]?.message?.content;
-  return normalizeAiJson(content, files, "openai", evaluationContext, items, baseWarnings);
 }
 
 async function analyzeWithGemini(
@@ -146,33 +153,40 @@ async function analyzeWithGemini(
   let lastBody = "";
   let rateLimitModel = modelsToTry[0] ?? DEFAULT_GEMINI_MODEL;
 
-  for (const model of modelsToTry) {
-    let response = await requestGemini(apiKey, model, files, evaluationContext, items);
+  try {
+    for (const model of modelsToTry) {
+      let response = await requestGemini(apiKey, model, files, evaluationContext, items);
 
-    if (!response.ok && response.status === 429) {
-      rateLimitModel = model;
-      await sleep(13_000);
-      response = await requestGemini(apiKey, model, files, evaluationContext, items);
-    }
+      if (!response.ok && response.status === 429) {
+        rateLimitModel = model;
+        await sleep(13_000);
+        response = await requestGemini(apiKey, model, files, evaluationContext, items);
+      }
 
-    if (response.ok) {
-      const payload = await response.json();
-      const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-      return normalizeAiJson(content, files, "gemini", evaluationContext, items, baseWarnings);
-    }
+      if (response.ok) {
+        const payload = await response.json();
+        const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+        return normalizeAiJson(content, files, "gemini", evaluationContext, items, baseWarnings);
+      }
 
-    lastStatus = response.status;
-    lastBody = await response.text();
+      lastStatus = response.status;
+      lastBody = await response.text();
 
-    if (response.status === 404) {
-      continue;
-    }
+      if (response.status === 404) {
+        continue;
+      }
 
-    if (response.status === 429) {
+      if (response.status === 429) {
+        break;
+      }
+
       break;
     }
-
-    break;
+  } catch (error) {
+    return createDemoAnalysis(files, evaluationContext, items, "gemini", [
+      ...baseWarnings,
+      formatProviderTransportError("Gemini", error),
+    ]);
   }
 
   if (lastStatus === 429) {
@@ -382,4 +396,13 @@ function attachContextMetadata(
 function clampNumber(value: number): number {
   if (Number.isNaN(value)) return 0;
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function formatProviderTransportError(providerLabel: string, error: unknown): string {
+  const message = error instanceof Error ? error.message : "알 수 없는 오류";
+  if (message.includes("초과")) {
+    return `대용량 자료 분석 중 ${providerLabel} 응답이 지연되어 중단되었습니다(${message}). 파일을 나누거나 다시 시도해 주세요.`;
+  }
+
+  return `${providerLabel} API 호출 중 오류: ${message}`;
 }
