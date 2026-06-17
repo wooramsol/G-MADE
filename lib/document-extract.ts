@@ -1,8 +1,10 @@
 import JSZip from "jszip";
 import { PDFParse } from "pdf-parse";
 
-const PREVIEW_LIMIT = 8000;
-const PDF_MAX_PAGES = 40;
+/** PDF는 100장 이상 심의자료를 고려해 상한을 넉넉히 둡니다. */
+const PDF_TEXT_CHAR_LIMIT = 300_000;
+/** DOCX·PPTX 등은 전체 페이지 추출 후 이 길이까지 AI에 전달합니다. */
+const DEFAULT_TEXT_CHAR_LIMIT = 80_000;
 
 const TEXT_EXTRACTABLE = new Set(["pdf", "pptx", "docx", "txt", "md"]);
 
@@ -11,7 +13,7 @@ export function isTextExtractableFile(fileName: string): boolean {
   return TEXT_EXTRACTABLE.has(extension);
 }
 
-/** PDF·PPTX·DOCX·텍스트 파일에서 본문 미리보기를 생성합니다. */
+/** PDF·PPTX·DOCX·텍스트 파일에서 본문을 추출합니다. */
 export async function extractDocumentText(buffer: Buffer, fileName: string): Promise<string> {
   const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
 
@@ -20,13 +22,13 @@ export async function extractDocumentText(buffer: Buffer, fileName: string): Pro
       return await extractPdfText(buffer, fileName);
     }
     if (extension === "pptx") {
-      return await extractPptxText(buffer);
+      return limitExtractedText(await extractPptxText(buffer), DEFAULT_TEXT_CHAR_LIMIT);
     }
     if (extension === "docx") {
-      return await extractDocxText(buffer);
+      return limitExtractedText(await extractDocxText(buffer), DEFAULT_TEXT_CHAR_LIMIT);
     }
     if (extension === "txt" || extension === "md") {
-      return normalizeText(buffer.toString("utf8"));
+      return limitExtractedText(normalizeWhitespace(buffer.toString("utf8")), DEFAULT_TEXT_CHAR_LIMIT);
     }
   } catch {
     return unsupportedExtractionNotice(fileName);
@@ -39,14 +41,14 @@ async function extractPdfText(buffer: Buffer, fileName: string): Promise<string>
   const parser = new PDFParse({ data: buffer });
 
   try {
-    const result = await parser.getText({ first: PDF_MAX_PAGES });
-    const text = normalizeText(result.text ?? "");
+    const result = await parser.getText();
+    const text = normalizeWhitespace(result.text ?? "");
 
     if (!text) {
       return `[PDF 텍스트 추출 결과 없음] "${fileName}" — 스캔 이미지 PDF이거나 텍스트 레이어가 없을 수 있습니다.`;
     }
 
-    return text;
+    return limitExtractedText(text, PDF_TEXT_CHAR_LIMIT);
   } finally {
     await parser.destroy();
   }
@@ -63,7 +65,7 @@ async function extractDocxText(buffer: Buffer): Promise<string> {
   if (!xml) return "";
 
   const texts = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((match) => match[1]);
-  return normalizeText(texts.join(" "));
+  return normalizeWhitespace(texts.join(" "));
 }
 
 async function extractPptxText(buffer: Buffer): Promise<string> {
@@ -82,9 +84,18 @@ async function extractPptxText(buffer: Buffer): Promise<string> {
     }
   }
 
-  return normalizeText(chunks.join("\n"));
+  return normalizeWhitespace(chunks.join("\n"));
 }
 
-function normalizeText(text: string): string {
-  return text.replace(/\s+/g, " ").trim().slice(0, PREVIEW_LIMIT);
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function limitExtractedText(text: string, charLimit: number): string {
+  const normalized = normalizeWhitespace(text);
+  if (normalized.length <= charLimit) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, charLimit)}\n\n[본문이 길어 앞부분 ${charLimit.toLocaleString("ko-KR")}자만 분석에 사용됩니다.]`;
 }
