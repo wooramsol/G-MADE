@@ -276,8 +276,13 @@ export default function ProjectEvaluationWorkspace({
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <FileList title="AI 평가 자료" files={selectedRound.aiFiles} tone="ai" />
-            <FileList title="전문가 평가 자료" files={selectedRound.expertFiles} tone="expert" />
+            <FileList title="AI 평가 자료" files={selectedRound.aiFiles} projectId={project.id} tone="ai" />
+            <FileList
+              title="전문가 평가 자료"
+              files={selectedRound.expertFiles}
+              projectId={project.id}
+              tone="expert"
+            />
           </div>
 
           {selectedRound.expertSummary ? (
@@ -463,10 +468,12 @@ function FileList({
   title,
   files,
   tone,
+  projectId,
 }: {
   title: string;
   files: EvaluationRound["aiFiles"];
   tone: "ai" | "expert";
+  projectId: string;
 }) {
   const headerClass = tone === "ai" ? "text-[#2463b3]" : "text-[#15345b]";
   return (
@@ -477,7 +484,19 @@ function FileList({
       <ul className="mt-2 space-y-1 text-xs text-[#64748b]">
         {files.map((file) => (
           <li key={file.id}>
-            {file.originalName} · {file.fileType}
+            {file.storageKey || file.blobUrl ? (
+              <a
+                className="font-semibold text-[#2463b3] underline-offset-2 hover:underline"
+                href={`/api/projects/${projectId}/files/${file.id}`}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                {file.originalName}
+              </a>
+            ) : (
+              file.originalName
+            )}{" "}
+            · {file.fileType}
           </li>
         ))}
       </ul>

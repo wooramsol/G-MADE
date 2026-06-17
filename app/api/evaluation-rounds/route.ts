@@ -3,6 +3,7 @@ import { requireApiSession } from "@/lib/api-auth";
 import { runEvaluationRound } from "@/lib/run-evaluation-round";
 import { resolveAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { isFileLike } from "@/lib/save-uploaded-files";
+import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, HumanEvaluationItemScore, Project } from "@/lib/types";
 import type { AiProviderPreference } from "@/lib/ai/types";
 
@@ -30,6 +31,8 @@ export async function POST(request: NextRequest) {
       expertWeight: Number(formData.get("expertWeight") ?? 70),
       evaluationItems: parseEvaluationItems(formData.get("evaluationItems")),
       manualExpertScores: parseExpertItemScores(formData.get("expertItemScores")),
+      aiFileRefs: parseStoredFileRefs(formData.get("aiFileRefs")),
+      expertFileRefs: parseStoredFileRefs(formData.get("expertFileRefs")),
       aiFiles: formData.getAll("aiFiles").filter(isFileLike),
       expertFiles: formData.getAll("expertFiles").filter(isFileLike),
       projectSnapshot: parseProjectSnapshot(formData.get("projectSnapshot")),
@@ -128,6 +131,29 @@ function parseExpertItemScores(value: FormDataEntryValue | null): HumanEvaluatio
           score: Math.max(0, Math.min(100, Number(row.score) || 0)),
           comment: row.comment?.trim() || undefined,
         }))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseStoredFileRefs(value: FormDataEntryValue | null): StoredFileRef[] {
+  if (typeof value !== "string" || !value.trim()) return [];
+
+  try {
+    const parsed = JSON.parse(value) as StoredFileRef[];
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((ref) => ref.id && ref.storageKey && ref.originalName)
+          .map((ref) => ({
+            id: String(ref.id),
+            originalName: String(ref.originalName),
+            fileType: String(ref.fileType ?? ""),
+            sizeBytes: Math.max(0, Number(ref.sizeBytes) || 0),
+            storageKey: String(ref.storageKey),
+            blobUrl: ref.blobUrl ? String(ref.blobUrl) : undefined,
+            uploadedAt: ref.uploadedAt ? String(ref.uploadedAt) : undefined,
+          }))
       : [];
   } catch {
     return [];
