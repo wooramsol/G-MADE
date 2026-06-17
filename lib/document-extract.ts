@@ -1,5 +1,4 @@
 import JSZip from "jszip";
-import { PDFParse } from "pdf-parse";
 
 /** PDF는 100장 이상 심의자료를 고려해 상한을 넉넉히 둡니다. */
 const PDF_TEXT_CHAR_LIMIT = 300_000;
@@ -38,20 +37,17 @@ export async function extractDocumentText(buffer: Buffer, fileName: string): Pro
 }
 
 async function extractPdfText(buffer: Buffer, fileName: string): Promise<string> {
-  const parser = new PDFParse({ data: buffer });
+  const { extractText, getDocumentProxy } = await import("unpdf");
 
-  try {
-    const result = await parser.getText();
-    const text = normalizeWhitespace(result.text ?? "");
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  const { text } = await extractText(pdf, { mergePages: true });
+  const normalized = normalizeWhitespace(text ?? "");
 
-    if (!text) {
-      return `[PDF 텍스트 추출 결과 없음] "${fileName}" — 스캔 이미지 PDF이거나 텍스트 레이어가 없을 수 있습니다.`;
-    }
-
-    return limitExtractedText(text, PDF_TEXT_CHAR_LIMIT);
-  } finally {
-    await parser.destroy();
+  if (!normalized) {
+    return `[PDF 텍스트 추출 결과 없음] "${fileName}" — 스캔 이미지 PDF이거나 텍스트 레이어가 없을 수 있습니다.`;
   }
+
+  return limitExtractedText(normalized, PDF_TEXT_CHAR_LIMIT);
 }
 
 function unsupportedExtractionNotice(fileName: string): string {
