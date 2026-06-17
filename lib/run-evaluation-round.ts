@@ -189,7 +189,7 @@ export async function runEvaluationRound(
     const expertTextBudget = applyFilesTextBudget(expertFilesForAnalysis);
 
     emitStep(emit, "law-context");
-    const evaluationContext = await buildEvaluationContext(projectId);
+    const evaluationContext = await buildEvaluationContext(projectId, evaluationItems);
     evaluationContext.warnings = [
       ...evaluationContext.warnings,
       ...aiTextBudget.warnings,

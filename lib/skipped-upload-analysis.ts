@@ -2,6 +2,7 @@ import type { UploadAnalysisResult } from "@/lib/ai/analysis-types";
 import { toStoredReferenceLaws } from "@/lib/dedupe-reference-laws";
 import type { EvaluationContext } from "@/lib/evaluation-context";
 import { gradeScore } from "@/lib/hybrid-evaluation";
+import { pickRelatedReferenceLaws } from "@/lib/related-reference-laws";
 import type { EvaluationItem } from "@/lib/types";
 
 export function createSkippedUploadAnalysis(
@@ -28,7 +29,10 @@ export function createSkippedUploadAnalysis(
       guidelines: [],
     })),
     referenceLaws: toStoredReferenceLaws(
-      evaluationContext.referenceLaws
+      pickRelatedReferenceLaws({
+        pool: evaluationContext.referenceLaws,
+        evaluationItems,
+      })
         .filter((law) => law.sourceUrl)
         .map((law) => ({
           title: law.title,

@@ -17,14 +17,18 @@ export type FetchedLawReference = {
 
 type LawServiceResponse = Record<string, unknown>;
 
-const KEY_ARTICLE_HINTS: Record<string, string[]> = {
-  경관: ["28", "12", "14", "2"],
-  공공디자인: ["10", "2", "9"],
-  빛공해: ["11", "2"],
-  녹지: ["35", "2", "14"],
-  장애인: ["8", "2"],
-  도시공원: ["35", "2"],
-};
+const KEY_ARTICLE_HINTS: Array<{ keyword: string; articles: string[] }> = [
+  { keyword: "경관의 법률", articles: ["28", "2", "14"] },
+  { keyword: "경관법 시행령", articles: ["14", "15", "2"] },
+  { keyword: "공공디자인의 진흥에 관한 법률 시행규칙", articles: ["2", "3"] },
+  { keyword: "공공디자인의 진흥에 관한 법률 시행령", articles: ["10", "2"] },
+  { keyword: "공공디자인", articles: ["10", "9", "2"] },
+  { keyword: "빛공해", articles: ["11", "2"] },
+  { keyword: "녹지", articles: ["35", "14", "2"] },
+  { keyword: "도시공원", articles: ["35", "2"] },
+  { keyword: "장애인", articles: ["8", "2"] },
+  { keyword: "경관 조례", articles: ["18", "12", "2"] },
+];
 
 export async function fetchLawReferences(hits: LawSearchHit[], maxLaws = 5): Promise<FetchedLawReference[]> {
   const oc = getLawOc();
@@ -133,8 +137,9 @@ function parseArticleSnippet(
 }
 
 function pickArticleHints(title: string): string[] {
-  for (const [keyword, articles] of Object.entries(KEY_ARTICLE_HINTS)) {
-    if (title.includes(keyword)) return articles;
+  const sorted = [...KEY_ARTICLE_HINTS].sort((a, b) => b.keyword.length - a.keyword.length);
+  for (const entry of sorted) {
+    if (title.includes(entry.keyword)) return entry.articles;
   }
   return ["2", "1"];
 }

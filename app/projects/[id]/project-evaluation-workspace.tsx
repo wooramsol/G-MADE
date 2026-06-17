@@ -20,6 +20,7 @@ import DemoModeBanner from "@/components/demo-mode-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
+import { pickRelatedReferenceLaws } from "@/lib/related-reference-laws";
 import { buildLawReferenceUrl } from "@/lib/reference-links";
 import { toAchievementPercent } from "@/lib/hybrid-evaluation";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
@@ -82,9 +83,13 @@ export default function ProjectEvaluationWorkspace({
       : null;
 
   const deletingRound = sorted.find((round) => round.id === deletingRoundId);
-  const referenceLaws = dedupeReferenceLaws(selectedRound?.aiAnalysis.referenceLaws ?? []).filter(
-    (law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null,
-  );
+  const referenceLaws = dedupeReferenceLaws(
+    pickRelatedReferenceLaws({
+      pool: selectedRound?.aiAnalysis.referenceLaws ?? [],
+      evaluationPreview: selectedRound?.aiAnalysis.evaluationPreview,
+      evaluationItems: selectedRound?.evaluationItems,
+    }),
+  ).filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null);
   const analysisWarnings = dedupeWarnings(selectedRound?.aiAnalysis.warnings ?? []);
 
   useEffect(() => {
@@ -332,7 +337,10 @@ export default function ProjectEvaluationWorkspace({
 
           {referenceLaws.length > 0 ? (
             <div className="rounded-xl border border-[#d7dee8] bg-white p-3 text-sm">
-              <p className="font-bold text-[#15345b]">법령 근거</p>
+              <p className="font-bold text-[#15345b]">이번 평가 관련 법령</p>
+              <p className="mt-1 text-xs text-[#64748b]">
+                평가 항목과 AI 분석에서 인용한 법령만 표시합니다.
+              </p>
               {referenceLaws.map((law) => (
                 <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${law.title}-${law.article}`}>
                   <ReferenceLinkTitle
