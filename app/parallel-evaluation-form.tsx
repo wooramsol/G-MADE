@@ -191,7 +191,7 @@ export default function ParallelEvaluationForm({
         formData.append("expertFileRefs", JSON.stringify(expertFileRefs));
       } else if (selectedAiRefs.length > 0 || selectedExpertRefs.length > 0) {
         throw new Error(
-          "저장된 자료 재사용은 Blob 업로드가 필요합니다. Vercel Blob 설정(BLOB_READ_WRITE_TOKEN)을 확인해 주세요.",
+          "저장된 자료 재사용은 Blob 업로드가 필요합니다. Vercel Blob 스토어 연결을 확인해 주세요.",
         );
       }
 

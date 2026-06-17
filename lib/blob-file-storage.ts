@@ -21,7 +21,7 @@ export type PersistedUploadFile = {
 };
 
 export function isBlobStorageEnabled(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 }
 
 export async function uploadBufferToProjectBlob(
@@ -74,7 +74,7 @@ export async function readPersistedUploadFile(file: PersistedUploadFile): Promis
   }
 
   if (!isBlobStorageEnabled()) {
-    throw new Error("파일 저장소를 사용할 수 없습니다. BLOB_READ_WRITE_TOKEN을 설정해 주세요.");
+    throw new Error("파일 저장소를 사용할 수 없습니다. Vercel Blob 스토어 연결을 확인해 주세요.");
   }
 
   const metadata = await head(file.storageKey);
