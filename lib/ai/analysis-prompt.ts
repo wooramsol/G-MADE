@@ -70,6 +70,8 @@ ${files
   .join("\n\n")}
 
 반환 JSON 스키마:
+- documentSections는 건축개요, 배치도, 입면도, 조감도, 색채계획, 야간경관, 보행동선, 녹지계획, 공공공간, 주변현황 등 업로드 자료에서 실제로 확인한 항목만 작성하라.
+- PDF·DOCX·PPTX에서 추출된 텍스트 미리보기를 우선 활용하라.
 {
   "summary": "전체 분석 요약 (법령·경관지구 맥락 반영)",
   "documentSections": [{ "label": "건축개요", "confidence": 0-100, "summary": "추출 요약" }],
