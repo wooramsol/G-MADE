@@ -164,7 +164,7 @@ export default function ParallelEvaluationForm({
         setUploadProgress("자료를 Blob에 업로드하는 중...");
         uploadedAiRefs =
           newAiFiles.length > 0
-            ? await uploadProjectFilesToBlob(project.id, newAiFiles, (fileIndex, ratio) => {
+            ? await uploadProjectFilesToBlob(project, newAiFiles, (fileIndex, ratio) => {
                 setUploadProgress(
                   `AI 자료 업로드 중 (${fileIndex + 1}/${newAiFiles.length}) · ${Math.round(ratio * 100)}%`,
                 );
@@ -172,7 +172,7 @@ export default function ParallelEvaluationForm({
             : [];
         uploadedExpertRefs =
           newExpertFiles.length > 0
-            ? await uploadProjectFilesToBlob(project.id, newExpertFiles, (fileIndex, ratio) => {
+            ? await uploadProjectFilesToBlob(project, newExpertFiles, (fileIndex, ratio) => {
                 setUploadProgress(
                   `전문가 자료 업로드 중 (${fileIndex + 1}/${newExpertFiles.length}) · ${Math.round(ratio * 100)}%`,
                 );

@@ -484,7 +484,16 @@ function FileList({
       <ul className="mt-2 space-y-1 text-xs text-[#64748b]">
         {files.map((file) => (
           <li key={file.id}>
-            {file.storageKey || file.blobUrl ? (
+            {file.blobUrl ? (
+              <a
+                className="font-semibold text-[#2463b3] underline-offset-2 hover:underline"
+                href={file.blobUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                {file.originalName}
+              </a>
+            ) : file.storageKey ? (
               <a
                 className="font-semibold text-[#2463b3] underline-offset-2 hover:underline"
                 href={`/api/projects/${projectId}/files/${file.id}`}
