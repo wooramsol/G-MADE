@@ -10,6 +10,7 @@ import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/li
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import type { EvaluationAnalysisProgressEvent } from "@/lib/evaluation-analysis-progress";
 import { submitEvaluationRoundStream } from "@/lib/client-evaluation-stream";
+import { buildOversizedUploadMessage } from "@/lib/upload-limits";
 import { ErrorText, FieldLabel, MutedText, StepTitle } from "@/components/typography";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
@@ -106,6 +107,14 @@ export default function ParallelEvaluationForm({
 
     if (!reviewerName.trim()) {
       setError("평가자 이름을 입력해 주세요.");
+      return;
+    }
+
+    const oversizedMessage =
+      buildOversizedUploadMessage(aiFiles, "AI 평가") ||
+      buildOversizedUploadMessage(expertFiles, "전문가 평가");
+    if (oversizedMessage) {
+      setError(oversizedMessage);
       return;
     }
 
@@ -299,7 +308,7 @@ function MaterialColumn({
       >
         <span className="font-bold text-[#15345b]">자료 업로드</span>
         <span className="mt-1 leading-6">
-          PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP · DOCX/PPTX/TXT 본문 추출 지원
+          PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP · 파일당 최대 25MB
         </span>
         <input
           className="mt-4 text-sm"

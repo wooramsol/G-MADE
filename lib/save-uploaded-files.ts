@@ -1,6 +1,7 @@
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { getWritableStoragePath } from "./runtime-storage";
+import { MAX_UPLOAD_FILE_BYTES } from "./upload-limits";
 import type { ProjectFile } from "./types";
 
 const allowedExtensions = new Set([
@@ -18,7 +19,7 @@ const allowedExtensions = new Set([
   "md",
   "hwp",
 ]);
-const maxFileSizeBytes = 25 * 1024 * 1024;
+const maxFileSizeBytes = MAX_UPLOAD_FILE_BYTES;
 
 export type SavedUploadFile = {
   id: string;
