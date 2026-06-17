@@ -1,19 +1,24 @@
 import JSZip from "jszip";
+import { PDFParse } from "pdf-parse";
 
 const PREVIEW_LIMIT = 8000;
+const PDF_MAX_PAGES = 40;
 
-const TEXT_EXTRACTABLE = new Set(["pptx", "docx", "txt", "md"]);
+const TEXT_EXTRACTABLE = new Set(["pdf", "pptx", "docx", "txt", "md"]);
 
 export function isTextExtractableFile(fileName: string): boolean {
   const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
   return TEXT_EXTRACTABLE.has(extension);
 }
 
-/** PPTX·DOCX·텍스트 파일에서 본문 미리보기를 생성합니다. PDF 등은 파일명·형식 메타만 사용됩니다. */
+/** PDF·PPTX·DOCX·텍스트 파일에서 본문 미리보기를 생성합니다. */
 export async function extractDocumentText(buffer: Buffer, fileName: string): Promise<string> {
   const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
 
   try {
+    if (extension === "pdf") {
+      return await extractPdfText(buffer, fileName);
+    }
     if (extension === "pptx") {
       return await extractPptxText(buffer);
     }
@@ -28,6 +33,23 @@ export async function extractDocumentText(buffer: Buffer, fileName: string): Pro
   }
 
   return unsupportedExtractionNotice(fileName);
+}
+
+async function extractPdfText(buffer: Buffer, fileName: string): Promise<string> {
+  const parser = new PDFParse({ data: buffer });
+
+  try {
+    const result = await parser.getText({ first: PDF_MAX_PAGES });
+    const text = normalizeText(result.text ?? "");
+
+    if (!text) {
+      return `[PDF 텍스트 추출 결과 없음] "${fileName}" — 스캔 이미지 PDF이거나 텍스트 레이어가 없을 수 있습니다.`;
+    }
+
+    return text;
+  } finally {
+    await parser.destroy();
+  }
 }
 
 function unsupportedExtractionNotice(fileName: string): string {
