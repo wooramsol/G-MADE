@@ -3,10 +3,11 @@ import { guidelines, laws as demoLaws } from "./demo-data";
 import { buildGuidelineReferenceUrl, buildLawReferenceUrl } from "./reference-links";
 import { fetchLawReferences, type FetchedLawReference } from "./law/articles";
 import { isLawApiConfigured } from "./law/config";
+import { buildLawQueries } from "./law/query-plan";
 import { formatLawSearchFailure, LAW_OC_MISSING_WARNING } from "./law/warnings";
 import { searchLawsBatch } from "./law/search-batch";
 import { getProjectById } from "./project-store";
-import type { Project, ProjectLocationPoint } from "./types";
+import type { EvaluationItem, Project, ProjectLocationPoint } from "./types";
 import { geocodeAddress } from "./vworld/geocode";
 import { isVWorldConfigured } from "./vworld/config";
 import { lookupLandscapeZoneByAddress, type LandscapeZoneLookupResult } from "./vworld/landscape-zone";
@@ -34,14 +35,17 @@ export type EvaluationContext = {
   warnings: string[];
 };
 
-export async function buildEvaluationContext(projectId?: string): Promise<EvaluationContext> {
+export async function buildEvaluationContext(
+  projectId?: string,
+  evaluationItems?: EvaluationItem[],
+): Promise<EvaluationContext> {
   const fetchedAt = new Date().toISOString();
   const warnings: string[] = [];
   const project = projectId ? await getProjectById(projectId) : undefined;
 
   const [spatial, referenceLaws] = await Promise.all([
     project ? loadSpatialContext(project, warnings) : Promise.resolve(null),
-    loadReferenceLaws(project, warnings),
+    loadReferenceLaws(project, warnings, evaluationItems),
   ]);
 
   return {
@@ -117,13 +121,14 @@ async function loadSpatialContext(
 async function loadReferenceLaws(
   project: Project | undefined,
   warnings: string[],
+  evaluationItems?: EvaluationItem[],
 ): Promise<FetchedLawReference[]> {
   if (!isLawApiConfigured()) {
     warnings.push(LAW_OC_MISSING_WARNING);
     return toStoredReferenceLaws(demoLawsToReferences());
   }
 
-  const queries = buildLawQueries(project);
+  const queries = buildLawQueries(project, evaluationItems);
   const { hits, failures } = await searchLawsBatch(queries, 4);
   for (const failure of failures) {
     warnings.push(formatLawSearchFailure(failure.query, failure.error));
@@ -135,7 +140,7 @@ async function loadReferenceLaws(
     return toStoredReferenceLaws(demoLawsToReferences());
   }
 
-  const references = (await fetchLawReferences(uniqueHits, 6)).filter(
+  const references = (await fetchLawReferences(uniqueHits, 10)).filter(
     (reference) => buildLawReferenceUrl(reference.title, reference.sourceUrl) !== null,
   );
   if (references.length === 0) {
@@ -143,42 +148,7 @@ async function loadReferenceLaws(
     return toStoredReferenceLaws(uniqueHitsToReferences(uniqueHits));
   }
 
-  return toStoredReferenceLaws(references);
-}
-
-function buildLawQueries(project?: Project): string[] {
-  const queries = new Set<string>([
-    "경관의 법률",
-    "경관법 시행령",
-    "공공디자인의 진흥에 관한 법률",
-    "공공디자인 진흥법 시행령",
-    "인공조명에 의한 빛공해 방지법",
-    "도시공원 및 녹지 등에 관한 법률",
-    "장애인·노인·임산부 등의 편의증진 보장에 관한 법률",
-    "건축법",
-  ]);
-
-  if (project?.reviewType.includes("공공디자인")) {
-    queries.add("공공디자인 진흥");
-  }
-  if (project?.reviewType.includes("경관")) {
-    queries.add("경관법 시행령");
-  }
-
-  const jurisdiction = extractJurisdiction(project?.location ?? "");
-  if (jurisdiction) {
-    queries.add(`${jurisdiction} 경관 조례`);
-    queries.add(`${jurisdiction} 도시계획 조례`);
-  }
-
-  return Array.from(queries);
-}
-
-function extractJurisdiction(location: string): string | null {
-  const match = location.match(
-    /^(서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원특별자치도|충청북도|충청남도|전북특별자치도|전라남도|경상북도|경상남도|제주특별자치도)/,
-  );
-  return match?.[1] ?? null;
+  return toStoredReferenceLaws(references, 12);
 }
 
 function dedupeLawHits<T extends { lawId: string }>(hits: T[]): T[] {

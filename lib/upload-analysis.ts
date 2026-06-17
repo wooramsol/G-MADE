@@ -9,6 +9,7 @@ import { selectProvider } from "./ai/select-provider";
 import type { EvaluationContext } from "./evaluation-context";
 import { evaluationItems as defaultEvaluationItems } from "./demo-data";
 import { toStoredReferenceLaws } from "./dedupe-reference-laws";
+import { pickRelatedReferenceLaws } from "./related-reference-laws";
 import { fetchWithTimeout } from "./fetch-with-timeout";
 import { gradeScore } from "./hybrid-evaluation";
 import type { EvaluationItem } from "./types";
@@ -256,7 +257,7 @@ function normalizeAiJson(
 
   try {
     const parsed = JSON.parse(extractJsonContent(content) ?? content);
-    return attachContextMetadata(
+      return attachContextMetadata(
       {
         provider,
         mode: "live",
@@ -266,6 +267,7 @@ function normalizeAiJson(
         warnings: baseWarnings,
       },
       evaluationContext,
+      items,
     );
   } catch {
     return createDemoAnalysis(files, evaluationContext, items, provider, [
@@ -368,29 +370,41 @@ function createDemoAnalysis(
       warnings,
     },
     evaluationContext,
+    items,
   );
 }
 
 function attachContextMetadata(
   result: Omit<UploadAnalysisResult, "referenceLaws" | "spatialContext" | "lawSource" | "contextFetchedAt">,
   evaluationContext: EvaluationContext,
+  evaluationItems?: EvaluationItem[],
 ): UploadAnalysisResult {
+  const relatedLaws = pickRelatedReferenceLaws({
+    pool: evaluationContext.referenceLaws,
+    evaluationPreview: result.evaluationPreview,
+    evaluationItems,
+  });
+
   return {
     ...result,
-    referenceLaws: toStoredReferenceLaws(
-      evaluationContext.referenceLaws
-        .filter((law) => law.sourceUrl)
-        .map((law) => ({
-          title: law.title,
-          article: law.article,
-          summary: law.summary,
-          sourceUrl: law.sourceUrl,
-        })),
-    ),
+    referenceLaws: toStoredReferenceLaws(mapStoredReferenceLaws(relatedLaws)),
     spatialContext: evaluationContext.spatial,
     lawSource: evaluationContext.lawSource,
     contextFetchedAt: evaluationContext.fetchedAt,
   };
+}
+
+function mapStoredReferenceLaws(
+  laws: Array<{ title: string; article: string; summary: string; sourceUrl: string }>,
+) {
+  return laws
+    .filter((law) => law.sourceUrl)
+    .map((law) => ({
+      title: law.title,
+      article: law.article,
+      summary: law.summary,
+      sourceUrl: law.sourceUrl,
+    }));
 }
 
 function clampNumber(value: number): number {
