@@ -1,10 +1,12 @@
 "use client";
 
 import { upload, uploadPresigned } from "@vercel/blob/client";
+import { ensureProjectOnServer } from "@/lib/client-ensure-project";
 import { extractApiErrorMessage } from "@/lib/extract-api-error-message";
 import type { BlobAccess } from "@/lib/blob-config";
 import type { BlobUploadMode } from "@/lib/blob-upload-status";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
+import type { Project } from "@/lib/types";
 import { buildProjectBlobPathname, validateUploadMetadata } from "@/lib/upload-validation";
 
 type BlobUploadStatusResponse = {
@@ -74,25 +76,27 @@ async function uploadWithStatus(
 }
 
 export async function uploadProjectFileToBlob(
-  projectId: string,
+  project: Project,
   file: File,
   onProgress?: (loadedRatio: number) => void,
 ): Promise<StoredFileRef> {
-  const status = await fetchBlobUploadStatus(projectId);
-  return uploadWithStatus(projectId, file, status, onProgress);
+  await ensureProjectOnServer(project);
+  const status = await fetchBlobUploadStatus(project.id);
+  return uploadWithStatus(project.id, file, status, onProgress);
 }
 
 export async function uploadProjectFilesToBlob(
-  projectId: string,
+  project: Project,
   files: File[],
   onFileProgress?: (fileIndex: number, loadedRatio: number) => void,
 ): Promise<StoredFileRef[]> {
-  const status = await fetchBlobUploadStatus(projectId);
+  await ensureProjectOnServer(project);
+  const status = await fetchBlobUploadStatus(project.id);
   const uploaded: StoredFileRef[] = [];
 
   for (let index = 0; index < files.length; index += 1) {
     uploaded.push(
-      await uploadWithStatus(projectId, files[index], status, (loadedRatio) => {
+      await uploadWithStatus(project.id, files[index], status, (loadedRatio) => {
         onFileProgress?.(index, loadedRatio);
       }),
     );

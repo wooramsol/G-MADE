@@ -3,7 +3,6 @@ import { issueSignedToken } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { getBlobUploadStatus } from "@/lib/blob-upload-status";
-import { getProjectById } from "@/lib/project-store";
 import { getExtension, validateUploadExtension } from "@/lib/upload-validation";
 
 export const runtime = "nodejs";
@@ -42,16 +41,10 @@ function validateProjectUploadPath(projectId: string, pathname: string) {
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ id: string }> },
+  _context: { params: Promise<{ id: string }> },
 ) {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult.response;
-
-  const { id: projectId } = await context.params;
-  const project = await getProjectById(projectId);
-  if (!project) {
-    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
-  }
 
   return NextResponse.json(getBlobUploadStatus());
 }
@@ -69,10 +62,6 @@ export async function POST(
   }
 
   const { id: projectId } = await context.params;
-  const project = await getProjectById(projectId);
-  if (!project) {
-    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
-  }
 
   const body = (await request.json()) as HandleUploadBody | HandleUploadPresignedBody;
 

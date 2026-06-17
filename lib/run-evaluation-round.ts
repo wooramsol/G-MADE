@@ -5,7 +5,7 @@ import {
   type EvaluationAnalysisProgressEvent,
 } from "@/lib/evaluation-analysis-progress";
 import { addProjectEvaluationRound, getProjectById, upsertProjectRecord } from "@/lib/project-store";
-import { projectFromClientSnapshot } from "@/lib/safe-project-snapshot";
+import { ensureProjectRecordFromSnapshot } from "@/lib/ensure-project-record";
 import {
   deleteSavedUploadFiles,
   readSavedUploadFile,
@@ -87,10 +87,8 @@ export async function runEvaluationRound(
     }
 
     let project = await getProjectById(projectId);
-    if (!project) {
-      if (projectSnapshot?.id === projectId) {
-        project = await upsertProjectRecord(projectFromClientSnapshot(projectSnapshot));
-      }
+    if (!project && projectSnapshot?.id === projectId) {
+      project = await ensureProjectRecordFromSnapshot(projectSnapshot);
     }
 
     if (!project) {
