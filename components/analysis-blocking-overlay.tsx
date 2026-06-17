@@ -13,9 +13,14 @@ import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 type AnalysisBlockingOverlayProps = {
   startedAt: number;
   progress?: EvaluationAnalysisProgressEvent | null;
+  statusMessage?: string;
 };
 
-export default function AnalysisBlockingOverlay({ startedAt, progress }: AnalysisBlockingOverlayProps) {
+export default function AnalysisBlockingOverlay({
+  startedAt,
+  progress,
+  statusMessage,
+}: AnalysisBlockingOverlayProps) {
   useBodyScrollLock(true);
   const [now, setNow] = useState(() => Date.now());
 
@@ -51,7 +56,7 @@ export default function AnalysisBlockingOverlay({ startedAt, progress }: Analysi
         />
         <SubsectionTitle className="mt-4 text-center">분석 중</SubsectionTitle>
         <MutedText className="mt-2 text-center">
-          {progress?.label ?? "하이브리드 평가를 준비하고 있습니다."}
+          {statusMessage ?? progress?.label ?? "하이브리드 평가를 준비하고 있습니다."}
         </MutedText>
 
         <div className="mt-4 rounded-xl bg-[#f8fafc] px-4 py-3 text-center">

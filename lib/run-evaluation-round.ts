@@ -6,7 +6,15 @@ import {
 } from "@/lib/evaluation-analysis-progress";
 import { addProjectEvaluationRound, getProjectById, upsertProjectRecord } from "@/lib/project-store";
 import { projectFromClientSnapshot } from "@/lib/safe-project-snapshot";
-import { deleteSavedUploadFiles, saveUploadedFiles, toProjectFiles } from "@/lib/save-uploaded-files";
+import {
+  deleteSavedUploadFiles,
+  readSavedUploadFile,
+  saveUploadedFiles,
+  storedRefsToProjectFiles,
+  storedRefsToSavedFiles,
+  toProjectFiles,
+} from "@/lib/save-uploaded-files";
+import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project } from "@/lib/types";
 import { analyzeUploadedFiles } from "@/lib/upload-analysis";
 import type { AiProviderPreference } from "@/lib/ai/types";
@@ -21,6 +29,8 @@ export type RunEvaluationRoundInput = {
   expertWeight: number;
   evaluationItems: EvaluationItem[];
   manualExpertScores: HumanEvaluationItemScore[];
+  aiFileRefs: StoredFileRef[];
+  expertFileRefs: StoredFileRef[];
   aiFiles: File[];
   expertFiles: File[];
   projectSnapshot: Project | null;
@@ -51,7 +61,7 @@ export async function runEvaluationRound(
   input: RunEvaluationRoundInput,
   emit?: ProgressEmitter,
 ): Promise<RunEvaluationRoundResult> {
-  let savedFiles: SavedUploadFile[] = [];
+  let newlySavedFiles: SavedUploadFile[] = [];
 
   try {
     emitStep(emit, "validate");
@@ -65,6 +75,8 @@ export async function runEvaluationRound(
       expertWeight,
       evaluationItems,
       manualExpertScores,
+      aiFileRefs,
+      expertFileRefs,
       aiFiles,
       expertFiles,
       projectSnapshot,
@@ -89,11 +101,14 @@ export async function runEvaluationRound(
       throw new Error("평가항목을 1개 이상 등록해 주세요.");
     }
 
-    if (aiFiles.length === 0) {
+    const hasAiMaterials = aiFileRefs.length > 0 || aiFiles.length > 0;
+    const hasExpertMaterials = expertFileRefs.length > 0 || expertFiles.length > 0;
+
+    if (!hasAiMaterials) {
       throw new Error("AI 평가 자료를 선택해 주세요.");
     }
 
-    if (expertFiles.length === 0) {
+    if (!hasExpertMaterials) {
       throw new Error("전문가 평가 자료를 선택해 주세요.");
     }
 
@@ -102,14 +117,22 @@ export async function runEvaluationRound(
     }
 
     emitStep(emit, "upload");
-    const savedAiFiles = await saveUploadedFiles(aiFiles);
-    const savedExpertFiles = await saveUploadedFiles(expertFiles);
-    savedFiles = [...savedAiFiles, ...savedExpertFiles];
+
+    const uploadedAiFiles = aiFiles.length > 0 ? await saveUploadedFiles(projectId, aiFiles) : [];
+    const uploadedExpertFiles =
+      expertFiles.length > 0 ? await saveUploadedFiles(projectId, expertFiles) : [];
+    newlySavedFiles = [...uploadedAiFiles, ...uploadedExpertFiles];
+
+    const savedAiFiles = [...storedRefsToSavedFiles(aiFileRefs), ...uploadedAiFiles];
+    const savedExpertFiles = [...storedRefsToSavedFiles(expertFileRefs), ...uploadedExpertFiles];
 
     const evaluatedAt = new Date().toISOString();
-    const persistedFiles = toProjectFiles(savedFiles, evaluatedAt);
+    const persistedFiles = [
+      ...storedRefsToProjectFiles(aiFileRefs, evaluatedAt),
+      ...storedRefsToProjectFiles(expertFileRefs, evaluatedAt),
+      ...toProjectFiles(newlySavedFiles, evaluatedAt),
+    ];
 
-    const { readFile } = await import("fs/promises");
     const { extractDocumentText } = await import("@/lib/document-extract");
 
     emitStep(emit, "extract");
@@ -117,8 +140,9 @@ export async function runEvaluationRound(
       Promise.all(
         savedAiFiles.map(async (file) => ({
           ...file,
+          storagePath: file.storagePath ?? file.storageKey,
           extractedTextPreview: await extractDocumentText(
-            await readFile(file.storagePath),
+            await readSavedUploadFile(file),
             file.originalName,
           ),
         })),
@@ -126,8 +150,9 @@ export async function runEvaluationRound(
       Promise.all(
         savedExpertFiles.map(async (file) => ({
           ...file,
+          storagePath: file.storagePath ?? file.storageKey,
           extractedTextPreview: await extractDocumentText(
-            await readFile(file.storagePath),
+            await readSavedUploadFile(file),
             file.originalName,
           ),
         })),
@@ -199,7 +224,7 @@ export async function runEvaluationRound(
         evaluationRounds: [...(project.evaluationRounds ?? []), round],
       }));
 
-    savedFiles = [];
+    newlySavedFiles = [];
 
     return {
       round,
@@ -208,18 +233,20 @@ export async function runEvaluationRound(
       warnings: round.aiAnalysis.warnings ?? [],
     };
   } catch (error) {
-    if (savedFiles.length > 0) {
-      await deleteSavedUploadFiles(savedFiles);
+    if (newlySavedFiles.length > 0) {
+      await deleteSavedUploadFiles(newlySavedFiles);
     }
     throw error;
   }
 }
 
-function toSessionFile(file: { id: string; originalName: string; fileType: string; sizeBytes: number }) {
+function toSessionFile(file: SavedUploadFile) {
   return {
     id: file.id,
     originalName: file.originalName,
     fileType: file.originalName.split(".").pop()?.toUpperCase() ?? file.fileType,
     sizeBytes: file.sizeBytes,
+    storageKey: file.storageKey,
+    blobUrl: file.blobUrl,
   };
 }

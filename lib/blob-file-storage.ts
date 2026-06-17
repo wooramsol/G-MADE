@@ -1,0 +1,102 @@
+import { del, head, put } from "@vercel/blob";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
+import path from "path";
+import { getWritableStoragePath } from "./runtime-storage";
+import {
+  buildProjectBlobPathname,
+  formatStoredFileType,
+  inferUploadContentType,
+  validateUploadMetadata,
+} from "./upload-validation";
+
+export type PersistedUploadFile = {
+  id: string;
+  originalName: string;
+  fileType: string;
+  sizeBytes: number;
+  storageKey: string;
+  blobUrl?: string;
+  /** 로컬 개발용 디스크 경로 (Blob 미사용 시) */
+  storagePath?: string;
+};
+
+export function isBlobStorageEnabled(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+export async function uploadBufferToProjectBlob(
+  projectId: string,
+  fileName: string,
+  buffer: Buffer,
+  contentType?: string,
+): Promise<PersistedUploadFile> {
+  validateUploadMetadata(fileName, buffer.byteLength);
+
+  const id = `${Date.now()}-${crypto.randomUUID()}`;
+  const pathname = buildProjectBlobPathname(projectId, id, fileName);
+
+  if (isBlobStorageEnabled()) {
+    const blob = await put(pathname, buffer, {
+      access: "public",
+      contentType: inferUploadContentType(fileName, contentType),
+      addRandomSuffix: false,
+    });
+
+    return {
+      id,
+      originalName: fileName,
+      fileType: formatStoredFileType(fileName, contentType ?? ""),
+      sizeBytes: buffer.byteLength,
+      storageKey: blob.pathname,
+      blobUrl: blob.url,
+    };
+  }
+
+  const uploadDir = getWritableStoragePath("uploads");
+  await mkdir(uploadDir, { recursive: true });
+  const storedName = `${id}-${fileName.replace(/[^a-zA-Z0-9가-힣._-]/g, "_")}`;
+  const storagePath = path.join(uploadDir, storedName);
+  await writeFile(storagePath, buffer);
+
+  return {
+    id,
+    originalName: fileName,
+    fileType: formatStoredFileType(fileName, contentType ?? ""),
+    sizeBytes: buffer.byteLength,
+    storageKey: pathname,
+    storagePath,
+  };
+}
+
+export async function readPersistedUploadFile(file: PersistedUploadFile): Promise<Buffer> {
+  if (file.storagePath) {
+    return readFile(file.storagePath);
+  }
+
+  if (!isBlobStorageEnabled()) {
+    throw new Error("파일 저장소를 사용할 수 없습니다. BLOB_READ_WRITE_TOKEN을 설정해 주세요.");
+  }
+
+  const metadata = await head(file.storageKey);
+  const response = await fetch(metadata.url);
+  if (!response.ok) {
+    throw new Error(`저장된 파일을 불러오지 못했습니다: ${file.originalName}`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
+
+export async function deletePersistedUploadFiles(files: PersistedUploadFile[]): Promise<void> {
+  await Promise.all(
+    files.map(async (file) => {
+      if (file.storagePath) {
+        await unlink(file.storagePath).catch(() => undefined);
+        return;
+      }
+
+      if (isBlobStorageEnabled()) {
+        await del(file.storageKey).catch(() => undefined);
+      }
+    }),
+  );
+}

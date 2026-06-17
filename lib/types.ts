@@ -54,6 +54,9 @@ export type ProjectFile = {
   analysisStatus: "대기" | "분석중" | "완료";
   uploadedAt?: string;
   sizeBytes?: number;
+  /** Vercel Blob pathname */
+  storageKey?: string;
+  blobUrl?: string;
 };
 
 export type HumanEvaluationItemScore = {
@@ -130,6 +133,9 @@ export type EvaluationSessionFile = {
   originalName: string;
   fileType: string;
   sizeBytes: number;
+  /** Vercel Blob pathname */
+  storageKey?: string;
+  blobUrl?: string;
 };
 
 export type EvaluationRound = {

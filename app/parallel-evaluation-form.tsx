@@ -4,8 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import EvaluationWeightSlider from "@/components/evaluation-weight-slider";
 import { interactiveCardClassName } from "@/components/interactive-card";
 import type { AiProviderPreference } from "@/lib/ai/types";
+import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
 import { toClientAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
+import { collectProjectStoredFiles } from "@/lib/project-file-pool";
+import { storedRefToProjectFile } from "@/lib/stored-file-ref";
+import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import type { EvaluationAnalysisProgressEvent } from "@/lib/evaluation-analysis-progress";
@@ -40,15 +44,20 @@ export default function ParallelEvaluationForm({
       : createDefaultEvaluationItems(),
   );
   const [itemsDirty, setItemsDirty] = useState(false);
-  const [aiFiles, setAiFiles] = useState<File[]>([]);
-  const [expertFiles, setExpertFiles] = useState<File[]>([]);
+  const [newAiFiles, setNewAiFiles] = useState<File[]>([]);
+  const [newExpertFiles, setNewExpertFiles] = useState<File[]>([]);
+  const [selectedAiRefs, setSelectedAiRefs] = useState<StoredFileRef[]>([]);
+  const [selectedExpertRefs, setSelectedExpertRefs] = useState<StoredFileRef[]>([]);
   const [reviewerName, setReviewerName] = useState("");
   const [aiWeight, setAiWeight] = useState(30);
   const [provider, setProvider] = useState<AiProviderPreference | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<EvaluationAnalysisProgressEvent | null>(null);
   const [error, setError] = useState("");
+
+  const storedFiles = useMemo(() => collectProjectStoredFiles(project), [project]);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,8 +93,18 @@ export default function ParallelEvaluationForm({
     setEvaluationItems(nextItems);
   }, [itemsDirty, project.id, project.savedEvaluationItems]);
 
-  const aiTotalSize = useMemo(() => aiFiles.reduce((sum, file) => sum + file.size, 0), [aiFiles]);
-  const expertTotalSize = useMemo(() => expertFiles.reduce((sum, file) => sum + file.size, 0), [expertFiles]);
+  const aiTotalSize = useMemo(
+    () =>
+      newAiFiles.reduce((sum, file) => sum + file.size, 0) +
+      selectedAiRefs.reduce((sum, file) => sum + file.sizeBytes, 0),
+    [newAiFiles, selectedAiRefs],
+  );
+  const expertTotalSize = useMemo(
+    () =>
+      newExpertFiles.reduce((sum, file) => sum + file.size, 0) +
+      selectedExpertRefs.reduce((sum, file) => sum + file.sizeBytes, 0),
+    [newExpertFiles, selectedExpertRefs],
+  );
 
   async function submitEvaluation() {
     if (loading || !provider) return;
@@ -95,12 +114,12 @@ export default function ParallelEvaluationForm({
       return;
     }
 
-    if (aiFiles.length === 0) {
+    if (newAiFiles.length === 0 && selectedAiRefs.length === 0) {
       setError("AI 평가 자료를 선택해 주세요.");
       return;
     }
 
-    if (expertFiles.length === 0) {
+    if (newExpertFiles.length === 0 && selectedExpertRefs.length === 0) {
       setError("전문가 평가 자료를 선택해 주세요.");
       return;
     }
@@ -111,14 +130,15 @@ export default function ParallelEvaluationForm({
     }
 
     const oversizedMessage =
-      buildOversizedUploadMessage(aiFiles, "AI 평가") ||
-      buildOversizedUploadMessage(expertFiles, "전문가 평가");
+      buildOversizedUploadMessage(newAiFiles, "AI 평가") ||
+      buildOversizedUploadMessage(newExpertFiles, "전문가 평가");
     if (oversizedMessage) {
       setError(oversizedMessage);
       return;
     }
 
     setLoading(true);
+    setUploadProgress(null);
     setAnalysisStartedAt(Date.now());
     setAnalysisProgress(null);
     setError("");
@@ -131,10 +151,52 @@ export default function ParallelEvaluationForm({
     formData.append("expertWeight", String(100 - aiWeight));
     formData.append("reviewerName", reviewerName.trim());
     formData.append("evaluationItems", JSON.stringify(evaluationItems));
-    aiFiles.forEach((file) => formData.append("aiFiles", file));
-    expertFiles.forEach((file) => formData.append("expertFiles", file));
+
+    let uploadedAiRefs: StoredFileRef[] = [];
+    let uploadedExpertRefs: StoredFileRef[] = [];
+    let useLegacyFileUpload = false;
 
     try {
+      if (newAiFiles.length > 0 || newExpertFiles.length > 0) {
+        setUploadProgress("자료를 Blob에 업로드하는 중...");
+        try {
+          uploadedAiRefs =
+            newAiFiles.length > 0
+              ? await uploadProjectFilesToBlob(project.id, newAiFiles, (fileIndex, ratio) => {
+                  setUploadProgress(
+                    `AI 자료 업로드 중 (${fileIndex + 1}/${newAiFiles.length}) · ${Math.round(ratio * 100)}%`,
+                  );
+                })
+              : [];
+          uploadedExpertRefs =
+            newExpertFiles.length > 0
+              ? await uploadProjectFilesToBlob(project.id, newExpertFiles, (fileIndex, ratio) => {
+                  setUploadProgress(
+                    `전문가 자료 업로드 중 (${fileIndex + 1}/${newExpertFiles.length}) · ${Math.round(ratio * 100)}%`,
+                  );
+                })
+              : [];
+        } catch (uploadError) {
+          console.warn("Blob upload failed, falling back to direct upload", uploadError);
+          useLegacyFileUpload = true;
+          newAiFiles.forEach((file) => formData.append("aiFiles", file));
+          newExpertFiles.forEach((file) => formData.append("expertFiles", file));
+        }
+      }
+
+      if (!useLegacyFileUpload) {
+        const aiFileRefs = [...selectedAiRefs, ...uploadedAiRefs];
+        const expertFileRefs = [...selectedExpertRefs, ...uploadedExpertRefs];
+        formData.append("aiFileRefs", JSON.stringify(aiFileRefs));
+        formData.append("expertFileRefs", JSON.stringify(expertFileRefs));
+      } else if (selectedAiRefs.length > 0 || selectedExpertRefs.length > 0) {
+        throw new Error(
+          "저장된 자료 재사용은 Blob 업로드가 필요합니다. Vercel Blob 설정(BLOB_READ_WRITE_TOKEN)을 확인해 주세요.",
+        );
+      }
+
+      setUploadProgress(null);
+
       const payload = await submitEvaluationRoundStream(formData, (progress) => {
         setAnalysisProgress(progress);
       });
@@ -145,8 +207,10 @@ export default function ParallelEvaluationForm({
         ...payload.round.expertFiles.map((file) => toProjectFile(file, uploadedAt)),
       ];
 
-      setAiFiles([]);
-      setExpertFiles([]);
+      setNewAiFiles([]);
+      setNewExpertFiles([]);
+      setSelectedAiRefs([]);
+      setSelectedExpertRefs([]);
 
       const isDemo =
         payload.analysisMode === "demo" || payload.round.aiAnalysis.mode === "demo";
@@ -171,6 +235,7 @@ export default function ParallelEvaluationForm({
       setError(submitError instanceof Error ? submitError.message : "하이브리드 평가 분석에 실패했습니다.");
     } finally {
       setLoading(false);
+      setUploadProgress(null);
       setAnalysisStartedAt(null);
       setAnalysisProgress(null);
     }
@@ -179,7 +244,11 @@ export default function ParallelEvaluationForm({
   return (
     <div className="space-y-5">
       {loading && analysisStartedAt ? (
-        <AnalysisBlockingOverlay progress={analysisProgress} startedAt={analysisStartedAt} />
+        <AnalysisBlockingOverlay
+          progress={analysisProgress}
+          startedAt={analysisStartedAt}
+          statusMessage={uploadProgress ?? undefined}
+        />
       ) : null}
 
       <EvaluationItemsEditor
@@ -204,10 +273,13 @@ export default function ParallelEvaluationForm({
         <MaterialColumn
           accent="ai"
           description="프로젝트 자료·심의서류 등 AI 분석 대상 파일"
-          files={aiFiles}
+          newFiles={newAiFiles}
+          selectedRefs={selectedAiRefs}
+          storedFiles={storedFiles}
           title="3. AI 평가 자료"
           totalSize={aiTotalSize}
-          onFilesChange={setAiFiles}
+          onNewFilesChange={setNewAiFiles}
+          onSelectedRefsChange={setSelectedAiRefs}
         >
           <label className="block text-sm">
             <FieldLabel className="mb-2 block">AI 엔진</FieldLabel>
@@ -227,10 +299,13 @@ export default function ParallelEvaluationForm({
         <MaterialColumn
           accent="expert"
           description="심사위원 평가표·의견서·보완자료 등 전문가 평가 파일"
-          files={expertFiles}
+          newFiles={newExpertFiles}
+          selectedRefs={selectedExpertRefs}
+          storedFiles={storedFiles}
           title="4. 전문가 평가 자료"
           totalSize={expertTotalSize}
-          onFilesChange={setExpertFiles}
+          onNewFilesChange={setNewExpertFiles}
+          onSelectedRefsChange={setSelectedExpertRefs}
         >
           <label className="block text-sm">
             <FieldLabel className="mb-2 block">평가자 / 심사위원</FieldLabel>
@@ -250,7 +325,8 @@ export default function ParallelEvaluationForm({
         <div className="text-center">
           <StepTitle>5. 하이브리드 평가 분석</StepTitle>
           <MutedText className="mx-auto mt-2 max-w-lg">
-            AI·전문가 양쪽 자료와 공통 평가항목을 바탕으로 한 번에 분석합니다.
+            AI·전문가 양쪽 자료와 공통 평가항목을 바탕으로 한 번에 분석합니다. 이전 차수에 올린 자료는
+            다시 업로드하지 않고 불러올 수 있습니다.
           </MutedText>
           <button
             className="primary-action mt-5 rounded-xl px-8 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
@@ -258,7 +334,7 @@ export default function ParallelEvaluationForm({
             type="button"
             onClick={submitEvaluation}
           >
-            {loading ? "분석 중 (최대 2분)..." : "하이브리드 평가 분석"}
+            {loading ? (uploadProgress ?? "분석 중 (최대 2분)...") : "하이브리드 평가 분석"}
           </button>
           {itemsDirty ? (
             <p className="mt-3 text-xs font-semibold text-amber-800">
@@ -277,22 +353,38 @@ function MaterialColumn({
   accent,
   title,
   description,
-  files,
+  newFiles,
+  selectedRefs,
+  storedFiles,
   totalSize,
-  onFilesChange,
+  onNewFilesChange,
+  onSelectedRefsChange,
   children,
 }: {
   accent: "ai" | "expert";
   title: string;
   description: string;
-  files: File[];
+  newFiles: File[];
+  selectedRefs: StoredFileRef[];
+  storedFiles: StoredFileRef[];
   totalSize: number;
-  onFilesChange: (files: File[]) => void;
+  onNewFilesChange: (files: File[]) => void;
+  onSelectedRefsChange: (refs: StoredFileRef[]) => void;
   children: React.ReactNode;
 }) {
   const isAi = accent === "ai";
   const headerClass = isAi ? "bg-[#eef4fb] text-[#2463b3]" : "bg-slate-100 text-[#15345b]";
   const borderClass = isAi ? "border-[#2463b3]" : "border-[#15345b]";
+  const selectedIds = new Set(selectedRefs.map((ref) => ref.id));
+  const totalCount = newFiles.length + selectedRefs.length;
+
+  function toggleStoredFile(file: StoredFileRef) {
+    if (selectedIds.has(file.id)) {
+      onSelectedRefsChange(selectedRefs.filter((ref) => ref.id !== file.id));
+      return;
+    }
+    onSelectedRefsChange([...selectedRefs, file]);
+  }
 
   return (
     <section
@@ -303,10 +395,43 @@ function MaterialColumn({
         <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
       </div>
 
+      {storedFiles.length > 0 ? (
+        <div className="mt-4 rounded-xl border border-[#d7dee8] bg-white p-3">
+          <p className="text-sm font-bold text-[#15345b]">저장된 자료 (이전 차수)</p>
+          <p className="mt-1 text-xs text-[#64748b]">
+            같은 파일을 다시 올리지 않고 선택하면 Blob에 보관된 자료를 재사용합니다.
+          </p>
+          <ul className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+            {storedFiles.map((file) => {
+              const checked = selectedIds.has(file.id);
+              return (
+                <li key={file.id}>
+                  <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-[#e2e8f0] px-3 py-2 text-xs hover:bg-[#f8fafc]">
+                    <input
+                      checked={checked}
+                      className="mt-0.5"
+                      type="checkbox"
+                      onChange={() => toggleStoredFile(file)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold text-[#15345b]">{file.originalName}</span>
+                      <span className="mt-0.5 block text-[#64748b]">
+                        {formatBytes(file.sizeBytes)}
+                        {file.lastUsedRoundLabel ? ` · ${file.lastUsedRoundLabel}에서 사용` : ""}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
       <label
-        className={`mt-4 flex min-h-52 flex-1 cursor-pointer flex-col rounded-xl border border-dashed bg-white p-4 text-sm text-[#475569] ${borderClass}`}
+        className={`mt-4 flex min-h-44 flex-1 cursor-pointer flex-col rounded-xl border border-dashed bg-white p-4 text-sm text-[#475569] ${borderClass}`}
       >
-        <span className="font-bold text-[#15345b]">자료 업로드</span>
+        <span className="font-bold text-[#15345b]">새 자료 업로드</span>
         <span className="mt-1 leading-6">
           PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP · 파일당 최대 {getMaxUploadFileLabel()}
         </span>
@@ -318,20 +443,25 @@ function MaterialColumn({
           onChange={(event) => {
             const picked = Array.from(event.target.files ?? []);
             if (picked.length > 0) {
-              onFilesChange([...files, ...picked]);
+              onNewFilesChange([...newFiles, ...picked]);
             }
             event.target.value = "";
           }}
         />
-        {files.length > 0 ? (
+        {totalCount > 0 ? (
           <div className="mt-4 rounded-xl bg-[#f8fafc] p-3">
             <p className="font-semibold text-[#15345b]">
-              선택 {files.length}개 · {formatBytes(totalSize)}
+              선택 {totalCount}개 · {formatBytes(totalSize)}
             </p>
             <ul className="mt-2 space-y-1 text-xs">
-              {files.map((file, index) => (
+              {selectedRefs.map((file) => (
+                <li key={`ref-${file.id}`} className="text-[#2463b3]">
+                  [저장됨] {file.originalName} ({formatBytes(file.sizeBytes)})
+                </li>
+              ))}
+              {newFiles.map((file, index) => (
                 <li key={`${file.name}-${file.size}-${index}`}>
-                  {file.name} ({formatBytes(file.size)})
+                  [신규] {file.name} ({formatBytes(file.size)})
                 </li>
               ))}
             </ul>
@@ -362,9 +492,31 @@ function resolveNextEvaluationRounds(
 }
 
 function toProjectFile(
-  file: { id: string; originalName: string; fileType: string; sizeBytes: number },
+  file: {
+    id: string;
+    originalName: string;
+    fileType: string;
+    sizeBytes: number;
+    storageKey?: string;
+    blobUrl?: string;
+  },
   uploadedAt: string,
 ): ProjectFile {
+  if (file.storageKey) {
+    return storedRefToProjectFile(
+      {
+        id: file.id,
+        originalName: file.originalName,
+        fileType: file.originalName.split(".").pop()?.toUpperCase() ?? file.fileType,
+        sizeBytes: file.sizeBytes,
+        storageKey: file.storageKey,
+        blobUrl: file.blobUrl,
+        uploadedAt,
+      },
+      uploadedAt,
+    );
+  }
+
   return {
     id: file.id,
     fileName: file.originalName,
