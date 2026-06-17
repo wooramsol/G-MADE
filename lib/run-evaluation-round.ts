@@ -4,8 +4,14 @@ import {
   EVALUATION_ANALYSIS_STEPS,
   type EvaluationAnalysisProgressEvent,
 } from "@/lib/evaluation-analysis-progress";
+import {
+  requiresAiUploadMaterials,
+  requiresExpertUploadMaterials,
+  validateEvaluationWeights,
+} from "@/lib/evaluation-weight-requirements";
 import { addProjectEvaluationRound, getProjectById, upsertProjectRecord } from "@/lib/project-store";
 import { ensureProjectRecordFromSnapshot } from "@/lib/ensure-project-record";
+import { createSkippedUploadAnalysis } from "@/lib/skipped-upload-analysis";
 import {
   deleteSavedUploadFiles,
   readSavedUploadFile,
@@ -99,103 +105,143 @@ export async function runEvaluationRound(
       throw new Error("평가항목을 1개 이상 등록해 주세요.");
     }
 
+    const normalizedAiWeight = Number.isFinite(aiWeight) ? aiWeight : 30;
+    const normalizedExpertWeight = Number.isFinite(expertWeight) ? expertWeight : 100 - normalizedAiWeight;
+    const weightError = validateEvaluationWeights(normalizedAiWeight, normalizedExpertWeight);
+    if (weightError) {
+      throw new Error(weightError);
+    }
+
+    const needsAiMaterials = requiresAiUploadMaterials(normalizedAiWeight);
+    const needsExpertMaterials = requiresExpertUploadMaterials(normalizedExpertWeight);
     const hasAiMaterials = aiFileRefs.length > 0 || aiFiles.length > 0;
     const hasExpertMaterials = expertFileRefs.length > 0 || expertFiles.length > 0;
 
-    if (!hasAiMaterials) {
+    if (needsAiMaterials && !hasAiMaterials) {
       throw new Error("AI 평가 자료를 선택해 주세요.");
     }
 
-    if (!hasExpertMaterials) {
+    if (needsExpertMaterials && !hasExpertMaterials) {
       throw new Error("전문가 평가 자료를 선택해 주세요.");
     }
 
-    if (!reviewerName) {
+    if (needsExpertMaterials && !reviewerName) {
       throw new Error("평가자 이름을 입력해 주세요.");
     }
 
+    const resolvedReviewerName = reviewerName || "미지정";
+
     emitStep(emit, "upload");
 
-    const uploadedAiFiles = aiFiles.length > 0 ? await saveUploadedFiles(projectId, aiFiles) : [];
+    const uploadedAiFiles =
+      needsAiMaterials && aiFiles.length > 0 ? await saveUploadedFiles(projectId, aiFiles) : [];
     const uploadedExpertFiles =
-      expertFiles.length > 0 ? await saveUploadedFiles(projectId, expertFiles) : [];
+      needsExpertMaterials && expertFiles.length > 0
+        ? await saveUploadedFiles(projectId, expertFiles)
+        : [];
     newlySavedFiles = [...uploadedAiFiles, ...uploadedExpertFiles];
 
-    const savedAiFiles = [...storedRefsToSavedFiles(aiFileRefs), ...uploadedAiFiles];
-    const savedExpertFiles = [...storedRefsToSavedFiles(expertFileRefs), ...uploadedExpertFiles];
+    const savedAiFiles = needsAiMaterials
+      ? [...storedRefsToSavedFiles(aiFileRefs), ...uploadedAiFiles]
+      : [];
+    const savedExpertFiles = needsExpertMaterials
+      ? [...storedRefsToSavedFiles(expertFileRefs), ...uploadedExpertFiles]
+      : [];
 
     const evaluatedAt = new Date().toISOString();
     const persistedFiles = [
-      ...storedRefsToProjectFiles(aiFileRefs, evaluatedAt),
-      ...storedRefsToProjectFiles(expertFileRefs, evaluatedAt),
+      ...(needsAiMaterials ? storedRefsToProjectFiles(aiFileRefs, evaluatedAt) : []),
+      ...(needsExpertMaterials ? storedRefsToProjectFiles(expertFileRefs, evaluatedAt) : []),
       ...toProjectFiles(newlySavedFiles, evaluatedAt),
     ];
 
     const { extractDocumentText } = await import("@/lib/document-extract");
 
     emitStep(emit, "extract");
-    const [aiFilesForAnalysis, expertFilesForAnalysis] = await Promise.all([
-      Promise.all(
-        savedAiFiles.map(async (file) => ({
-          ...file,
-          storagePath: file.storagePath ?? file.storageKey,
-          extractedTextPreview: await extractDocumentText(
-            await readSavedUploadFile(file),
-            file.originalName,
-          ),
-        })),
-      ),
-      Promise.all(
-        savedExpertFiles.map(async (file) => ({
-          ...file,
-          storagePath: file.storagePath ?? file.storageKey,
-          extractedTextPreview: await extractDocumentText(
-            await readSavedUploadFile(file),
-            file.originalName,
-          ),
-        })),
-      ),
-    ]);
+    const aiFilesForAnalysis = needsAiMaterials
+      ? await Promise.all(
+          savedAiFiles.map(async (file) => ({
+            ...file,
+            storagePath: file.storagePath ?? file.storageKey,
+            extractedTextPreview: await extractDocumentText(
+              await readSavedUploadFile(file),
+              file.originalName,
+            ),
+          })),
+        )
+      : [];
+
+    const expertFilesForAnalysis = needsExpertMaterials
+      ? await Promise.all(
+          savedExpertFiles.map(async (file) => ({
+            ...file,
+            storagePath: file.storagePath ?? file.storageKey,
+            extractedTextPreview: await extractDocumentText(
+              await readSavedUploadFile(file),
+              file.originalName,
+            ),
+          })),
+        )
+      : [];
 
     emitStep(emit, "law-context");
     const evaluationContext = await buildEvaluationContext(projectId);
 
     emitStep(emit, "ai-analysis");
-    const aiAnalysisPromise = analyzeUploadedFiles({
-      providerPreference,
-      files: aiFilesForAnalysis,
-      evaluationContext,
-      evaluationItems,
-    });
+    const aiAnalysisPromise = needsAiMaterials
+      ? analyzeUploadedFiles({
+          providerPreference,
+          files: aiFilesForAnalysis,
+          evaluationContext,
+          evaluationItems,
+        })
+      : Promise.resolve(
+          createSkippedUploadAnalysis(evaluationContext, evaluationItems, "ai", evaluationContext.warnings),
+        );
 
     emitStep(emit, "expert-analysis");
-    const expertAnalysisPromise = analyzeUploadedFiles({
-      providerPreference,
-      files: expertFilesForAnalysis,
-      evaluationContext,
-      evaluationItems,
-    });
+    const expertAnalysisPromise = needsExpertMaterials
+      ? analyzeUploadedFiles({
+          providerPreference,
+          files: expertFilesForAnalysis,
+          evaluationContext,
+          evaluationItems,
+        })
+      : Promise.resolve(
+          createSkippedUploadAnalysis(
+            evaluationContext,
+            evaluationItems,
+            "expert",
+            evaluationContext.warnings,
+          ),
+        );
 
     const [aiAnalysis, expertAnalysis] = await Promise.all([aiAnalysisPromise, expertAnalysisPromise]);
 
     const expertItemScores =
       manualExpertScores.length > 0
         ? manualExpertScores
-        : expertAnalysis.evaluationPreview.map((row) => ({
-            itemId: row.itemId,
-            score: row.score,
-            comment: row.rationale,
-          }));
+        : needsExpertMaterials
+          ? expertAnalysis.evaluationPreview.map((row) => ({
+              itemId: row.itemId,
+              score: row.score,
+              comment: row.rationale,
+            }))
+          : evaluationItems.map((item) => ({
+              itemId: item.id,
+              score: 0,
+              comment: "전문가 가중치 0% — 자료 분석 생략",
+            }));
 
     const totalPoints = evaluationItems.reduce((sum, item) => sum + item.points, 0);
     const round: EvaluationRound = {
       id: `round-${Date.now()}-${crypto.randomUUID()}`,
       evaluatedAt,
-      aiWeight: Number.isFinite(aiWeight) ? aiWeight : 30,
-      expertWeight: Number.isFinite(expertWeight) ? expertWeight : 70,
+      aiWeight: normalizedAiWeight,
+      expertWeight: normalizedExpertWeight,
       evaluationItems,
       totalPoints,
-      reviewerName,
+      reviewerName: resolvedReviewerName,
       expertSummary: expertSummary || undefined,
       aiFiles: savedAiFiles.map(toSessionFile),
       expertFiles: savedExpertFiles.map(toSessionFile),
@@ -205,7 +251,7 @@ export async function runEvaluationRound(
           evaluationContext.warnings,
           aiAnalysis.warnings ?? [],
           expertAnalysis.warnings ?? [],
-          aiAnalysis.mode === "demo"
+          aiAnalysis.mode === "demo" && needsAiMaterials
             ? ["AI API 키가 없거나 오류로 데모 분석 결과가 저장되었습니다. 점수는 참고용입니다."]
             : [],
         ),

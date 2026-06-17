@@ -8,6 +8,12 @@ import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
 import { exceedsServerlessUploadLimit, SERVERLESS_UPLOAD_LIMIT_LABEL } from "@/lib/blob-config";
 import { toClientAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
+import {
+  getExpertWeight,
+  requiresAiUploadMaterials,
+  requiresExpertUploadMaterials,
+  validateEvaluationWeights,
+} from "@/lib/evaluation-weight-requirements";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import { storedRefToProjectFile } from "@/lib/stored-file-ref";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
@@ -57,6 +63,10 @@ export default function ParallelEvaluationForm({
   const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<EvaluationAnalysisProgressEvent | null>(null);
   const [error, setError] = useState("");
+
+  const expertWeight = getExpertWeight(aiWeight);
+  const needsAiMaterials = requiresAiUploadMaterials(aiWeight);
+  const needsExpertMaterials = requiresExpertUploadMaterials(expertWeight);
 
   const storedFiles = useMemo(() => collectProjectStoredFiles(project), [project]);
 
@@ -108,31 +118,37 @@ export default function ParallelEvaluationForm({
   );
 
   async function submitEvaluation() {
-    if (loading || !provider) return;
+    if (loading || (needsAiMaterials && !provider)) return;
 
     if (itemsDirty) {
       setError("평가항목을 먼저 저장한 뒤 분석을 실행해 주세요.");
       return;
     }
 
-    if (newAiFiles.length === 0 && selectedAiRefs.length === 0) {
+    const weightError = validateEvaluationWeights(aiWeight, expertWeight);
+    if (weightError) {
+      setError(weightError);
+      return;
+    }
+
+    if (needsAiMaterials && newAiFiles.length === 0 && selectedAiRefs.length === 0) {
       setError("AI 평가 자료를 선택해 주세요.");
       return;
     }
 
-    if (newExpertFiles.length === 0 && selectedExpertRefs.length === 0) {
+    if (needsExpertMaterials && newExpertFiles.length === 0 && selectedExpertRefs.length === 0) {
       setError("전문가 평가 자료를 선택해 주세요.");
       return;
     }
 
-    if (!reviewerName.trim()) {
+    if (needsExpertMaterials && !reviewerName.trim()) {
       setError("평가자 이름을 입력해 주세요.");
       return;
     }
 
     const oversizedMessage =
-      buildOversizedUploadMessage(newAiFiles, "AI 평가") ||
-      buildOversizedUploadMessage(newExpertFiles, "전문가 평가");
+      (needsAiMaterials ? buildOversizedUploadMessage(newAiFiles, "AI 평가") : null) ||
+      (needsExpertMaterials ? buildOversizedUploadMessage(newExpertFiles, "전문가 평가") : null);
     if (oversizedMessage) {
       setError(oversizedMessage);
       return;
@@ -147,7 +163,7 @@ export default function ParallelEvaluationForm({
     const formData = new FormData();
     formData.append("projectId", project.id);
     formData.append("projectSnapshot", JSON.stringify(project));
-    formData.append("provider", provider);
+    formData.append("provider", provider ?? "gemini");
     formData.append("aiWeight", String(aiWeight));
     formData.append("expertWeight", String(100 - aiWeight));
     formData.append("reviewerName", reviewerName.trim());
@@ -261,7 +277,8 @@ export default function ParallelEvaluationForm({
         <div>
           <StepTitle>2. 평가 가중치</StepTitle>
           <MutedText className="mt-1">
-            슬라이더를 움직여 AI(왼쪽)와 전문가(오른쪽) 평가 비율을 조정합니다.
+            슬라이더를 움직여 AI(왼쪽)와 전문가(오른쪽) 평가 비율을 조정합니다. 한쪽이 0%이면 해당
+            쪽 자료 첨부 없이 분석할 수 있습니다.
           </MutedText>
         </div>
         <EvaluationWeightSlider aiWeight={aiWeight} onChange={setAiWeight} />
@@ -271,6 +288,7 @@ export default function ParallelEvaluationForm({
         <MaterialColumn
           accent="ai"
           description="프로젝트 자료·심의서류 등 AI 분석 대상 파일"
+          filesRequired={needsAiMaterials}
           newFiles={newAiFiles}
           selectedRefs={selectedAiRefs}
           storedFiles={storedFiles}
@@ -283,7 +301,7 @@ export default function ParallelEvaluationForm({
             <FieldLabel className="mb-2 block">AI 엔진</FieldLabel>
             <select
               className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white disabled:opacity-60"
-              disabled={!provider}
+              disabled={!needsAiMaterials || !provider}
               value={provider ?? "gemini"}
               onChange={(event) => setProvider(event.target.value as AiProviderPreference)}
             >
@@ -297,6 +315,7 @@ export default function ParallelEvaluationForm({
         <MaterialColumn
           accent="expert"
           description="심사위원 평가표·의견서·보완자료 등 전문가 평가 파일"
+          filesRequired={needsExpertMaterials}
           newFiles={newExpertFiles}
           selectedRefs={selectedExpertRefs}
           storedFiles={storedFiles}
@@ -306,10 +325,13 @@ export default function ParallelEvaluationForm({
           onSelectedRefsChange={setSelectedExpertRefs}
         >
           <label className="block text-sm">
-            <FieldLabel className="mb-2 block">평가자 / 심사위원</FieldLabel>
+            <FieldLabel className="mb-2 block">
+              평가자 / 심사위원{needsExpertMaterials ? "" : " (선택)"}
+            </FieldLabel>
             <input
-              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#15345b] focus:bg-white"
-              placeholder="예: 홍길동 위원"
+              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#15345b] focus:bg-white disabled:opacity-60"
+              disabled={!needsExpertMaterials}
+              placeholder={needsExpertMaterials ? "예: 홍길동 위원" : "전문가 가중치 0% — 입력 생략 가능"}
               value={reviewerName}
               onChange={(event) => setReviewerName(event.target.value)}
             />
@@ -328,7 +350,7 @@ export default function ParallelEvaluationForm({
           </MutedText>
           <button
             className="primary-action mt-5 rounded-xl px-8 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
-            disabled={loading || itemsDirty || !provider}
+            disabled={loading || itemsDirty || (needsAiMaterials && !provider)}
             type="button"
             onClick={submitEvaluation}
           >
@@ -351,6 +373,7 @@ function MaterialColumn({
   accent,
   title,
   description,
+  filesRequired,
   newFiles,
   selectedRefs,
   storedFiles,
@@ -362,6 +385,7 @@ function MaterialColumn({
   accent: "ai" | "expert";
   title: string;
   description: string;
+  filesRequired: boolean;
   newFiles: File[];
   selectedRefs: StoredFileRef[];
   storedFiles: StoredFileRef[];
@@ -391,9 +415,12 @@ function MaterialColumn({
       <div className={`rounded-xl px-4 py-3 ${headerClass}`}>
         <StepTitle>{title}</StepTitle>
         <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
+        {!filesRequired ? (
+          <p className="mt-2 text-xs font-semibold opacity-90">가중치 0% — 자료 첨부 없이 분석 가능</p>
+        ) : null}
       </div>
 
-      {storedFiles.length > 0 ? (
+      {filesRequired && storedFiles.length > 0 ? (
         <div className="mt-4 rounded-xl border border-[#d7dee8] bg-white p-3">
           <p className="text-sm font-bold text-[#15345b]">저장된 자료 (이전 차수)</p>
           <p className="mt-1 text-xs text-[#64748b]">
@@ -426,46 +453,52 @@ function MaterialColumn({
         </div>
       ) : null}
 
-      <label
-        className={`mt-4 flex min-h-44 flex-1 cursor-pointer flex-col rounded-xl border border-dashed bg-white p-4 text-sm text-[#475569] ${borderClass}`}
-      >
-        <span className="font-bold text-[#15345b]">새 자료 업로드</span>
-        <span className="mt-1 leading-6">
-          PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP · 파일당 최대 {getMaxUploadFileLabel()}
-        </span>
-        <input
-          className="mt-4 text-sm"
-          multiple
-          type="file"
-          accept={FILE_ACCEPT}
-          onChange={(event) => {
-            const picked = Array.from(event.target.files ?? []);
-            if (picked.length > 0) {
-              onNewFilesChange([...newFiles, ...picked]);
-            }
-            event.target.value = "";
-          }}
-        />
-        {totalCount > 0 ? (
-          <div className="mt-4 rounded-xl bg-[#f8fafc] p-3">
-            <p className="font-semibold text-[#15345b]">
-              선택 {totalCount}개 · {formatBytes(totalSize)}
-            </p>
-            <ul className="mt-2 space-y-1 text-xs">
-              {selectedRefs.map((file) => (
-                <li key={`ref-${file.id}`} className="text-[#2463b3]">
-                  [저장됨] {file.originalName} ({formatBytes(file.sizeBytes)})
-                </li>
-              ))}
-              {newFiles.map((file, index) => (
-                <li key={`${file.name}-${file.size}-${index}`}>
-                  [신규] {file.name} ({formatBytes(file.size)})
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </label>
+      {filesRequired ? (
+        <label
+          className={`mt-4 flex min-h-44 flex-1 cursor-pointer flex-col rounded-xl border border-dashed bg-white p-4 text-sm text-[#475569] ${borderClass}`}
+        >
+          <span className="font-bold text-[#15345b]">새 자료 업로드</span>
+          <span className="mt-1 leading-6">
+            PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP · 파일당 최대 {getMaxUploadFileLabel()}
+          </span>
+          <input
+            className="mt-4 text-sm"
+            multiple
+            type="file"
+            accept={FILE_ACCEPT}
+            onChange={(event) => {
+              const picked = Array.from(event.target.files ?? []);
+              if (picked.length > 0) {
+                onNewFilesChange([...newFiles, ...picked]);
+              }
+              event.target.value = "";
+            }}
+          />
+          {totalCount > 0 ? (
+            <div className="mt-4 rounded-xl bg-[#f8fafc] p-3">
+              <p className="font-semibold text-[#15345b]">
+                선택 {totalCount}개 · {formatBytes(totalSize)}
+              </p>
+              <ul className="mt-2 space-y-1 text-xs">
+                {selectedRefs.map((file) => (
+                  <li key={`ref-${file.id}`} className="text-[#2463b3]">
+                    [저장됨] {file.originalName} ({formatBytes(file.sizeBytes)})
+                  </li>
+                ))}
+                {newFiles.map((file, index) => (
+                  <li key={`${file.name}-${file.size}-${index}`}>
+                    [신규] {file.name} ({formatBytes(file.size)})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </label>
+      ) : (
+        <div className="mt-4 rounded-xl border border-dashed border-[#d7dee8] bg-white p-4 text-sm text-[#64748b]">
+          이 평가 차수에서는 {isAi ? "AI" : "전문가"} 가중치가 0%이므로 자료를 첨부하지 않아도 됩니다.
+        </div>
+      )}
 
       <div className="mt-4 rounded-xl border border-[#d7dee8] bg-white p-4">{children}</div>
     </section>
