@@ -10,21 +10,16 @@ export function getBlobAccess(): BlobAccess {
   return "public";
 }
 
-/** 클라이언트 직접 업로드(handleUpload)는 정적 read-write 토큰이 필요합니다. */
 export function hasBlobClientUploadToken(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
 }
 
-export function isBlobStorageConfigured(): boolean {
-  return hasBlobClientUploadToken() || Boolean(process.env.BLOB_STORE_ID?.trim());
+export function hasBlobStoreId(): boolean {
+  return Boolean(process.env.BLOB_STORE_ID?.trim());
 }
 
-export function getBlobClientUploadSetupMessage(): string {
-  return [
-    "Vercel Blob 클라이언트 업로드 토큰이 없습니다.",
-    "Vercel 대시보드 → Storage → g-made-blob → Connect / Settings에서",
-    "BLOB_READ_WRITE_TOKEN을 Production·Preview에 연결한 뒤 Redeploy 해 주세요.",
-  ].join(" ");
+export function isBlobStorageConfigured(): boolean {
+  return hasBlobClientUploadToken() || hasBlobStoreId();
 }
 
 export function exceedsServerlessUploadLimit(totalBytes: number): boolean {

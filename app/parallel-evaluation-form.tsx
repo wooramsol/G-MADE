@@ -226,7 +226,7 @@ export default function ParallelEvaluationForm({
         submitError instanceof Error ? submitError.message : "하이브리드 평가 분석에 실패했습니다.";
       if (exceedsServerlessUploadLimit(newUploadBytes) && message.includes("Request Entity Too Large")) {
         setError(
-          `대용량 파일은 Blob 업로드가 필요합니다. Vercel Storage → g-made-blob에서 BLOB_READ_WRITE_TOKEN을 Production·Preview에 연결한 뒤 Redeploy 해 주세요. (서버 직접 업로드 한도: ${SERVERLESS_UPLOAD_LIMIT_LABEL})`,
+          `대용량 파일은 Blob 업로드가 필요합니다. Vercel Storage → g-made-blob이 g-made 프로젝트에 연결됐는지 확인한 뒤 Redeploy 해 주세요. (서버 직접 업로드 한도: ${SERVERLESS_UPLOAD_LIMIT_LABEL})`,
         );
       } else {
         setError(message);
