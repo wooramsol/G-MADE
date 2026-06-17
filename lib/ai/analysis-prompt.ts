@@ -65,13 +65,13 @@ ${guidelineBlock}
 ${files
   .map(
     (file, index) =>
-      `${index + 1}. ${file.originalName} (${file.fileType}, ${file.sizeBytes} bytes)\n텍스트 미리보기: ${file.extractedTextPreview || "텍스트 추출 불가 또는 이미지/도면 자료"}`,
+      `${index + 1}. ${file.originalName} (${file.fileType}, ${file.sizeBytes} bytes)\n추출된 본문: ${file.extractedTextPreview || "텍스트 추출 불가 또는 이미지/도면 자료"}`,
   )
   .join("\n\n")}
 
 반환 JSON 스키마:
 - documentSections는 건축개요, 배치도, 입면도, 조감도, 색채계획, 야간경관, 보행동선, 녹지계획, 공공공간, 주변현황 등 업로드 자료에서 실제로 확인한 항목만 작성하라.
-- PDF·DOCX·PPTX에서 추출된 텍스트 미리보기를 우선 활용하라.
+- PDF·DOCX·PPTX에서 추출된 본문을 우선 활용하라. 매우 긴 문서는 앞부분만 포함될 수 있다.
 {
   "summary": "전체 분석 요약 (법령·경관지구 맥락 반영)",
   "documentSections": [{ "label": "건축개요", "confidence": 0-100, "summary": "추출 요약" }],
