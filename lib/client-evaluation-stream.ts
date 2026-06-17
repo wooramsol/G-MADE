@@ -1,5 +1,6 @@
 import type { EvaluationRound, Project } from "@/lib/types";
 import { extractApiErrorMessage } from "@/lib/extract-api-error-message";
+import { getMaxUploadFileLabel } from "@/lib/upload-limits";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 import type { EvaluationAnalysisProgressEvent, EvaluationAnalysisStreamEvent } from "@/lib/evaluation-analysis-progress";
 
@@ -28,7 +29,7 @@ export async function submitEvaluationRoundStream(
     const payload = await response.json().catch(() => ({}));
     const fallback =
       response.status === 413
-        ? "업로드 용량이 서버 허용 한도를 초과했습니다. 파일을 25MB 이하로 나누어 업로드해 주세요."
+        ? `업로드 용량이 서버 허용 한도를 초과했습니다. 파일을 ${getMaxUploadFileLabel()} 이하로 나누어 업로드해 주세요.`
         : "하이브리드 평가 분석에 실패했습니다.";
     throw new Error(extractApiErrorMessage(payload, fallback));
   }

@@ -1,4 +1,8 @@
-export const MAX_UPLOAD_FILE_BYTES = 25 * 1024 * 1024;
+export const MAX_UPLOAD_FILE_BYTES = 100 * 1024 * 1024;
+
+export function getMaxUploadFileLabel(): string {
+  return "100MB";
+}
 
 export function formatUploadBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -18,5 +22,5 @@ export function buildOversizedUploadMessage(files: File[], label: string): strin
     .map((file) => `"${file.name}" (${formatUploadBytes(file.size)})`)
     .join(", ");
 
-  return `${label} 파일 용량이 25MB를 초과합니다: ${names}. PDF를 장별로 나누거나 압축한 뒤 다시 업로드해 주세요.`;
+  return `${label} 파일 용량이 ${getMaxUploadFileLabel()}를 초과합니다: ${names}. PDF를 장별로 나누거나 압축한 뒤 다시 업로드해 주세요.`;
 }

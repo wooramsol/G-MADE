@@ -10,7 +10,7 @@ import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/li
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import type { EvaluationAnalysisProgressEvent } from "@/lib/evaluation-analysis-progress";
 import { submitEvaluationRoundStream } from "@/lib/client-evaluation-stream";
-import { buildOversizedUploadMessage } from "@/lib/upload-limits";
+import { buildOversizedUploadMessage, getMaxUploadFileLabel } from "@/lib/upload-limits";
 import { ErrorText, FieldLabel, MutedText, StepTitle } from "@/components/typography";
 import EvaluationItemsEditor from "./evaluation-items-editor";
 import { showToast } from "./toast";
@@ -308,7 +308,7 @@ function MaterialColumn({
       >
         <span className="font-bold text-[#15345b]">자료 업로드</span>
         <span className="mt-1 leading-6">
-          PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP · 파일당 최대 25MB
+          PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP · 파일당 최대 {getMaxUploadFileLabel()}
         </span>
         <input
           className="mt-4 text-sm"

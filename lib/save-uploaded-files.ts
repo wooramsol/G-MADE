@@ -1,7 +1,7 @@
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { getWritableStoragePath } from "./runtime-storage";
-import { MAX_UPLOAD_FILE_BYTES } from "./upload-limits";
+import { MAX_UPLOAD_FILE_BYTES, getMaxUploadFileLabel } from "./upload-limits";
 import type { ProjectFile } from "./types";
 
 const allowedExtensions = new Set([
@@ -84,7 +84,7 @@ function validateUploadFile(file: File) {
   }
 
   if (file.size > maxFileSizeBytes) {
-    throw new Error(`파일 용량은 25MB 이하만 지원합니다: ${file.name}`);
+    throw new Error(`파일 용량은 ${getMaxUploadFileLabel()} 이하만 지원합니다: ${file.name}`);
   }
 }
 
