@@ -35,6 +35,17 @@ export function buildLawGoKrDetailUrl(mst: string): string | null {
   return `https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=${normalized}`;
 }
 
+export function buildAdmrulDetailUrl(admRulSeq: string): string | null {
+  const normalized = admRulSeq.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  return `https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=${normalized}`;
+}
+
+export function buildAdmrulReferenceUrl(_title: string, sourceUrl?: string): string | null {
+  if (sourceUrl && isVerifiedLawGoKrDetailUrl(sourceUrl)) return sourceUrl;
+  return null;
+}
+
 export function isVerifiedLawGoKrDetailUrl(url: string): boolean {
   return VERIFIED_DETAIL_URL_PATTERN.test(url.trim());
 }

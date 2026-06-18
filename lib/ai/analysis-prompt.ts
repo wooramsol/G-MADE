@@ -46,8 +46,15 @@ ${context.referenceLaws
 
   const guidelineBlock =
     context.guidelines.length > 0
-      ? `관련 지침 후보:
-${context.guidelines.map((guide) => `- ${guide.title} ${guide.section}: ${guide.summary}`).join("\n")}`
+      ? `실시간 행정규칙·지침 근거 (${context.guidelineSource}, ${context.fetchedAt}):
+${context.guidelines
+  .map(
+    (guide, index) =>
+      `${index + 1}. ${guide.title} ${guide.section}
+   요약: ${guide.summary}
+   출처: ${guide.sourceUrl ?? "내장 요약"}`,
+  )
+  .join("\n")}`
       : "";
 
   return `업로드된 심의 자료를 분석하고 경관·공공디자인 심의 관점에서 평가하라.
@@ -73,6 +80,7 @@ ${files
 - documentSections는 건축개요, 배치도, 입면도, 조감도, 색채계획, 야간경관, 보행동선, 녹지계획, 공공공간, 주변현황 등 업로드 자료에서 실제로 확인한 항목만 작성하라.
 - PDF·DOCX·PPTX에서 추출된 본문을 우선 활용하라. 매우 긴 문서는 앞부분만 포함될 수 있다.
 - evaluationPreview의 lawRefs에는 해당 항목 점수 산정에 실제로 참고한 법령·조문만 적어라. 위 법령 목록에 없는 조문은 인용하지 마라.
+- evaluationPreview의 guidelineRefs에는 해당 항목에 실제로 참고한 행정규칙·지침만 적어라. 위 지침 목록에 없는 항목은 인용하지 마라.
 {
   "summary": "전체 분석 요약 (법령·경관지구 맥락 반영)",
   "documentSections": [{ "label": "건축개요", "confidence": 0-100, "summary": "추출 요약" }],

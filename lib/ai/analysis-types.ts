@@ -17,6 +17,13 @@ export type UploadAnalysisReferenceLaw = {
   sourceUrl: string;
 };
 
+export type UploadAnalysisReferenceGuideline = {
+  title: string;
+  section: string;
+  summary: string;
+  sourceUrl: string;
+};
+
 export type UploadAnalysisResult = {
   provider: "demo" | "openai" | "gemini" | "claude";
   mode: "demo" | "live";
@@ -37,8 +44,10 @@ export type UploadAnalysisResult = {
     guidelines: string[];
   }>;
   referenceLaws: UploadAnalysisReferenceLaw[];
+  referenceGuidelines: UploadAnalysisReferenceGuideline[];
   spatialContext: EvaluationContext["spatial"];
   lawSource: EvaluationContext["lawSource"];
+  guidelineSource: EvaluationContext["guidelineSource"];
   contextFetchedAt: string;
   warnings: string[];
 };

@@ -50,3 +50,38 @@ export function buildLawQueries(project?: Project, evaluationItems?: EvaluationI
 
   return Array.from(queries);
 }
+
+const ITEM_ADMRUL_QUERIES: Record<string, string[]> = {
+  "guide-skyline": ["경관계획수립지침"],
+  "guide-facade": ["경관심의운영지침"],
+  "guide-document": ["경관심의운영지침"],
+  "guide-public-space": ["공공디자인 진흥"],
+};
+
+/** 평가 항목·프로젝트 맥락에 맞는 행정규칙 검색어만 생성합니다. */
+export function buildAdmrulQueries(project?: Project, evaluationItems?: EvaluationItem[]): string[] {
+  const queries = new Set<string>();
+
+  for (const item of evaluationItems ?? []) {
+    for (const guidelineId of item.guidelineIds ?? []) {
+      for (const query of ITEM_ADMRUL_QUERIES[guidelineId] ?? []) {
+        queries.add(query);
+      }
+    }
+  }
+
+  if (project?.reviewType.includes("경관")) {
+    queries.add("경관심의운영지침");
+    queries.add("경관계획수립지침");
+  }
+
+  if (project?.reviewType.includes("공공디자인")) {
+    queries.add("공공디자인 진흥");
+  }
+
+  if (queries.size === 0) {
+    queries.add("경관심의운영지침");
+  }
+
+  return Array.from(queries);
+}
