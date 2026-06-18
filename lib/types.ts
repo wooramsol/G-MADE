@@ -112,6 +112,12 @@ export type UploadAnalysisSession = {
       summary: string;
       sourceUrl: string;
     }>;
+    referenceGuidelines?: Array<{
+      title: string;
+      section: string;
+      summary: string;
+      sourceUrl: string;
+    }>;
     spatialContext?: {
       address: string;
       inLandscapeZone: boolean;

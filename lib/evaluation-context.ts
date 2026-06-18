@@ -1,11 +1,12 @@
 import { toStoredReferenceLaws } from "./dedupe-reference-laws";
-import { guidelines, laws as demoLaws } from "./demo-data";
-import { buildGuidelineReferenceUrl, buildLawReferenceUrl } from "./reference-links";
+import { guidelines as demoGuidelines, laws as demoLaws } from "./demo-data";
+import { buildAdmrulReferenceUrl, buildGuidelineReferenceUrl, buildLawReferenceUrl } from "./reference-links";
+import { fetchAdmrulReferences, type FetchedAdmrulReference } from "./law/admrul-articles";
 import { fetchLawReferences, type FetchedLawReference } from "./law/articles";
 import { isLawApiConfigured } from "./law/config";
-import { buildLawQueries } from "./law/query-plan";
-import { formatLawSearchFailure, LAW_OC_MISSING_WARNING } from "./law/warnings";
-import { searchLawsBatch } from "./law/search-batch";
+import { buildAdmrulQueries, buildLawQueries } from "./law/query-plan";
+import { formatAdmrulSearchFailure, formatLawSearchFailure, LAW_OC_MISSING_WARNING } from "./law/warnings";
+import { searchAdmrulsBatch, searchLawsBatch } from "./law/search-batch";
 import { getProjectById } from "./project-store";
 import type { EvaluationItem, Project, ProjectLocationPoint } from "./types";
 import { geocodeAddress } from "./vworld/geocode";
@@ -29,8 +30,10 @@ export type EvaluationContext = {
   project?: Pick<Project, "id" | "name" | "location" | "reviewType" | "projectType" | "locationPoint">;
   spatial: EvaluationSpatialContext | null;
   referenceLaws: FetchedLawReference[];
-  guidelines: Array<{ title: string; section: string; summary: string }>;
+  referenceGuidelines: FetchedAdmrulReference[];
+  guidelines: Array<{ title: string; section: string; summary: string; sourceUrl?: string }>;
   lawSource: "law.go.kr" | "demo-fallback";
+  guidelineSource: "law.go.kr" | "demo-fallback";
   fetchedAt: string;
   warnings: string[];
 };
@@ -43,10 +46,29 @@ export async function buildEvaluationContext(
   const warnings: string[] = [];
   const project = projectId ? await getProjectById(projectId) : undefined;
 
-  const [spatial, referenceLaws] = await Promise.all([
+  const [spatial, referenceLaws, referenceGuidelines] = await Promise.all([
     project ? loadSpatialContext(project, warnings) : Promise.resolve(null),
     loadReferenceLaws(project, warnings, evaluationItems),
+    loadReferenceGuidelines(project, warnings, evaluationItems),
   ]);
+
+  const guidelinesForPrompt =
+    referenceGuidelines.length > 0
+      ? referenceGuidelines.map((guide) => ({
+          title: guide.title,
+          section: guide.section,
+          summary: guide.summary,
+          sourceUrl: guide.sourceUrl,
+        }))
+      : demoGuidelines
+          .filter((guide) => buildGuidelineReferenceUrl(guide) !== null)
+          .slice(0, 6)
+          .map((guide) => ({
+            title: guide.title,
+            section: guide.section,
+            summary: guide.summary,
+            sourceUrl: buildGuidelineReferenceUrl(guide) ?? undefined,
+          }));
 
   return {
     project: project
@@ -61,15 +83,10 @@ export async function buildEvaluationContext(
       : undefined,
     spatial,
     referenceLaws,
-    guidelines: guidelines
-      .filter((guide) => buildGuidelineReferenceUrl(guide) !== null)
-      .slice(0, 6)
-      .map((guide) => ({
-        title: guide.title,
-        section: guide.section,
-        summary: guide.summary,
-      })),
+    referenceGuidelines,
+    guidelines: guidelinesForPrompt,
     lawSource: referenceLaws[0]?.source === "law.go.kr" ? "law.go.kr" : "demo-fallback",
+    guidelineSource: referenceGuidelines[0]?.source === "law.go.kr" ? "law.go.kr" : "demo-fallback",
     fetchedAt,
     warnings,
   };
@@ -149,6 +166,95 @@ async function loadReferenceLaws(
   }
 
   return toStoredReferenceLaws(references, 12);
+}
+
+async function loadReferenceGuidelines(
+  project: Project | undefined,
+  warnings: string[],
+  evaluationItems?: EvaluationItem[],
+): Promise<FetchedAdmrulReference[]> {
+  if (!isLawApiConfigured()) {
+    return demoGuidelinesToReferences();
+  }
+
+  const queries = buildAdmrulQueries(project, evaluationItems);
+  const { hits, failures } = await searchAdmrulsBatch(queries, 3);
+  for (const failure of failures) {
+    warnings.push(formatAdmrulSearchFailure(failure.query, failure.error));
+  }
+
+  const uniqueHits = dedupeAdmrulHits(hits);
+  if (uniqueHits.length === 0) {
+    warnings.push("행정규칙 API 검색 결과가 없어 내장 지침 요약을 사용했습니다.");
+    return demoGuidelinesToReferences();
+  }
+
+  const references = (await fetchAdmrulReferences(uniqueHits, 6)).filter(
+    (reference) => buildAdmrulReferenceUrl(reference.title, reference.sourceUrl) !== null,
+  );
+  if (references.length === 0) {
+    warnings.push("행정규칙 본문 조회에 실패해 검색 메타데이터·내장 지침 요약을 사용했습니다.");
+    return uniqueAdmrulHitsToReferences(uniqueHits);
+  }
+
+  return references;
+}
+
+function dedupeAdmrulHits<T extends { admRulSeq: string }>(hits: T[]): T[] {
+  const seen = new Set<string>();
+  return hits.filter((hit) => {
+    if (seen.has(hit.admRulSeq)) return false;
+    seen.add(hit.admRulSeq);
+    return true;
+  });
+}
+
+function demoGuidelinesToReferences(): FetchedAdmrulReference[] {
+  return demoGuidelines.flatMap((guide) => {
+    const sourceUrl = buildGuidelineReferenceUrl(guide);
+    if (!sourceUrl) return [];
+
+    return [
+      {
+        id: guide.id,
+        title: guide.title,
+        section: guide.section,
+        summary: guide.summary,
+        ministry: "",
+        enforcementDate: "",
+        sourceUrl,
+        source: "demo-fallback" as const,
+      },
+    ];
+  });
+}
+
+function uniqueAdmrulHitsToReferences(
+  hits: Array<{
+    admRulSeq: string;
+    title: string;
+    ministry: string;
+    enforcementDate: string;
+    sourceUrl: string;
+    ruleType: string;
+  }>,
+): FetchedAdmrulReference[] {
+  return hits.flatMap((hit) => {
+    if (!hit.sourceUrl) return [];
+
+    return [
+      {
+        id: `admrul-${hit.admRulSeq}`,
+        title: hit.title,
+        section: "본문",
+        summary: `${hit.ministry ? `${hit.ministry} 소관 ` : ""}${hit.ruleType || "행정규칙"} 검색 결과`,
+        ministry: hit.ministry,
+        enforcementDate: hit.enforcementDate,
+        sourceUrl: hit.sourceUrl,
+        source: "law.go.kr" as const,
+      },
+    ];
+  });
 }
 
 function dedupeLawHits<T extends { lawId: string }>(hits: T[]): T[] {

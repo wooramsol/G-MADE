@@ -21,7 +21,8 @@ import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
 import { pickRelatedReferenceLaws } from "@/lib/related-reference-laws";
-import { buildLawReferenceUrl } from "@/lib/reference-links";
+import { pickRelatedReferenceGuidelines } from "@/lib/related-reference-guidelines";
+import { buildAdmrulReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
 import { toAchievementPercent } from "@/lib/hybrid-evaluation";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
@@ -90,6 +91,11 @@ export default function ProjectEvaluationWorkspace({
       evaluationItems: selectedRound?.evaluationItems,
     }),
   ).filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null);
+  const referenceGuidelines = pickRelatedReferenceGuidelines({
+    pool: selectedRound?.aiAnalysis.referenceGuidelines ?? [],
+    evaluationPreview: selectedRound?.aiAnalysis.evaluationPreview,
+    evaluationItems: selectedRound?.evaluationItems,
+  }).filter((guide) => buildAdmrulReferenceUrl(guide.title, guide.sourceUrl) !== null);
   const analysisWarnings = dedupeWarnings(selectedRound?.aiAnalysis.warnings ?? []);
 
   useEffect(() => {
@@ -346,6 +352,23 @@ export default function ProjectEvaluationWorkspace({
                   <ReferenceLinkTitle
                     title={`${law.title} ${law.article}`}
                     href={buildLawReferenceUrl(law.title, law.sourceUrl)}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {referenceGuidelines.length > 0 ? (
+            <div className="rounded-xl border border-[#d7dee8] bg-white p-3 text-sm">
+              <p className="font-bold text-[#15345b]">이번 평가 관련 행정규칙·지침</p>
+              <p className="mt-1 text-xs text-[#64748b]">
+                평가 항목과 AI 분석에서 인용한 행정규칙·지침만 표시합니다.
+              </p>
+              {referenceGuidelines.map((guide) => (
+                <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${guide.title}-${guide.section}`}>
+                  <ReferenceLinkTitle
+                    title={`${guide.title} ${guide.section}`}
+                    href={buildAdmrulReferenceUrl(guide.title, guide.sourceUrl)}
                   />
                 </div>
               ))}

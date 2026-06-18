@@ -3,6 +3,7 @@ import { toStoredReferenceLaws } from "@/lib/dedupe-reference-laws";
 import type { EvaluationContext } from "@/lib/evaluation-context";
 import { gradeScore } from "@/lib/hybrid-evaluation";
 import { pickRelatedReferenceLaws } from "@/lib/related-reference-laws";
+import { pickRelatedReferenceGuidelines, toStoredReferenceGuidelines } from "@/lib/related-reference-guidelines";
 import type { EvaluationItem } from "@/lib/types";
 
 export function createSkippedUploadAnalysis(
@@ -41,8 +42,22 @@ export function createSkippedUploadAnalysis(
           sourceUrl: law.sourceUrl,
         })),
     ),
+    referenceGuidelines: toStoredReferenceGuidelines(
+      pickRelatedReferenceGuidelines({
+        pool: evaluationContext.referenceGuidelines,
+        evaluationItems,
+      })
+        .filter((guide) => guide.sourceUrl)
+        .map((guide) => ({
+          title: guide.title,
+          section: guide.section,
+          summary: guide.summary,
+          sourceUrl: guide.sourceUrl,
+        })),
+    ),
     spatialContext: evaluationContext.spatial,
     lawSource: evaluationContext.lawSource,
+    guidelineSource: evaluationContext.guidelineSource,
     contextFetchedAt: evaluationContext.fetchedAt,
     warnings: [...baseWarnings, `${label} 평가 가중치 0%로 자료 분석을 건너뛰었습니다.`],
   };

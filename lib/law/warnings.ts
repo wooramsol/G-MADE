@@ -7,6 +7,12 @@ export function formatLawSearchFailure(query: string, error: unknown): string {
   return `「${query.trim()}」 법령 조회 실패 — ${detail}`;
 }
 
+/** 행정규칙 검색 실패 시 조회 대상·원인을 구분해 표시합니다. */
+export function formatAdmrulSearchFailure(query: string, error: unknown): string {
+  const detail = describeLawSearchError(error);
+  return `「${query.trim()}」 행정규칙 조회 실패 — ${detail}`;
+}
+
 function describeLawSearchError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
 

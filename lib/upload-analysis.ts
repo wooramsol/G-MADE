@@ -10,6 +10,7 @@ import type { EvaluationContext } from "./evaluation-context";
 import { evaluationItems as defaultEvaluationItems } from "./demo-data";
 import { toStoredReferenceLaws } from "./dedupe-reference-laws";
 import { pickRelatedReferenceLaws } from "./related-reference-laws";
+import { pickRelatedReferenceGuidelines, toStoredReferenceGuidelines } from "./related-reference-guidelines";
 import { fetchWithTimeout } from "./fetch-with-timeout";
 import { gradeScore } from "./hybrid-evaluation";
 import type { EvaluationItem } from "./types";
@@ -356,6 +357,10 @@ function createDemoAnalysis(
     evaluationContext.lawSource === "law.go.kr"
       ? `국가법령정보 API에서 ${evaluationContext.referenceLaws.length}건의 법령 근거를 조회했습니다.`
       : "법령 API 미연동 상태에서 내장 요약을 사용했습니다.";
+  const guidelineNote =
+    evaluationContext.guidelineSource === "law.go.kr"
+      ? `행정규칙 API에서 ${evaluationContext.referenceGuidelines.length}건의 지침 근거를 조회했습니다.`
+      : "행정규칙 API 미연동 상태에서 내장 지침 요약을 사용했습니다.";
   const spatialNote = evaluationContext.spatial
     ? `경관지구 ${evaluationContext.spatial.inLandscapeZone ? "해당 가능" : "인근 조회 결과 없음"}`
     : "경관지구 정보 미조회";
@@ -364,7 +369,7 @@ function createDemoAnalysis(
     {
       provider,
       mode: "demo",
-      summary: `${fileNames}를 기준으로 건축개요, 배치, 입면, 색채, 야간경관, 보행동선, 녹지계획을 예비 분석했습니다. ${lawNote} ${spatialNote}.`,
+      summary: `${fileNames}를 기준으로 건축개요, 배치, 입면, 색채, 야간경관, 보행동선, 녹지계획을 예비 분석했습니다. ${lawNote} ${guidelineNote} ${spatialNote}.`,
       documentSections: defaultSections(),
       evaluationPreview: normalizeEvaluations([], evaluationContext, items),
       warnings,
@@ -375,7 +380,10 @@ function createDemoAnalysis(
 }
 
 function attachContextMetadata(
-  result: Omit<UploadAnalysisResult, "referenceLaws" | "spatialContext" | "lawSource" | "contextFetchedAt">,
+  result: Omit<
+    UploadAnalysisResult,
+    "referenceLaws" | "referenceGuidelines" | "spatialContext" | "lawSource" | "guidelineSource" | "contextFetchedAt"
+  >,
   evaluationContext: EvaluationContext,
   evaluationItems?: EvaluationItem[],
 ): UploadAnalysisResult {
@@ -384,12 +392,19 @@ function attachContextMetadata(
     evaluationPreview: result.evaluationPreview,
     evaluationItems,
   });
+  const relatedGuidelines = pickRelatedReferenceGuidelines({
+    pool: evaluationContext.referenceGuidelines,
+    evaluationPreview: result.evaluationPreview,
+    evaluationItems,
+  });
 
   return {
     ...result,
     referenceLaws: toStoredReferenceLaws(mapStoredReferenceLaws(relatedLaws)),
+    referenceGuidelines: toStoredReferenceGuidelines(mapStoredReferenceGuidelines(relatedGuidelines)),
     spatialContext: evaluationContext.spatial,
     lawSource: evaluationContext.lawSource,
+    guidelineSource: evaluationContext.guidelineSource,
     contextFetchedAt: evaluationContext.fetchedAt,
   };
 }
@@ -404,6 +419,19 @@ function mapStoredReferenceLaws(
       article: law.article,
       summary: law.summary,
       sourceUrl: law.sourceUrl,
+    }));
+}
+
+function mapStoredReferenceGuidelines(
+  guidelines: Array<{ title: string; section: string; summary: string; sourceUrl: string }>,
+) {
+  return guidelines
+    .filter((guide) => guide.sourceUrl)
+    .map((guide) => ({
+      title: guide.title,
+      section: guide.section,
+      summary: guide.summary,
+      sourceUrl: guide.sourceUrl,
     }));
 }
 
