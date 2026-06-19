@@ -343,9 +343,9 @@ export default function ProjectEvaluationWorkspace({
 
           {referenceLaws.length > 0 ? (
             <div className="rounded-xl border border-[#d7dee8] bg-white p-3 text-sm">
-              <p className="font-bold text-[#15345b]">이번 평가 관련 법령</p>
+              <p className="font-bold text-[#15345b]">이번 평가 관련 법령·조례</p>
               <p className="mt-1 text-xs text-[#64748b]">
-                평가 항목과 AI 분석에서 인용한 법령만 표시합니다.
+                국가법령·지자체 조례 중 평가 항목과 AI 분석에서 인용한 항목만 표시합니다.
               </p>
               {referenceLaws.map((law) => (
                 <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${law.title}-${law.article}`}>

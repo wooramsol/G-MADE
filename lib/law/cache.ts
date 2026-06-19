@@ -1,5 +1,7 @@
+import type { AdmbylSearchHit } from "./admbyl-search";
 import type { AdmrulSearchHit } from "./admrul-search";
 import type { LawSearchHit } from "./search";
+import type { OrdinSearchHit } from "./ordin-search";
 
 const SEARCH_CACHE_TTL_MS = 60 * 60 * 1000;
 
@@ -10,49 +12,85 @@ type CacheEntry<T> = {
 
 const lawSearchCache = new Map<string, CacheEntry<LawSearchHit[]>>();
 const admrulSearchCache = new Map<string, CacheEntry<AdmrulSearchHit[]>>();
+const ordinSearchCache = new Map<string, CacheEntry<OrdinSearchHit[]>>();
+const admbylSearchCache = new Map<string, CacheEntry<AdmbylSearchHit[]>>();
 
-function buildSearchCacheKey(query: string, display: number): string {
-  return `${query.trim().toLowerCase()}::${display}`;
+function buildSearchCacheKey(query: string, display: number, scope = ""): string {
+  return `${query.trim().toLowerCase()}::${display}::${scope}`;
 }
 
 export function getCachedLawSearch(query: string, display: number): LawSearchHit[] | null {
-  const key = buildSearchCacheKey(query, display);
-  const entry = lawSearchCache.get(key);
-  if (!entry) return null;
-
-  if (Date.now() > entry.expiresAt) {
-    lawSearchCache.delete(key);
-    return null;
-  }
-
-  return entry.value.map((hit) => ({ ...hit }));
+  return readCache(lawSearchCache, buildSearchCacheKey(query, display));
 }
 
 export function setCachedLawSearch(query: string, display: number, hits: LawSearchHit[]): void {
-  const key = buildSearchCacheKey(query, display);
-  lawSearchCache.set(key, {
-    value: hits.map((hit) => ({ ...hit })),
-    expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
-  });
+  writeCache(lawSearchCache, buildSearchCacheKey(query, display), hits);
 }
 
 export function getCachedAdmrulSearch(query: string, display: number): AdmrulSearchHit[] | null {
-  const key = buildSearchCacheKey(query, display);
-  const entry = admrulSearchCache.get(key);
-  if (!entry) return null;
-
-  if (Date.now() > entry.expiresAt) {
-    admrulSearchCache.delete(key);
-    return null;
-  }
-
-  return entry.value.map((hit) => ({ ...hit }));
+  return readCache(admrulSearchCache, buildSearchCacheKey(query, display));
 }
 
 export function setCachedAdmrulSearch(query: string, display: number, hits: AdmrulSearchHit[]): void {
-  const key = buildSearchCacheKey(query, display);
-  admrulSearchCache.set(key, {
-    value: hits.map((hit) => ({ ...hit })),
+  writeCache(admrulSearchCache, buildSearchCacheKey(query, display), hits);
+}
+
+export function getCachedOrdinSearch(
+  query: string,
+  display: number,
+  orgCode?: string | null,
+): OrdinSearchHit[] | null {
+  return readCache(ordinSearchCache, buildSearchCacheKey(query, display, orgCode ?? ""));
+}
+
+export function setCachedOrdinSearch(
+  query: string,
+  display: number,
+  hits: OrdinSearchHit[],
+  orgCode?: string | null,
+): void {
+  writeCache(ordinSearchCache, buildSearchCacheKey(query, display, orgCode ?? ""), hits);
+}
+
+export function getCachedAdmbylSearch(
+  query: string,
+  display: number,
+  kind?: string,
+): AdmbylSearchHit[] | null {
+  return readCache(admbylSearchCache, buildSearchCacheKey(query, display, kind ?? ""));
+}
+
+export function setCachedAdmbylSearch(
+  query: string,
+  display: number,
+  hits: AdmbylSearchHit[],
+  kind?: string,
+): void {
+  writeCache(admbylSearchCache, buildSearchCacheKey(query, display, kind ?? ""), hits);
+}
+
+function readCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+
+  return cloneEntry(entry.value);
+}
+
+function writeCache<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T): void {
+  cache.set(key, {
+    value: cloneEntry(value),
     expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
   });
+}
+
+function cloneEntry<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => ({ ...item })) as T;
+  }
+  return value;
 }

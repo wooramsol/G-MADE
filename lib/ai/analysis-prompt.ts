@@ -33,7 +33,7 @@ export function buildAnalysisPrompt(
 
   const lawBlock =
     context.referenceLaws.length > 0
-      ? `실시간 법령 근거 (${context.lawSource}, ${context.fetchedAt}):
+      ? `실시간 법령·자치법규 근거 (${context.lawSource}, ${context.fetchedAt}):
 ${context.referenceLaws
   .map(
     (law, index) =>
@@ -42,7 +42,7 @@ ${context.referenceLaws
    출처: ${law.sourceUrl}`,
   )
   .join("\n")}`
-      : "실시간 법령 근거: 없음";
+      : "실시간 법령·자치법규 근거: 없음";
 
   const guidelineBlock =
     context.guidelines.length > 0

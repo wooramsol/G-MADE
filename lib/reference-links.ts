@@ -27,7 +27,7 @@ const GUIDELINE_DOCUMENT_URLS: Record<string, string> = {
 };
 
 const VERIFIED_DETAIL_URL_PATTERN =
-  /^https:\/\/(?:www\.)?law\.go\.kr\/LSW\/(?:lsInfoP|lsEfInfoP|ordinInfoP|admRulInfoP)\.do\?(?:.*&)?(?:lsiSeq|lsId|ordinSeq|admRulSeq)=\d+/i;
+  /^https:\/\/(?:www\.)?law\.go\.kr\/LSW\/(?:lsInfoP|lsEfInfoP|ordinInfoP|admRulInfoP|admBylInfoP)\.do\?(?:.*&)?(?:lsiSeq|lsId|ordinSeq|admRulSeq|bylSeq)=\d+/i;
 
 export function buildLawGoKrDetailUrl(mst: string): string | null {
   const normalized = mst.trim();
@@ -41,7 +41,32 @@ export function buildAdmrulDetailUrl(admRulSeq: string): string | null {
   return `https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=${normalized}`;
 }
 
+export function buildOrdinDetailUrl(ordinSeq: string): string | null {
+  const normalized = ordinSeq.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  return `https://www.law.go.kr/LSW/ordinInfoP.do?ordinSeq=${normalized}`;
+}
+
+export function buildAdmbylDetailUrl(admRulSeq: string, bylSeq?: string): string | null {
+  const normalizedRule = admRulSeq.trim();
+  if (!/^\d+$/.test(normalizedRule)) return null;
+  if (bylSeq && /^\d+$/.test(bylSeq.trim())) {
+    return `https://www.law.go.kr/LSW/admBylInfoP.do?admRulSeq=${normalizedRule}&bylSeq=${bylSeq.trim()}`;
+  }
+  return `https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=${normalizedRule}`;
+}
+
 export function buildAdmrulReferenceUrl(_title: string, sourceUrl?: string): string | null {
+  if (sourceUrl && isVerifiedLawGoKrDetailUrl(sourceUrl)) return sourceUrl;
+  return null;
+}
+
+export function buildOrdinReferenceUrl(_title: string, sourceUrl?: string): string | null {
+  if (sourceUrl && isVerifiedLawGoKrDetailUrl(sourceUrl)) return sourceUrl;
+  return resolveLawDocumentUrl(_title);
+}
+
+export function buildAdmbylReferenceUrl(_title: string, sourceUrl?: string): string | null {
   if (sourceUrl && isVerifiedLawGoKrDetailUrl(sourceUrl)) return sourceUrl;
   return null;
 }
@@ -77,7 +102,9 @@ export function hasGuidelineReferenceUrl(guide: Pick<Guideline, "id">): boolean 
 
 export function buildLawReferenceUrl(title: string, sourceUrl?: string): string | null {
   if (sourceUrl && isVerifiedLawGoKrDetailUrl(sourceUrl)) return sourceUrl;
-  return resolveLawDocumentUrl(title);
+  const resolved = resolveLawDocumentUrl(title);
+  if (resolved) return resolved;
+  return buildOrdinReferenceUrl(title, sourceUrl);
 }
 
 export function buildGuidelineReferenceUrl(guide: Pick<Guideline, "id" | "title">): string | null {

@@ -1,12 +1,20 @@
 import { toStoredReferenceLaws } from "./dedupe-reference-laws";
 import { guidelines as demoGuidelines, laws as demoLaws } from "./demo-data";
-import { buildAdmrulReferenceUrl, buildGuidelineReferenceUrl, buildLawReferenceUrl } from "./reference-links";
+import { buildAdmbylReferenceUrl, buildAdmrulReferenceUrl, buildGuidelineReferenceUrl, buildLawReferenceUrl, buildOrdinReferenceUrl } from "./reference-links";
+import { fetchAdmbylReferences } from "./law/admbyl-articles";
 import { fetchAdmrulReferences, type FetchedAdmrulReference } from "./law/admrul-articles";
 import { fetchLawReferences, type FetchedLawReference } from "./law/articles";
+import { fetchOrdinReferences } from "./law/ordin-articles";
 import { isLawApiConfigured } from "./law/config";
-import { buildAdmrulQueries, buildLawQueries } from "./law/query-plan";
-import { formatAdmrulSearchFailure, formatLawSearchFailure, LAW_OC_MISSING_WARNING } from "./law/warnings";
-import { searchAdmrulsBatch, searchLawsBatch } from "./law/search-batch";
+import { buildAdmbylQueries, buildAdmrulQueries, buildLawQueries, buildOrdinSearchPlans } from "./law/query-plan";
+import {
+  formatAdmbylSearchFailure,
+  formatAdmrulSearchFailure,
+  formatLawSearchFailure,
+  formatOrdinSearchFailure,
+  LAW_OC_MISSING_WARNING,
+} from "./law/warnings";
+import { searchAdmbylsBatch, searchAdmrulsBatch, searchLawsBatch, searchOrdinsBatch } from "./law/search-batch";
 import { getProjectById } from "./project-store";
 import type { EvaluationItem, Project, ProjectLocationPoint } from "./types";
 import { geocodeAddress } from "./vworld/geocode";
@@ -145,6 +153,25 @@ async function loadReferenceLaws(
     return toStoredReferenceLaws(demoLawsToReferences());
   }
 
+  const [nationalReferences, ordinanceReferences] = await Promise.all([
+    loadNationalLawReferences(project, warnings, evaluationItems),
+    loadOrdinanceReferences(project, warnings, evaluationItems),
+  ]);
+
+  const merged = [...nationalReferences, ...ordinanceReferences];
+  if (merged.length === 0) {
+    warnings.push("국가법령·자치법규 API 검색 결과가 없어 내장 법령 요약을 사용했습니다.");
+    return toStoredReferenceLaws(demoLawsToReferences());
+  }
+
+  return toStoredReferenceLaws(merged, 15);
+}
+
+async function loadNationalLawReferences(
+  project: Project | undefined,
+  warnings: string[],
+  evaluationItems?: EvaluationItem[],
+): Promise<FetchedLawReference[]> {
   const queries = buildLawQueries(project, evaluationItems);
   const { hits, failures } = await searchLawsBatch(queries, 4);
   for (const failure of failures) {
@@ -152,20 +179,47 @@ async function loadReferenceLaws(
   }
 
   const uniqueHits = dedupeLawHits(hits);
-  if (uniqueHits.length === 0) {
-    warnings.push("국가법령정보 API 검색 결과가 없어 내장 법령 요약을 사용했습니다.");
-    return toStoredReferenceLaws(demoLawsToReferences());
-  }
+  if (uniqueHits.length === 0) return [];
 
-  const references = (await fetchLawReferences(uniqueHits, 10)).filter(
+  const references = (await fetchLawReferences(uniqueHits, 8)).filter(
     (reference) => buildLawReferenceUrl(reference.title, reference.sourceUrl) !== null,
   );
   if (references.length === 0) {
-    warnings.push("법령 본문 조회에 실패해 검색 메타데이터·내장 요약을 사용했습니다.");
-    return toStoredReferenceLaws(uniqueHitsToReferences(uniqueHits));
+    warnings.push("국가법령 본문 조회에 실패해 검색 메타데이터를 사용했습니다.");
+    return uniqueHitsToReferences(uniqueHits);
   }
 
-  return toStoredReferenceLaws(references, 12);
+  return references;
+}
+
+async function loadOrdinanceReferences(
+  project: Project | undefined,
+  warnings: string[],
+  evaluationItems?: EvaluationItem[],
+): Promise<FetchedLawReference[]> {
+  const plans = buildOrdinSearchPlans(project, evaluationItems);
+  const { hits, failures } = await searchOrdinsBatch(plans, 4);
+  for (const failure of failures) {
+    warnings.push(formatOrdinSearchFailure(failure.query, failure.error));
+  }
+
+  const uniqueHits = dedupeOrdinHits(hits);
+  if (uniqueHits.length === 0) {
+    if (project?.location) {
+      warnings.push(`사업 위치(${project.location})에 해당하는 경관 조례 검색 결과가 없습니다.`);
+    }
+    return [];
+  }
+
+  const references = (await fetchOrdinReferences(uniqueHits, 6)).filter(
+    (reference) => buildOrdinReferenceUrl(reference.title, reference.sourceUrl) !== null,
+  );
+  if (references.length === 0) {
+    warnings.push("자치법규 본문 조회에 실패해 검색 메타데이터를 사용했습니다.");
+    return uniqueOrdinHitsToReferences(uniqueHits);
+  }
+
+  return references;
 }
 
 async function loadReferenceGuidelines(
@@ -177,6 +231,25 @@ async function loadReferenceGuidelines(
     return demoGuidelinesToReferences();
   }
 
+  const [admrulReferences, admbylReferences] = await Promise.all([
+    loadAdmrulGuidelineReferences(project, warnings, evaluationItems),
+    loadAdmbylGuidelineReferences(project, warnings, evaluationItems),
+  ]);
+
+  const merged = [...admrulReferences, ...admbylReferences];
+  if (merged.length === 0) {
+    warnings.push("행정규칙·별표 API 검색 결과가 없어 내장 지침 요약을 사용했습니다.");
+    return demoGuidelinesToReferences();
+  }
+
+  return merged;
+}
+
+async function loadAdmrulGuidelineReferences(
+  project: Project | undefined,
+  warnings: string[],
+  evaluationItems?: EvaluationItem[],
+): Promise<FetchedAdmrulReference[]> {
   const queries = buildAdmrulQueries(project, evaluationItems);
   const { hits, failures } = await searchAdmrulsBatch(queries, 3);
   for (const failure of failures) {
@@ -184,20 +257,116 @@ async function loadReferenceGuidelines(
   }
 
   const uniqueHits = dedupeAdmrulHits(hits);
-  if (uniqueHits.length === 0) {
-    warnings.push("행정규칙 API 검색 결과가 없어 내장 지침 요약을 사용했습니다.");
-    return demoGuidelinesToReferences();
-  }
+  if (uniqueHits.length === 0) return [];
 
-  const references = (await fetchAdmrulReferences(uniqueHits, 6)).filter(
+  const references = (await fetchAdmrulReferences(uniqueHits, 5)).filter(
     (reference) => buildAdmrulReferenceUrl(reference.title, reference.sourceUrl) !== null,
   );
   if (references.length === 0) {
-    warnings.push("행정규칙 본문 조회에 실패해 검색 메타데이터·내장 지침 요약을 사용했습니다.");
+    warnings.push("행정규칙 본문 조회에 실패해 검색 메타데이터를 사용했습니다.");
     return uniqueAdmrulHitsToReferences(uniqueHits);
   }
 
   return references;
+}
+
+async function loadAdmbylGuidelineReferences(
+  project: Project | undefined,
+  warnings: string[],
+  evaluationItems?: EvaluationItem[],
+): Promise<FetchedAdmrulReference[]> {
+  const queries = buildAdmbylQueries(project, evaluationItems);
+  const { hits, failures } = await searchAdmbylsBatch(queries, 3, { kind: "2" });
+  for (const failure of failures) {
+    warnings.push(formatAdmbylSearchFailure(failure.query, failure.error));
+  }
+
+  const uniqueHits = dedupeAdmbylHits(hits);
+  if (uniqueHits.length === 0) return [];
+
+  const references = (await fetchAdmbylReferences(uniqueHits, 4)).filter(
+    (reference) => buildAdmbylReferenceUrl(reference.title, reference.sourceUrl) !== null,
+  );
+  if (references.length === 0) {
+    warnings.push("별표·서식 본문 조회에 실패해 검색 메타데이터를 사용했습니다.");
+    return uniqueAdmbylHitsToReferences(uniqueHits);
+  }
+
+  return references;
+}
+
+function dedupeOrdinHits<T extends { ordinSeq: string }>(hits: T[]): T[] {
+  const seen = new Set<string>();
+  return hits.filter((hit) => {
+    if (seen.has(hit.ordinSeq)) return false;
+    seen.add(hit.ordinSeq);
+    return true;
+  });
+}
+
+function dedupeAdmbylHits<T extends { bylSeq: string }>(hits: T[]): T[] {
+  const seen = new Set<string>();
+  return hits.filter((hit) => {
+    if (seen.has(hit.bylSeq)) return false;
+    seen.add(hit.bylSeq);
+    return true;
+  });
+}
+
+function uniqueOrdinHitsToReferences(
+  hits: Array<{
+    ordinSeq: string;
+    title: string;
+    jurisdiction: string;
+    enforcementDate: string;
+    sourceUrl: string;
+  }>,
+): FetchedLawReference[] {
+  return hits.flatMap((hit) => {
+    if (!hit.sourceUrl) return [];
+
+    return [
+      {
+        id: `ordin-${hit.ordinSeq}`,
+        title: hit.title,
+        article: hit.enforcementDate ? `시행 ${hit.enforcementDate}` : "현행",
+        summary: `${hit.jurisdiction ? `${hit.jurisdiction} ` : ""}자치법규 검색 결과`,
+        ministry: hit.jurisdiction,
+        enforcementDate: hit.enforcementDate,
+        sourceUrl: hit.sourceUrl,
+        source: "law.go.kr" as const,
+      },
+    ];
+  });
+}
+
+function uniqueAdmbylHitsToReferences(
+  hits: Array<{
+    bylSeq: string;
+    title: string;
+    relatedRuleTitle: string;
+    ministry: string;
+    annexNumber: string;
+    annexKind: string;
+    sourceUrl: string;
+  }>,
+): FetchedAdmrulReference[] {
+  return hits.flatMap((hit) => {
+    if (!hit.sourceUrl) return [];
+
+    return [
+      {
+        id: `admbyl-${hit.bylSeq}`,
+        title: hit.relatedRuleTitle ? `${hit.relatedRuleTitle} ${hit.title}` : hit.title,
+        section: hit.annexNumber ? `별표 ${hit.annexNumber}` : hit.annexKind || "별표·서식",
+        summary: `${hit.ministry ? `${hit.ministry} 소관 ` : ""}행정규칙 별표·서식 검색 결과`,
+        ministry: hit.ministry,
+        enforcementDate: "",
+        sourceUrl: hit.sourceUrl,
+        source: "law.go.kr" as const,
+      },
+    ];
+  });
 }
 
 function dedupeAdmrulHits<T extends { admRulSeq: string }>(hits: T[]): T[] {

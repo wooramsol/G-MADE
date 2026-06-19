@@ -101,7 +101,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       configured: lawConfigured,
       envKeys: ["LAW_OC", "LAW_API_KEY"],
       detail: lawConfigured
-        ? `OC 확인: ${readServerEnvHint("LAW_OC", 6) ?? readServerEnvHint("LAW_API_KEY", 6) ?? "설정됨"} · Referer ${getLawReferer()} · 법령·행정규칙`
+        ? `OC 확인: ${readServerEnvHint("LAW_OC", 6) ?? readServerEnvHint("LAW_API_KEY", 6) ?? "설정됨"} · Referer ${getLawReferer()} · 법령·자치법규·행정규칙·별표`
         : undefined,
       fallback: "미설정 시 내장 법령·지침 요약 사용",
       ...rowStatus(lawConfigured, "내장 법령 요약"),
@@ -151,7 +151,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       {
         id: "law",
         title: "법령 API 연동 상태",
-        description: "실시간 법령·행정규칙 검색·본문 조회에 사용합니다.",
+        description: "실시간 법령·자치법규·행정규칙·별표 조회에 사용합니다.",
         rows: lawRows,
       },
       {
