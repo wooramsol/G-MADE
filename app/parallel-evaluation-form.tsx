@@ -141,11 +141,6 @@ export default function ParallelEvaluationForm({
       return;
     }
 
-    if (needsExpertMaterials && !reviewerName.trim()) {
-      setError("평가자 이름을 입력해 주세요.");
-      return;
-    }
-
     const oversizedMessage =
       (needsAiMaterials ? buildOversizedUploadMessage(newAiFiles, "AI 평가") : null) ||
       (needsExpertMaterials ? buildOversizedUploadMessage(newExpertFiles, "전문가 평가") : null);
@@ -325,13 +320,11 @@ export default function ParallelEvaluationForm({
           onSelectedRefsChange={setSelectedExpertRefs}
         >
           <label className="block text-sm">
-            <FieldLabel className="mb-2 block">
-              평가자 / 심사위원{needsExpertMaterials ? "" : " (선택)"}
-            </FieldLabel>
+            <FieldLabel className="mb-2 block">평가자 / 심사위원 (선택)</FieldLabel>
             <input
               className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#15345b] focus:bg-white disabled:opacity-60"
               disabled={!needsExpertMaterials}
-              placeholder={needsExpertMaterials ? "예: 홍길동 위원" : "전문가 가중치 0% — 입력 생략 가능"}
+              placeholder={needsExpertMaterials ? "예: 홍길동 위원 (미입력 시 미지정)" : "전문가 가중치 0% — 입력 생략 가능"}
               value={reviewerName}
               onChange={(event) => setReviewerName(event.target.value)}
             />

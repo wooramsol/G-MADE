@@ -126,10 +126,6 @@ export async function runEvaluationRound(
       throw new Error("전문가 평가 자료를 선택해 주세요.");
     }
 
-    if (needsExpertMaterials && !reviewerName) {
-      throw new Error("평가자 이름을 입력해 주세요.");
-    }
-
     const resolvedReviewerName = reviewerName || "미지정";
 
     emitStep(emit, "upload");
