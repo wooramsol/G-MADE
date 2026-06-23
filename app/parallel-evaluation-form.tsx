@@ -354,11 +354,11 @@ function EvaluationMaterialsSection({
 
   return (
     <section
-      className={`rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4 ${interactiveCardClassName}`}
+      className={`rounded-xl border border-[#d7dee8] bg-white p-4 ${interactiveCardClassName}`}
     >
-      <div className="rounded-xl bg-[#eef4fb] px-4 py-3 text-[#2463b3]">
+      <div>
         <StepTitle>{title}</StepTitle>
-        <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
+        <MutedText className="mt-1">{description}</MutedText>
       </div>
 
       {filesRequired && storedFiles.length > 0 ? (
