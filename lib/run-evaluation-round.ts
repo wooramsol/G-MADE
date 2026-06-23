@@ -6,6 +6,7 @@ import {
 } from "@/lib/evaluation-analysis-progress";
 import {
   requiresAiUploadMaterials,
+  requiresEvaluationUploadMaterials,
   requiresExpertUploadMaterials,
   validateEvaluationWeights,
 } from "@/lib/evaluation-weight-requirements";
@@ -36,10 +37,8 @@ export type RunEvaluationRoundInput = {
   expertWeight: number;
   evaluationItems: EvaluationItem[];
   manualExpertScores: HumanEvaluationItemScore[];
-  aiFileRefs: StoredFileRef[];
-  expertFileRefs: StoredFileRef[];
-  aiFiles: File[];
-  expertFiles: File[];
+  fileRefs: StoredFileRef[];
+  files: File[];
   projectSnapshot: Project | null;
 };
 
@@ -82,10 +81,8 @@ export async function runEvaluationRound(
       expertWeight,
       evaluationItems,
       manualExpertScores,
-      aiFileRefs,
-      expertFileRefs,
-      aiFiles,
-      expertFiles,
+      fileRefs,
+      files,
       projectSnapshot,
     } = input;
 
@@ -115,88 +112,67 @@ export async function runEvaluationRound(
 
     const needsAiMaterials = requiresAiUploadMaterials(normalizedAiWeight);
     const needsExpertMaterials = requiresExpertUploadMaterials(normalizedExpertWeight);
-    const hasAiMaterials = aiFileRefs.length > 0 || aiFiles.length > 0;
-    const hasExpertMaterials = expertFileRefs.length > 0 || expertFiles.length > 0;
+    const needsMaterials = requiresEvaluationUploadMaterials(normalizedAiWeight, normalizedExpertWeight);
+    const hasMaterials = fileRefs.length > 0 || files.length > 0;
 
-    if (needsAiMaterials && !hasAiMaterials) {
-      throw new Error("AI 평가 자료를 선택해 주세요.");
-    }
-
-    if (needsExpertMaterials && !hasExpertMaterials) {
-      throw new Error("전문가 평가 자료를 선택해 주세요.");
+    if (needsMaterials && !hasMaterials) {
+      throw new Error("평가 자료를 선택해 주세요.");
     }
 
     const resolvedReviewerName = reviewerName || "미지정";
 
     emitStep(emit, "upload");
 
-    const uploadedAiFiles =
-      needsAiMaterials && aiFiles.length > 0 ? await saveUploadedFiles(projectId, aiFiles) : [];
-    const uploadedExpertFiles =
-      needsExpertMaterials && expertFiles.length > 0
-        ? await saveUploadedFiles(projectId, expertFiles)
-        : [];
-    newlySavedFiles = [...uploadedAiFiles, ...uploadedExpertFiles];
+    const uploadedFiles = files.length > 0 ? await saveUploadedFiles(projectId, files) : [];
+    newlySavedFiles = uploadedFiles;
 
-    const savedAiFiles = needsAiMaterials
-      ? [...storedRefsToSavedFiles(aiFileRefs), ...uploadedAiFiles]
-      : [];
-    const savedExpertFiles = needsExpertMaterials
-      ? [...storedRefsToSavedFiles(expertFileRefs), ...uploadedExpertFiles]
-      : [];
+    const savedFiles =
+      needsMaterials ? [...storedRefsToSavedFiles(fileRefs), ...uploadedFiles] : [];
+    const savedAiFiles = needsAiMaterials ? savedFiles : [];
+    const savedExpertFiles = needsExpertMaterials ? savedFiles : [];
 
     const evaluatedAt = new Date().toISOString();
+    const persistedFileIds = new Set<string>();
     const persistedFiles = [
-      ...(needsAiMaterials ? storedRefsToProjectFiles(aiFileRefs, evaluatedAt) : []),
-      ...(needsExpertMaterials ? storedRefsToProjectFiles(expertFileRefs, evaluatedAt) : []),
-      ...toProjectFiles(newlySavedFiles, evaluatedAt),
-    ];
+      ...(needsMaterials ? storedRefsToProjectFiles(fileRefs, evaluatedAt) : []),
+      ...toProjectFiles(uploadedFiles, evaluatedAt),
+    ].filter((file) => {
+      if (persistedFileIds.has(file.id)) return false;
+      persistedFileIds.add(file.id);
+      return true;
+    });
 
     const { extractDocumentText } = await import("@/lib/document-extract");
 
     emitStep(emit, "extract");
-    const aiFilesForAnalysis = needsAiMaterials
-      ? await Promise.all(
-          savedAiFiles.map(async (file) => ({
-            ...file,
-            storagePath: file.storagePath ?? file.storageKey,
-            extractedTextPreview: await extractDocumentText(
-              await readSavedUploadFile(file),
-              file.originalName,
-            ),
-          })),
-        )
-      : [];
+    const filesForAnalysis =
+      needsMaterials
+        ? await Promise.all(
+            savedFiles.map(async (file) => ({
+              ...file,
+              storagePath: file.storagePath ?? file.storageKey,
+              extractedTextPreview: await extractDocumentText(
+                await readSavedUploadFile(file),
+                file.originalName,
+              ),
+            })),
+          )
+        : [];
 
-    const expertFilesForAnalysis = needsExpertMaterials
-      ? await Promise.all(
-          savedExpertFiles.map(async (file) => ({
-            ...file,
-            storagePath: file.storagePath ?? file.storageKey,
-            extractedTextPreview: await extractDocumentText(
-              await readSavedUploadFile(file),
-              file.originalName,
-            ),
-          })),
-        )
-      : [];
-
-    const aiTextBudget = applyFilesTextBudget(aiFilesForAnalysis);
-    const expertTextBudget = applyFilesTextBudget(expertFilesForAnalysis);
+    const textBudget = applyFilesTextBudget(filesForAnalysis);
 
     emitStep(emit, "law-context");
     const evaluationContext = await buildEvaluationContext(projectId, evaluationItems);
     evaluationContext.warnings = [
       ...evaluationContext.warnings,
-      ...aiTextBudget.warnings,
-      ...expertTextBudget.warnings,
+      ...textBudget.warnings,
     ];
 
     emitStep(emit, "ai-analysis");
     const aiAnalysisPromise = needsAiMaterials
       ? analyzeUploadedFiles({
           providerPreference,
-          files: aiTextBudget.files,
+          files: textBudget.files,
           evaluationContext,
           evaluationItems,
         })
@@ -208,7 +184,7 @@ export async function runEvaluationRound(
     const expertAnalysisPromise = needsExpertMaterials
       ? analyzeUploadedFiles({
           providerPreference,
-          files: expertTextBudget.files,
+          files: textBudget.files,
           evaluationContext,
           evaluationItems,
         })

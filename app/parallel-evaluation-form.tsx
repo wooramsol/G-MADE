@@ -11,9 +11,11 @@ import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import {
   getExpertWeight,
   requiresAiUploadMaterials,
+  requiresEvaluationUploadMaterials,
   requiresExpertUploadMaterials,
   validateEvaluationWeights,
 } from "@/lib/evaluation-weight-requirements";
+import { collectUniqueRoundFiles } from "@/lib/evaluation-round-files";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import { storedRefToProjectFile } from "@/lib/stored-file-ref";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
@@ -51,10 +53,8 @@ export default function ParallelEvaluationForm({
       : createDefaultEvaluationItems(),
   );
   const [itemsDirty, setItemsDirty] = useState(false);
-  const [newAiFiles, setNewAiFiles] = useState<File[]>([]);
-  const [newExpertFiles, setNewExpertFiles] = useState<File[]>([]);
-  const [selectedAiRefs, setSelectedAiRefs] = useState<StoredFileRef[]>([]);
-  const [selectedExpertRefs, setSelectedExpertRefs] = useState<StoredFileRef[]>([]);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [selectedRefs, setSelectedRefs] = useState<StoredFileRef[]>([]);
   const [reviewerName, setReviewerName] = useState("");
   const [aiWeight, setAiWeight] = useState(30);
   const [provider, setProvider] = useState<AiProviderPreference | null>(null);
@@ -67,6 +67,8 @@ export default function ParallelEvaluationForm({
   const expertWeight = getExpertWeight(aiWeight);
   const needsAiMaterials = requiresAiUploadMaterials(aiWeight);
   const needsExpertMaterials = requiresExpertUploadMaterials(expertWeight);
+
+  const needsMaterials = requiresEvaluationUploadMaterials(aiWeight, expertWeight);
 
   const storedFiles = useMemo(() => collectProjectStoredFiles(project), [project]);
 
@@ -104,17 +106,11 @@ export default function ParallelEvaluationForm({
     setEvaluationItems(nextItems);
   }, [itemsDirty, project.id, project.savedEvaluationItems]);
 
-  const aiTotalSize = useMemo(
+  const totalSize = useMemo(
     () =>
-      newAiFiles.reduce((sum, file) => sum + file.size, 0) +
-      selectedAiRefs.reduce((sum, file) => sum + file.sizeBytes, 0),
-    [newAiFiles, selectedAiRefs],
-  );
-  const expertTotalSize = useMemo(
-    () =>
-      newExpertFiles.reduce((sum, file) => sum + file.size, 0) +
-      selectedExpertRefs.reduce((sum, file) => sum + file.sizeBytes, 0),
-    [newExpertFiles, selectedExpertRefs],
+      newFiles.reduce((sum, file) => sum + file.size, 0) +
+      selectedRefs.reduce((sum, file) => sum + file.sizeBytes, 0),
+    [newFiles, selectedRefs],
   );
 
   async function submitEvaluation() {
@@ -131,19 +127,12 @@ export default function ParallelEvaluationForm({
       return;
     }
 
-    if (needsAiMaterials && newAiFiles.length === 0 && selectedAiRefs.length === 0) {
-      setError("AI 평가 자료를 선택해 주세요.");
+    if (needsMaterials && newFiles.length === 0 && selectedRefs.length === 0) {
+      setError("평가 자료를 선택해 주세요.");
       return;
     }
 
-    if (needsExpertMaterials && newExpertFiles.length === 0 && selectedExpertRefs.length === 0) {
-      setError("전문가 평가 자료를 선택해 주세요.");
-      return;
-    }
-
-    const oversizedMessage =
-      (needsAiMaterials ? buildOversizedUploadMessage(newAiFiles, "AI 평가") : null) ||
-      (needsExpertMaterials ? buildOversizedUploadMessage(newExpertFiles, "전문가 평가") : null);
+    const oversizedMessage = needsMaterials ? buildOversizedUploadMessage(newFiles, "평가") : null;
     if (oversizedMessage) {
       setError(oversizedMessage);
       return;
@@ -164,37 +153,21 @@ export default function ParallelEvaluationForm({
     formData.append("reviewerName", reviewerName.trim());
     formData.append("evaluationItems", JSON.stringify(evaluationItems));
 
-    let uploadedAiRefs: StoredFileRef[] = [];
-    let uploadedExpertRefs: StoredFileRef[] = [];
-    const newUploadBytes =
-      newAiFiles.reduce((sum, file) => sum + file.size, 0) +
-      newExpertFiles.reduce((sum, file) => sum + file.size, 0);
+    let uploadedRefs: StoredFileRef[] = [];
+    const newUploadBytes = newFiles.reduce((sum, file) => sum + file.size, 0);
 
     try {
-      if (newAiFiles.length > 0 || newExpertFiles.length > 0) {
+      if (newFiles.length > 0) {
         setUploadProgress("자료를 Blob에 업로드하는 중...");
-        uploadedAiRefs =
-          newAiFiles.length > 0
-            ? await uploadProjectFilesToBlob(project, newAiFiles, (fileIndex, ratio) => {
-                setUploadProgress(
-                  `AI 자료 업로드 중 (${fileIndex + 1}/${newAiFiles.length}) · ${Math.round(ratio * 100)}%`,
-                );
-              })
-            : [];
-        uploadedExpertRefs =
-          newExpertFiles.length > 0
-            ? await uploadProjectFilesToBlob(project, newExpertFiles, (fileIndex, ratio) => {
-                setUploadProgress(
-                  `전문가 자료 업로드 중 (${fileIndex + 1}/${newExpertFiles.length}) · ${Math.round(ratio * 100)}%`,
-                );
-              })
-            : [];
+        uploadedRefs = await uploadProjectFilesToBlob(project, newFiles, (fileIndex, ratio) => {
+          setUploadProgress(
+            `평가 자료 업로드 중 (${fileIndex + 1}/${newFiles.length}) · ${Math.round(ratio * 100)}%`,
+          );
+        });
       }
 
-      const aiFileRefs = [...selectedAiRefs, ...uploadedAiRefs];
-      const expertFileRefs = [...selectedExpertRefs, ...uploadedExpertRefs];
-      formData.append("aiFileRefs", JSON.stringify(aiFileRefs));
-      formData.append("expertFileRefs", JSON.stringify(expertFileRefs));
+      const fileRefs = [...selectedRefs, ...uploadedRefs];
+      formData.append("fileRefs", JSON.stringify(fileRefs));
 
       setUploadProgress(null);
 
@@ -203,15 +176,12 @@ export default function ParallelEvaluationForm({
       });
 
       const uploadedAt = payload.round.evaluatedAt;
-      const projectFiles: ProjectFile[] = [
-        ...payload.round.aiFiles.map((file) => toProjectFile(file, uploadedAt)),
-        ...payload.round.expertFiles.map((file) => toProjectFile(file, uploadedAt)),
-      ];
+      const projectFiles: ProjectFile[] = collectUniqueRoundFiles(payload.round).map((file) =>
+        toProjectFile(file, uploadedAt),
+      );
 
-      setNewAiFiles([]);
-      setNewExpertFiles([]);
-      setSelectedAiRefs([]);
-      setSelectedExpertRefs([]);
+      setNewFiles([]);
+      setSelectedRefs([]);
 
       const isDemo =
         payload.analysisMode === "demo" || payload.round.aiAnalysis.mode === "demo";
@@ -272,74 +242,60 @@ export default function ParallelEvaluationForm({
         <div>
           <StepTitle>2. 평가 가중치</StepTitle>
           <MutedText className="mt-1">
-            슬라이더를 움직여 AI(왼쪽)와 전문가(오른쪽) 평가 비율을 조정합니다. 한쪽이 0%이면 해당
-            쪽 자료 첨부 없이 분석할 수 있습니다.
+            슬라이더로 AI(왼쪽)와 전문가(오른쪽) 평가 비율을 조정합니다. 한쪽이 0%이면 해당 쪽 점수만
+            산출하며, 평가 자료는 한 번만 올리면 AI·전문가 분석에 공통으로 사용됩니다.
           </MutedText>
         </div>
         <EvaluationWeightSlider aiWeight={aiWeight} onChange={setAiWeight} />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <MaterialColumn
-          accent="ai"
-          description="프로젝트 자료·심의서류 등 AI 분석 대상 파일"
-          filesRequired={needsAiMaterials}
-          newFiles={newAiFiles}
-          selectedRefs={selectedAiRefs}
-          storedFiles={storedFiles}
-          title="3. AI 평가 자료"
-          totalSize={aiTotalSize}
-          onNewFilesChange={setNewAiFiles}
-          onSelectedRefsChange={setSelectedAiRefs}
-        >
-          <label className="block text-sm">
-            <FieldLabel className="mb-2 block">AI 엔진</FieldLabel>
-            <select
-              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white disabled:opacity-60"
-              disabled={!needsAiMaterials || !provider}
-              value={provider ?? "gemini"}
-              onChange={(event) => setProvider(event.target.value as AiProviderPreference)}
-            >
-              <option value="gemini">Gemini</option>
-              <option value="openai">ChatGPT</option>
-              <option value="claude">Claude</option>
-            </select>
-          </label>
-        </MaterialColumn>
-
-        <MaterialColumn
-          accent="expert"
-          description="심사위원 평가표·의견서·보완자료 등 전문가 평가 파일"
-          filesRequired={needsExpertMaterials}
-          newFiles={newExpertFiles}
-          selectedRefs={selectedExpertRefs}
-          storedFiles={storedFiles}
-          title="4. 전문가 평가 자료"
-          totalSize={expertTotalSize}
-          onNewFilesChange={setNewExpertFiles}
-          onSelectedRefsChange={setSelectedExpertRefs}
-        >
-          <label className="block text-sm">
-            <FieldLabel className="mb-2 block">평가자 / 심사위원 (선택)</FieldLabel>
-            <input
-              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#15345b] focus:bg-white disabled:opacity-60"
-              disabled={!needsExpertMaterials}
-              placeholder={needsExpertMaterials ? "예: 홍길동 위원 (미입력 시 미지정)" : "전문가 가중치 0% — 입력 생략 가능"}
-              value={reviewerName}
-              onChange={(event) => setReviewerName(event.target.value)}
-            />
-          </label>
-        </MaterialColumn>
-      </div>
+      <EvaluationMaterialsSection
+        filesRequired={needsMaterials}
+        newFiles={newFiles}
+        selectedRefs={selectedRefs}
+        storedFiles={storedFiles}
+        totalSize={totalSize}
+        onNewFilesChange={setNewFiles}
+        onSelectedRefsChange={setSelectedRefs}
+      >
+        <div className={`grid gap-4 ${needsAiMaterials && needsExpertMaterials ? "sm:grid-cols-2" : ""}`}>
+          {needsAiMaterials ? (
+            <label className="block text-sm">
+              <FieldLabel className="mb-2 block">AI 엔진</FieldLabel>
+              <select
+                className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white disabled:opacity-60"
+                disabled={!provider}
+                value={provider ?? "gemini"}
+                onChange={(event) => setProvider(event.target.value as AiProviderPreference)}
+              >
+                <option value="gemini">Gemini</option>
+                <option value="openai">ChatGPT</option>
+                <option value="claude">Claude</option>
+              </select>
+            </label>
+          ) : null}
+          {needsExpertMaterials ? (
+            <label className="block text-sm">
+              <FieldLabel className="mb-2 block">평가자 / 심사위원 (선택)</FieldLabel>
+              <input
+                className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#15345b] focus:bg-white"
+                placeholder="예: 홍길동 위원 (미입력 시 미지정)"
+                value={reviewerName}
+                onChange={(event) => setReviewerName(event.target.value)}
+              />
+            </label>
+          ) : null}
+        </div>
+      </EvaluationMaterialsSection>
 
       <div
         className={`rounded-2xl border-2 border-[#2463b3]/35 bg-gradient-to-b from-[#eef4fb] to-white p-6 shadow-sm ring-1 ring-[#2463b3]/10 ${interactiveCardClassName}`}
       >
         <div className="text-center">
-          <StepTitle>5. 하이브리드 평가 분석</StepTitle>
+          <StepTitle>4. 하이브리드 평가 분석</StepTitle>
           <MutedText className="mx-auto mt-2 max-w-lg">
-            AI·전문가 양쪽 자료와 공통 평가항목을 바탕으로 한 번에 분석합니다. 이전 차수에 올린 자료는
-            다시 업로드하지 않고 불러올 수 있습니다.
+            공통 평가 자료와 평가항목을 바탕으로 AI·전문가 점수를 한 번에 산출합니다. 이전 차수에 올린
+            자료는 다시 업로드하지 않고 불러올 수 있습니다.
           </MutedText>
           <button
             className="primary-action mt-5 rounded-xl px-8 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:bg-slate-400"
@@ -362,10 +318,9 @@ export default function ParallelEvaluationForm({
   );
 }
 
-function MaterialColumn({
-  accent,
-  title,
-  description,
+function EvaluationMaterialsSection({
+  title = "3. 평가 자료",
+  description = "프로젝트 자료·심의서류·평가표·의견서 등 AI·전문가 분석에 공통으로 사용할 파일",
   filesRequired,
   newFiles,
   selectedRefs,
@@ -375,9 +330,8 @@ function MaterialColumn({
   onSelectedRefsChange,
   children,
 }: {
-  accent: "ai" | "expert";
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
   filesRequired: boolean;
   newFiles: File[];
   selectedRefs: StoredFileRef[];
@@ -387,9 +341,6 @@ function MaterialColumn({
   onSelectedRefsChange: (refs: StoredFileRef[]) => void;
   children: React.ReactNode;
 }) {
-  const isAi = accent === "ai";
-  const headerClass = isAi ? "bg-[#eef4fb] text-[#2463b3]" : "bg-slate-100 text-[#15345b]";
-  const borderClass = isAi ? "border-[#2463b3]" : "border-[#15345b]";
   const selectedIds = new Set(selectedRefs.map((ref) => ref.id));
   const totalCount = newFiles.length + selectedRefs.length;
 
@@ -403,14 +354,11 @@ function MaterialColumn({
 
   return (
     <section
-      className={`flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4 ${interactiveCardClassName}`}
+      className={`rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4 ${interactiveCardClassName}`}
     >
-      <div className={`rounded-xl px-4 py-3 ${headerClass}`}>
+      <div className="rounded-xl bg-[#eef4fb] px-4 py-3 text-[#2463b3]">
         <StepTitle>{title}</StepTitle>
         <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
-        {!filesRequired ? (
-          <p className="mt-2 text-xs font-semibold opacity-90">가중치 0% — 자료 첨부 없이 분석 가능</p>
-        ) : null}
       </div>
 
       {filesRequired && storedFiles.length > 0 ? (
@@ -447,9 +395,7 @@ function MaterialColumn({
       ) : null}
 
       {filesRequired ? (
-        <label
-          className={`mt-4 flex min-h-44 flex-1 cursor-pointer flex-col rounded-xl border border-dashed bg-white p-4 text-sm text-[#475569] ${borderClass}`}
-        >
+        <label className="mt-4 flex min-h-44 cursor-pointer flex-col rounded-xl border border-dashed border-[#2463b3] bg-white p-4 text-sm text-[#475569]">
           <span className="font-bold text-[#15345b]">새 자료 업로드</span>
           <span className="mt-1 leading-6">
             PDF, DOCX, XLSX, HWP, PPTX, JPG, PNG, ZIP · 파일당 최대 {getMaxUploadFileLabel()}
@@ -487,13 +433,9 @@ function MaterialColumn({
             </div>
           ) : null}
         </label>
-      ) : (
-        <div className="mt-4 rounded-xl border border-dashed border-[#d7dee8] bg-white p-4 text-sm text-[#64748b]">
-          이 평가 차수에서는 {isAi ? "AI" : "전문가"} 가중치가 0%이므로 자료를 첨부하지 않아도 됩니다.
-        </div>
-      )}
+      ) : null}
 
-      <div className="mt-4 rounded-xl border border-[#d7dee8] bg-white p-4">{children}</div>
+      {children ? <div className="mt-4 rounded-xl border border-[#d7dee8] bg-white p-4">{children}</div> : null}
     </section>
   );
 }

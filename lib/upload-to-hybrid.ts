@@ -1,3 +1,4 @@
+import { collectUniqueRoundFiles } from "./evaluation-round-files";
 import { gradeScore, calculateHybridResults, calculateProjectScore } from "./hybrid-evaluation";
 import type {
   AiEvaluation,
@@ -96,7 +97,7 @@ export function buildHybridViewFromRound(round: EvaluationRound, roundNumber: nu
       reviewerName: round.reviewerName,
       score: expertRow?.score ?? 0,
       comment: expertRow?.comment ?? "전문가 평가 자료에 해당 항목 점수가 없습니다.",
-      attachmentName: round.expertFiles[0]?.originalName,
+      attachmentName: collectUniqueRoundFiles(round)[0]?.originalName,
     };
   });
 
