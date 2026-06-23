@@ -20,6 +20,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const wantsStream = String(formData.get("stream") ?? "") === "1";
 
+    const fileRefs = resolveEvaluationFileRefs(formData);
+    const files = resolveEvaluationFiles(formData);
+
     const input = {
       projectId: String(formData.get("projectId") ?? "").trim(),
       providerPreference: resolveAiProviderPreference(
@@ -31,10 +34,8 @@ export async function POST(request: NextRequest) {
       expertWeight: Number(formData.get("expertWeight") ?? 70),
       evaluationItems: parseEvaluationItems(formData.get("evaluationItems")),
       manualExpertScores: parseExpertItemScores(formData.get("expertItemScores")),
-      aiFileRefs: parseStoredFileRefs(formData.get("aiFileRefs")),
-      expertFileRefs: parseStoredFileRefs(formData.get("expertFileRefs")),
-      aiFiles: formData.getAll("aiFiles").filter(isFileLike),
-      expertFiles: formData.getAll("expertFiles").filter(isFileLike),
+      fileRefs,
+      files,
       projectSnapshot: parseProjectSnapshot(formData.get("projectSnapshot")),
     };
 
@@ -158,4 +159,32 @@ function parseStoredFileRefs(value: FormDataEntryValue | null): StoredFileRef[] 
   } catch {
     return [];
   }
+}
+
+function resolveEvaluationFileRefs(formData: FormData): StoredFileRef[] {
+  const unified = parseStoredFileRefs(formData.get("fileRefs"));
+  if (unified.length > 0) return unified;
+
+  const byId = new Map<string, StoredFileRef>();
+  for (const ref of [
+    ...parseStoredFileRefs(formData.get("aiFileRefs")),
+    ...parseStoredFileRefs(formData.get("expertFileRefs")),
+  ]) {
+    byId.set(ref.id, ref);
+  }
+  return Array.from(byId.values());
+}
+
+function resolveEvaluationFiles(formData: FormData): File[] {
+  const unified = formData.getAll("files").filter(isFileLike);
+  if (unified.length > 0) return unified;
+
+  const bySignature = new Map<string, File>();
+  for (const file of [
+    ...formData.getAll("aiFiles").filter(isFileLike),
+    ...formData.getAll("expertFiles").filter(isFileLike),
+  ]) {
+    bySignature.set(`${file.name}:${file.size}:${file.lastModified}`, file);
+  }
+  return Array.from(bySignature.values());
 }

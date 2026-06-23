@@ -24,6 +24,7 @@ import { pickRelatedReferenceLaws } from "@/lib/related-reference-laws";
 import { pickRelatedReferenceGuidelines } from "@/lib/related-reference-guidelines";
 import { buildAdmrulReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
 import { toAchievementPercent } from "@/lib/hybrid-evaluation";
+import { collectUniqueRoundFiles } from "@/lib/evaluation-round-files";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
 import { trashLocalProjectRound } from "../local-project-storage";
@@ -260,7 +261,7 @@ export default function ProjectEvaluationWorkspace({
                       {formatUploadDateTime(round.evaluatedAt)}
                     </span>
                     <span className="mt-1 block text-[11px] text-[#64748b]">
-                      AI {round.aiFiles.length} · 전문가 {round.expertFiles.length}
+                      자료 {collectUniqueRoundFiles(round).length}개
                     </span>
                   </button>
                 </div>
@@ -286,15 +287,11 @@ export default function ProjectEvaluationWorkspace({
             ) : null}
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <FileList title="AI 평가 자료" files={selectedRound.aiFiles} projectId={project.id} tone="ai" />
-            <FileList
-              title="전문가 평가 자료"
-              files={selectedRound.expertFiles}
-              projectId={project.id}
-              tone="expert"
-            />
-          </div>
+          <FileList
+            title="평가 자료"
+            files={collectUniqueRoundFiles(selectedRound)}
+            projectId={project.id}
+          />
 
           {selectedRound.expertSummary ? (
             <p className="rounded-xl bg-white p-3 text-sm leading-6 text-[#475569]">{selectedRound.expertSummary}</p>
@@ -498,18 +495,15 @@ function WeightBar({ label, value, color }: { label: string; value: number; colo
 function FileList({
   title,
   files,
-  tone,
   projectId,
 }: {
   title: string;
   files: EvaluationRound["aiFiles"];
-  tone: "ai" | "expert";
   projectId: string;
 }) {
-  const headerClass = tone === "ai" ? "text-[#2463b3]" : "text-[#15345b]";
   return (
     <div className="rounded-xl border border-[#d7dee8] bg-white p-3">
-      <p className={`text-sm font-bold ${headerClass}`}>
+      <p className="text-sm font-bold text-[#15345b]">
         {title} ({files.length})
       </p>
       <ul className="mt-2 space-y-1 text-xs text-[#64748b]">
