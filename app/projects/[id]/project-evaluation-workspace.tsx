@@ -271,7 +271,9 @@ export default function ProjectEvaluationWorkspace({
         </div>
 
         <div className="mt-5 space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-          {selectedRound.aiAnalysis.mode === "demo" ? <DemoModeBanner /> : null}
+          {selectedRound.aiWeight > 0 && selectedRound.aiAnalysis.mode === "demo" ? (
+            <DemoModeBanner warnings={analysisWarnings} />
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-[#15345b] text-white">{selectedRound.roundNumber}차</Badge>
             <Badge className="bg-[#e8f1ff] text-[#2463b3]">
