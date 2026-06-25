@@ -7,6 +7,7 @@ import {
   BodyText,
   Caption,
   FieldLabel,
+  MutedText,
   ScoreValue,
   SectionDescription,
   SectionTitle,
@@ -323,6 +324,11 @@ export default function ProjectEvaluationWorkspace({
               <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
               <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
             </div>
+
+            {selectedRound.aiAnalysis.documentSections.length > 0 ? (
+              <DocumentSectionsBlock sections={selectedRound.aiAnalysis.documentSections} />
+            ) : null}
+
             <FieldLabel as="p" className="mb-3">
               평가항목 총 {hybridView.results.length}개
             </FieldLabel>
@@ -354,24 +360,6 @@ export default function ProjectEvaluationWorkspace({
           </p>
         </div>
       </section>
-
-      <section id="ai-document-analysis">
-        <WorkspaceSectionHeading
-          title="AI 문서 섹션 추출"
-          description={`${selectedRound.roundNumber}차 AI 자료 분석 결과`}
-        />
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {selectedRound.aiAnalysis.documentSections.map((section) => (
-            <div className="rounded-2xl border border-[#d7dee8] bg-white p-4 panel-shadow" key={section.label}>
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-bold text-[#15345b]">{section.label}</p>
-                <span className="text-sm font-bold text-[#2463b3]">{section.confidence}%</span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[#64748b]">{section.summary}</p>
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }
@@ -394,6 +382,38 @@ function WorkspaceSectionHeading({ title, description }: { title: string; descri
     <div>
       <SectionTitle>{title}</SectionTitle>
       <SectionDescription>{description}</SectionDescription>
+    </div>
+  );
+}
+
+function DocumentSectionsBlock({
+  sections,
+}: {
+  sections: EvaluationRound["aiAnalysis"]["documentSections"];
+}) {
+  return (
+    <div className="mb-5 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+      <FieldLabel as="p">업로드 자료 문서 이해</FieldLabel>
+      <MutedText className="mt-1">
+        AI가 심의 자료에서 확인한 항목별 요약입니다. PDF 내 도면·이미지나 텍스트 추출이 어려운 페이지는 문서이해도가
+        낮게 표시될 수 있습니다.
+      </MutedText>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {sections.map((section) => (
+          <div
+            className="rounded-xl border border-[#d7dee8] bg-white p-3"
+            key={section.label}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-sm font-bold text-[#15345b]">{section.label}</p>
+              <span className="shrink-0 rounded-full bg-[#e8f1ff] px-2 py-0.5 text-[11px] font-bold text-[#2463b3]">
+                문서이해도 {section.confidence}%
+              </span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[#64748b]">{section.summary}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
