@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import IntegrationStatusPanel from "@/components/integration-status-panel";
+import AiProviderProbePanel from "@/components/ai-provider-probe-panel";
 import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/typography";
 import LoginHistoryPanel from "@/components/login-history-panel";
 import { getIntegrationStatuses } from "@/lib/integrations/status";
@@ -79,11 +80,10 @@ export default async function MyPage() {
           {integrations.groups
             .filter((group) => group.id === "ai")
             .map((group) => (
-              <IntegrationStatusPanel
-                checkedAt={integrations.checkedAt}
-                group={group}
-                key={group.id}
-              />
+              <div className="space-y-0" key={group.id}>
+                <IntegrationStatusPanel checkedAt={integrations.checkedAt} group={group} />
+                <AiProviderProbePanel />
+              </div>
             ))}
 
           <div className="grid h-full grid-rows-3 gap-4">
