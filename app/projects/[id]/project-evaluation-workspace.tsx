@@ -20,10 +20,12 @@ import DemoModeBanner from "@/components/demo-mode-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
-import { pickRelatedReferenceLaws } from "@/lib/related-reference-laws";
-import { pickRelatedReferenceGuidelines } from "@/lib/related-reference-guidelines";
+import { pickRelatedReferenceLaws, lawMatchesCitation } from "@/lib/related-reference-laws";
+import {
+  guidelineMatchesCitation,
+  pickRelatedReferenceGuidelines,
+} from "@/lib/related-reference-guidelines";
 import { buildAdmrulReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
-import { toAchievementPercent } from "@/lib/hybrid-evaluation";
 import { collectUniqueRoundFiles } from "@/lib/evaluation-round-files";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
@@ -289,90 +291,49 @@ export default function ProjectEvaluationWorkspace({
             ) : null}
           </div>
 
-          <FileList
-            title="평가 자료"
-            files={collectUniqueRoundFiles(selectedRound)}
-            projectId={project.id}
-          />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <FileList
+              title="평가 자료"
+              files={collectUniqueRoundFiles(selectedRound)}
+              projectId={project.id}
+            />
 
-          {selectedRound.expertSummary ? (
-            <p className="rounded-xl bg-white p-3 text-sm leading-6 text-[#475569]">{selectedRound.expertSummary}</p>
-          ) : null}
-
-          <p className="text-sm leading-6 text-[#475569]">{selectedRound.aiAnalysis.summary}</p>
+            <div className="rounded-xl border border-[#d7dee8] bg-white p-3">
+              <p className="text-sm font-bold text-[#15345b]">분석 요약</p>
+              {selectedRound.expertSummary ? (
+                <p className="mt-2 text-sm leading-6 text-[#475569]">{selectedRound.expertSummary}</p>
+              ) : null}
+              <p className={`text-sm leading-6 text-[#475569] ${selectedRound.expertSummary ? "mt-2" : "mt-2"}`}>
+                {selectedRound.aiAnalysis.summary}
+              </p>
+            </div>
+          </div>
 
           <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-              <SubsectionTitle>
-                종합 점수 {hybridView.projectScore} / {selectedRound.totalPoints}점
-              </SubsectionTitle>
+              <div>
+                <SubsectionTitle>종합 평가 결과</SubsectionTitle>
+                <p className="mt-1 text-sm font-semibold text-[#2463b3]">
+                  종합 점수 {hybridView.projectScore} / {selectedRound.totalPoints}점
+                </p>
+              </div>
               <EvaluationGradeLegend />
             </div>
             <div className="mb-5 grid gap-4 sm:grid-cols-2">
               <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
               <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
             </div>
-            <FieldLabel as="p" className="mb-3">평가항목 총 {hybridView.results.length}개</FieldLabel>
-            <EvaluationTable results={hybridView.results} reviewerName={selectedRound.reviewerName} />
+            <FieldLabel as="p" className="mb-3">
+              평가항목 총 {hybridView.results.length}개
+            </FieldLabel>
+            <EvaluationTable
+              evaluationPreview={selectedRound.aiAnalysis.evaluationPreview}
+              referenceGuidelines={referenceGuidelines}
+              referenceLaws={referenceLaws}
+              results={hybridView.results}
+              roundId={selectedRound.id}
+            />
           </div>
-
-          <div className="grid gap-3 lg:grid-cols-2">
-            {hybridView.results.map((result) => (
-              <div className="rounded-xl border border-[#d7dee8] bg-white p-3" key={`${selectedRound.id}-${result.item.id}`}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-bold text-[#15345b]">{result.item.detailItem}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-[#e8f1ff] px-2.5 py-1 text-[11px] font-bold text-[#2463b3]">
-                      AI {result.aiEvaluation.score}점
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
-                      전문가 {result.humanEvaluation.score}점
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-[#475569]">{result.aiEvaluation.rationale}</p>
-                {result.humanEvaluation.comment ? (
-                  <p className="mt-2 text-xs leading-5 text-[#64748b]">
-                    전문가 의견: {result.humanEvaluation.comment}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-
-          {referenceLaws.length > 0 ? (
-            <div className="rounded-xl border border-[#d7dee8] bg-white p-3 text-sm">
-              <p className="font-bold text-[#15345b]">이번 평가 관련 법령·조례</p>
-              <p className="mt-1 text-xs text-[#64748b]">
-                국가법령·지자체 조례 중 평가 항목과 AI 분석에서 인용한 항목만 표시합니다.
-              </p>
-              {referenceLaws.map((law) => (
-                <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${law.title}-${law.article}`}>
-                  <ReferenceLinkTitle
-                    title={`${law.title} ${law.article}`}
-                    href={buildLawReferenceUrl(law.title, law.sourceUrl)}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {referenceGuidelines.length > 0 ? (
-            <div className="rounded-xl border border-[#d7dee8] bg-white p-3 text-sm">
-              <p className="font-bold text-[#15345b]">이번 평가 관련 행정규칙·지침</p>
-              <p className="mt-1 text-xs text-[#64748b]">
-                평가 항목과 AI 분석에서 인용한 행정규칙·지침만 표시합니다.
-              </p>
-              {referenceGuidelines.map((guide) => (
-                <div className="mt-2 text-[#64748b]" key={`${selectedRound.id}-${guide.title}-${guide.section}`}>
-                  <ReferenceLinkTitle
-                    title={`${guide.title} ${guide.section}`}
-                    href={buildAdmrulReferenceUrl(guide.title, guide.sourceUrl)}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : null}
 
           {analysisWarnings.length > 0 ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
@@ -391,29 +352,6 @@ export default function ProjectEvaluationWorkspace({
             AI 엔진: {formatProviderBadgeLabel(selectedRound.aiAnalysis.provider)} ·{" "}
             {selectedRound.aiAnalysis.mode === "live" ? "실제 API 분석" : "데모 분석"}
           </p>
-        </div>
-      </section>
-
-      <section id="explainable-ai">
-        <WorkspaceSectionHeading title="AI 평가 근거" description="선택 차수의 AI 분석 근거입니다." />
-        <div className="mt-5 grid gap-5 xl:grid-cols-2">
-          {hybridView.results.slice(0, 4).map((result) => (
-            <Panel
-              title={result.item.detailItem}
-              action={`AI ${result.aiEvaluation.score}점 · 전문가 ${result.humanEvaluation.score}점`}
-              key={result.item.id}
-            >
-              <p className="text-sm leading-6 text-[#475569]">{result.aiEvaluation.rationale}</p>
-              {result.humanEvaluation.comment ? (
-                <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-[#475569]">
-                  전문가 의견: {result.humanEvaluation.comment}
-                </p>
-              ) : null}
-              <p className="mt-4 rounded-xl bg-[#fff7ed] p-3 text-sm leading-6 text-[#9a3412]">
-                개선권고: {result.aiEvaluation.recommendation}
-              </p>
-            </Panel>
-          ))}
         </div>
       </section>
 
@@ -456,26 +394,6 @@ function WorkspaceSectionHeading({ title, description }: { title: string; descri
     <div>
       <SectionTitle>{title}</SectionTitle>
       <SectionDescription>{description}</SectionDescription>
-    </div>
-  );
-}
-
-function Panel({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-        <SubsectionTitle>{title}</SubsectionTitle>
-        {action}
-      </div>
-      {children}
     </div>
   );
 }
@@ -542,82 +460,187 @@ function FileList({
 
 function EvaluationTable({
   results,
-  reviewerName,
+  evaluationPreview,
+  referenceLaws,
+  referenceGuidelines,
+  roundId,
 }: {
   results: HybridResult[];
-  reviewerName: string;
+  evaluationPreview: EvaluationRound["aiAnalysis"]["evaluationPreview"];
+  referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>;
+  referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>;
+  roundId: string;
 }) {
   return (
-    <div className="overflow-auto rounded-xl border border-[#d7dee8]">
-      <table className="w-full min-w-[920px] table-fixed border-collapse text-left text-sm">
+    <div className="rounded-xl border border-[#d7dee8]">
+      <table className="w-full table-fixed border-collapse text-left text-sm">
         <colgroup>
-          <col className="w-[40px]" />
-          <col className="w-[13%]" />
-          <col className="w-[6%]" />
-          <col className="w-[9%]" />
-          <col className="w-[9%]" />
-          <col className="w-[8%]" />
-          <col className="w-[52%]" />
+          <col className="w-[36px]" />
+          <col className="w-[14%]" />
+          <col className="w-[52px]" />
+          <col className="w-[56px]" />
+          <col className="w-[72px]" />
+          <col className="w-[64px]" />
+          <col />
         </colgroup>
         <thead className="bg-[#eef4fb] text-[#15345b]">
           <tr>
             <th className="px-2 py-2.5 text-center">#</th>
             <th className="px-3 py-2.5">평가항목</th>
-            <th className="px-3 py-2.5 text-center">배점</th>
-            <th className="px-3 py-2.5 text-center">AI 점수</th>
-            <th className="px-3 py-2.5 text-center">전문가 점수 ({reviewerName})</th>
-            <th className="px-3 py-2.5 text-center">최종점수</th>
+            <th className="px-2 py-2.5 text-center">배점</th>
+            <th className="px-2 py-2.5 text-center">AI</th>
+            <th className="px-2 py-2.5 text-center">전문가</th>
+            <th className="px-2 py-2.5 text-center">최종</th>
             <th className="px-3 py-2.5">평가 근거 / 의견</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#d7dee8] bg-white">
-          {results.map((result, index) => (
-            <tr key={result.item.id}>
-              <td className="px-2 py-2.5 align-top text-center text-xs font-bold text-[#64748b]">
-                {index + 1}
-              </td>
-              <td className="px-3 py-2.5 align-top">
-                <p className="line-clamp-2 text-sm font-bold leading-5 text-[#15345b]" title={result.item.detailItem}>
-                  {result.item.detailItem}
-                </p>
-                <p
-                  className="mt-0.5 truncate text-[10px] text-[#64748b]"
-                  title={`${result.item.majorCategory} · ${result.item.middleCategory}`}
-                >
-                  {result.item.majorCategory} · {result.item.middleCategory}
-                </p>
-              </td>
-              <td className="px-3 py-2.5 align-top text-center font-semibold text-[#15345b]">{result.item.points}</td>
-              <td className="px-3 py-2.5 align-top text-center font-bold text-[#2463b3]">
-                {result.aiEvaluation.score}
-              </td>
-              <td className="px-3 py-2.5 align-top text-center font-bold text-[#15345b]">
-                {result.humanEvaluation.score}
-              </td>
-              <td className="px-3 py-2.5 align-top text-center">
-                <ScoreValue>{result.finalScore}</ScoreValue>
-                <p className="text-[11px] text-[#64748b]">
-                  {result.finalGrade} (
-                  {Math.round(toAchievementPercent(result.finalScore, result.item.points) * 10) / 10}%)
-                </p>
-              </td>
-              <td className="px-3 py-2.5 align-top">
-                <div className="max-h-[4.5rem] space-y-1 overflow-y-auto pr-1 text-xs leading-5 text-[#64748b]">
-                  <p title={result.aiEvaluation.rationale}>{result.aiEvaluation.rationale}</p>
-                  {result.humanEvaluation.comment ? (
-                    <p className="text-[#475569]" title={result.humanEvaluation.comment}>
-                      <span className="font-semibold text-[#15345b]">전문가:</span> {result.humanEvaluation.comment}
-                    </p>
-                  ) : null}
-                  <p className="font-semibold text-[#9a3412]" title={result.aiEvaluation.recommendation}>
-                    {result.aiEvaluation.recommendation}
+          {results.map((result, index) => {
+            const preview =
+              evaluationPreview.find((row) => row.itemId === result.item.id) ??
+              evaluationPreview.find((row) => row.itemName === result.item.detailItem);
+            const itemLawLinks = matchItemReferenceLaws(preview, referenceLaws);
+            const itemGuidelineLinks = matchItemReferenceGuidelines(preview, referenceGuidelines);
+
+            return (
+              <tr key={result.item.id}>
+                <td className="px-2 py-3 align-top text-center text-xs font-bold text-[#64748b]">
+                  {index + 1}
+                </td>
+                <td className="px-3 py-3 align-top">
+                  <p className="text-sm font-bold leading-5 text-[#15345b]">{result.item.detailItem}</p>
+                  <p className="mt-0.5 text-[10px] leading-4 text-[#64748b]">
+                    {result.item.majorCategory} · {result.item.middleCategory}
                   </p>
-                </div>
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-2 py-3 align-top text-center font-semibold text-[#15345b]">
+                  {result.item.points}
+                </td>
+                <td className="px-2 py-3 align-top text-center font-bold text-[#2463b3]">
+                  {result.aiEvaluation.score}
+                </td>
+                <td className="px-2 py-3 align-top text-center font-bold text-[#15345b]">
+                  {result.humanEvaluation.score}
+                </td>
+                <td className="px-2 py-3 align-top text-center">
+                  <ScoreValue>{result.finalScore}</ScoreValue>
+                  <p className="text-[10px] leading-4 text-[#64748b]">
+                    {result.finalGrade}
+                  </p>
+                </td>
+                <td className="px-3 py-3 align-top">
+                  <EvaluationRationaleCell
+                    guidelineLinks={itemGuidelineLinks}
+                    lawLinks={itemLawLinks}
+                    result={result}
+                    roundId={roundId}
+                  />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
+}
+
+function EvaluationRationaleCell({
+  result,
+  lawLinks,
+  guidelineLinks,
+  roundId,
+}: {
+  result: HybridResult;
+  lawLinks: Array<{ title: string; article: string; href: string | null }>;
+  guidelineLinks: Array<{ title: string; section: string; href: string | null }>;
+  roundId: string;
+}) {
+  return (
+    <div className="space-y-2 text-xs leading-5 text-[#64748b]">
+      <p className="whitespace-pre-wrap break-words text-[#475569]">{result.aiEvaluation.rationale}</p>
+      {result.humanEvaluation.comment ? (
+        <p className="whitespace-pre-wrap break-words text-[#475569]">
+          <span className="font-semibold text-[#15345b]">전문가:</span> {result.humanEvaluation.comment}
+        </p>
+      ) : null}
+      <p className="whitespace-pre-wrap break-words font-semibold text-[#9a3412]">
+        {result.aiEvaluation.recommendation}
+      </p>
+      {lawLinks.length > 0 || guidelineLinks.length > 0 ? (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-[#e2e8f0] pt-2">
+          {lawLinks.map((law) => (
+            <span key={`${roundId}-${law.title}-${law.article}`}>
+              {law.href ? (
+                <ReferenceLinkTitle title={`${law.title} ${law.article}`} href={law.href} />
+              ) : (
+                <span className="text-[#2463b3]">
+                  {law.title} {law.article}
+                </span>
+              )}
+            </span>
+          ))}
+          {guidelineLinks.map((guide) => (
+            <span key={`${roundId}-${guide.title}-${guide.section}`}>
+              {guide.href ? (
+                <ReferenceLinkTitle title={`${guide.title} ${guide.section}`} href={guide.href} />
+              ) : (
+                <span className="text-[#2463b3]">
+                  {guide.title} {guide.section}
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function matchItemReferenceLaws(
+  preview: EvaluationRound["aiAnalysis"]["evaluationPreview"][number] | undefined,
+  referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>,
+) {
+  const citations = preview?.laws ?? [];
+  const matched = referenceLaws.filter((law) =>
+    citations.some((citation) => lawMatchesCitation(law, citation)),
+  );
+
+  if (matched.length > 0) {
+    return matched.map((law) => ({
+      title: law.title,
+      article: law.article,
+      href: buildLawReferenceUrl(law.title, law.sourceUrl),
+    }));
+  }
+
+  return citations.map((citation) => ({
+    title: citation,
+    article: "",
+    href: null,
+  }));
+}
+
+function matchItemReferenceGuidelines(
+  preview: EvaluationRound["aiAnalysis"]["evaluationPreview"][number] | undefined,
+  referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>,
+) {
+  const citations = preview?.guidelines ?? [];
+  const matched = referenceGuidelines.filter((guide) =>
+    citations.some((citation) => guidelineMatchesCitation(guide, citation)),
+  );
+
+  if (matched.length > 0) {
+    return matched.map((guide) => ({
+      title: guide.title,
+      section: guide.section,
+      href: buildAdmrulReferenceUrl(guide.title, guide.sourceUrl),
+    }));
+  }
+
+  return citations.map((citation) => ({
+    title: citation,
+    section: "",
+    href: null,
+  }));
 }
