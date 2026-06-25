@@ -558,7 +558,9 @@ function EvaluationRationaleCell({
 }) {
   return (
     <div className="space-y-2 text-xs leading-5 text-[#64748b]">
-      <p className="whitespace-pre-wrap break-words text-[#475569]">{result.aiEvaluation.rationale}</p>
+      <p className="whitespace-pre-wrap break-words text-[#475569]">
+        <span className="font-semibold text-[#2463b3]">AI:</span> {result.aiEvaluation.rationale}
+      </p>
       {result.humanEvaluation.comment ? (
         <p className="whitespace-pre-wrap break-words text-[#475569]">
           <span className="font-semibold text-[#15345b]">전문가:</span> {result.humanEvaluation.comment}
