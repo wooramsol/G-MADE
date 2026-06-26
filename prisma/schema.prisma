@@ -69,6 +69,17 @@ model LoginHistory {
   @@map("login_history")
 }
 
+model ManagedProject {
+  id        String    @id
+  data      Json
+  deletedAt DateTime? @map("deleted_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([deletedAt])
+  @@map("managed_projects")
+}
+
 model Project {
   id          String        @id @default(cuid())
   name        String

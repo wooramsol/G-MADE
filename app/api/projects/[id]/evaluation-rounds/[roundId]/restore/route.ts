@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getProjectById, restoreProjectEvaluationRound } from "@/lib/project-store";
+import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,5 +26,6 @@ export async function POST(
     return NextResponse.json({ error: "평가 기록을 복원할 수 없습니다." }, { status: 404 });
   }
 
+  revalidateProjectViews(id);
   return NextResponse.json({ project });
 }

@@ -1,9 +1,9 @@
-import { Badge, Eyebrow, PageTitle, SubsectionTitle } from "@/components/typography";
+import Link from "next/link";
+import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { getProjectById } from "@/lib/project-store";
 import DeleteProjectButton from "../delete-project-button";
 import ProjectUploadSection from "./project-upload-section";
-import LocalProjectDetail from "./local-project-detail";
 import LandscapeZonePanel from "./landscape-zone-panel";
 import ProjectLocationEditor from "./project-location-editor";
 import ProjectMetadataEditor from "./project-metadata-editor";
@@ -15,7 +15,17 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   const project = await getProjectById(id);
 
   if (!project) {
-    return <LocalProjectDetail projectId={id} />;
+    return (
+      <main className="min-h-screen bg-[#f4f7fb] px-6 py-8 text-[#172033]">
+        <div className="mx-auto max-w-[1500px] rounded-2xl border border-[#d7dee8] bg-white p-8 panel-shadow">
+          <PageTitle>프로젝트를 찾을 수 없습니다.</PageTitle>
+          <MutedText className="mt-2">요청한 프로젝트가 없거나 휴지통으로 이동했습니다.</MutedText>
+          <Link className="primary-action-blue mt-5 inline-flex rounded-lg px-4 py-2 text-sm font-bold" href="/projects">
+            프로젝트 관리로 이동
+          </Link>
+        </div>
+      </main>
+    );
   }
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">

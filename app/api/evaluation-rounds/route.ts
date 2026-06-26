@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
+import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { runEvaluationRound } from "@/lib/run-evaluation-round";
 import { resolveAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { isFileLike } from "@/lib/save-uploaded-files";
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
 
           try {
             const result = await runEvaluationRound(input, (progress) => write(progress));
+            revalidateProjectViews(input.projectId);
             write({
               type: "complete",
               round: result.round,
@@ -77,6 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await runEvaluationRound(input);
+    revalidateProjectViews(input.projectId);
     return NextResponse.json({
       round: result.round,
       project: result.project,

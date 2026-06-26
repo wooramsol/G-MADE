@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LocationPicker, type LocationSelection } from "@/components/location-picker";
 import type { Project } from "@/lib/types";
-import { getLocalProjects, saveLocalProject } from "../local-project-storage";
 import { showToast } from "../../toast";
 
 function formatLocationLabel(selection: LocationSelection): string {
@@ -67,22 +66,11 @@ export default function ProjectLocationEditor({
         project?: Project;
       };
 
-      let updatedProject: Project;
-
-      if (response.ok && payload.project) {
-        updatedProject = payload.project;
-      } else if (response.status === 404 || response.status === 401) {
-        const local = getLocalProjects().find((item) => item.id === project.id);
-        updatedProject = {
-          ...(local ?? project),
-          ...patch,
-          updatedAt: new Date().toISOString(),
-        };
-      } else {
+      if (!response.ok || !payload.project) {
         throw new Error(payload.error ?? "위치 수정에 실패했습니다.");
       }
 
-      saveLocalProject(updatedProject);
+      const updatedProject = payload.project;
       onUpdated?.(updatedProject);
       router.refresh();
       showToast({ message: "사업위치가 수정되었습니다.", tone: "success" });

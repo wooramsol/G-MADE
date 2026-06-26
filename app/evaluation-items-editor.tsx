@@ -6,7 +6,6 @@ import { MutedText, StepTitle } from "@/components/typography";
 import { interactiveCardClassName } from "@/components/interactive-card";
 import { createEmptyEvaluationItem, isCustomEvaluationItem } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, Project } from "@/lib/types";
-import { getLocalProjects, saveLocalProjectEvaluationItems } from "./projects/local-project-storage";
 import { showToast } from "./toast";
 
 type EvaluationItemsEditorProps = {
@@ -102,41 +101,18 @@ export default function EvaluationItemsEditor({
         project?: Project;
       };
 
-      let nextItems = validItems;
-
-      if (response.ok && payload.project?.savedEvaluationItems) {
-        nextItems = payload.project.savedEvaluationItems;
-        saveLocalProjectEvaluationItems(project.id, payload.project, nextItems);
-      } else if (response.status === 404 || response.status === 401) {
-        saveLocalProjectEvaluationItems(project.id, project, validItems);
-      } else if (!response.ok) {
+      if (!response.ok || !payload.project?.savedEvaluationItems) {
         throw new Error(payload.error ?? "평가항목 저장에 실패했습니다.");
-      } else {
-        saveLocalProjectEvaluationItems(project.id, project, validItems);
       }
 
+      const nextItems = payload.project.savedEvaluationItems;
       onItemsChange(nextItems);
       setSavedSnapshot(serializeItems(nextItems));
       onSaved?.(nextItems);
       showToast({ message: "평가항목이 저장되었습니다.", tone: "success" });
     } catch (error) {
-      const local = getLocalProjects().find((item) => item.id === project.id);
-      const validItems = items.filter(
-        (item) =>
-          item.majorCategory.trim() ||
-          item.middleCategory.trim() ||
-          item.detailItem.trim() ||
-          item.criteria.trim(),
-      );
-      saveLocalProjectEvaluationItems(project.id, local ?? project, validItems);
-      onItemsChange(validItems);
-      setSavedSnapshot(serializeItems(validItems));
-      onSaved?.(validItems);
       showToast({
-        message:
-          error instanceof Error
-            ? `${error.message} 브라우저 저장소에 임시 저장했습니다.`
-            : "서버 저장에 실패해 브라우저 저장소에 임시 저장했습니다.",
+        message: error instanceof Error ? error.message : "평가항목 저장에 실패했습니다.",
         tone: "error",
       });
     } finally {

@@ -14,6 +14,19 @@ import type { EvaluationItem } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
+
+  const { id } = await params;
+  const project = await getProjectById(id);
+  if (!project) {
+    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  return NextResponse.json({ project });
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult.response;

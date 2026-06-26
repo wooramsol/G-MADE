@@ -1,5 +1,11 @@
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
+import {
+  deleteManagedProjectFromDatabase,
+  readManagedProjectsFromDatabase,
+  writeManagedProjectsToDatabase,
+} from "./project-db-persistence";
+import { isDatabaseAvailable } from "./prisma";
 import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
@@ -359,7 +365,12 @@ export async function getStoredProjectRecord(id: string): Promise<Project | unde
 /** 저장소에서 프로젝트 레코드를 영구 삭제합니다. */
 export async function purgeProjectRecord(id: string): Promise<boolean> {
   return withProjectStoreLock(async () => {
-    const createdProjects = await readCreatedProjects();
+    if (await isDatabaseAvailable()) {
+      const deleted = await deleteManagedProjectFromDatabase(id);
+      if (deleted) return true;
+    }
+
+    const createdProjects = await readCreatedProjectsFromJsonFile();
     const nextProjects = createdProjects.filter((project) => project.id !== id);
 
     if (nextProjects.length === createdProjects.length) {
@@ -437,6 +448,25 @@ function pickStoredArrayField<T>(
 }
 
 async function readCreatedProjects(): Promise<Project[]> {
+  if (await isDatabaseAvailable()) {
+    const fromDatabase = await readManagedProjectsFromDatabase();
+    if (fromDatabase.length > 0) {
+      return fromDatabase;
+    }
+
+    const fromJson = await readCreatedProjectsFromJsonFile();
+    if (fromJson.length > 0) {
+      await writeManagedProjectsToDatabase(fromJson);
+      return fromJson;
+    }
+
+    return [];
+  }
+
+  return readCreatedProjectsFromJsonFile();
+}
+
+async function readCreatedProjectsFromJsonFile(): Promise<Project[]> {
   try {
     const content = await readFile(storePath, "utf8");
     const parsed = JSON.parse(content);
@@ -448,6 +478,15 @@ async function readCreatedProjects(): Promise<Project[]> {
 }
 
 async function writeCreatedProjects(projects: Project[]) {
+  if (await isDatabaseAvailable()) {
+    await writeManagedProjectsToDatabase(projects);
+    return;
+  }
+
+  await writeCreatedProjectsToJsonFile(projects);
+}
+
+async function writeCreatedProjectsToJsonFile(projects: Project[]) {
   await mkdir(storeDir, { recursive: true });
   const tempPath = `${storePath}.${Date.now()}.tmp`;
   await writeFile(tempPath, JSON.stringify(projects, null, 2), "utf8");

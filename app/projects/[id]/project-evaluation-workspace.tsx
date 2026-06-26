@@ -30,7 +30,6 @@ import { buildAdmrulReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-l
 import { collectUniqueRoundFiles } from "@/lib/evaluation-round-files";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
-import { trashLocalProjectRound } from "../local-project-storage";
 import { showToast } from "../../toast";
 
 type Props = {
@@ -153,12 +152,6 @@ export default function ProjectEvaluationWorkspace({
       if (response.ok && payload.project) {
         next = payload.project.evaluationRounds ?? next;
         nextTrashedRounds = payload.project.trashedEvaluationRounds;
-      } else if (response.status === 404) {
-        const trashedProject = trashLocalProjectRound(project.id, roundId);
-        if (trashedProject) {
-          next = trashedProject.evaluationRounds ?? next;
-          nextTrashedRounds = trashedProject.trashedEvaluationRounds;
-        }
       } else {
         throw new Error(payload.error ?? "삭제에 실패했습니다.");
       }

@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Badge,
   MetricLabel,
   MetricValue,
-  MutedText,
   SectionDescription,
   SectionTitle,
   SubsectionTitle,
@@ -15,11 +14,11 @@ import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import {
   buildDashboardStats,
   getRecentProjects,
-  mergeManagedProjects,
+  sortProjectsByReceivedAt,
 } from "@/lib/dashboard-projects";
+import { filterActiveProjects } from "@/lib/trash";
 import type { DashboardRole } from "@/lib/dashboard-data";
 import type { Project } from "@/lib/types";
-import { getLocalProjects, reconcileLocalProjectsWithServer } from "./projects/local-project-storage";
 
 type DashboardOverviewProps = {
   serverProjects: Project[];
@@ -27,19 +26,9 @@ type DashboardOverviewProps = {
 };
 
 export default function DashboardOverview({ serverProjects, roles }: DashboardOverviewProps) {
-  const [localProjects, setLocalProjects] = useState<Project[]>([]);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      reconcileLocalProjectsWithServer(serverProjects);
-      setLocalProjects(getLocalProjects());
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [serverProjects]);
-
   const projects = useMemo(
-    () => mergeManagedProjects(serverProjects, localProjects),
-    [localProjects, serverProjects],
+    () => filterActiveProjects(sortProjectsByReceivedAt(serverProjects)),
+    [serverProjects],
   );
   const stats = useMemo(() => buildDashboardStats(projects), [projects]);
   const recentProjects = useMemo(() => getRecentProjects(projects), [projects]);
@@ -153,4 +142,3 @@ function MetricCard({ label, value, delta }: { label: string; value: string; del
     </div>
   );
 }
-

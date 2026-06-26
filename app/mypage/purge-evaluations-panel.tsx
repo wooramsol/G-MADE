@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import { SectionDescription, SubsectionTitle } from "@/components/typography";
-import { purgeAllLocalEvaluationRounds } from "@/app/projects/local-project-storage";
 import { showToast } from "../toast";
 
 export default function PurgeEvaluationsPanel() {
@@ -26,7 +25,6 @@ export default function PurgeEvaluationsPanel() {
         throw new Error(payload.error ?? "평가 기록을 삭제하지 못했습니다.");
       }
 
-      purgeAllLocalEvaluationRounds();
       setConfirmOpen(false);
       showToast({
         message: `모든 평가 기록 ${payload.projectsUpdated ?? 0}개 프로젝트에서 삭제했습니다.`,
@@ -48,8 +46,7 @@ export default function PurgeEvaluationsPanel() {
       <section className="rounded-2xl border border-[#f5d0d0] bg-[#fff8f8] p-6 panel-shadow">
         <SubsectionTitle>평가 데이터 관리</SubsectionTitle>
         <SectionDescription className="mt-2">
-          모든 프로젝트의 AI·전문가 평가 차수(활성·휴지통)를 서버와 브라우저 저장소에서 영구 삭제합니다. 프로젝트
-          자체는 유지됩니다.
+          모든 프로젝트의 AI·전문가 평가 차수(활성·휴지통)를 데이터베이스에서 영구 삭제합니다. 프로젝트 자체는 유지됩니다.
         </SectionDescription>
         <button
           className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"

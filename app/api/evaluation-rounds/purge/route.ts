@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { getAllProjects, purgeAllProjectEvaluationRounds } from "@/lib/project-store";
+import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ export async function POST() {
 
   const { projectsUpdated } = await purgeAllProjectEvaluationRounds();
   const projects = await getAllProjects();
+  revalidateProjectViews();
 
   return NextResponse.json({
     projectsUpdated,
