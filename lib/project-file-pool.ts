@@ -1,3 +1,4 @@
+import { formatEvaluationRoundLabel } from "./format-datetime";
 import {
   projectFileToStoredRef,
   sessionFileToStoredRef,
@@ -5,7 +6,7 @@ import {
 } from "./stored-file-ref";
 import type { Project } from "./types";
 
-/** 프로젝트·이전 평가 차수에서 재사용 가능한 Blob 자료를 모읍니다. */
+/** 프로젝트·이전 평가 기록에서 재사용 가능한 Blob 자료를 모읍니다. */
 export function collectProjectStoredFiles(project: Project): StoredFileRef[] {
   const byId = new Map<string, StoredFileRef>();
 
@@ -22,9 +23,8 @@ export function collectProjectStoredFiles(project: Project): StoredFileRef[] {
     (left, right) => new Date(right.evaluatedAt).getTime() - new Date(left.evaluatedAt).getTime(),
   );
 
-  sortedRounds.forEach((round, index) => {
-    const roundNumber = sortedRounds.length - index;
-    const roundLabel = `${roundNumber}차`;
+  sortedRounds.forEach((round) => {
+    const roundLabel = formatEvaluationRoundLabel(round.evaluatedAt);
 
     for (const file of [...round.aiFiles, ...round.expertFiles]) {
       const ref = sessionFileToStoredRef(file);

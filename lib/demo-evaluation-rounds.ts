@@ -1,3 +1,4 @@
+import { formatUploadDateTime } from "@/lib/format-datetime";
 import type { EvaluationItem, EvaluationRound } from "./types";
 
 const DEMO_SECTIONS = [
@@ -49,7 +50,7 @@ export function createDemoEvaluationRounds(
       aiAnalysis: {
         provider: "demo",
         mode: "demo",
-        summary: `${roundNumber}차 AI·전문가 하이브리드 평가 분석이 완료되었습니다.`,
+        summary: `${formatUploadDateTime(evaluatedAt.toISOString())} AI·전문가 하이브리드 평가 분석이 완료되었습니다.`,
         documentSections: DEMO_SECTIONS,
         evaluationPreview: previewItems.map((item, itemIndex) => ({
           itemId: item.id,

@@ -22,7 +22,7 @@ export async function POST(
 
   const project = await restoreProjectEvaluationRound(id, roundId);
   if (!project) {
-    return NextResponse.json({ error: "평가 차수를 복원할 수 없습니다." }, { status: 404 });
+    return NextResponse.json({ error: "평가 기록을 복원할 수 없습니다." }, { status: 404 });
   }
 
   return NextResponse.json({ project });

@@ -8,7 +8,7 @@ export type StoredFileRef = {
   sizeBytes: number;
   storageKey: string;
   blobUrl?: string;
-  /** 마지막으로 사용된 평가 차수 라벨 (예: 1차) */
+  /** 마지막으로 사용된 평가 시각 라벨 */
   lastUsedRoundLabel?: string;
   uploadedAt?: string;
 };

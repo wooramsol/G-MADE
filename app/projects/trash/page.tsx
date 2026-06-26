@@ -15,10 +15,10 @@ export default async function ProjectTrashPage() {
           <div>
             <PageTitle>프로젝트 휴지통</PageTitle>
             <SectionDescription>
-              삭제한 프로젝트와 평가 차수가 여기에 보관됩니다. 복원하거나 영구 삭제할 수 있습니다.
+              삭제한 프로젝트와 평가 기록이 여기에 보관됩니다. 복원하거나 영구 삭제할 수 있습니다.
             </SectionDescription>
             <MutedText className="mt-2">
-              프로젝트를 삭제하면 목록에서 숨겨지며, 평가 차수만 삭제한 경우 해당 프로젝트 상세 화면 하단에서 복원할 수
+              프로젝트를 삭제하면 목록에서 숨겨지며, 평가만 삭제한 경우 해당 프로젝트 상세 화면 하단에서 복원할 수
               있습니다.
             </MutedText>
           </div>

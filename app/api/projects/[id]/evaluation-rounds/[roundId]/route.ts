@@ -22,7 +22,7 @@ export async function DELETE(
 
   const project = await trashProjectEvaluationRound(id, roundId);
   if (!project) {
-    return NextResponse.json({ error: "평가 차수를 휴지통으로 이동하지 못했습니다." }, { status: 404 });
+    return NextResponse.json({ error: "평가 기록을 휴지통으로 이동하지 못했습니다." }, { status: 404 });
   }
 
   return NextResponse.json({ project });
