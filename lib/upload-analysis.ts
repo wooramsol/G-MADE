@@ -1,5 +1,5 @@
 import { analyzeWithClaude } from "./ai/analyze-claude";
-import { getGeminiApiKey, getOpenAiApiKey } from "./ai/env-keys";
+import { getGeminiApiKey, getGeminiModel, getOpenAiApiKey } from "./ai/env-keys";
 import { buildAnalysisPrompt } from "./ai/analysis-prompt";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
 import { buildFallbackRecommendation, isGenericRecommendation } from "./ai/fallback-recommendation";
@@ -7,6 +7,7 @@ import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResu
 import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
 import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
+import { requestGeminiGenerateContent } from "./ai/gemini-request";
 import { selectProvider } from "./ai/select-provider";
 import type { EvaluationContext } from "./evaluation-context";
 import { evaluationItems as defaultEvaluationItems } from "./demo-data";
@@ -151,7 +152,7 @@ async function analyzeWithGemini(
     return createDemoAnalysis(files, evaluationContext, items, "demo", [...baseWarnings, "GEMINI_API_KEY가 설정되지 않았습니다."]);
   }
 
-  const modelsToTry = getGeminiModelsToTry(process.env.GEMINI_MODEL);
+  const modelsToTry = getGeminiModelsToTry(getGeminiModel());
   let lastStatus = 500;
   let lastBody = "";
   let rateLimitModel = modelsToTry[0] ?? DEFAULT_GEMINI_MODEL;
@@ -195,7 +196,7 @@ async function analyzeWithGemini(
   if (lastStatus === 429) {
     return createDemoAnalysis(files, evaluationContext, items, "gemini", [
       ...baseWarnings,
-      formatProviderApiError("gemini", "Gemini", lastStatus, lastBody),
+      formatProviderApiError("gemini", "Gemini", lastStatus, lastBody, modelsToTry),
       `사용 모델: ${rateLimitModel}`,
     ]);
   }
@@ -217,29 +218,22 @@ async function requestGemini(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
 ) {
-  return fetchWithTimeout(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
+  return requestGeminiGenerateContent(apiKey, model, {
+    contents: [
+      {
+        role: "user",
+        parts: [
           {
-            role: "user",
-            parts: [
-              {
-                text: `${AI_EVALUATOR_SYSTEM_PROMPT}\n\n${buildAnalysisPrompt(files, evaluationContext, items)}`,
-              },
-            ],
+            text: `${AI_EVALUATOR_SYSTEM_PROMPT}\n\n${buildAnalysisPrompt(files, evaluationContext, items)}`,
           },
         ],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-        },
-      }),
+      },
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: "application/json",
     },
-  );
+  });
 }
 
 function normalizeAiJson(

@@ -1,7 +1,16 @@
 import { fetchWithTimeout } from "../fetch-with-timeout";
+import { getClaudeModelsToTry } from "./claude-models";
 import { formatProviderApiError } from "./format-api-error";
-import { getClaudeApiKey, getClaudeModel, getGeminiApiKey, getOpenAiApiKey } from "./env-keys";
-import { DEFAULT_GEMINI_MODEL } from "./gemini-models";
+import {
+  getClaudeApiKey,
+  getClaudeModel,
+  getGeminiApiKey,
+  getGeminiModel,
+  getOpenAiApiKey,
+  getOpenAiModel,
+} from "./env-keys";
+import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./gemini-models";
+import { requestGeminiGenerateContent } from "./gemini-request";
 
 export type ProviderProbeResult = {
   provider: "gemini" | "openai" | "claude";
@@ -43,46 +52,55 @@ async function probeGemini(): Promise<ProviderProbeResult> {
     };
   }
 
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+  const modelsToTry = getGeminiModelsToTry(getGeminiModel());
+  let lastStatus = 500;
+  let lastBody = "";
 
-  try {
-    const response = await fetchWithTimeout(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: "ping" }] }],
+  for (const model of modelsToTry) {
+    try {
+      const response = await requestGeminiGenerateContent(
+        apiKey,
+        model,
+        {
+          contents: [{ parts: [{ text: "ping" }] }],
           generationConfig: { maxOutputTokens: 8, temperature: 0 },
-        }),
-      },
-      12_000,
-    );
+        },
+        12_000,
+      );
 
-    if (response.ok) {
+      if (response.ok) {
+        return {
+          provider: "gemini",
+          configured: true,
+          reachable: true,
+          message: `Gemini API 응답 정상 (모델: ${model})`,
+        };
+      }
+
+      lastStatus = response.status;
+      lastBody = await response.text();
+
+      if (response.status === 404) {
+        continue;
+      }
+
+      break;
+    } catch (error) {
       return {
         provider: "gemini",
         configured: true,
-        reachable: true,
-        message: `Gemini API 응답 정상 (모델: ${model})`,
+        reachable: false,
+        message: error instanceof Error ? error.message : "Gemini API 연결에 실패했습니다.",
       };
     }
-
-    const body = await response.text();
-    return {
-      provider: "gemini",
-      configured: true,
-      reachable: false,
-      message: formatProviderApiError("gemini", "Gemini", response.status, body),
-    };
-  } catch (error) {
-    return {
-      provider: "gemini",
-      configured: true,
-      reachable: false,
-      message: error instanceof Error ? error.message : "Gemini API 연결에 실패했습니다.",
-    };
   }
+
+  return {
+    provider: "gemini",
+    configured: true,
+    reachable: false,
+    message: formatProviderApiError("gemini", "Gemini", lastStatus, lastBody, modelsToTry),
+  };
 }
 
 async function probeOpenAi(): Promise<ProviderProbeResult> {
@@ -96,7 +114,7 @@ async function probeOpenAi(): Promise<ProviderProbeResult> {
     };
   }
 
-  const model = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
+  const model = getOpenAiModel() || "gpt-4o-mini";
 
   try {
     const response = await fetchWithTimeout(
@@ -130,7 +148,7 @@ async function probeOpenAi(): Promise<ProviderProbeResult> {
       provider: "openai",
       configured: true,
       reachable: false,
-      message: formatProviderApiError("openai", "OpenAI", response.status, body),
+      message: formatProviderApiError("openai", "OpenAI", response.status, body, [model]),
     };
   } catch (error) {
     return {
@@ -153,49 +171,79 @@ async function probeClaude(): Promise<ProviderProbeResult> {
     };
   }
 
-  const model = getClaudeModel()?.trim() || "claude-sonnet-4-6";
+  if (!apiKey.startsWith("sk-ant-")) {
+    return {
+      provider: "claude",
+      configured: true,
+      reachable: false,
+      message:
+        "CLAUDE_API_KEY 형식이 올바르지 않습니다. Anthropic 콘솔에서 발급한 sk-ant- 로 시작하는 키인지 확인해 주세요.",
+    };
+  }
 
-  try {
-    const response = await fetchWithTimeout(
-      "https://api.anthropic.com/v1/messages",
-      {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
+  const modelsToTry = getClaudeModelsToTry(getClaudeModel());
+  let lastStatus = 500;
+  let lastBody = "";
+
+  for (const model of modelsToTry) {
+    try {
+      const response = await fetchWithTimeout(
+        "https://api.anthropic.com/v1/messages",
+        {
+          method: "POST",
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 8,
+            messages: [{ role: "user", content: "ping" }],
+          }),
         },
-        body: JSON.stringify({
-          model,
-          max_tokens: 8,
-          messages: [{ role: "user", content: "ping" }],
-        }),
-      },
-      12_000,
-    );
+        12_000,
+      );
 
-    if (response.ok) {
+      if (response.ok) {
+        return {
+          provider: "claude",
+          configured: true,
+          reachable: true,
+          message: `Claude API 응답 정상 (모델: ${model})`,
+        };
+      }
+
+      lastStatus = response.status;
+      lastBody = await response.text();
+
+      if (response.status === 404) {
+        continue;
+      }
+
+      break;
+    } catch (error) {
       return {
         provider: "claude",
         configured: true,
-        reachable: true,
-        message: `Claude API 응답 정상 (모델: ${model})`,
+        reachable: false,
+        message: error instanceof Error ? error.message : "Claude API 연결에 실패했습니다.",
       };
     }
-
-    const body = await response.text();
-    return {
-      provider: "claude",
-      configured: true,
-      reachable: false,
-      message: formatProviderApiError("claude", "Claude", response.status, body),
-    };
-  } catch (error) {
-    return {
-      provider: "claude",
-      configured: true,
-      reachable: false,
-      message: error instanceof Error ? error.message : "Claude API 연결에 실패했습니다.",
-    };
   }
+
+  return {
+    provider: "claude",
+    configured: true,
+    reachable: false,
+    message: formatProviderApiError("claude", "Claude", lastStatus, lastBody, modelsToTry),
+  };
+}
+
+export function getConfiguredModelSummary() {
+  return {
+    gemini: getGeminiModel() ?? DEFAULT_GEMINI_MODEL,
+    openai: getOpenAiModel() ?? "gpt-4o-mini",
+    claude: getClaudeModel() ?? "claude-sonnet-4-6",
+  };
 }

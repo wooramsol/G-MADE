@@ -66,7 +66,7 @@ export async function analyzeWithClaude(
   }
 
   return deps.createDemoAnalysis("claude", [
-    formatProviderApiError("claude", "Claude", lastStatus, lastBody),
+    formatProviderApiError("claude", "Claude", lastStatus, lastBody, modelsToTry),
   ]);
 }
 
