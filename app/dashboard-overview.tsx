@@ -19,7 +19,7 @@ import {
 } from "@/lib/dashboard-projects";
 import type { DashboardRole } from "@/lib/dashboard-data";
 import type { Project } from "@/lib/types";
-import { getLocalProjects } from "./projects/local-project-storage";
+import { getLocalProjects, reconcileLocalProjectsWithServer } from "./projects/local-project-storage";
 
 type DashboardOverviewProps = {
   serverProjects: Project[];
@@ -30,9 +30,12 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
   const [localProjects, setLocalProjects] = useState<Project[]>([]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setLocalProjects(getLocalProjects()), 0);
+    const timeout = window.setTimeout(() => {
+      reconcileLocalProjectsWithServer(serverProjects);
+      setLocalProjects(getLocalProjects());
+    }, 0);
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [serverProjects]);
 
   const projects = useMemo(
     () => mergeManagedProjects(serverProjects, localProjects),

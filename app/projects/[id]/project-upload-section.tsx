@@ -9,7 +9,7 @@ import { resolveProjectRounds } from "@/lib/resolve-project-rounds";
 import { scrollToHybridEvaluationResults } from "@/lib/scroll-to-hybrid-evaluation-results";
 import type { EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import ParallelEvaluationForm from "../../parallel-evaluation-form";
-import { getLocalProjects, syncLocalProjectRounds } from "../local-project-storage";
+import { getLocalProjects, reconcileLocalProjectsWithServer, syncLocalProjectRounds } from "../local-project-storage";
 import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
 import TrashedRoundsPanel from "./trashed-rounds-panel";
 import { getTrashedEvaluationRounds } from "@/lib/trash";
@@ -48,6 +48,7 @@ export default function ProjectUploadSection({
   }, [rounds]);
 
   useEffect(() => {
+    reconcileLocalProjectsWithServer([project]);
     const localProject = getLocalProjects().find((item) => item.id === project.id);
     const mergedProject = mergeProjectWithLocal(project, localProject);
 

@@ -260,6 +260,41 @@ export async function purgeProjectEvaluationRound(
   });
 }
 
+/** 모든 프로젝트의 평가 차수(활성·휴지통)를 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다. */
+export async function purgeAllProjectEvaluationRounds(): Promise<{ projectsUpdated: number }> {
+  return withProjectStoreLock(async () => {
+    const allProjects = await getAllProjectsIncludingTrashed();
+    const storedProjects = await readCreatedProjects();
+    const storedById = new Map(storedProjects.map((project) => [project.id, project]));
+    let projectsUpdated = 0;
+
+    for (const project of allProjects) {
+      const hasRounds =
+        (project.evaluationRounds?.length ?? 0) > 0 ||
+        (project.trashedEvaluationRounds?.length ?? 0) > 0;
+      if (!hasRounds) continue;
+
+      const updatedAt = new Date().toISOString();
+      const stored = storedById.get(project.id);
+
+      storedById.set(project.id, {
+        ...(stored ?? project),
+        evaluationRounds: [],
+        trashedEvaluationRounds: [],
+        updatedAt,
+      });
+
+      projectsUpdated += 1;
+    }
+
+    if (projectsUpdated > 0) {
+      await writeCreatedProjects(Array.from(storedById.values()));
+    }
+
+    return { projectsUpdated };
+  });
+}
+
 async function updateStoredProject(
   id: string,
   updater: (project: Project) => Project,

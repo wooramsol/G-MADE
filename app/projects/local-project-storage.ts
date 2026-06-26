@@ -7,6 +7,7 @@ import {
   restoreEvaluationRound,
   trashEvaluationRound,
 } from "@/lib/trash";
+import { mergeProjectWithLocal } from "@/lib/merge-project-state";
 import type {
   EvaluationItem,
   EvaluationRound,
@@ -301,4 +302,53 @@ export function syncLocalProjectRounds(
   };
   saveLocalProject(nextProject);
   return nextProject;
+}
+
+function roundsSignature(rounds: EvaluationRound[]): string {
+  return rounds.map((round) => round.id).join(",");
+}
+
+/** 서버 상태를 기준으로 브라우저에 남은 삭제·휴지통 평가 차수를 정리합니다. */
+export function reconcileLocalProjectsWithServer(serverProjects: Project[]): boolean {
+  const localById = new Map(getLocalProjects().map((project) => [project.id, project]));
+  let changed = false;
+
+  for (const serverProject of serverProjects) {
+    const local = localById.get(serverProject.id);
+    if (!local) continue;
+
+    const merged = mergeProjectWithLocal(serverProject, local);
+    const nextActive = merged.evaluationRounds ?? [];
+    const nextTrashed = merged.trashedEvaluationRounds ?? [];
+    const prevActive = local.evaluationRounds ?? [];
+    const prevTrashed = local.trashedEvaluationRounds ?? [];
+
+    if (
+      roundsSignature(prevActive) === roundsSignature(nextActive) &&
+      roundsSignature(prevTrashed) === roundsSignature(nextTrashed)
+    ) {
+      continue;
+    }
+
+    syncLocalProjectRounds(serverProject.id, merged, merged.files, nextActive, nextTrashed);
+    changed = true;
+  }
+
+  return changed;
+}
+
+/** 브라우저 저장소의 모든 평가 차수(활성·휴지통)를 비웁니다. */
+export function purgeAllLocalEvaluationRounds(): void {
+  const projects = getLocalProjects().map((project) => ({
+    ...project,
+    evaluationRounds: [],
+    trashedEvaluationRounds: [],
+    updatedAt: new Date().toISOString(),
+  }));
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  } catch {
+    // localStorage quota/private mode
+  }
 }

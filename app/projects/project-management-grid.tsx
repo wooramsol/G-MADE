@@ -9,7 +9,7 @@ import { sortProjectsByUpdatedAt } from "@/lib/project-sort";
 import type { Project } from "@/lib/types";
 import { mergeProjectWithLocal } from "@/lib/merge-project-state";
 import { filterActiveProjects } from "@/lib/trash";
-import { getLocalProjects } from "./local-project-storage";
+import { getLocalProjects, reconcileLocalProjectsWithServer } from "./local-project-storage";
 
 type ProjectManagementGridProps = {
   serverProjects: Project[];
@@ -22,11 +22,12 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
+      reconcileLocalProjectsWithServer(serverProjects);
       setLocalProjects(getLocalProjects());
       setHydrated(true);
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [serverProjects]);
 
   const normalizedQuery = query.trim().toLowerCase();
 

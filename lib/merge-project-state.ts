@@ -1,3 +1,4 @@
+import { getTrashedEvaluationRoundIds } from "./trash";
 import type { EvaluationRound, Project, ProjectFile } from "./types";
 
 function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]): ProjectFile[] {
@@ -9,20 +10,26 @@ function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]
 /**
  * 서버 차수를 기준으로 병합하고, 아직 서버에 반영되지 않은 로컬 차수는 유지합니다.
  * 빈 서버 배열([])이 로컬의 신규 분석 결과를 덮어쓰지 않도록 합니다.
+ * 휴지통에 있는 차수는 서버·로컬 어디에 남아 있어도 활성 목록에 포함하지 않습니다.
  */
 export function mergeEvaluationRounds(
   serverRounds?: EvaluationRound[],
   localRounds?: EvaluationRound[],
+  trashedRoundIds?: ReadonlySet<string>,
 ): EvaluationRound[] | undefined {
   const hasServer = Array.isArray(serverRounds);
   const hasLocal = Array.isArray(localRounds);
   if (!hasServer && !hasLocal) return undefined;
 
+  const trashedIds = trashedRoundIds ?? new Set<string>();
   const server = hasServer ? serverRounds : [];
   const local = hasLocal ? localRounds : [];
   const serverIds = new Set(server.map((round) => round.id));
-  const pendingLocal = local.filter((round) => !serverIds.has(round.id));
-  const merged = [...server, ...pendingLocal];
+  const pendingLocal = local.filter((round) => !serverIds.has(round.id) && !trashedIds.has(round.id));
+  const merged = [
+    ...server.filter((round) => !trashedIds.has(round.id)),
+    ...pendingLocal,
+  ];
 
   if (merged.length === 0) {
     return hasServer ? [] : undefined;
@@ -42,6 +49,16 @@ export function mergeProjectWithLocal(serverProject: Project, localProject?: Pro
       ? serverProject.savedEvaluationItems
       : localProject.savedEvaluationItems;
 
+  const trashedEvaluationRounds = mergeTrashedEvaluationRounds(
+    serverProject.trashedEvaluationRounds,
+    localProject.trashedEvaluationRounds,
+  );
+  const trashedRoundIds = getTrashedEvaluationRoundIds(
+    { trashedEvaluationRounds: serverProject.trashedEvaluationRounds },
+    { trashedEvaluationRounds: localProject.trashedEvaluationRounds },
+    { trashedEvaluationRounds },
+  );
+
   return {
     ...localProject,
     ...serverProject,
@@ -49,11 +66,12 @@ export function mergeProjectWithLocal(serverProject: Project, localProject?: Pro
     deletedAt: serverProject.deletedAt ?? localProject.deletedAt,
     files: mergeProjectFiles(serverProject.files, localProject.files),
     savedEvaluationItems,
-    evaluationRounds: mergeEvaluationRounds(serverProject.evaluationRounds, localProject.evaluationRounds),
-    trashedEvaluationRounds: mergeTrashedEvaluationRounds(
-      serverProject.trashedEvaluationRounds,
-      localProject.trashedEvaluationRounds,
+    evaluationRounds: mergeEvaluationRounds(
+      serverProject.evaluationRounds,
+      localProject.evaluationRounds,
+      trashedRoundIds,
     ),
+    trashedEvaluationRounds,
   };
 }
 

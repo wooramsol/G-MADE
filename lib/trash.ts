@@ -16,6 +16,20 @@ export function getTrashedEvaluationRounds(project: Project): EvaluationRound[] 
   return project.trashedEvaluationRounds ?? [];
 }
 
+export function getTrashedEvaluationRoundIds(
+  ...projects: Array<Pick<Project, "trashedEvaluationRounds"> | undefined>
+): Set<string> {
+  const ids = new Set<string>();
+
+  for (const project of projects) {
+    for (const round of project?.trashedEvaluationRounds ?? []) {
+      ids.add(round.id);
+    }
+  }
+
+  return ids;
+}
+
 function sortRoundsByEvaluatedAt(rounds: EvaluationRound[]): EvaluationRound[] {
   return [...rounds].sort(
     (left, right) => new Date(right.evaluatedAt).getTime() - new Date(left.evaluatedAt).getTime(),

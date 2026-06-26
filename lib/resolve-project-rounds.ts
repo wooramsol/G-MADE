@@ -1,5 +1,6 @@
 import { getProjectEvaluationRounds } from "./evaluation-rounds";
 import { mergeEvaluationRounds } from "./merge-project-state";
+import { getTrashedEvaluationRoundIds } from "./trash";
 import type { EvaluationRound, Project } from "./types";
 
 function sortRounds(rounds: EvaluationRound[]): EvaluationRound[] {
@@ -38,16 +39,23 @@ export function resolveProjectRounds({
   currentRounds?: EvaluationRound[];
   excludedRoundIds?: ReadonlySet<string>;
 }): EvaluationRound[] {
-  const serverRounds = withoutExcluded(getProjectEvaluationRounds(serverProject), excludedRoundIds);
+  const trashedRoundIds = getTrashedEvaluationRoundIds(serverProject, localProject);
+  const serverRounds = withoutExcluded(getProjectEvaluationRounds(serverProject), excludedRoundIds).filter(
+    (round) => !trashedRoundIds.has(round.id),
+  );
   const localRounds = withoutExcluded(
     localProject ? getProjectEvaluationRounds(localProject) : [],
     excludedRoundIds,
+  ).filter((round) => !trashedRoundIds.has(round.id));
+  const mergedMeta = mergeEvaluationRounds(
+    serverProject.evaluationRounds,
+    localProject?.evaluationRounds,
+    trashedRoundIds,
   );
-  const mergedMeta = mergeEvaluationRounds(serverProject.evaluationRounds, localProject?.evaluationRounds);
   const mergedFromMeta = withoutExcluded(
     mergedMeta ? getProjectEvaluationRounds({ ...serverProject, evaluationRounds: mergedMeta }) : [],
     excludedRoundIds,
-  );
+  ).filter((round) => !trashedRoundIds.has(round.id));
   const safeCurrent = withoutExcluded(currentRounds ?? [], excludedRoundIds);
 
   return unionRounds(safeCurrent, mergedFromMeta, localRounds, serverRounds);
