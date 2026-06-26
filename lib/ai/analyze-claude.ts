@@ -45,7 +45,15 @@ export async function analyzeWithClaude(
     if (response.ok) {
       const payload = (await response.json()) as {
         content?: Array<{ type?: string; text?: string }>;
+        stop_reason?: string;
       };
+      if (payload.stop_reason === "max_tokens") {
+        throw new AiAnalysisError(
+          "Claude 출력 토큰 한도에 도달해 JSON 응답이 잘렸습니다. 평가 항목 수를 줄이거나 ChatGPT를 사용해 주세요.",
+          "claude",
+        );
+      }
+
       const textBlock = payload.content?.find((block) => block.type === "text") ?? payload.content?.[0];
       const content = extractJsonContent(textBlock?.text);
       return deps.normalizeAiJson(content);
@@ -74,23 +82,27 @@ async function requestClaude(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
 ) {
-  return fetchWithTimeout("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
+  return fetchWithTimeout(
+    "https://api.anthropic.com/v1/messages",
+    {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 16384,
+        system: `${AI_EVALUATOR_SYSTEM_PROMPT}\n\n반드시 유효한 JSON 객체 하나만 반환하라. 마크다운 코드블록 없이 JSON만 출력하라.`,
+        messages: [
+          {
+            role: "user",
+            content: buildAnalysisPrompt(files, evaluationContext, items),
+          },
+        ],
+      }),
     },
-    body: JSON.stringify({
-      model,
-      max_tokens: 16384,
-      system: AI_EVALUATOR_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: buildAnalysisPrompt(files, evaluationContext, items),
-        },
-      ],
-    }),
-  });
+    110_000,
+  );
 }

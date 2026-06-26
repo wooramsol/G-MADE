@@ -9,6 +9,7 @@ import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
 import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
 import { requestGeminiGenerateContent } from "./ai/gemini-request";
+import { describeGeminiResponseIssue, readGeminiGenerateContent } from "./ai/gemini-response";
 import { isProviderConfigured, selectProvider } from "./ai/select-provider";
 import type { EvaluationContext } from "./evaluation-context";
 import { evaluationItems as defaultEvaluationItems } from "./demo-data";
@@ -171,16 +172,17 @@ async function analyzeWithGemini(
 
       if (response.ok) {
         const payload = await response.json();
-        const blockReason = payload.promptFeedback?.blockReason;
-        if (blockReason) {
-          throw new AiAnalysisError(
-            `Gemini가 자료 분석 응답을 차단했습니다(${blockReason}). 자료 내용을 확인하거나 다른 AI 엔진을 선택해 주세요.`,
-            "gemini",
-          );
+        const gemini = readGeminiGenerateContent(payload);
+        const issue = describeGeminiResponseIssue({
+          blockReason: gemini.blockReason,
+          finishReason: gemini.finishReason,
+          hasText: Boolean(gemini.text),
+        });
+        if (issue) {
+          throw new AiAnalysisError(issue, "gemini");
         }
 
-        const content = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-        return normalizeAiJson(content, files, "gemini", evaluationContext, items, baseWarnings);
+        return normalizeAiJson(gemini.text, files, "gemini", evaluationContext, items, baseWarnings);
       }
 
       lastStatus = response.status;
@@ -218,23 +220,27 @@ async function requestGemini(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
 ) {
-  return requestGeminiGenerateContent(apiKey, model, {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: `${AI_EVALUATOR_SYSTEM_PROMPT}\n\n${buildAnalysisPrompt(files, evaluationContext, items)}`,
-          },
-        ],
+  return requestGeminiGenerateContent(
+    apiKey,
+    model,
+    {
+      systemInstruction: {
+        parts: [{ text: AI_EVALUATOR_SYSTEM_PROMPT }],
       },
-    ],
-    generationConfig: {
-      temperature: 0.2,
-      responseMimeType: "application/json",
-      maxOutputTokens: 8192,
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: buildAnalysisPrompt(files, evaluationContext, items) }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+        maxOutputTokens: 16384,
+      },
     },
-  });
+    110_000,
+  );
 }
 
 function normalizeAiJson(
@@ -257,7 +263,7 @@ function normalizeAiJson(
     parsed = JSON.parse(extractJsonContent(content) ?? content) as Record<string, unknown>;
   } catch {
     throw new AiAnalysisError(
-      `${providerLabel(provider)} 응답 JSON 파싱에 실패했습니다. 모델이 지정 형식으로 답하지 않았습니다. 다시 시도하거나 다른 AI 엔진을 선택해 주세요.`,
+      `${providerLabel(provider)} 응답 JSON 파싱에 실패했습니다. 출력이 잘렸거나 형식이 올바르지 않습니다. 응답 앞부분: ${content.slice(0, 240)}`,
       provider,
     );
   }

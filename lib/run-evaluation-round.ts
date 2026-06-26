@@ -170,35 +170,30 @@ export async function runEvaluationRound(
     ];
 
     emitStep(emit, "ai-analysis");
-    const aiAnalysisPromise = needsAiMaterials
-      ? analyzeUploadedFiles({
+
+    const needsSharedAnalysis = needsAiMaterials || needsExpertMaterials;
+    const sharedAnalysis = needsSharedAnalysis
+      ? await analyzeUploadedFiles({
           providerPreference,
           files: textBudget.files,
           evaluationContext,
           evaluationItems,
         })
-      : Promise.resolve(
-          createSkippedUploadAnalysis(evaluationContext, evaluationItems, "ai", evaluationContext.warnings),
-        );
+      : null;
+
+    const aiAnalysis = needsAiMaterials
+      ? sharedAnalysis!
+      : createSkippedUploadAnalysis(evaluationContext, evaluationItems, "ai", evaluationContext.warnings);
 
     emitStep(emit, "expert-analysis");
-    const expertAnalysisPromise = needsExpertMaterials
-      ? analyzeUploadedFiles({
-          providerPreference,
-          files: textBudget.files,
+    const expertAnalysis = needsExpertMaterials
+      ? sharedAnalysis!
+      : createSkippedUploadAnalysis(
           evaluationContext,
           evaluationItems,
-        })
-      : Promise.resolve(
-          createSkippedUploadAnalysis(
-            evaluationContext,
-            evaluationItems,
-            "expert",
-            evaluationContext.warnings,
-          ),
+          "expert",
+          evaluationContext.warnings,
         );
-
-    const [aiAnalysis, expertAnalysis] = await Promise.all([aiAnalysisPromise, expertAnalysisPromise]);
 
     const expertItemScores =
       manualExpertScores.length > 0
