@@ -8,7 +8,7 @@ import type { EvaluationItem, HumanEvaluationItemScore, Project } from "@/lib/ty
 import type { AiProviderPreference } from "@/lib/ai/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 export const preferredRegion = "icn1";
 export const dynamic = "force-dynamic";
 

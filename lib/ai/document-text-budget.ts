@@ -1,7 +1,9 @@
 /** 파일 1개당 AI 프롬프트에 넣을 최대 글자 수 */
 export const PER_FILE_AI_TEXT_CHARS = 40_000;
-/** 한 번의 분석 호출(AI/전문가 측)에서 모든 파일 합산 상한 */
+/** OpenAI용 합산 상한 */
 export const TOTAL_AI_TEXT_CHARS = 80_000;
+/** Gemini·Claude용 합산 상한 (입력 과다·응답 지연 완화) */
+export const LIGHTWEIGHT_PROVIDER_TOTAL_AI_TEXT_CHARS = 45_000;
 
 const SNIPPET_RADIUS = 1_200;
 const MAX_SNIPPETS = 10;
@@ -145,6 +147,7 @@ export function trimTextForAiAnalysis(text: string, charBudget: number): TextBud
 /** 여러 파일의 추출 본문을 AI 호출 1회 분량으로 맞춥니다. */
 export function applyFilesTextBudget<T extends FileWithExtractedText>(
   files: T[],
+  totalCharBudget = TOTAL_AI_TEXT_CHARS,
 ): { files: T[]; warnings: string[] } {
   if (files.length === 0) {
     return { files, warnings: [] };
@@ -152,7 +155,7 @@ export function applyFilesTextBudget<T extends FileWithExtractedText>(
 
   const perFileBudget = Math.min(
     PER_FILE_AI_TEXT_CHARS,
-    Math.floor(TOTAL_AI_TEXT_CHARS / files.length),
+    Math.floor(totalCharBudget / files.length),
   );
   const warnings: string[] = [];
 
