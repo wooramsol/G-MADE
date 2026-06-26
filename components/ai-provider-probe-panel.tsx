@@ -20,7 +20,7 @@ export default function AiProviderProbePanel() {
     setError("");
 
     try {
-      const response = await fetch("/api/ai-status?probe=1", { cache: "no-store" });
+      const response = await fetch("/api/ai-status?probe=analysis", { cache: "no-store" });
       const payload = (await response.json()) as { probes?: ProbeResult[]; error?: string };
 
       if (!response.ok) {
@@ -40,10 +40,10 @@ export default function AiProviderProbePanel() {
     <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-bold text-[#15345b]">AI API 연결 테스트</p>
+          <p className="text-sm font-bold text-[#15345b]">AI 심의 분석 시험</p>
           <MutedText className="mt-1">
-            키·모델·JSON 응답 가능 여부만 확인합니다. 통과해도 대용량 심의 자료 분석은 별도로 실패할 수 있으며, 그때는 평가가
-            저장되지 않고 오류 안내만 표시됩니다.
+            실제 평가와 같은 JSON 심의 분석을 축소 실행합니다. 여기서 실패하면 평가도 실패합니다. 통과해도 대용량
+            PDF는 별도로 실패할 수 있습니다.
           </MutedText>
         </div>
         <button
@@ -52,7 +52,7 @@ export default function AiProviderProbePanel() {
           type="button"
           onClick={runProbe}
         >
-          {loading ? "테스트 중..." : "연결 테스트"}
+          {loading ? "시험 중..." : "심의 분석 시험"}
         </button>
       </div>
 
