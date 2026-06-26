@@ -1,6 +1,8 @@
 import { analyzeWithClaude } from "./ai/analyze-claude";
 import { getGeminiApiKey, getOpenAiApiKey } from "./ai/env-keys";
 import { buildAnalysisPrompt } from "./ai/analysis-prompt";
+import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
+import { buildFallbackRecommendation, isGenericRecommendation } from "./ai/fallback-recommendation";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
@@ -108,8 +110,7 @@ async function analyzeWithOpenAi(
         messages: [
           {
             role: "system",
-            content:
-              "너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 제공된 실시간 법령·경관지구 정보를 근거로 반드시 JSON만 반환한다.",
+            content: AI_EVALUATOR_SYSTEM_PROMPT,
           },
           {
             role: "user",
@@ -227,7 +228,7 @@ async function requestGemini(
             role: "user",
             parts: [
               {
-                text: `너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이라는 원칙을 지키고, 제공된 실시간 법령·경관지구 정보를 근거로 반드시 JSON만 반환한다.\n\n${buildAnalysisPrompt(files, evaluationContext, items)}`,
+                text: `${AI_EVALUATOR_SYSTEM_PROMPT}\n\n${buildAnalysisPrompt(files, evaluationContext, items)}`,
               },
             ],
           },
@@ -264,7 +265,7 @@ function normalizeAiJson(
         mode: "live",
         summary: String(parsed.summary ?? "업로드 자료와 실시간 법령·경관지구 정보를 기반으로 AI 분석을 완료했습니다."),
         documentSections: normalizeSections(parsed.documentSections),
-        evaluationPreview: normalizeEvaluations(parsed.evaluationPreview, evaluationContext, items),
+        evaluationPreview: normalizeEvaluations(parsed.evaluationPreview, evaluationContext, items, files),
         warnings: baseWarnings,
       },
       evaluationContext,
@@ -292,6 +293,7 @@ function normalizeEvaluations(
   value: unknown,
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
+  files: UploadedFileSummary[] = [],
 ): UploadAnalysisResult["evaluationPreview"] {
   const source = Array.isArray(value) && value.length > 0 ? value : [];
   const rows = source.length > 0 ? source : items.slice(0, 4);
@@ -313,11 +315,25 @@ function normalizeEvaluations(
       score,
       grade: String(row?.grade ?? gradeScore(score)),
       rationale: String(row?.rationale ?? buildFallbackRationale(item.criteria, evaluationContext)),
-      recommendation: String(row?.recommendation ?? "심사위원 검토 단계에서 현장 맥락과 보완 조건을 확인해야 합니다."),
+      recommendation: resolveRecommendation(row?.recommendation, item, files, score),
       laws: aiLawRefs,
       guidelines: aiGuidelineRefs.length > 0 ? aiGuidelineRefs : defaultGuidelineRefs,
     };
   });
+}
+
+function resolveRecommendation(
+  raw: unknown,
+  item: EvaluationItem,
+  files: UploadedFileSummary[],
+  score: number,
+): string {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (text && !isGenericRecommendation(text)) {
+    return text;
+  }
+
+  return buildFallbackRecommendation(item, files, score);
 }
 
 function buildFallbackRationale(criteria: string, evaluationContext: EvaluationContext): string {
@@ -371,7 +387,7 @@ function createDemoAnalysis(
       mode: "demo",
       summary: `${fileNames}를 기준으로 건축개요, 배치, 입면, 색채, 야간경관, 보행동선, 녹지계획을 예비 분석했습니다. ${lawNote} ${guidelineNote} ${spatialNote}.`,
       documentSections: defaultSections(),
-      evaluationPreview: normalizeEvaluations([], evaluationContext, items),
+      evaluationPreview: normalizeEvaluations([], evaluationContext, items, files),
       warnings,
     },
     evaluationContext,
