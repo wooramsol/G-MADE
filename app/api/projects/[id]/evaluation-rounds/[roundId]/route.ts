@@ -1,12 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getProjectById, trashProjectEvaluationRound } from "@/lib/project-store";
+import {
+  getProjectById,
+  purgeProjectEvaluationRound,
+  trashProjectEvaluationRound,
+} from "@/lib/project-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; roundId: string }> },
 ) {
   const session = await auth();
@@ -18,6 +22,17 @@ export async function DELETE(
   const existing = await getProjectById(id);
   if (!existing) {
     return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  const permanent = request.nextUrl.searchParams.get("permanent") === "true";
+
+  if (permanent) {
+    const project = await purgeProjectEvaluationRound(id, roundId);
+    if (!project) {
+      return NextResponse.json({ error: "휴지통에 있는 평가만 영구 삭제할 수 있습니다." }, { status: 404 });
+    }
+
+    return NextResponse.json({ project });
   }
 
   const project = await trashProjectEvaluationRound(id, roundId);

@@ -167,6 +167,12 @@ export default function ProjectUploadSection({
       <TrashedRoundsPanel
         project={activeProject}
         trashedRounds={trashedRounds}
+        onPurged={(nextRounds, nextTrashedRounds) =>
+          syncRounds(nextRounds, files, {
+            refresh: false,
+            trashedEvaluationRounds: nextTrashedRounds,
+          })
+        }
         onRestored={(nextRounds, nextTrashedRounds, restoredRoundId) =>
           syncRounds(nextRounds, files, {
             focusRoundId: restoredRoundId,

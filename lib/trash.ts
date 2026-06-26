@@ -56,3 +56,14 @@ export function restoreEvaluationRound(
     trashedRounds: trashedRounds.filter((item) => item.id !== roundId),
   };
 }
+
+export function purgeEvaluationRound(
+  trashedRounds: EvaluationRound[],
+  roundId: string,
+): EvaluationRound[] | null {
+  if (!trashedRounds.some((item) => item.id === roundId)) {
+    return null;
+  }
+
+  return trashedRounds.filter((item) => item.id !== roundId);
+}

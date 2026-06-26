@@ -3,6 +3,7 @@
 import {
   filterActiveProjects,
   filterTrashedProjects,
+  purgeEvaluationRound,
   restoreEvaluationRound,
   trashEvaluationRound,
 } from "@/lib/trash";
@@ -124,6 +125,23 @@ export function restoreLocalProjectRound(projectId: string, roundId: string): Pr
     ...project,
     evaluationRounds: result.activeRounds,
     trashedEvaluationRounds: result.trashedRounds,
+    updatedAt: new Date().toISOString(),
+  };
+  saveLocalProject(nextProject);
+  return nextProject;
+}
+
+export function purgeLocalProjectRound(projectId: string, roundId: string): Project | undefined {
+  const projects = getLocalProjects();
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) return undefined;
+
+  const nextTrashed = purgeEvaluationRound(project.trashedEvaluationRounds ?? [], roundId);
+  if (!nextTrashed) return undefined;
+
+  const nextProject = {
+    ...project,
+    trashedEvaluationRounds: nextTrashed,
     updatedAt: new Date().toISOString(),
   };
   saveLocalProject(nextProject);
