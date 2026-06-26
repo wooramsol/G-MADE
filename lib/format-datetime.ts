@@ -33,6 +33,11 @@ export function formatUploadDateTime(value: string | undefined): string {
   return uploadDateTimeFormatter.format(date);
 }
 
+/** 평가 기록 탭·라벨용 (차수 대신 평가 시각으로 구분) */
+export function formatEvaluationRoundLabel(value: string | undefined): string {
+  return formatUploadDateTime(value);
+}
+
 export function formatKoreaCheckedAt(value: string | Date): string {
   const date = toDate(value);
   if (!date) return typeof value === "string" ? value : "-";

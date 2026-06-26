@@ -52,7 +52,7 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="전체 프로젝트" value={stats.total.toString()} delta="등록된 심의 프로젝트" />
-          <MetricCard label="평가대기 중" value={stats.waiting.toString()} delta="평가 차수 없음" />
+          <MetricCard label="평가대기 중" value={stats.waiting.toString()} delta="평가 기록 없음" />
           <MetricCard label="평가 중" value={stats.inEvaluation.toString()} delta="1건 이상 평가 진행" />
           <MetricCard label="평가완료" value={stats.completed.toString()} delta="평가완료 처리된 프로젝트" />
         </div>

@@ -147,7 +147,7 @@ export default function ProjectUploadSection({
       <WorkspaceSectionCard
         id="hybrid-evaluation-results"
         title="통합 평가 결과"
-        description="AI·전문가 자료를 함께 분석한 차수별 통합 결과와 종합 점수입니다."
+        description="AI·전문가 자료를 함께 분석한 평가별 통합 결과와 종합 점수입니다."
       >
         <ProjectEvaluationWorkspace
           focusRoundId={focusRoundId}

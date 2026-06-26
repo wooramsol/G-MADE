@@ -15,10 +15,9 @@ export type SessionHybridView = {
   settings: HybridSettings;
   results: HybridResult[];
   projectScore: number;
-  roundNumber: number;
 };
 
-export function buildHybridViewFromRound(round: EvaluationRound, roundNumber: number): SessionHybridView {
+export function buildHybridViewFromRound(round: EvaluationRound): SessionHybridView {
   const settings: HybridSettings = {
     aiWeight: round.aiWeight,
     humanWeight: round.expertWeight,
@@ -113,7 +112,6 @@ export function buildHybridViewFromRound(round: EvaluationRound, roundNumber: nu
     settings,
     results,
     projectScore: calculateProjectScore(results),
-    roundNumber,
   };
 }
 

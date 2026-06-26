@@ -16,7 +16,7 @@ import {
 } from "@/components/typography";
 import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
-import { formatUploadDateTime } from "@/lib/format-datetime";
+import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
 import DemoModeBanner from "@/components/demo-mode-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
@@ -42,8 +42,6 @@ type Props = {
   onRoundsChange?: (rounds: EvaluationRound[], trashedRounds?: EvaluationRound[]) => void;
 };
 
-type RoundWithNumber = EvaluationRound & { roundNumber: number };
-
 export default function ProjectEvaluationWorkspace({
   project,
   rounds,
@@ -52,14 +50,10 @@ export default function ProjectEvaluationWorkspace({
   onFocusRoundHandled,
   onRoundsChange,
 }: Props) {
-  const sorted = useMemo<RoundWithNumber[]>(() => {
-    const ordered = [...rounds].sort(
+  const sorted = useMemo(() => {
+    return [...rounds].sort(
       (a, b) => new Date(b.evaluatedAt).getTime() - new Date(a.evaluatedAt).getTime(),
     );
-    return ordered.map((round, index) => ({
-      ...round,
-      roundNumber: ordered.length - index,
-    }));
   }, [rounds]);
 
   const [selectedId, setSelectedId] = useState<string | null>(sorted[0]?.id ?? null);
@@ -68,7 +62,7 @@ export default function ProjectEvaluationWorkspace({
   const [deletingRoundId, setDeletingRoundId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const selectedRound = sorted.find((round) => round.id === selectedId) ?? sorted[0];
-  const hybridView = selectedRound ? buildHybridViewFromRound(selectedRound, selectedRound.roundNumber) : null;
+  const hybridView = selectedRound ? buildHybridViewFromRound(selectedRound) : null;
 
   const aiAvg =
     hybridView && hybridView.results.length > 0
@@ -178,7 +172,7 @@ export default function ProjectEvaluationWorkspace({
       });
       setDeleteConfirmOpen(false);
       setDeletingRoundId(null);
-      showToast({ message: "평가 차수가 휴지통으로 이동했습니다.", tone: "success" });
+      showToast({ message: "평가 기록이 휴지통으로 이동했습니다.", tone: "success" });
     } catch (error) {
       showToast({
         message: error instanceof Error ? error.message : "삭제에 실패했습니다.",
@@ -203,19 +197,19 @@ export default function ProjectEvaluationWorkspace({
         {showHeader ? (
           <WorkspaceSectionHeading
             title="통합 평가 결과"
-            description="AI·전문가 자료를 함께 분석한 차수별 통합 결과와 종합 점수입니다."
+            description="AI·전문가 자료를 함께 분석한 평가별 통합 결과와 종합 점수입니다."
           />
         ) : null}
 
         <div className={`flex flex-wrap items-center gap-3 ${showHeader ? "mt-5" : ""}`}>
-          <Badge className="bg-[#e8f1ff] text-[#2463b3]">총 {sorted.length}차</Badge>
+          <Badge className="bg-[#e8f1ff] text-[#2463b3]">평가 {sorted.length}건</Badge>
         </div>
 
         <ConfirmDialog
           description={
             deletingRound
-              ? `${deletingRound.roundNumber}차 평가 결과를 휴지통으로 이동합니다. 프로젝트 상세 화면 하단에서 복원할 수 있습니다.`
-              : "선택한 평가 차수를 휴지통으로 이동합니다. 프로젝트 상세 화면 하단에서 복원할 수 있습니다."
+              ? `${formatEvaluationRoundLabel(deletingRound.evaluatedAt)} 평가 결과를 휴지통으로 이동합니다. 프로젝트 상세 화면 하단에서 복원할 수 있습니다.`
+              : "선택한 평가 기록을 휴지통으로 이동합니다. 프로젝트 상세 화면 하단에서 복원할 수 있습니다."
           }
           loading={deleting}
           open={deleteConfirmOpen}
@@ -235,7 +229,7 @@ export default function ProjectEvaluationWorkspace({
               return (
                 <div
                   key={round.id}
-                  className={`relative rounded-lg sm:min-w-[160px] ${
+                  className={`relative rounded-lg sm:min-w-[210px] ${
                     active
                       ? "bg-[#eef4fb] shadow-sm ring-1 ring-[#2463b3]/25"
                       : "hover:bg-[#f8fafc]"
@@ -243,7 +237,7 @@ export default function ProjectEvaluationWorkspace({
                 >
                   <button
                     type="button"
-                    aria-label={`${round.roundNumber}차 평가 삭제`}
+                    aria-label={`${formatEvaluationRoundLabel(round.evaluatedAt)} 평가 삭제`}
                     className="absolute right-1 top-1 z-10 rounded p-0.5 text-[10px] font-bold leading-none text-red-500 hover:bg-red-50 hover:text-red-700"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -259,10 +253,7 @@ export default function ProjectEvaluationWorkspace({
                     }`}
                     onClick={() => setSelectedId(round.id)}
                   >
-                    <TabTitle className="block">{round.roundNumber}차 평가</TabTitle>
-                    <span className="mt-0.5 block text-[11px] text-[#64748b]">
-                      {formatUploadDateTime(round.evaluatedAt)}
-                    </span>
+                    <TabTitle className="block">{formatEvaluationRoundLabel(round.evaluatedAt)}</TabTitle>
                     <span className="mt-1 block text-[11px] text-[#64748b]">
                       자료 {collectUniqueRoundFiles(round).length}개
                     </span>
@@ -278,7 +269,9 @@ export default function ProjectEvaluationWorkspace({
             <DemoModeBanner warnings={analysisWarnings} />
           ) : null}
           <div className="flex flex-wrap items-center gap-2">
-            <Badge className="bg-[#15345b] text-white">{selectedRound.roundNumber}차</Badge>
+            <Badge className="bg-[#15345b] text-white">
+              {formatEvaluationRoundLabel(selectedRound.evaluatedAt)}
+            </Badge>
             <Badge className="bg-[#e8f1ff] text-[#2463b3]">
               AI {selectedRound.aiWeight}% · 전문가 {selectedRound.expertWeight}%
             </Badge>

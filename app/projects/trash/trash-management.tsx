@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import { CardTitle, Eyebrow, MutedText } from "@/components/typography";
-import { formatUploadDateTime } from "@/lib/format-datetime";
+import { formatEvaluationRoundLabel, formatUploadDateTime } from "@/lib/format-datetime";
 import { mergeProjectWithLocal } from "@/lib/merge-project-state";
 import { getTrashedEvaluationRounds, isProjectTrashed } from "@/lib/trash";
 import type { Project } from "@/lib/types";
@@ -165,20 +165,20 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
                   <span className="font-semibold text-[#15345b]">위치</span> {project.location}
                 </p>
                 <p>
-                  <span className="font-semibold text-[#15345b]">평가 차수</span>{" "}
+                  <span className="font-semibold text-[#15345b]">평가 기록</span>{" "}
                   {(project.evaluationRounds ?? []).length}건
-                  {trashedRounds.length > 0 ? ` · 휴지통 차수 ${trashedRounds.length}건` : ""}
+                  {trashedRounds.length > 0 ? ` · 휴지통 평가 ${trashedRounds.length}건` : ""}
                 </p>
               </div>
 
               {trashedRounds.length > 0 ? (
                 <div className="mt-4 rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] p-3">
-                  <p className="text-xs font-bold text-[#64748b]">휴지통에 보관된 평가 차수</p>
+                  <p className="text-xs font-bold text-[#64748b]">휴지통에 보관된 평가</p>
                   <ul className="mt-2 space-y-1 text-sm text-[#475569]">
-                    {trashedRounds.map((round, index) => (
+                    {trashedRounds.map((round) => (
                       <li key={round.id}>
-                        {trashedRounds.length - index}차 ·{" "}
-                        {round.deletedAt ? formatUploadDateTime(round.deletedAt) : "삭제됨"}
+                        {formatEvaluationRoundLabel(round.evaluatedAt)}
+                        {round.deletedAt ? ` · 삭제 ${formatUploadDateTime(round.deletedAt)}` : ""}
                       </li>
                     ))}
                   </ul>

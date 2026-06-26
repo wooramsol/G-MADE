@@ -294,7 +294,7 @@ export default function ParallelEvaluationForm({
         <div className="text-center">
           <StepTitle>4. 하이브리드 평가 분석</StepTitle>
           <MutedText className="mx-auto mt-2 max-w-lg">
-            공통 평가 자료와 평가항목을 바탕으로 AI·전문가 점수를 한 번에 산출합니다. 이전 차수에 올린
+            공통 평가 자료와 평가항목을 바탕으로 AI·전문가 점수를 한 번에 산출합니다. 이전 평가에 올린
             자료는 다시 업로드하지 않고 불러올 수 있습니다.
           </MutedText>
           <button
@@ -363,7 +363,7 @@ function EvaluationMaterialsSection({
 
       {filesRequired && storedFiles.length > 0 ? (
         <div className="mt-4 rounded-xl border border-[#d7dee8] bg-white p-3">
-          <p className="text-sm font-bold text-[#15345b]">저장된 자료 (이전 차수)</p>
+          <p className="text-sm font-bold text-[#15345b]">저장된 자료 (이전 평가)</p>
           <p className="mt-1 text-xs text-[#64748b]">
             같은 파일을 다시 올리지 않고 선택하면 Blob에 보관된 자료를 재사용합니다.
           </p>
