@@ -5,6 +5,7 @@ import {
   type EvaluationAnalysisProgressEvent,
 } from "@/lib/evaluation-analysis-progress";
 import {
+  DEFAULT_AI_WEIGHT,
   requiresAiUploadMaterials,
   requiresEvaluationUploadMaterials,
   requiresExpertUploadMaterials,
@@ -105,7 +106,7 @@ export async function runEvaluationRound(
       throw new Error("평가항목을 1개 이상 등록해 주세요.");
     }
 
-    const normalizedAiWeight = Number.isFinite(aiWeight) ? aiWeight : 30;
+    const normalizedAiWeight = Number.isFinite(aiWeight) ? aiWeight : DEFAULT_AI_WEIGHT;
     const normalizedExpertWeight = Number.isFinite(expertWeight) ? expertWeight : 100 - normalizedAiWeight;
     const weightError = validateEvaluationWeights(normalizedAiWeight, normalizedExpertWeight);
     if (weightError) {

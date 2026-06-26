@@ -5,6 +5,7 @@ import { resolveAiProviderPreference } from "@/lib/resolve-ai-provider-preferenc
 import { isFileLike } from "@/lib/save-uploaded-files";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, HumanEvaluationItemScore, Project } from "@/lib/types";
+import { DEFAULT_AI_WEIGHT, DEFAULT_EXPERT_WEIGHT } from "@/lib/evaluation-weight-requirements";
 import type { AiProviderPreference } from "@/lib/ai/types";
 
 export const runtime = "nodejs";
@@ -30,8 +31,8 @@ export async function POST(request: NextRequest) {
       ) as AiProviderPreference,
       reviewerName: String(formData.get("reviewerName") ?? "").trim(),
       expertSummary: String(formData.get("expertSummary") ?? "").trim(),
-      aiWeight: Number(formData.get("aiWeight") ?? 30),
-      expertWeight: Number(formData.get("expertWeight") ?? 70),
+      aiWeight: Number(formData.get("aiWeight") ?? DEFAULT_AI_WEIGHT),
+      expertWeight: Number(formData.get("expertWeight") ?? DEFAULT_EXPERT_WEIGHT),
       evaluationItems: parseEvaluationItems(formData.get("evaluationItems")),
       manualExpertScores: parseExpertItemScores(formData.get("expertItemScores")),
       fileRefs,

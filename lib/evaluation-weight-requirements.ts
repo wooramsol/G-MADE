@@ -1,3 +1,6 @@
+export const DEFAULT_AI_WEIGHT = 100;
+export const DEFAULT_EXPERT_WEIGHT = 100 - DEFAULT_AI_WEIGHT;
+
 export function getExpertWeight(aiWeight: number): number {
   return 100 - aiWeight;
 }

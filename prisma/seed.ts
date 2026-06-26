@@ -61,10 +61,10 @@ async function main() {
 
   await prisma.setting.upsert({
     where: { key: "hybrid_evaluation_weights" },
-    update: { value: { aiWeight: 30, humanWeight: 70 } },
+    update: { value: { aiWeight: 100, humanWeight: 0 } },
     create: {
       key: "hybrid_evaluation_weights",
-      value: { aiWeight: 30, humanWeight: 70 },
+      value: { aiWeight: 100, humanWeight: 0 },
       description: "관리자가 자유롭게 조정하는 AI/인간 평가 가중치",
     },
   });

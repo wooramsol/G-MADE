@@ -1,4 +1,5 @@
 import { formatUploadDateTime } from "@/lib/format-datetime";
+import { DEFAULT_AI_WEIGHT, DEFAULT_EXPERT_WEIGHT } from "./evaluation-weight-requirements";
 import type { EvaluationItem, EvaluationRound } from "./types";
 
 const DEMO_SECTIONS = [
@@ -24,8 +25,8 @@ export function createDemoEvaluationRounds(
     return {
       id: `${projectId}-round-${roundNumber}`,
       evaluatedAt: evaluatedAt.toISOString(),
-      aiWeight: 30,
-      expertWeight: 70,
+      aiWeight: DEFAULT_AI_WEIGHT,
+      expertWeight: DEFAULT_EXPERT_WEIGHT,
       evaluationItems: previewItems.map((item) => ({ ...item })),
       totalPoints: previewItems.reduce((sum, item) => sum + item.points, 0),
       reviewerName: roundNumber % 2 === 1 ? "김민정 위원" : "박준호 위원",

@@ -1,3 +1,4 @@
+import { DEFAULT_AI_WEIGHT, DEFAULT_EXPERT_WEIGHT } from "./evaluation-weight-requirements";
 import { evaluationItems as defaultEvaluationItems } from "./demo-data";
 import type { EvaluationItem, EvaluationRound, Project } from "./types";
 
@@ -28,8 +29,8 @@ export function getProjectEvaluationRounds(project: Project): EvaluationRound[] 
     return {
       id: ai?.id ?? expert?.id ?? `legacy-round-${index}`,
       evaluatedAt,
-      aiWeight: ai?.aiWeight ?? 30,
-      expertWeight: ai?.expertWeight ?? 70,
+      aiWeight: ai?.aiWeight ?? DEFAULT_AI_WEIGHT,
+      expertWeight: ai?.expertWeight ?? DEFAULT_EXPERT_WEIGHT,
       evaluationItems: createDefaultEvaluationItems(),
       totalPoints: ai?.totalPoints ?? createDefaultEvaluationItems().reduce((sum, item) => sum + item.points, 0),
       reviewerName: expert?.reviewerName ?? "전문가",

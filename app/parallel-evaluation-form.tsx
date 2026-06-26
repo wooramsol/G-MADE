@@ -9,6 +9,7 @@ import { exceedsServerlessUploadLimit, SERVERLESS_UPLOAD_LIMIT_LABEL } from "@/l
 import { toClientAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import {
+  DEFAULT_AI_WEIGHT,
   getExpertWeight,
   requiresAiUploadMaterials,
   requiresEvaluationUploadMaterials,
@@ -56,7 +57,7 @@ export default function ParallelEvaluationForm({
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [selectedRefs, setSelectedRefs] = useState<StoredFileRef[]>([]);
   const [reviewerName, setReviewerName] = useState("");
-  const [aiWeight, setAiWeight] = useState(30);
+  const [aiWeight, setAiWeight] = useState(DEFAULT_AI_WEIGHT);
   const [provider, setProvider] = useState<AiProviderPreference | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
