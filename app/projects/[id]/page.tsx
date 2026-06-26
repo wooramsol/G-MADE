@@ -1,7 +1,6 @@
 import { Badge, Eyebrow, PageTitle, SubsectionTitle } from "@/components/typography";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { getProjectById } from "@/lib/project-store";
-import CompleteEvaluationButton from "../complete-evaluation-button";
 import DeleteProjectButton from "../delete-project-button";
 import ProjectUploadSection from "./project-upload-section";
 import LocalProjectDetail from "./local-project-detail";
@@ -32,7 +31,6 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" />
-              <CompleteEvaluationButton project={project} />
             </div>
           </div>
         </div>

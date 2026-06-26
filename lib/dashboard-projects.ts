@@ -1,8 +1,5 @@
 import { mergeProjectWithLocal } from "./merge-project-state";
-import {
-  getProjectEvaluationRoundCount,
-  isProjectEvaluationComplete,
-} from "./project-evaluation-status";
+import { getProjectEvaluationRoundCount } from "./project-evaluation-status";
 import { filterActiveProjects } from "./trash";
 import type { Project } from "./types";
 
@@ -10,7 +7,6 @@ export type DashboardStats = {
   total: number;
   waiting: number;
   inEvaluation: number;
-  completed: number;
 };
 
 export function mergeManagedProjects(serverProjects: Project[], localProjects: Project[]): Project[] {
@@ -25,19 +21,13 @@ export function mergeManagedProjects(serverProjects: Project[], localProjects: P
 }
 
 export function buildDashboardStats(projects: Project[]): DashboardStats {
-  const completed = projects.filter((project) => isProjectEvaluationComplete(project)).length;
-  const waiting = projects.filter(
-    (project) => !isProjectEvaluationComplete(project) && getProjectEvaluationRoundCount(project) === 0,
-  ).length;
-  const inEvaluation = projects.filter(
-    (project) => !isProjectEvaluationComplete(project) && getProjectEvaluationRoundCount(project) > 0,
-  ).length;
+  const waiting = projects.filter((project) => getProjectEvaluationRoundCount(project) === 0).length;
+  const inEvaluation = projects.filter((project) => getProjectEvaluationRoundCount(project) > 0).length;
 
   return {
     total: projects.length,
     waiting,
     inEvaluation,
-    completed,
   };
 }
 

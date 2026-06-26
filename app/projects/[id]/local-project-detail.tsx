@@ -6,7 +6,6 @@ import ConfirmDialog from "@/components/confirm-dialog";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
 import type { Project } from "@/lib/types";
-import CompleteEvaluationButton from "../complete-evaluation-button";
 import {
   getLocalProjects,
   trashLocalProject,
@@ -91,7 +90,6 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
                   }, 650);
                 }}
               />
-              <CompleteEvaluationButton project={project} onUpdated={setProject} />
             </div>
           </div>
         </div>

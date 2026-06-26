@@ -53,11 +53,10 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
             프로젝트 관리에 등록된 심의 프로젝트의 평가대기·평가 진행 현황을 한 화면에서 확인합니다.
           </SectionDescription>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <MetricCard label="전체 프로젝트" value={stats.total.toString()} delta="등록된 심의 프로젝트" />
-          <MetricCard label="평가대기 중" value={stats.waiting.toString()} delta="평가 기록 없음" />
-          <MetricCard label="평가 중" value={stats.inEvaluation.toString()} delta="1건 이상 평가 진행" />
-          <MetricCard label="평가완료" value={stats.completed.toString()} delta="평가완료 처리된 프로젝트" />
+          <MetricCard label="평가대기" value={stats.waiting.toString()} delta="평가 기록 없음" />
+          <MetricCard label="평가중" value={stats.inEvaluation.toString()} delta="1건 이상 평가 진행" />
         </div>
       </section>
 
