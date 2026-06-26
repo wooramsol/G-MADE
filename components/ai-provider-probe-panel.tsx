@@ -37,7 +37,7 @@ export default function AiProviderProbePanel() {
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+    <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-[#15345b]">AI API 연결 테스트</p>

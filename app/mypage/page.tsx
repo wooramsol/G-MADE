@@ -23,6 +23,7 @@ export default async function MyPage() {
       title="내 정보"
       description="로그인된 내부 사용자의 계정 정보와 서비스 설정을 확인합니다."
     >
+      <div className="space-y-8">
       <section className="grid items-stretch gap-6 xl:grid-cols-2">
         <div className="h-full rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
           <div className="flex items-center gap-4">
@@ -76,17 +77,19 @@ export default async function MyPage() {
           </SectionDescription>
         </div>
 
-        <div className="grid items-stretch gap-4 xl:grid-cols-2">
-          {integrations.groups
-            .filter((group) => group.id === "ai")
-            .map((group) => (
-              <div className="space-y-0" key={group.id}>
-                <IntegrationStatusPanel checkedAt={integrations.checkedAt} group={group} />
-                <AiProviderProbePanel />
-              </div>
-            ))}
+        <div className="grid items-start gap-4 xl:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-4">
+            {integrations.groups
+              .filter((group) => group.id === "ai")
+              .map((group) => (
+                <div className="flex flex-col gap-4" key={group.id}>
+                  <IntegrationStatusPanel checkedAt={integrations.checkedAt} group={group} />
+                  <AiProviderProbePanel />
+                </div>
+              ))}
+          </div>
 
-          <div className="grid h-full grid-rows-3 gap-4">
+          <div className="flex min-w-0 flex-col gap-4">
             {integrations.groups
               .filter((group) => group.id !== "ai")
               .map((group) => (
@@ -100,13 +103,12 @@ export default async function MyPage() {
         </div>
       </section>
 
-
       <section>
         <Panel title="로그인 히스토리">
           <LoginHistoryPanel entries={loginHistory} />
         </Panel>
       </section>
-
+      </div>
     </SaasPageShell>
   );
 }

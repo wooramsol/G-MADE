@@ -17,7 +17,7 @@ export default function IntegrationStatusPanel({ group, checkedAt }: Integration
   const activeCount = group.rows.filter((row) => row.configured && row.tone === "active").length;
 
   return (
-    <div className="flex h-full min-h-[148px] flex-col rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
+    <div className="flex min-h-[148px] flex-col rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <SubsectionTitle>{group.title}</SubsectionTitle>
