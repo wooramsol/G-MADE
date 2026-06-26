@@ -51,7 +51,9 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       name: "Google Gemini",
       provider: "Google AI",
       configured: providers.gemini,
-      envKeys: ["GEMINI_API_KEY"],
+      envKeys: providers.geminiEnvKey
+        ? [providers.geminiEnvKey]
+        : ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
       detail: providers.geminiKeyHint ? `키 확인: ${providers.geminiKeyHint}` : undefined,
       fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
       ...rowStatus(providers.gemini),
