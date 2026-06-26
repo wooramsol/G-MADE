@@ -3,24 +3,23 @@ import type { AiProviderId, AiProviderPreference } from "./types";
 
 const providerOrder: AiProviderId[] = ["gemini", "openai", "claude"];
 
-export function getDefaultAiProvider(): AiProviderId {
+export function getDefaultAiProvider(): AiProviderId | null {
   const configured = process.env.AI_PROVIDER_DEFAULT?.trim().toLowerCase();
 
-  if (configured === "gemini" || configured === "openai" || configured === "claude" || configured === "demo") {
-    return configured;
+  if (configured === "gemini" || configured === "openai" || configured === "claude") {
+    return isProviderConfigured(configured) ? configured : null;
   }
 
   return "gemini";
 }
 
-export function selectProvider(preference: AiProviderPreference): AiProviderId {
-  if (preference === "demo") return "demo";
+export function selectProvider(preference: AiProviderPreference): AiProviderId | null {
   if (preference !== "auto") {
-    return isProviderConfigured(preference) ? preference : "demo";
+    return isProviderConfigured(preference) ? preference : null;
   }
 
   const preferred = getDefaultAiProvider();
-  if (preferred !== "demo" && isProviderConfigured(preferred)) {
+  if (preferred && isProviderConfigured(preferred)) {
     return preferred;
   }
 
@@ -30,11 +29,10 @@ export function selectProvider(preference: AiProviderPreference): AiProviderId {
     }
   }
 
-  return "demo";
+  return null;
 }
 
 export function isProviderConfigured(provider: AiProviderId): boolean {
-  if (provider === "demo") return true;
   if (provider === "openai") return Boolean(getOpenAiApiKey());
   if (provider === "gemini") return Boolean(getGeminiApiKey());
   if (provider === "claude") return Boolean(getClaudeApiKey());
@@ -43,8 +41,9 @@ export function isProviderConfigured(provider: AiProviderId): boolean {
 
 export function getActiveProviderLabel(preference: AiProviderPreference = "auto"): string {
   const provider = selectProvider(preference);
+  if (!provider) return "미설정";
+
   const labels: Record<AiProviderId, string> = {
-    demo: "데모",
     gemini: "Gemini",
     openai: "ChatGPT",
     claude: "Claude",

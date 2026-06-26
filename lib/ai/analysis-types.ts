@@ -25,8 +25,8 @@ export type UploadAnalysisReferenceGuideline = {
 };
 
 export type UploadAnalysisResult = {
-  provider: "demo" | "openai" | "gemini" | "claude";
-  mode: "demo" | "live";
+  provider: "openai" | "gemini" | "claude" | "none" | "demo";
+  mode: "live" | "skipped" | "demo";
   summary: string;
   documentSections: Array<{
     label: string;

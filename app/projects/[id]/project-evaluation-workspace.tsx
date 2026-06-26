@@ -17,7 +17,7 @@ import {
 import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
-import DemoModeBanner from "@/components/demo-mode-banner";
+import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
@@ -266,7 +266,7 @@ export default function ProjectEvaluationWorkspace({
 
         <div className="mt-5 space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
           {selectedRound.aiWeight > 0 && selectedRound.aiAnalysis.mode === "demo" ? (
-            <DemoModeBanner warnings={analysisWarnings} />
+            <LegacyDemoAnalysisBanner warnings={analysisWarnings} />
           ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-[#15345b] text-white">
@@ -349,7 +349,11 @@ export default function ProjectEvaluationWorkspace({
 
           <p className="text-xs text-[#64748b]">
             AI 엔진: {formatProviderBadgeLabel(selectedRound.aiAnalysis.provider)} ·{" "}
-            {selectedRound.aiAnalysis.mode === "live" ? "실제 API 분석" : "데모 분석"}
+            {selectedRound.aiAnalysis.mode === "live"
+              ? "실제 API 분석"
+              : selectedRound.aiAnalysis.mode === "skipped"
+                ? "가중치 0% 생략"
+                : "구버전 데모 결과"}
           </p>
         </div>
       </section>

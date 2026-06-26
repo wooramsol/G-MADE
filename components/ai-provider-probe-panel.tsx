@@ -42,7 +42,8 @@ export default function AiProviderProbePanel() {
         <div>
           <p className="text-sm font-bold text-[#15345b]">AI API 연결 테스트</p>
           <MutedText className="mt-1">
-            운영 서버에서 실제 API 호출이 되는지 확인합니다. 키가 없거나 모델/할당량 오류면 원인 메시지를 표시합니다.
+            키·모델·JSON 응답 가능 여부만 확인합니다. 통과해도 대용량 심의 자료 분석은 별도로 실패할 수 있으며, 그때는 평가가
+            저장되지 않고 오류 안내만 표시됩니다.
           </MutedText>
         </div>
         <button

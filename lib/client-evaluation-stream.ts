@@ -7,7 +7,7 @@ import type { EvaluationAnalysisProgressEvent, EvaluationAnalysisStreamEvent } f
 export type EvaluationRoundStreamResult = {
   round: EvaluationRound;
   project?: Project;
-  analysisMode?: "live" | "demo";
+  analysisMode?: "live" | "skipped" | "demo";
   warnings?: string[];
 };
 
@@ -73,7 +73,7 @@ export async function submitEvaluationRoundStream(
         return {
           round: event.round as EvaluationRound,
           project: event.project as Project | undefined,
-          analysisMode: event.analysisMode as "live" | "demo" | undefined,
+          analysisMode: event.analysisMode as "live" | "skipped" | "demo" | undefined,
           warnings: event.warnings,
         };
       }

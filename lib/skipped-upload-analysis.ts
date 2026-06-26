@@ -15,8 +15,8 @@ export function createSkippedUploadAnalysis(
   const label = side === "ai" ? "AI" : "전문가";
 
   return {
-    provider: "demo",
-    mode: "demo",
+    provider: "none",
+    mode: "skipped",
     summary: `${label} 평가 가중치가 0%이므로 ${label} 자료 분석을 생략했습니다.`,
     documentSections: [],
     evaluationPreview: evaluationItems.map((item) => ({

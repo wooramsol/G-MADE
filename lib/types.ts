@@ -92,8 +92,8 @@ export type UploadAnalysisSession = {
     sizeBytes: number;
   }>;
   analysis: {
-    provider: "demo" | "openai" | "gemini" | "claude";
-    mode: "demo" | "live";
+    provider: "openai" | "gemini" | "claude" | "none" | "demo";
+    mode: "live" | "skipped" | "demo";
     summary: string;
     documentSections: Array<{ label: string; confidence: number; summary: string }>;
     evaluationPreview: Array<{
