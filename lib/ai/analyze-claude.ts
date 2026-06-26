@@ -2,6 +2,7 @@ import type { EvaluationContext } from "../evaluation-context";
 import type { EvaluationItem } from "../types";
 import type { UploadedFileSummary, UploadAnalysisResult } from "./analysis-types";
 import { buildAnalysisPrompt } from "./analysis-prompt";
+import { AI_EVALUATOR_SYSTEM_PROMPT } from "./evaluator-system-prompt";
 import { getClaudeModelsToTry } from "./claude-models";
 import { getClaudeApiKey, getClaudeModel } from "./env-keys";
 import { extractJsonContent } from "./extract-json";
@@ -86,8 +87,7 @@ async function requestClaude(
     body: JSON.stringify({
       model,
       max_tokens: 4096,
-      system:
-        "너는 G-MADE Hybrid Evaluation System의 경관사전심의 AI 평가 보조자다. 최종 결정권자는 인간 심사위원이다. 제공된 실시간 법령·경관지구 정보를 근거로 반드시 유효한 JSON 객체 하나만 반환한다.",
+      system: AI_EVALUATOR_SYSTEM_PROMPT,
       messages: [
         {
           role: "user",
