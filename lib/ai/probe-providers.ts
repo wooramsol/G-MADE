@@ -62,18 +62,33 @@ async function probeGemini(): Promise<ProviderProbeResult> {
         apiKey,
         model,
         {
-          contents: [{ parts: [{ text: "ping" }] }],
-          generationConfig: { maxOutputTokens: 8, temperature: 0 },
+          contents: [{ parts: [{ text: 'Return JSON only: {"probe":true}' }] }],
+          generationConfig: {
+            maxOutputTokens: 32,
+            temperature: 0,
+            responseMimeType: "application/json",
+          },
         },
         12_000,
       );
 
       if (response.ok) {
+        const payload = await response.json();
+        const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text?.includes("probe")) {
+          return {
+            provider: "gemini",
+            configured: true,
+            reachable: false,
+            message: `Gemini 연결은 되었으나 JSON 분석 응답 형식이 기대와 다릅니다 (모델: ${model}). 실제 평가 시에도 실패할 수 있습니다.`,
+          };
+        }
+
         return {
           provider: "gemini",
           configured: true,
           reachable: true,
-          message: `Gemini API 응답 정상 (모델: ${model})`,
+          message: `Gemini 연결·JSON 응답 확인 (모델: ${model}). 실제 문서 분석은 자료 크기에 따라 별도로 실패할 수 있습니다.`,
         };
       }
 
@@ -127,19 +142,31 @@ async function probeOpenAi(): Promise<ProviderProbeResult> {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 8,
-          messages: [{ role: "user", content: "ping" }],
+          max_tokens: 32,
+          response_format: { type: "json_object" },
+          messages: [{ role: "user", content: 'Return JSON: {"probe":true}' }],
         }),
       },
       12_000,
     );
 
     if (response.ok) {
+      const payload = await response.json();
+      const content = payload.choices?.[0]?.message?.content;
+      if (!content?.includes("probe")) {
+        return {
+          provider: "openai",
+          configured: true,
+          reachable: false,
+          message: `OpenAI 연결은 되었으나 JSON 분석 응답 형식이 기대와 다릅니다 (모델: ${model}).`,
+        };
+      }
+
       return {
         provider: "openai",
         configured: true,
         reachable: true,
-        message: `OpenAI API 응답 정상 (모델: ${model})`,
+        message: `OpenAI 연결·JSON 응답 확인 (모델: ${model}). 실제 문서 분석은 자료 크기에 따라 별도로 실패할 수 있습니다.`,
       };
     }
 
@@ -198,19 +225,32 @@ async function probeClaude(): Promise<ProviderProbeResult> {
           },
           body: JSON.stringify({
             model,
-            max_tokens: 8,
-            messages: [{ role: "user", content: "ping" }],
+            max_tokens: 32,
+            messages: [{ role: "user", content: 'Return JSON only: {"probe":true}' }],
           }),
         },
         12_000,
       );
 
       if (response.ok) {
+        const payload = (await response.json()) as {
+          content?: Array<{ type?: string; text?: string }>;
+        };
+        const text = payload.content?.find((block) => block.type === "text")?.text ?? payload.content?.[0]?.text;
+        if (!text?.includes("probe")) {
+          return {
+            provider: "claude",
+            configured: true,
+            reachable: false,
+            message: `Claude 연결은 되었으나 JSON 분석 응답 형식이 기대와 다릅니다 (모델: ${model}).`,
+          };
+        }
+
         return {
           provider: "claude",
           configured: true,
           reachable: true,
-          message: `Claude API 응답 정상 (모델: ${model})`,
+          message: `Claude 연결·JSON 응답 확인 (모델: ${model}). 실제 문서 분석은 자료 크기에 따라 별도로 실패할 수 있습니다.`,
         };
       }
 

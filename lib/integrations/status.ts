@@ -84,12 +84,12 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       id: "ai-default",
       name: "현재 자동 선택",
       provider: "시스템",
-      configured: defaultProvider !== "demo" && isProviderConfigured(defaultProvider),
+      configured: Boolean(defaultProvider && isProviderConfigured(defaultProvider)),
       statusLabel:
-        defaultProvider !== "demo" && isProviderConfigured(defaultProvider)
+        defaultProvider && isProviderConfigured(defaultProvider)
           ? `${defaultProvider} 사용`
-          : "데모 분석",
-      tone: defaultProvider !== "demo" && isProviderConfigured(defaultProvider) ? "active" : "fallback",
+          : "미설정",
+      tone: defaultProvider && isProviderConfigured(defaultProvider) ? "active" : "inactive",
       envKeys: ["AI_PROVIDER_DEFAULT"],
       detail: `AI_PROVIDER_DEFAULT=${defaultProvider}`,
     },

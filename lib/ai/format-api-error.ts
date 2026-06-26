@@ -60,7 +60,7 @@ export function formatProviderApiError(
   const lowerMessage = message.toLowerCase();
 
   if (code === 429 || status === 429 || lowerMessage.includes("quota") || lowerMessage.includes("rate")) {
-    return `${providerLabel} 분당 요청 제한(RPM)에 걸렸습니다(429). 무료/유료 티어 한도에 걸릴 수 있습니다. 1~2분 후 한 번만 다시 시도해 주세요. 지금은 데모 분석 결과를 표시합니다.`;
+    return `${providerLabel} 분당 요청 제한(RPM)에 걸렸습니다(429). 무료/유료 티어 한도에 걸릴 수 있습니다. 1~2분 후 다시 시도해 주세요.`;
   }
 
   if (code === 404 || status === 404 || lowerMessage.includes("not found")) {

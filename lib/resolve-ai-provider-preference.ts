@@ -1,4 +1,3 @@
-import { getDefaultAiProvider } from "./ai/select-provider";
 import type { AiProviderPreference } from "./ai/types";
 
 const LIVE_PROVIDERS = new Set(["gemini", "openai", "claude"]);
@@ -7,19 +6,23 @@ const LIVE_PROVIDERS = new Set(["gemini", "openai", "claude"]);
 export function resolveAiProviderPreference(raw?: string | null): AiProviderPreference {
   const value = raw?.trim().toLowerCase();
 
-  if (value === "demo" || value === "auto") {
-    return value;
+  if (value === "auto") {
+    return "auto";
   }
 
   if (value && LIVE_PROVIDERS.has(value)) {
     return value as AiProviderPreference;
   }
 
-  const defaultProvider = getDefaultAiProvider();
-  return defaultProvider === "demo" ? "auto" : defaultProvider;
+  const defaultProvider = process.env.AI_PROVIDER_DEFAULT?.trim().toLowerCase();
+  if (defaultProvider === "openai" || defaultProvider === "claude" || defaultProvider === "gemini") {
+    return defaultProvider;
+  }
+
+  return "auto";
 }
 
-/** 클라이언트 AI 엔진 선택 초기값 (demo/auto는 gemini로 표시). */
+/** 클라이언트 AI 엔진 선택 초기값 */
 export function toClientAiProviderPreference(
   defaultProvider: string,
 ): "gemini" | "openai" | "claude" {

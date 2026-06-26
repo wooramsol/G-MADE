@@ -23,6 +23,7 @@ import {
 } from "@/lib/save-uploaded-files";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project } from "@/lib/types";
+import { isAiAnalysisError } from "@/lib/ai/analysis-error";
 import { analyzeUploadedFiles } from "@/lib/upload-analysis";
 import { applyFilesTextBudget } from "@/lib/ai/document-text-budget";
 import type { AiProviderPreference } from "@/lib/ai/types";
@@ -232,9 +233,6 @@ export async function runEvaluationRound(
           evaluationContext.warnings,
           aiAnalysis.warnings ?? [],
           expertAnalysis.warnings ?? [],
-          aiAnalysis.mode === "demo" && needsAiMaterials
-            ? ["AI API 키가 없거나 오류로 데모 분석 결과가 저장되었습니다. 점수는 참고용입니다."]
-            : [],
         ),
       },
       expertItemScores,
@@ -261,6 +259,11 @@ export async function runEvaluationRound(
     if (newlySavedFiles.length > 0) {
       await deleteSavedUploadFiles(newlySavedFiles);
     }
+
+    if (isAiAnalysisError(error)) {
+      throw new Error(`AI 평가를 완료하지 못했습니다. ${error.message}`);
+    }
+
     throw error;
   }
 }

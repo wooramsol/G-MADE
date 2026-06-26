@@ -36,7 +36,7 @@ type ParallelEvaluationFormProps = {
 type EvaluationRoundApiResponse = {
   round: EvaluationRound;
   project?: { evaluationRounds?: EvaluationRound[] };
-  analysisMode?: "live" | "demo";
+  analysisMode?: "live" | "skipped" | "demo";
   warnings?: string[];
   error?: string;
 };
@@ -183,18 +183,7 @@ export default function ParallelEvaluationForm({
       setNewFiles([]);
       setSelectedRefs([]);
 
-      const isDemo =
-        payload.analysisMode === "demo" || payload.round.aiAnalysis.mode === "demo";
-
-      if (isDemo) {
-        showToast({
-          message:
-            "데모 분석 결과가 저장되었습니다. AI API 키를 설정한 뒤 다시 분석하면 실제 결과를 받을 수 있습니다.",
-          tone: "info",
-        });
-      } else {
-        showToast({ message: "하이브리드 평가 분석이 완료되었습니다.", tone: "success" });
-      }
+      showToast({ message: "하이브리드 평가 분석이 완료되었습니다.", tone: "success" });
 
       const nextRounds = resolveNextEvaluationRounds(project, {
         round: payload.round,
@@ -313,7 +302,16 @@ export default function ParallelEvaluationForm({
         </div>
       </div>
 
-      {error ? <ErrorText className="rounded-xl bg-red-50 p-3">{error}</ErrorText> : null}
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-bold text-red-900">평가를 완료하지 못했습니다</p>
+          <ErrorText className="mt-2 whitespace-pre-wrap">{error}</ErrorText>
+          <p className="mt-3 text-xs leading-5 text-red-800">
+            AI API 오류 시 샘플(데모) 결과는 더 이상 저장하지 않습니다. 마이페이지의 연결 테스트와 오류
+            메시지를 확인한 뒤 Vercel 환경 변수·모델 설정을 점검해 주세요.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

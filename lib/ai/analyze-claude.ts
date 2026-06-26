@@ -1,6 +1,7 @@
 import type { EvaluationContext } from "../evaluation-context";
 import type { EvaluationItem } from "../types";
 import type { UploadedFileSummary, UploadAnalysisResult } from "./analysis-types";
+import { AiAnalysisError } from "./analysis-error";
 import { buildAnalysisPrompt } from "./analysis-prompt";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./evaluator-system-prompt";
 import { getClaudeModelsToTry } from "./claude-models";
@@ -10,14 +11,7 @@ import { fetchWithTimeout } from "../fetch-with-timeout";
 import { formatProviderApiError } from "./format-api-error";
 
 type ClaudeDeps = {
-  normalizeAiJson: (
-    content: string | undefined,
-    provider: "claude",
-  ) => UploadAnalysisResult;
-  createDemoAnalysis: (
-    provider: "demo" | "claude",
-    warnings: string[],
-  ) => UploadAnalysisResult;
+  normalizeAiJson: (content: string | undefined) => UploadAnalysisResult;
 };
 
 export async function analyzeWithClaude(
@@ -28,15 +22,17 @@ export async function analyzeWithClaude(
 ): Promise<UploadAnalysisResult> {
   const apiKey = getClaudeApiKey();
   if (!apiKey) {
-    return deps.createDemoAnalysis("claude", [
-      "CLAUDE_API_KEY가 서버에서 읽히지 않습니다. Vercel Environment Variables에 sk-ant- 키를 넣었는지 확인하고 재배포해 주세요. /api/ai-status 로 등록 여부를 확인할 수 있습니다.",
-    ]);
+    throw new AiAnalysisError(
+      "CLAUDE_API_KEY가 서버에서 읽히지 않습니다. Vercel Environment Variables에 sk-ant- 키를 넣었는지 확인하고 재배포해 주세요.",
+      "claude",
+    );
   }
 
   if (!apiKey.startsWith("sk-ant-")) {
-    return deps.createDemoAnalysis("claude", [
-      "CLAUDE_API_KEY 형식이 올바르지 않습니다. sk-ant- 로 시작하는 Claude API 키인지 확인해 주세요.",
-    ]);
+    throw new AiAnalysisError(
+      "CLAUDE_API_KEY 형식이 올바르지 않습니다. Anthropic 콘솔에서 발급한 sk-ant- 로 시작하는 키인지 확인해 주세요.",
+      "claude",
+    );
   }
 
   const modelsToTry = getClaudeModelsToTry(getClaudeModel());
@@ -52,7 +48,7 @@ export async function analyzeWithClaude(
       };
       const textBlock = payload.content?.find((block) => block.type === "text") ?? payload.content?.[0];
       const content = extractJsonContent(textBlock?.text);
-      return deps.normalizeAiJson(content, "claude");
+      return deps.normalizeAiJson(content);
     }
 
     lastStatus = response.status;
@@ -65,9 +61,10 @@ export async function analyzeWithClaude(
     break;
   }
 
-  return deps.createDemoAnalysis("claude", [
+  throw new AiAnalysisError(
     formatProviderApiError("claude", "Claude", lastStatus, lastBody, modelsToTry),
-  ]);
+    "claude",
+  );
 }
 
 async function requestClaude(
@@ -86,7 +83,7 @@ async function requestClaude(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 4096,
+      max_tokens: 16384,
       system: AI_EVALUATOR_SYSTEM_PROMPT,
       messages: [
         {
