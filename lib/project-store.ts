@@ -5,6 +5,7 @@ import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import {
   isProjectTrashed,
+  purgeEvaluationRound,
   restoreEvaluationRound,
   trashEvaluationRound,
 } from "./trash";
@@ -240,6 +241,21 @@ export async function restoreProjectEvaluationRound(
       ...project,
       evaluationRounds: result.activeRounds,
       trashedEvaluationRounds: result.trashedRounds,
+    };
+  });
+}
+
+export async function purgeProjectEvaluationRound(
+  id: string,
+  roundId: string,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    const nextTrashed = purgeEvaluationRound(project.trashedEvaluationRounds ?? [], roundId);
+    if (!nextTrashed) return project;
+
+    return {
+      ...project,
+      trashedEvaluationRounds: nextTrashed,
     };
   });
 }
