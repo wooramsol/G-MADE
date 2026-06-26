@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import {
   getProjectById,
-  getStoredProjectRecord,
+  getProjectRecordById,
   purgeProjectRecord,
   trashProjectRecord,
   updateProject,
 } from "@/lib/project-store";
+import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
+import { isProjectTrashed } from "@/lib/trash";
 
 const PROJECT_STATUSES = new Set(["접수", "심사 진행중", "완료"]);
 import type { EvaluationItem } from "@/lib/types";
@@ -110,6 +112,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "프로젝트를 수정할 수 없습니다." }, { status: 404 });
     }
 
+    revalidateProjectViews(id);
     return NextResponse.json({ project });
   } catch {
     return NextResponse.json({ error: "프로젝트 수정 중 오류가 발생했습니다." }, { status: 500 });
@@ -150,13 +153,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const permanent = request.nextUrl.searchParams.get("permanent") === "true";
 
   if (permanent) {
-    const stored = await getStoredProjectRecord(id);
+    const record = await getProjectRecordById(id);
 
-    if (!stored) {
-      return NextResponse.json({ ok: true });
+    if (!record) {
+      return NextResponse.json({ error: "영구 삭제할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    if (!stored.deletedAt) {
+    if (!isProjectTrashed(record)) {
       return NextResponse.json({ error: "휴지통에 있는 프로젝트만 영구 삭제할 수 있습니다." }, { status: 400 });
     }
 
@@ -165,6 +168,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: "영구 삭제할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
     }
 
+    revalidateProjectViews(id);
     return NextResponse.json({ ok: true });
   }
 
@@ -178,5 +182,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ error: "프로젝트를 휴지통으로 이동하지 못했습니다." }, { status: 404 });
   }
 
+  revalidateProjectViews(id);
   return NextResponse.json({ project });
 }

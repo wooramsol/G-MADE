@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { createProject, getAllProjects } from "@/lib/project-store";
+import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
       summary: String(payload.summary ?? "").trim() || undefined,
     });
 
+    revalidateProjectViews(project.id);
     return NextResponse.json({ project }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "프로젝트 생성 중 오류가 발생했습니다." }, { status: 500 });

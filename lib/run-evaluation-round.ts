@@ -13,6 +13,7 @@ import {
 } from "@/lib/evaluation-weight-requirements";
 import { addProjectEvaluationRound, getProjectById, upsertProjectRecord } from "@/lib/project-store";
 import { ensureProjectRecordFromSnapshot } from "@/lib/ensure-project-record";
+import { isProjectTrashed } from "@/lib/trash";
 import { createSkippedUploadAnalysis } from "@/lib/skipped-upload-analysis";
 import {
   deleteSavedUploadFiles,
@@ -100,6 +101,10 @@ export async function runEvaluationRound(
 
     if (!project) {
       throw new Error("프로젝트를 찾을 수 없습니다. 프로젝트를 다시 등록하거나 페이지를 새로고침해 주세요.");
+    }
+
+    if (isProjectTrashed(project)) {
+      throw new Error("휴지통에 있는 프로젝트는 평가할 수 없습니다.");
     }
 
     if (evaluationItems.length === 0) {

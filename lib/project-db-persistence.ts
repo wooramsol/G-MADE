@@ -64,6 +64,27 @@ export async function writeManagedProjectsToDatabase(projects: Project[]): Promi
   });
 }
 
+export async function upsertManagedProjectToDatabase(project: Project): Promise<void> {
+  const prisma = getPrismaClient();
+  if (!prisma) return;
+
+  const deletedAt = project.deletedAt ? new Date(project.deletedAt) : null;
+  const data = { ...project } as Prisma.InputJsonValue;
+
+  await prisma.managedProject.upsert({
+    where: { id: project.id },
+    create: {
+      id: project.id,
+      data,
+      deletedAt,
+    },
+    update: {
+      data,
+      deletedAt,
+    },
+  });
+}
+
 export async function deleteManagedProjectFromDatabase(id: string): Promise<boolean> {
   const prisma = getPrismaClient();
   if (!prisma) return false;

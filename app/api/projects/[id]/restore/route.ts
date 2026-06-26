@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { getProjectRecordById, restoreProjectRecord } from "@/lib/project-store";
+import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { isProjectTrashed } from "@/lib/trash";
 
 export const runtime = "nodejs";
@@ -26,5 +27,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "프로젝트 복원에 실패했습니다." }, { status: 404 });
   }
 
+  revalidateProjectViews(id);
   return NextResponse.json({ project });
 }

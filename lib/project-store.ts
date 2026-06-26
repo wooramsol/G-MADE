@@ -3,6 +3,7 @@ import { projects as demoProjects } from "./demo-data";
 import {
   deleteManagedProjectFromDatabase,
   readManagedProjectsFromDatabase,
+  upsertManagedProjectToDatabase,
   writeManagedProjectsToDatabase,
 } from "./project-db-persistence";
 import { isDatabaseAvailable } from "./prisma";
@@ -10,6 +11,7 @@ import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import {
+  isProjectPurged,
   isProjectTrashed,
   purgeEvaluationRound,
   restoreEvaluationRound,
@@ -71,9 +73,7 @@ export async function createProject(input: ProjectInput): Promise<Project> {
       updatedAt: now,
     };
 
-    const createdProjects = await readCreatedProjects();
-    await writeCreatedProjects([project, ...createdProjects]);
-
+    await persistProjectRecord(project);
     return project;
   });
 }
@@ -82,6 +82,13 @@ export async function addProjectFiles(id: string, files: ProjectFile[]): Promise
   return updateStoredProject(id, (project) => ({
     ...project,
     files: mergeProjectFiles(project.files, files),
+  }));
+}
+
+export async function removeProjectFile(id: string, fileId: string): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    files: project.files.filter((file) => file.id !== fileId),
   }));
 }
 
@@ -161,8 +168,6 @@ export async function upsertProjectRecord(project: Project): Promise<Project> {
   return withProjectStoreLock(async () => {
     const allProjects = await getAllProjectsIncludingTrashed();
     const existing = allProjects.find((item) => item.id === project.id);
-    const storedProjects = await readCreatedProjects();
-    const storedIndex = storedProjects.findIndex((item) => item.id === project.id);
     const base = existing ?? project;
 
     const nextProject: Project = {
@@ -177,13 +182,7 @@ export async function upsertProjectRecord(project: Project): Promise<Project> {
       updatedAt: new Date().toISOString(),
     };
 
-    if (storedIndex >= 0) {
-      storedProjects[storedIndex] = nextProject;
-    } else {
-      storedProjects.unshift(nextProject);
-    }
-
-    await writeCreatedProjects(storedProjects);
+    await persistProjectRecord(nextProject);
     return nextProject;
   });
 }
@@ -270,30 +269,23 @@ export async function purgeProjectEvaluationRound(
 export async function purgeAllProjectEvaluationRounds(): Promise<{ projectsUpdated: number }> {
   return withProjectStoreLock(async () => {
     const allProjects = await getAllProjectsIncludingTrashed();
-    const storedProjects = await readCreatedProjects();
-    const storedById = new Map(storedProjects.map((project) => [project.id, project]));
     const updatedAt = new Date().toISOString();
-    const projectIds = new Set([...allProjects.map((project) => project.id), ...storedById.keys()]);
     let projectsUpdated = 0;
 
-    for (const id of projectIds) {
-      const stored = storedById.get(id);
-      const source = allProjects.find((project) => project.id === id) ?? stored;
-      if (!source) continue;
+    for (const source of allProjects) {
+      if (isProjectPurged(source)) continue;
 
-      storedById.set(id, {
-        ...(stored ?? source),
+      const nextProject: Project = {
+        ...source,
         evaluationRounds: [],
         trashedEvaluationRounds: [],
         uploadAnalyses: [],
         humanEvaluationSessions: [],
         updatedAt,
-      });
-      projectsUpdated += 1;
-    }
+      };
 
-    if (projectsUpdated > 0) {
-      await writeCreatedProjects(Array.from(storedById.values()));
+      await persistProjectRecord(nextProject);
+      projectsUpdated += 1;
     }
 
     return { projectsUpdated };
@@ -308,7 +300,7 @@ async function updateStoredProject(
     const allProjects = await getAllProjectsIncludingTrashed();
     const existingProject = allProjects.find((project) => project.id === id);
 
-    if (!existingProject) return undefined;
+    if (!existingProject || isProjectPurged(existingProject)) return undefined;
 
     const storedProjects = await readCreatedProjects();
     const storedIndex = storedProjects.findIndex((project) => project.id === id);
@@ -322,13 +314,7 @@ async function updateStoredProject(
       updatedAt: new Date().toISOString(),
     });
 
-    if (storedIndex >= 0) {
-      storedProjects[storedIndex] = nextProject;
-    } else {
-      storedProjects.unshift(nextProject);
-    }
-
-    await writeCreatedProjects(storedProjects);
+    await persistProjectRecord(nextProject);
     return nextProject;
   });
 }
@@ -365,6 +351,10 @@ export async function getStoredProjectRecord(id: string): Promise<Project | unde
 /** 저장소에서 프로젝트 레코드를 영구 삭제합니다. */
 export async function purgeProjectRecord(id: string): Promise<boolean> {
   return withProjectStoreLock(async () => {
+    if (isDemoProjectId(id)) {
+      return purgeDemoProjectRecord(id);
+    }
+
     if (await isDatabaseAvailable()) {
       const deleted = await deleteManagedProjectFromDatabase(id);
       if (deleted) return true;
@@ -382,6 +372,29 @@ export async function purgeProjectRecord(id: string): Promise<boolean> {
   });
 }
 
+async function purgeDemoProjectRecord(id: string): Promise<boolean> {
+  const demoProject = demoProjects.find((project) => project.id === id);
+  if (!demoProject) return false;
+
+  const storedProjects = await readCreatedProjects();
+  const stored = storedProjects.find((project) => project.id === id);
+  const purgedAt = new Date().toISOString();
+  const tombstone: Project = {
+    ...demoProject,
+    ...(stored ?? {}),
+    purgedAt,
+    deletedAt: undefined,
+    evaluationRounds: [],
+    trashedEvaluationRounds: [],
+    uploadAnalyses: [],
+    humanEvaluationSessions: [],
+    updatedAt: purgedAt,
+  };
+
+  await persistProjectRecord(tombstone);
+  return true;
+}
+
 export async function deleteCreatedProject(id: string): Promise<boolean> {
   const trashed = await trashProjectRecord(id);
   return Boolean(trashed);
@@ -396,31 +409,33 @@ export async function deleteProjectRecord(id: string): Promise<boolean> {
 async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
   const storedProjects = await readCreatedProjects();
   const storedById = new Map(storedProjects.map((project) => [project.id, project]));
-  const mergedDemoProjects = demoProjects.map((project) => {
-    const stored = storedById.get(project.id);
-    return stored
-      ? {
-          ...project,
-          ...stored,
-          files: stored.files ?? project.files,
-          uploadAnalyses: pickStoredArrayField(stored, "uploadAnalyses", project.uploadAnalyses ?? []),
-          humanEvaluationSessions: pickStoredArrayField(
-            stored,
-            "humanEvaluationSessions",
-            project.humanEvaluationSessions ?? [],
-          ),
-          evaluationRounds: pickStoredArrayField(stored, "evaluationRounds", project.evaluationRounds ?? []),
-          trashedEvaluationRounds: pickStoredArrayField(
-            stored,
-            "trashedEvaluationRounds",
-            project.trashedEvaluationRounds ?? [],
-          ),
-          savedEvaluationItems: stored.savedEvaluationItems ?? project.savedEvaluationItems,
-        }
-      : project;
-  });
+  const mergedDemoProjects = demoProjects
+    .filter((project) => !isProjectPurged(storedById.get(project.id) ?? project))
+    .map((project) => {
+      const stored = storedById.get(project.id);
+      return stored
+        ? {
+            ...project,
+            ...stored,
+            files: stored.files ?? project.files,
+            uploadAnalyses: pickStoredArrayField<UploadAnalysisSession>(stored, "uploadAnalyses"),
+            humanEvaluationSessions: pickStoredArrayField<HumanEvaluationSession>(
+              stored,
+              "humanEvaluationSessions",
+            ),
+            evaluationRounds: pickStoredArrayField<EvaluationRound>(stored, "evaluationRounds"),
+            trashedEvaluationRounds: pickStoredArrayField<EvaluationRound>(
+              stored,
+              "trashedEvaluationRounds",
+            ),
+            savedEvaluationItems: stored.savedEvaluationItems ?? project.savedEvaluationItems,
+          }
+        : project;
+    });
 
-  const activeStored = storedProjects.filter((project) => !demoProjectIds.has(project.id));
+  const activeStored = storedProjects.filter(
+    (project) => !demoProjectIds.has(project.id) && !isProjectPurged(project),
+  );
 
   return sortProjectsByUpdatedAt([...mergedDemoProjects, ...activeStored]).map(normalizeProjectEvaluationState);
 }
@@ -438,13 +453,26 @@ function normalizeProjectEvaluationState(project: Project): Project {
 function pickStoredArrayField<T>(
   stored: Project,
   key: "uploadAnalyses" | "humanEvaluationSessions" | "evaluationRounds" | "trashedEvaluationRounds",
-  fallback: T[],
 ): T[] {
-  if (key in stored) {
-    const value = stored[key];
-    return Array.isArray(value) ? (value as T[]) : [];
+  if (!(key in stored)) return [];
+  const value = stored[key];
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+async function persistProjectRecord(project: Project): Promise<void> {
+  if (await isDatabaseAvailable()) {
+    await upsertManagedProjectToDatabase(project);
+    return;
   }
-  return fallback;
+
+  const storedProjects = await readCreatedProjectsFromJsonFile();
+  const storedIndex = storedProjects.findIndex((item) => item.id === project.id);
+  if (storedIndex >= 0) {
+    storedProjects[storedIndex] = project;
+  } else {
+    storedProjects.unshift(project);
+  }
+  await writeCreatedProjectsToJsonFile(storedProjects);
 }
 
 async function readCreatedProjects(): Promise<Project[]> {

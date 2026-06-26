@@ -191,6 +191,8 @@ export type Project = {
   trashedEvaluationRounds?: EvaluationRound[];
   /** 휴지통으로 이동한 시각 (ISO). 설정되면 목록에서 숨깁니다. */
   deletedAt?: string;
+  /** 데모 프로젝트 영구 삭제 표식 (ISO). 설정되면 데모 원본이 다시 병합되지 않습니다. */
+  purgedAt?: string;
 };
 
 export type AiEvaluation = {
