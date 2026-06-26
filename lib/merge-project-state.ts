@@ -7,40 +7,54 @@ function mergeProjectFiles(currentFiles: ProjectFile[], nextFiles: ProjectFile[]
   return Array.from(byId.values());
 }
 
+function sortRounds(rounds: EvaluationRound[]): EvaluationRound[] {
+  return [...rounds].sort(
+    (left, right) => new Date(right.evaluatedAt).getTime() - new Date(left.evaluatedAt).getTime(),
+  );
+}
+
 /**
- * 서버 차수를 기준으로 병합하고, 아직 서버에 반영되지 않은 로컬 차수는 유지합니다.
- * 빈 서버 배열([])이 로컬의 신규 분석 결과를 덮어쓰지 않도록 합니다.
- * 휴지통에 있는 차수는 서버·로컬 어디에 남아 있어도 활성 목록에 포함하지 않습니다.
+ * 서버에 evaluationRounds 배열이 있으면 서버 목록만 신뢰합니다.
+ * 로컬에만 있는 차수는 서버 동기화 전 신규 분석 등 로컬 전용 프로젝트에서만 유지합니다.
  */
 export function mergeEvaluationRounds(
   serverRounds?: EvaluationRound[],
   localRounds?: EvaluationRound[],
   trashedRoundIds?: ReadonlySet<string>,
 ): EvaluationRound[] | undefined {
-  const hasServer = Array.isArray(serverRounds);
-  const hasLocal = Array.isArray(localRounds);
-  if (!hasServer && !hasLocal) return undefined;
-
   const trashedIds = trashedRoundIds ?? new Set<string>();
-  const server = hasServer ? serverRounds : [];
-  const local = hasLocal ? localRounds : [];
-  const serverIds = new Set(server.map((round) => round.id));
-  const pendingLocal = local.filter((round) => !serverIds.has(round.id) && !trashedIds.has(round.id));
-  const merged = [
-    ...server.filter((round) => !trashedIds.has(round.id)),
-    ...pendingLocal,
-  ];
 
-  if (merged.length === 0) {
-    return hasServer ? [] : undefined;
+  if (Array.isArray(serverRounds)) {
+    return sortRounds(serverRounds.filter((round) => !trashedIds.has(round.id)));
   }
 
-  return merged.sort(
-    (left, right) => new Date(right.evaluatedAt).getTime() - new Date(left.evaluatedAt).getTime(),
-  );
+  const local = Array.isArray(localRounds) ? localRounds : [];
+  const activeLocal = local.filter((round) => !trashedIds.has(round.id));
+  if (activeLocal.length === 0) return undefined;
+
+  return sortRounds(activeLocal);
 }
 
-/** 서버 프로젝트와 브라우저 저장소를 병합합니다. 메타데이터는 서버 우선, 차수·파일은 스마트 병합. */
+function mergeTrashedEvaluationRounds(
+  serverRounds?: EvaluationRound[],
+  localRounds?: EvaluationRound[],
+): EvaluationRound[] | undefined {
+  if (Array.isArray(serverRounds)) {
+    return serverRounds.length > 0 ? sortRounds(serverRounds) : [];
+  }
+
+  const local = localRounds ?? [];
+  if (local.length === 0) return undefined;
+
+  const byId = new Map<string, EvaluationRound>();
+  for (const round of local) {
+    byId.set(round.id, round);
+  }
+
+  return sortRounds(Array.from(byId.values()));
+}
+
+/** 서버 프로젝트와 브라우저 저장소를 병합합니다. 평가 차수는 서버 우선, 삭제 후 로컬 복원 금지. */
 export function mergeProjectWithLocal(serverProject: Project, localProject?: Project): Project {
   if (!localProject) return serverProject;
 
@@ -59,6 +73,12 @@ export function mergeProjectWithLocal(serverProject: Project, localProject?: Pro
     { trashedEvaluationRounds },
   );
 
+  const evaluationRounds = mergeEvaluationRounds(
+    serverProject.evaluationRounds,
+    localProject.evaluationRounds,
+    trashedRoundIds,
+  );
+
   return {
     ...localProject,
     ...serverProject,
@@ -66,24 +86,13 @@ export function mergeProjectWithLocal(serverProject: Project, localProject?: Pro
     deletedAt: serverProject.deletedAt ?? localProject.deletedAt,
     files: mergeProjectFiles(serverProject.files, localProject.files),
     savedEvaluationItems,
-    evaluationRounds: mergeEvaluationRounds(
-      serverProject.evaluationRounds,
-      localProject.evaluationRounds,
-      trashedRoundIds,
-    ),
-    trashedEvaluationRounds,
+    uploadAnalyses: Array.isArray(serverProject.uploadAnalyses)
+      ? serverProject.uploadAnalyses
+      : localProject.uploadAnalyses,
+    humanEvaluationSessions: Array.isArray(serverProject.humanEvaluationSessions)
+      ? serverProject.humanEvaluationSessions
+      : localProject.humanEvaluationSessions,
+    evaluationRounds: evaluationRounds ?? [],
+    trashedEvaluationRounds: trashedEvaluationRounds ?? [],
   };
-}
-
-function mergeTrashedEvaluationRounds(
-  serverRounds?: EvaluationRound[],
-  localRounds?: EvaluationRound[],
-): EvaluationRound[] | undefined {
-  const byId = new Map<string, EvaluationRound>();
-
-  for (const round of [...(serverRounds ?? []), ...(localRounds ?? [])]) {
-    byId.set(round.id, round);
-  }
-
-  return byId.size > 0 ? Array.from(byId.values()) : undefined;
 }

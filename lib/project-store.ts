@@ -260,30 +260,29 @@ export async function purgeProjectEvaluationRound(
   });
 }
 
-/** 모든 프로젝트의 평가 차수(활성·휴지통)를 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다. */
+/** 모든 프로젝트의 평가 데이터를 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다. */
 export async function purgeAllProjectEvaluationRounds(): Promise<{ projectsUpdated: number }> {
   return withProjectStoreLock(async () => {
     const allProjects = await getAllProjectsIncludingTrashed();
     const storedProjects = await readCreatedProjects();
     const storedById = new Map(storedProjects.map((project) => [project.id, project]));
+    const updatedAt = new Date().toISOString();
+    const projectIds = new Set([...allProjects.map((project) => project.id), ...storedById.keys()]);
     let projectsUpdated = 0;
 
-    for (const project of allProjects) {
-      const hasRounds =
-        (project.evaluationRounds?.length ?? 0) > 0 ||
-        (project.trashedEvaluationRounds?.length ?? 0) > 0;
-      if (!hasRounds) continue;
+    for (const id of projectIds) {
+      const stored = storedById.get(id);
+      const source = allProjects.find((project) => project.id === id) ?? stored;
+      if (!source) continue;
 
-      const updatedAt = new Date().toISOString();
-      const stored = storedById.get(project.id);
-
-      storedById.set(project.id, {
-        ...(stored ?? project),
+      storedById.set(id, {
+        ...(stored ?? source),
         evaluationRounds: [],
         trashedEvaluationRounds: [],
+        uploadAnalyses: [],
+        humanEvaluationSessions: [],
         updatedAt,
       });
-
       projectsUpdated += 1;
     }
 
@@ -393,11 +392,18 @@ async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
           ...project,
           ...stored,
           files: stored.files ?? project.files,
-          uploadAnalyses: stored.uploadAnalyses ?? project.uploadAnalyses ?? [],
-          humanEvaluationSessions:
-            stored.humanEvaluationSessions ?? project.humanEvaluationSessions ?? [],
-          evaluationRounds: stored.evaluationRounds ?? project.evaluationRounds ?? [],
-          trashedEvaluationRounds: stored.trashedEvaluationRounds ?? project.trashedEvaluationRounds ?? [],
+          uploadAnalyses: pickStoredArrayField(stored, "uploadAnalyses", project.uploadAnalyses ?? []),
+          humanEvaluationSessions: pickStoredArrayField(
+            stored,
+            "humanEvaluationSessions",
+            project.humanEvaluationSessions ?? [],
+          ),
+          evaluationRounds: pickStoredArrayField(stored, "evaluationRounds", project.evaluationRounds ?? []),
+          trashedEvaluationRounds: pickStoredArrayField(
+            stored,
+            "trashedEvaluationRounds",
+            project.trashedEvaluationRounds ?? [],
+          ),
           savedEvaluationItems: stored.savedEvaluationItems ?? project.savedEvaluationItems,
         }
       : project;
@@ -405,7 +411,29 @@ async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
 
   const activeStored = storedProjects.filter((project) => !demoProjectIds.has(project.id));
 
-  return sortProjectsByUpdatedAt([...mergedDemoProjects, ...activeStored]);
+  return sortProjectsByUpdatedAt([...mergedDemoProjects, ...activeStored]).map(normalizeProjectEvaluationState);
+}
+
+function normalizeProjectEvaluationState(project: Project): Project {
+  return {
+    ...project,
+    evaluationRounds: project.evaluationRounds ?? [],
+    trashedEvaluationRounds: project.trashedEvaluationRounds ?? [],
+    uploadAnalyses: project.uploadAnalyses ?? [],
+    humanEvaluationSessions: project.humanEvaluationSessions ?? [],
+  };
+}
+
+function pickStoredArrayField<T>(
+  stored: Project,
+  key: "uploadAnalyses" | "humanEvaluationSessions" | "evaluationRounds" | "trashedEvaluationRounds",
+  fallback: T[],
+): T[] {
+  if (key in stored) {
+    const value = stored[key];
+    return Array.isArray(value) ? (value as T[]) : [];
+  }
+  return fallback;
 }
 
 async function readCreatedProjects(): Promise<Project[]> {

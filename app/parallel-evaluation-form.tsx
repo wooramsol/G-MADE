@@ -443,13 +443,13 @@ function resolveNextEvaluationRounds(
   project: ParallelEvaluationFormProps["project"],
   payload: EvaluationRoundApiResponse,
 ): EvaluationRound[] {
-  const existing = project.evaluationRounds ?? [];
-  const fromServer = payload.project?.evaluationRounds ?? [];
-  const byId = new Map<string, EvaluationRound>();
-
-  for (const round of [...existing, ...fromServer, payload.round]) {
-    byId.set(round.id, round);
+  if (Array.isArray(payload.project?.evaluationRounds)) {
+    return payload.project.evaluationRounds;
   }
+
+  const existing = project.evaluationRounds ?? [];
+  const byId = new Map(existing.map((round) => [round.id, round]));
+  byId.set(payload.round.id, payload.round);
 
   return Array.from(byId.values()).sort(
     (left, right) => new Date(right.evaluatedAt).getTime() - new Date(left.evaluatedAt).getTime(),

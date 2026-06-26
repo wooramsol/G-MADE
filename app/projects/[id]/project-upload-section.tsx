@@ -54,17 +54,13 @@ export default function ProjectUploadSection({
 
     setActiveProject(mergedProject);
     setFiles(mergedProject.files);
-    setTrashedRounds(getTrashedEvaluationRounds(mergedProject));
-    setRounds((current) => {
-      const next = resolveProjectRounds({
-        serverProject: project,
-        localProject,
-        currentRounds: current.length > 0 ? current : roundsRef.current,
-        excludedRoundIds: excludedRoundIdsRef.current,
-      });
-      roundsRef.current = next;
-      return next;
+    setTrashedRounds(project.trashedEvaluationRounds ?? []);
+    const next = resolveProjectRounds({
+      serverProject: project,
+      excludedRoundIds: excludedRoundIdsRef.current,
     });
+    roundsRef.current = next;
+    setRounds(next);
   }, [project]);
 
   function syncRounds(
