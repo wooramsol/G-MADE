@@ -8,6 +8,7 @@ import { getLoginHistoryForEmail } from "@/lib/login-history";
 import { getRoleLabel } from "@/lib/role-labels";
 import SaasPageShell from "../saas-page-shell";
 import LogoutButton from "./logout-button";
+import PurgeEvaluationsPanel from "./purge-evaluations-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,8 @@ export default async function MyPage() {
           </div>
         </div>
       </section>
+
+      {user?.role === "ADMIN" ? <PurgeEvaluationsPanel /> : null}
 
       <section>
         <Panel title="로그인 히스토리">
