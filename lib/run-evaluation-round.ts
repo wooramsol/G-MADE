@@ -25,7 +25,8 @@ import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project } from "@/lib/types";
 import { isAiAnalysisError } from "@/lib/ai/analysis-error";
 import { analyzeUploadedFiles } from "@/lib/upload-analysis";
-import { applyFilesTextBudget } from "@/lib/ai/document-text-budget";
+import { applyFilesTextBudget, LIGHTWEIGHT_PROVIDER_TOTAL_AI_TEXT_CHARS } from "@/lib/ai/document-text-budget";
+import { resolveAnalysisProvider } from "@/lib/ai/resolve-analysis-provider";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import type { SavedUploadFile } from "@/lib/save-uploaded-files";
 
@@ -160,7 +161,11 @@ export async function runEvaluationRound(
           )
         : [];
 
-    const textBudget = applyFilesTextBudget(filesForAnalysis);
+    const analysisProvider = resolveAnalysisProvider(providerPreference);
+    const textBudget = applyFilesTextBudget(
+      filesForAnalysis,
+      analysisProvider === "openai" ? undefined : LIGHTWEIGHT_PROVIDER_TOTAL_AI_TEXT_CHARS,
+    );
 
     emitStep(emit, "law-context");
     const evaluationContext = await buildEvaluationContext(projectId, evaluationItems);

@@ -1,8 +1,8 @@
-export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 const geminiModelFallbacks = [
-  DEFAULT_GEMINI_MODEL,
   "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
   "gemini-flash-latest",
 ] as const;
 

@@ -2,7 +2,10 @@ import { analyzeWithClaude } from "./ai/analyze-claude";
 import { AiAnalysisError } from "./ai/analysis-error";
 import { getGeminiApiKey, getGeminiModel, getOpenAiApiKey } from "./ai/env-keys";
 import { buildAnalysisPrompt } from "./ai/analysis-prompt";
+import type { AnalysisPromptOptions } from "./ai/analysis-prompt-options";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
+import { chunkEvaluationItems, shouldBatchProviderAnalysis } from "./ai/item-batches";
+import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
 import { buildFallbackRecommendation, isGenericRecommendation } from "./ai/fallback-recommendation";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
@@ -52,10 +55,7 @@ export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Pr
 
   if (providerPreference === "claude") {
     ensureProviderConfigured("claude");
-    return analyzeWithClaude(files, evaluationContext, items, {
-      normalizeAiJson: (content) =>
-        normalizeAiJson(content, files, "claude", evaluationContext, items, baseWarnings),
-    });
+    return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings);
   }
 
   const provider = selectProvider("auto");
@@ -73,10 +73,7 @@ export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Pr
     return analyzeWithGemini(files, evaluationContext, items, baseWarnings);
   }
 
-  return analyzeWithClaude(files, evaluationContext, items, {
-    normalizeAiJson: (content) =>
-      normalizeAiJson(content, files, "claude", evaluationContext, items, baseWarnings),
-  });
+  return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings);
 }
 
 function ensureProviderConfigured(provider: "openai" | "gemini" | "claude") {
@@ -152,6 +149,108 @@ async function analyzeWithGemini(
   items: EvaluationItem[],
   baseWarnings: string[],
 ): Promise<UploadAnalysisResult> {
+  if (shouldBatchProviderAnalysis("gemini", items.length)) {
+    return analyzeProviderInBatches("gemini", files, evaluationContext, items, baseWarnings);
+  }
+
+  return analyzeWithGeminiOnce(files, evaluationContext, items, baseWarnings);
+}
+
+async function analyzeWithClaudeBatched(
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  items: EvaluationItem[],
+  baseWarnings: string[],
+): Promise<UploadAnalysisResult> {
+  if (shouldBatchProviderAnalysis("claude", items.length)) {
+    return analyzeProviderInBatches("claude", files, evaluationContext, items, baseWarnings);
+  }
+
+  return analyzeWithClaudeOnce(files, evaluationContext, items, baseWarnings);
+}
+
+async function analyzeProviderInBatches(
+  provider: "gemini" | "claude",
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  items: EvaluationItem[],
+  baseWarnings: string[],
+): Promise<UploadAnalysisResult> {
+  const batches = chunkEvaluationItems(items);
+  const mergedWarnings = [...baseWarnings];
+  mergedWarnings.push(
+    `${providerLabel(provider)} 분석: 평가 항목 ${items.length}개를 ${batches.length}회로 나누어 처리합니다.`,
+  );
+
+  const partials: UploadAnalysisResult[] = [];
+  for (let index = 0; index < batches.length; index += 1) {
+    const batchItems = batches[index]!;
+    const promptOptions: AnalysisPromptOptions = {
+      compact: true,
+      evaluationOnly: index > 0,
+    };
+    const partial =
+      provider === "gemini"
+        ? await analyzeWithGeminiOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions)
+        : await analyzeWithClaudeOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions);
+    partials.push(partial);
+  }
+
+  return mergeBatchAnalysisResults(provider, partials, evaluationContext, items, mergedWarnings);
+}
+
+function mergeBatchAnalysisResults(
+  provider: "gemini" | "claude",
+  partials: UploadAnalysisResult[],
+  evaluationContext: EvaluationContext,
+  items: EvaluationItem[],
+  warnings: string[],
+): UploadAnalysisResult {
+  const first = partials[0];
+  if (!first) {
+    throw new AiAnalysisError(`${providerLabel(provider)} 분할 분석 결과가 비어 있습니다.`, provider);
+  }
+
+  return attachContextMetadata(
+    {
+      provider,
+      mode: "live",
+      summary: first.summary,
+      documentSections: first.documentSections,
+      evaluationPreview: partials.flatMap((partial) => partial.evaluationPreview),
+      warnings,
+    },
+    evaluationContext,
+    items,
+  );
+}
+
+async function analyzeWithClaudeOnce(
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  items: EvaluationItem[],
+  baseWarnings: string[],
+  promptOptions?: AnalysisPromptOptions,
+): Promise<UploadAnalysisResult> {
+  return analyzeWithClaude(
+    files,
+    evaluationContext,
+    items,
+    {
+      normalizeAiJson: (content, batchItems) =>
+        normalizeAiJson(content, files, "claude", evaluationContext, batchItems, baseWarnings),
+    },
+    promptOptions,
+  );
+}
+
+async function analyzeWithGeminiOnce(
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  items: EvaluationItem[],
+  baseWarnings: string[],
+  promptOptions?: AnalysisPromptOptions,
+): Promise<UploadAnalysisResult> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
     throw new AiAnalysisError("GEMINI_API_KEY가 설정되지 않았습니다.", "gemini");
@@ -163,40 +262,42 @@ async function analyzeWithGemini(
 
   try {
     for (const model of modelsToTry) {
-      let response = await requestGemini(apiKey, model, files, evaluationContext, items);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const response = await requestGemini(apiKey, model, files, evaluationContext, items, promptOptions);
 
-      if (!response.ok && response.status === 429) {
-        await sleep(13_000);
-        response = await requestGemini(apiKey, model, files, evaluationContext, items);
-      }
+        if (response.ok) {
+          const payload = await response.json();
+          const gemini = readGeminiGenerateContent(payload);
+          const issue = describeGeminiResponseIssue({
+            blockReason: gemini.blockReason,
+            finishReason: gemini.finishReason,
+            hasText: Boolean(gemini.text),
+          });
+          if (issue) {
+            throw new AiAnalysisError(issue, "gemini");
+          }
 
-      if (response.ok) {
-        const payload = await response.json();
-        const gemini = readGeminiGenerateContent(payload);
-        const issue = describeGeminiResponseIssue({
-          blockReason: gemini.blockReason,
-          finishReason: gemini.finishReason,
-          hasText: Boolean(gemini.text),
-        });
-        if (issue) {
-          throw new AiAnalysisError(issue, "gemini");
+          return normalizeAiJson(gemini.text, files, "gemini", evaluationContext, items, baseWarnings);
         }
 
-        return normalizeAiJson(gemini.text, files, "gemini", evaluationContext, items, baseWarnings);
-      }
+        lastStatus = response.status;
+        lastBody = await response.text();
 
-      lastStatus = response.status;
-      lastBody = await response.text();
+        if (response.status === 404) {
+          break;
+        }
 
-      if (response.status === 404) {
-        continue;
-      }
+        if (isRetryableProviderError(response.status, lastBody) && attempt < 2) {
+          await sleep(retryDelayMs(attempt));
+          continue;
+        }
 
-      if (response.status === 429) {
         break;
       }
 
-      break;
+      if (lastStatus === 404) {
+        continue;
+      }
     }
   } catch (error) {
     if (error instanceof AiAnalysisError) throw error;
@@ -219,6 +320,7 @@ async function requestGemini(
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
+  promptOptions?: AnalysisPromptOptions,
 ) {
   return requestGeminiGenerateContent(
     apiKey,
@@ -230,13 +332,13 @@ async function requestGemini(
       contents: [
         {
           role: "user",
-          parts: [{ text: buildAnalysisPrompt(files, evaluationContext, items) }],
+          parts: [{ text: buildAnalysisPrompt(files, evaluationContext, items, promptOptions) }],
         },
       ],
       generationConfig: {
         temperature: 0.2,
         responseMimeType: "application/json",
-        maxOutputTokens: 16384,
+        maxOutputTokens: 8192,
       },
     },
     110_000,

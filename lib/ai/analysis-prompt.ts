@@ -2,11 +2,13 @@ import { evaluationItems as defaultEvaluationItems } from "../demo-data";
 import type { EvaluationContext } from "../evaluation-context";
 import type { EvaluationItem } from "../types";
 import type { UploadedFileSummary } from "./analysis-types";
+import type { AnalysisPromptOptions } from "./analysis-prompt-options";
 
 export function buildAnalysisPrompt(
   files: UploadedFileSummary[],
   context: EvaluationContext,
   items: EvaluationItem[] = defaultEvaluationItems,
+  options?: AnalysisPromptOptions,
 ): string {
   const projectBlock = context.project
     ? `프로젝트 정보:
@@ -109,5 +111,21 @@ recommendation 작성 규칙 (필수):
 - 점수가 우수해도 유지·강화가 필요한 세부 조치가 있으면 recommendation에 구체적으로 적는다.
 
 recommendation 작성 예시:
-"본 사업으로 가능하다면 증축으로 확보되는 2층 옥외공간이 고령 이용자의 휴게·교류 공간으로 안정적으로 활용될 수 있도록, 난간 높이, 계단 단 높이 조정, 바닥 미끄럼 방지, 차양(계단에서 출입구 이동) 등 안전·쾌적성 확보 방안을 실시설계 단계에서 보다 구체화 하시기 바랍니다."`;
+"본 사업으로 가능하다면 증축으로 확보되는 2층 옥외공간이 고령 이용자의 휴게·교류 공간으로 안정적으로 활용될 수 있도록, 난간 높이, 계단 단 높이 조정, 바닥 미끄럼 방지, 차양(계단에서 출입구 이동) 등 안전·쾌적성 확보 방안을 실시설계 단계에서 보다 구체화 하시기 바랍니다."${
+    options?.compact
+      ? `
+
+출력 길이 제한 (필수):
+- rationale은 200자 이내, recommendation은 350자 이내로 작성한다.
+- documentSections.summary도 각 120자 이내로 간결히 작성한다.`
+      : ""
+  }${
+    options?.evaluationOnly
+      ? `
+
+이번 응답 범위:
+- documentSections는 반드시 빈 배열 []로 반환한다.
+- evaluationPreview만 아래 평가항목 후보에 대해 작성한다.`
+      : ""
+  }`;
 }
