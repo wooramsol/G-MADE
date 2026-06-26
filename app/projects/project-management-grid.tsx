@@ -43,29 +43,48 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
 
   if (visibleProjects.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
+      <p className="col-span-full rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
         {normalizedQuery ? "검색 결과가 없습니다." : "등록된 프로젝트가 없습니다."}
       </p>
     );
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <>
       {visibleProjects.map((project) => (
-        <Link
-          className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow transition hover:border-[#2463b3]/30 hover:shadow-md"
-          href={`/projects/${project.id}`}
+        <article
+          className="flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow transition hover:-translate-y-0.5 hover:border-[#2463b3]"
           key={project.id}
         >
-          <div className="flex items-start justify-between gap-3">
-            <Eyebrow>{project.reviewType}</Eyebrow>
-            <EvaluationStatusBadge project={project} />
-          </div>
-          <CardTitle className="mt-3 line-clamp-2">{project.name}</CardTitle>
-          <p className="mt-2 text-sm text-[#64748b]">{project.location}</p>
-          <p className="mt-4 text-xs font-semibold text-[#2463b3]">접수일 {project.receivedAt}</p>
-        </Link>
+          <Link className="flex h-full flex-col" href={`/projects/${project.id}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <Eyebrow className="tracking-[0.16em] text-[#2463b3]">{project.reviewType}</Eyebrow>
+                <CardTitle className="mt-3">{project.name}</CardTitle>
+              </div>
+              <EvaluationStatusBadge project={project} />
+            </div>
+            <dl className="mt-5 flex-1 space-y-3 text-sm text-[#475569]">
+              <Info label="사업위치" value={project.location} />
+              <Info label="시행자" value={project.client} />
+              <Info label="사업유형" value={project.projectType} />
+              <Info label="접수일" value={project.receivedAt} />
+            </dl>
+            <div className="primary-action-blue mt-5 rounded-xl px-4 py-3 text-center text-sm font-bold">
+              프로젝트 상세 평가로 이동
+            </div>
+          </Link>
+        </article>
       ))}
+    </>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[90px_1fr] gap-3">
+      <dt className="font-semibold text-[#64748b]">{label}</dt>
+      <dd className="font-semibold text-[#172033]">{value}</dd>
     </div>
   );
 }
