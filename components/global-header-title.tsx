@@ -10,11 +10,10 @@ export default function GlobalHeaderTitle() {
         className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 leading-tight"
         title={`BlinkType ${versionLabel}`}
       >
-        <span className="inline-flex items-baseline text-xl font-black tracking-tight text-white sm:text-2xl">
+        <span className="inline-flex items-baseline gap-0.5 text-xl font-black tracking-tight text-white sm:text-2xl">
           <span className="bg-gradient-to-r from-white via-blue-50 to-sky-200 bg-clip-text text-transparent">
             Blink
           </span>
-          <span aria-hidden className="blink-type-space" />
           <span className="relative text-white">
             Type
             <span
