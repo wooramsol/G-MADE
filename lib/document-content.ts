@@ -15,8 +15,6 @@ export type DocumentContent = {
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png"]);
 const TEXT_EXTRACTABLE = new Set(["pdf", "pptx", "docx", "txt", "md"]);
 
-let pdfRenderReady: Promise<void> | null = null;
-
 function getExtension(fileName: string): string {
   return fileName.split(".").pop()?.toLowerCase() ?? "";
 }
@@ -26,7 +24,7 @@ export function isVisionCapableFile(fileName: string): boolean {
   return extension === "pdf" || IMAGE_EXTENSIONS.has(extension);
 }
 
-/** 업로드 파일에서 전체 텍스트와 비전 분석용 자료(PDF·페이지 이미지·사진)를 추출합니다. */
+/** 업로드 파일에서 전체 텍스트와 비전 분석용 자료(PDF·이미지)를 추출합니다. */
 export async function extractDocumentContent(buffer: Buffer, fileName: string): Promise<DocumentContent> {
   const extension = getExtension(fileName);
 
@@ -85,7 +83,6 @@ export function isTextExtractableFile(fileName: string): boolean {
 }
 
 async function extractPdfContent(buffer: Buffer, fileName: string): Promise<DocumentContent> {
-  const warnings: string[] = [];
   const uint8 = new Uint8Array(buffer);
   const { extractText, getDocumentProxy } = await import("unpdf");
   const pdf = await getDocumentProxy(uint8);
@@ -94,43 +91,19 @@ async function extractPdfContent(buffer: Buffer, fileName: string): Promise<Docu
 
   const fullText =
     normalizedText ||
-    `[PDF 텍스트 레이어 없음] "${fileName}" — 배치도·입면도·스캔 문서는 첨부 비전 자료로 분석합니다.`;
+    `[PDF 텍스트 레이어 없음] "${fileName}" — 배치도·입면도·스캔 문서는 첨부 PDF 비전 자료로 분석합니다.`;
 
-  const visionAssets: VisionAsset[] = [
-    {
-      label: `${fileName} (전체 PDF)`,
-      mediaType: "application/pdf",
-      base64: buffer.toString("base64"),
-    },
-  ];
-
-  try {
-    await ensurePdfRenderModules();
-    const pageCount = pdf.numPages;
-
-    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
-      const { renderPageAsImage } = await import("unpdf");
-      const dataUrl = await renderPageAsImage(pdf, pageNumber, {
-        canvasImport: () => import("@napi-rs/canvas"),
-        scale: 1.6,
-        toDataURL: true,
-      });
-      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
-
-      visionAssets.push({
-        label: `${fileName} ${pageNumber}/${pageCount}페이지`,
-        mediaType: "image/png",
-        base64,
-      });
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "알 수 없는 오류";
-    warnings.push(
-      `"${fileName}" PDF 페이지 이미지 변환에 실패했습니다(${message}). 전체 PDF 바이너리는 계속 분석에 사용됩니다.`,
-    );
-  }
-
-  return { fullText, visionAssets, warnings };
+  return {
+    fullText,
+    visionAssets: [
+      {
+        label: `${fileName} (전체 PDF)`,
+        mediaType: "application/pdf",
+        base64: buffer.toString("base64"),
+      },
+    ],
+    warnings: [],
+  };
 }
 
 function extractImageContent(buffer: Buffer, fileName: string, extension: string): DocumentContent {
@@ -147,17 +120,6 @@ function extractImageContent(buffer: Buffer, fileName: string, extension: string
     ],
     warnings: [],
   };
-}
-
-async function ensurePdfRenderModules(): Promise<void> {
-  if (!pdfRenderReady) {
-    pdfRenderReady = (async () => {
-      const { definePDFJSModule } = await import("unpdf");
-      await definePDFJSModule(() => import("pdfjs-dist"));
-    })();
-  }
-
-  await pdfRenderReady;
 }
 
 function unsupportedExtractionNotice(fileName: string): string {

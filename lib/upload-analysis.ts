@@ -107,6 +107,15 @@ async function analyzeWithOpenAi(
   }
 
   try {
+    const openAiContent = buildOpenAiUserContent(files, buildAnalysisPrompt(files, evaluationContext, items));
+    const hasVisionImages = openAiContent.some((part) => part.type === "image_url");
+    const warnings = [...baseWarnings];
+    if (!hasVisionImages && files.some((file) => file.visionAssets?.some((asset) => asset.mediaType === "application/pdf"))) {
+      warnings.push(
+        "ChatGPT(OpenAI)는 PDF 원본 비전 입력을 지원하지 않아 PDF 본문 텍스트 위주로 분석합니다. 도면·스캔 PDF는 Gemini 또는 Claude 사용을 권장합니다.",
+      );
+    }
+
     const response = await fetchWithTimeout(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -141,7 +150,7 @@ async function analyzeWithOpenAi(
 
     const payload = await response.json();
     const content = payload.choices?.[0]?.message?.content;
-    return normalizeAiJson(content, files, "openai", evaluationContext, items, baseWarnings);
+    return normalizeAiJson(content, files, "openai", evaluationContext, items, warnings);
   } catch (error) {
     if (error instanceof AiAnalysisError) throw error;
     throw new AiAnalysisError(formatProviderTransportError("OpenAI", error), "openai");
