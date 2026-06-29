@@ -1,13 +1,18 @@
 import type { EvaluationContext } from "../evaluation-context";
 import type { EvaluationItem } from "../types";
 
+import type { VisionAsset } from "../document-content";
+
 export type UploadedFileSummary = {
   id: string;
   originalName: string;
   fileType: string;
   sizeBytes: number;
   storagePath: string;
+  /** 추출된 전체 본문(글자 수 제한 없음) */
   extractedTextPreview: string;
+  /** PDF 원본·페이지 렌더·이미지 등 비전 분석 자료 */
+  visionAssets?: VisionAsset[];
 };
 
 export type UploadAnalysisReferenceLaw = {

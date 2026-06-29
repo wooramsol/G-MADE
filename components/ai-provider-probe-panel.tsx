@@ -42,8 +42,8 @@ export default function AiProviderProbePanel() {
         <div>
           <p className="text-sm font-bold text-[#15345b]">AI 심의 분석 시험</p>
           <MutedText className="mt-1">
-            실제 평가와 같은 JSON 심의 분석을 축소 실행합니다. 여기서 실패하면 평가도 실패합니다. 통과해도 대용량
-            PDF는 별도로 실패할 수 있습니다.
+            실제 평가와 같은 JSON 심의 분석을 축소 실행합니다. 여기서 실패하면 평가도 실패합니다. 통과해도 페이지가
+            매우 많은 PDF·대용량 도면은 처리 시간이 길어질 수 있습니다.
           </MutedText>
         </div>
         <button

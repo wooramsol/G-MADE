@@ -3,6 +3,7 @@ import type { EvaluationContext } from "../evaluation-context";
 import type { EvaluationItem } from "../types";
 import type { UploadedFileSummary } from "./analysis-types";
 import type { AnalysisPromptOptions } from "./analysis-prompt-options";
+import { summarizeVisionCoverage } from "./multimodal-payload";
 
 export function buildAnalysisPrompt(
   files: UploadedFileSummary[],
@@ -60,8 +61,10 @@ ${context.guidelines
       : "";
 
   return `업로드된 심의 자료를 면밀히 분석하고 경관·공공디자인 심의 관점에서 평가하라.
+첨부된 PDF 원본·페이지 이미지·사진을 모두 읽어 배치도·입면도·조감도·스캔 문서 속 글자(OCR)까지 확인하라. 텍스트 추출본만으로 놓칠 수 있는 도면·그림·표·범례·치수·주석도 비전 자료에서 직접 검토하라.
 반드시 아래 실시간 법령·경관지구 정보를 근거로 활용하고, rationale에 어떤 법령·경관지구 맥락을 참고했는지 명시하라.
 업로드 자료에서 확인한 층수, 공간명(옥외·옥상·공개공지·증축부 등), 이용자 유형(고령·보행약자 등), 동선, 마감·조경·조명 계획을 evaluationPreview의 rationale과 recommendation에 구체적으로 반영하라.
+예상치 못한 누락·모순·안전·접근성·경관 저해 요소가 있으면 반드시 지적하라.
 
 ${projectBlock}
 
@@ -71,17 +74,19 @@ ${lawBlock}
 
 ${guidelineBlock}
 
+비전 분석 범위: ${summarizeVisionCoverage(files)}
+
 파일 목록:
 ${files
   .map(
     (file, index) =>
-      `${index + 1}. ${file.originalName} (${file.fileType}, ${file.sizeBytes} bytes)\n추출된 본문: ${file.extractedTextPreview || "텍스트 추출 불가 또는 이미지/도면 자료"}`,
+      `${index + 1}. ${file.originalName} (${file.fileType}, ${file.sizeBytes} bytes)\n추출된 본문(전체): ${file.extractedTextPreview || "텍스트 추출 불가 — 비전 자료로 분석"}`,
   )
   .join("\n\n")}
 
 반환 JSON 스키마:
 - documentSections는 건축개요, 배치도, 입면도, 조감도, 색채계획, 야간경관, 보행동선, 녹지계획, 공공공간, 주변현황 등 업로드 자료에서 실제로 확인한 항목만 작성하라.
-- PDF·DOCX·PPTX에서 추출된 본문을 우선 활용하라. 매우 긴 문서는 앞부분만 포함될 수 있다.
+- 추출된 본문과 첨부 비전 자료(PDF·이미지)를 모두 활용하라. 글자 수 제한 없이 자료 전체를 꼼꼼히 읽어라.
 - evaluationPreview의 lawRefs에는 해당 항목 점수 산정에 실제로 참고한 법령·조문만 적어라. 위 법령 목록에 없는 조문은 인용하지 마라.
 - evaluationPreview의 guidelineRefs에는 해당 항목에 실제로 참고한 행정규칙·지침만 적어라. 위 지침 목록에 없는 항목은 인용하지 마라.
 {
@@ -115,9 +120,8 @@ recommendation 작성 예시:
     options?.compact
       ? `
 
-출력 길이 제한 (필수):
-- rationale은 200자 이내, recommendation은 350자 이내로 작성한다.
-- documentSections.summary도 각 120자 이내로 간결히 작성한다.`
+분할 분석 안내:
+- 이번 응답은 일부 평가항목만 다룬다. 각 항목의 rationale·recommendation은 자료에서 확인한 구체적 근거를 충분히 서술하라.`
       : ""
   }${
     options?.evaluationOnly

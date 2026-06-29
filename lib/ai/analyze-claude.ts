@@ -4,6 +4,7 @@ import type { UploadedFileSummary, UploadAnalysisResult } from "./analysis-types
 import type { AnalysisPromptOptions } from "./analysis-prompt-options";
 import { AiAnalysisError } from "./analysis-error";
 import { buildAnalysisPrompt } from "./analysis-prompt";
+import { buildClaudeUserBlocks } from "./multimodal-payload";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./evaluator-system-prompt";
 import { getClaudeModelsToTry } from "./claude-models";
 import { getClaudeApiKey, getClaudeModel } from "./env-keys";
@@ -113,12 +114,15 @@ async function requestClaude(
         messages: [
           {
             role: "user",
-            content: buildAnalysisPrompt(files, evaluationContext, items, promptOptions),
+            content: buildClaudeUserBlocks(
+              files,
+              buildAnalysisPrompt(files, evaluationContext, items, promptOptions),
+            ),
           },
         ],
       }),
     },
-    110_000,
+    240_000,
   );
 }
 

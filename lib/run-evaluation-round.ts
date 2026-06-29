@@ -26,10 +26,9 @@ import {
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project } from "@/lib/types";
 import { isAiAnalysisError } from "@/lib/ai/analysis-error";
-import { analyzeUploadedFiles } from "@/lib/upload-analysis";
-import { applyFilesTextBudget, LIGHTWEIGHT_PROVIDER_TOTAL_AI_TEXT_CHARS } from "@/lib/ai/document-text-budget";
-import { resolveAnalysisProvider } from "@/lib/ai/resolve-analysis-provider";
 import type { AiProviderPreference } from "@/lib/ai/types";
+import { analyzeUploadedFiles } from "@/lib/upload-analysis";
+import { applyFilesTextBudget } from "@/lib/ai/document-text-budget";
 import type { SavedUploadFile } from "@/lib/save-uploaded-files";
 
 export type RunEvaluationRoundInput = {
@@ -150,33 +149,37 @@ export async function runEvaluationRound(
       return true;
     });
 
-    const { extractDocumentText } = await import("@/lib/document-extract");
+    const { extractDocumentContent } = await import("@/lib/document-content");
 
     emitStep(emit, "extract");
+    const extractionWarnings: string[] = [];
     const filesForAnalysis =
       needsMaterials
         ? await Promise.all(
-            savedFiles.map(async (file) => ({
-              ...file,
-              storagePath: file.storagePath ?? file.storageKey,
-              extractedTextPreview: await extractDocumentText(
+            savedFiles.map(async (file) => {
+              const content = await extractDocumentContent(
                 await readSavedUploadFile(file),
                 file.originalName,
-              ),
-            })),
+              );
+              extractionWarnings.push(...content.warnings);
+
+              return {
+                ...file,
+                storagePath: file.storagePath ?? file.storageKey,
+                extractedTextPreview: content.fullText,
+                visionAssets: content.visionAssets,
+              };
+            }),
           )
         : [];
 
-    const analysisProvider = resolveAnalysisProvider(providerPreference);
-    const textBudget = applyFilesTextBudget(
-      filesForAnalysis,
-      analysisProvider === "openai" ? undefined : LIGHTWEIGHT_PROVIDER_TOTAL_AI_TEXT_CHARS,
-    );
+    const textBudget = applyFilesTextBudget(filesForAnalysis);
 
     emitStep(emit, "law-context");
     const evaluationContext = await buildEvaluationContext(projectId, evaluationItems);
     evaluationContext.warnings = [
       ...evaluationContext.warnings,
+      ...extractionWarnings,
       ...textBudget.warnings,
     ];
 

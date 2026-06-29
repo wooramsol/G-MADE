@@ -1,8 +1,9 @@
 import { analyzeWithClaude } from "./ai/analyze-claude";
 import { AiAnalysisError } from "./ai/analysis-error";
-import { getGeminiApiKey, getGeminiModel, getOpenAiApiKey } from "./ai/env-keys";
+import { getGeminiApiKey, getGeminiModel, getOpenAiApiKey, getOpenAiModel } from "./ai/env-keys";
 import { buildAnalysisPrompt } from "./ai/analysis-prompt";
 import type { AnalysisPromptOptions } from "./ai/analysis-prompt-options";
+import { buildClaudeUserBlocks, buildGeminiUserParts, buildOpenAiUserContent } from "./ai/multimodal-payload";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
 import { chunkEvaluationItems, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
@@ -106,28 +107,32 @@ async function analyzeWithOpenAi(
   }
 
   try {
-    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    const response = await fetchWithTimeout(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: getOpenAiModel() ?? "gpt-4o",
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content: AI_EVALUATOR_SYSTEM_PROMPT,
+            },
+            {
+              role: "user",
+              content: buildOpenAiUserContent(files, buildAnalysisPrompt(files, evaluationContext, items)),
+            },
+          ],
+          temperature: 0.2,
+        }),
       },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: AI_EVALUATOR_SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: buildAnalysisPrompt(files, evaluationContext, items),
-          },
-        ],
-        temperature: 0.2,
-      }),
-    });
+      240_000,
+    );
 
     if (!response.ok) {
       const message = await response.text();
@@ -332,7 +337,7 @@ async function requestGemini(
       contents: [
         {
           role: "user",
-          parts: [{ text: buildAnalysisPrompt(files, evaluationContext, items, promptOptions) }],
+          parts: buildGeminiUserParts(files, buildAnalysisPrompt(files, evaluationContext, items, promptOptions)),
         },
       ],
       generationConfig: {
@@ -341,7 +346,7 @@ async function requestGemini(
         maxOutputTokens: 8192,
       },
     },
-    110_000,
+    240_000,
   );
 }
 
