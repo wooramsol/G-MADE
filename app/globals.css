@@ -148,6 +148,12 @@ textarea {
   .blink-type-cursor {
     animation: blink-type-cursor 1.05s steps(1, end) infinite;
   }
+
+  .blink-type-space {
+    display: inline-block;
+    width: 0;
+    animation: blink-type-space 1.05s steps(1, end) infinite;
+  }
 }
 
 @keyframes blink-type-cursor {
@@ -159,5 +165,17 @@ textarea {
   50%,
   100% {
     opacity: 0;
+  }
+}
+
+@keyframes blink-type-space {
+  0%,
+  45% {
+    width: 0.36em;
+  }
+
+  50%,
+  100% {
+    width: 0;
   }
 }
