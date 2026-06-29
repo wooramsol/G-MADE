@@ -144,20 +144,4 @@ textarea {
   .type-nav-link {
     @apply text-sm font-bold;
   }
-
-  .blink-type-cursor {
-    animation: blink-type-cursor 1.05s steps(1, end) infinite;
-  }
-}
-
-@keyframes blink-type-cursor {
-  0%,
-  45% {
-    opacity: 1;
-  }
-
-  50%,
-  100% {
-    opacity: 0;
-  }
 }
