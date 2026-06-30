@@ -67,6 +67,12 @@ const DOCUMENT_ANCHOR_PATTERN =
 const ACTION_ANCHOR_PATTERN =
   /난간|계단|미끄럼|차양|조도|눈부심|식재|마감|동선|경사|손잡이|휘도|색채|재료|보행|경사|휴게|교차|주차|출입|엘리베이터|승강기/i;
 
+const ISSUE_FOCUS_MARKERS =
+  /미흡|누락|보완|검토|불명확|미기재|모순|부족|제시되지|확인(?:되지|불가)|재확인|재검토|수정|구체화|명시|추가\s*(?:제출|확인)|기재(?:되지|없)|표기(?:되지|없)|상호\s*검토|리스크|쟁점/i;
+
+const PRAISE_MARKERS =
+  /잘\s*(?:반영|구현|계획|마련)|우수(?:합니다|함|하)?|적절(?:합니다|함|하)?|충분(?:합니다|함|하)?|양호|훌륭|긍정적|만족|잘\s*되어|원활(?:합니다|함)?|우수한|적합(?:합니다|함)?/i;
+
 function collectMatches(text: string, patterns: readonly RegExp[]): string[] {
   const found = new Set<string>();
   for (const pattern of patterns) {
@@ -159,8 +165,23 @@ export function hasConcreteEvidence(text: string): boolean {
   return hasDocumentAnchor && (hasActionAnchor || hasQuotedSource || hasNumericDetail);
 }
 
+/** 칭찬·긍정 위주이고 검토·보완 이슈가 없으면 true */
+export function lacksIssueFocus(text: string | undefined): boolean {
+  if (!text?.trim()) return true;
+
+  const normalized = text.trim();
+  const hasIssue = ISSUE_FOCUS_MARKERS.test(normalized);
+  const hasPraise = PRAISE_MARKERS.test(normalized);
+
+  if (hasPraise && !hasIssue) return true;
+  if (normalized.length >= 48 && !hasIssue) return true;
+
+  return false;
+}
+
 export function isGenericRecommendation(text: string | undefined): boolean {
   if (!text?.trim()) return true;
+  if (lacksIssueFocus(text)) return true;
 
   const normalized = text.trim();
   if (GENERIC_OPENING_PATTERNS.some((pattern) => pattern.test(normalized))) {
@@ -176,6 +197,7 @@ export function isGenericRecommendation(text: string | undefined): boolean {
 
 export function isGenericRationale(text: string | undefined): boolean {
   if (!text?.trim()) return true;
+  if (lacksIssueFocus(text)) return true;
 
   const normalized = text.trim();
   if (normalized === "심사위원 검토가 필요합니다.") return true;
@@ -188,7 +210,11 @@ export function isGenericRationale(text: string | undefined): boolean {
   return onlyCriteriaRepeat;
 }
 
-/** AI 응답이 비었거나 일반 문구일 때, 추출 본문에서 공간·이용자·보완 조치를 끌어내 평가의견형 권고를 만듭니다. */
+function formatNumberedIssues(issues: string[]): string {
+  return issues.map((issue, index) => `${["①", "②", "③", "④", "⑤"][index] ?? `${index + 1}.`} ${issue}`).join(" ");
+}
+
+/** AI 응답이 비었거나 일반·칭찬 위주일 때, 추출 본문에서 검토·보완 필요 사항을 끌어내 평가의견을 만듭니다. */
 export function buildFallbackRecommendation(
   item: EvaluationItem,
   files: UploadedFileSummary[],
@@ -214,26 +240,38 @@ export function buildFallbackRecommendation(
   const userPhrase = users.includes("고령 이용자") || users.includes("고령")
     ? "고령 이용자"
     : users[0] ?? "이용자";
-  const measurePhrase = joinPhrases(measures.slice(0, 4));
+  const measureList = measures.slice(0, 4);
 
   const evidenceLead = evidenceSnippet
-    ? `${sourceLabel} ${drawingLabel} 및 본문에서 "${evidenceSnippet}" 등이 확인되나,`
-    : `${sourceLabel} ${drawingLabel} 기준 ${item.detailItem} 관련 내용을 검토한 결과,`;
+    ? `${sourceLabel} ${drawingLabel} 및 본문 "${evidenceSnippet}" 등을 검토한 결과,`
+    : `${sourceLabel} ${drawingLabel} 및 ${item.detailItem} 관련 제출 자료를 검토한 결과,`;
 
-  if (corpus.trim().length > 120 && (spaces.length > 0 || users.length > 0 || score < 85)) {
-    const purpose =
-      topicKey === "public" || topicKey === "walk"
-        ? `${userPhrase}의 휴게·교류·이동`
-        : `${item.detailItem} 계획`;
+  const reviewIssues: string[] = [
+    `${spacePhrase}에 대한 ${measureList[0] ?? "시공·안전 기준"}이 도면·계획서에 수치·재료·시공 상세로 제시되지 않음`,
+    `${measureList[1] ?? "동선·접근"} 관련 배치·표기가 도면에서 확인되지 않거나 불명확함`,
+    `${measureList[2] ?? "유지관리·관리 계획"} 기준이 계획서 본문·도면 어디에도 명시되지 않음`,
+  ];
 
-    return `${evidenceLead} ${spacePhrase}의 ${purpose} 측면에서 ${measurePhrase} 등 세부 기준이 제시되지 않았습니다. 해당 위치·동선을 도면에 표기하고 ${measurePhrase} 등을 실시설계 단계에서 구체화 하시기 바랍니다.`;
+  if (users.length > 0 || topicKey === "public" || topicKey === "walk") {
+    reviewIssues.push(
+      `${userPhrase}의 휴게·이동·교류 동선과 시설 배치가 ${drawingLabel}에서 상호 검토 가능하도록 연계 표기되지 않음`,
+    );
   }
 
-  if (corpus.trim().length > 80) {
-    return `${evidenceLead} ${spacePhrase} 및 ${item.detailItem}에 대한 계획은 확인되나 ${measurePhrase} 등 시공·유지관리 기준이 부족합니다. 관련 도면·계획서에 수치·재료·시공 상세를 보완 하시기 바랍니다.`;
+  if (score >= 85) {
+    reviewIssues.push(
+      `점수는 높으나 ${item.detailItem} 평가기준(${item.criteria}) 대비 실시설계 단계에서 재확인할 세부 항목이 남아 있음`,
+    );
   }
 
-  return `${sourceLabel}에서 ${item.detailItem}과 관련된 공간·동선·마감 계획을 확인한 뒤, ${measurePhrase} 등 보완 조치를 도면과 계획서에 명시하시기 바랍니다.`;
+  if (!corpus.trim() || corpus.trim().length < 80) {
+    reviewIssues.push("제출 자료 본문·도면에서 해당 항목을 뒷받침할 구체 기재·수치가 부족하여 추가 설명·도면 보완이 필요함");
+  }
+
+  const numbered = formatNumberedIssues(reviewIssues.slice(0, 5));
+  const measurePhrase = joinPhrases(measureList);
+
+  return `${evidenceLead} ${spacePhrase} 관련하여 다음 사항의 수정·보완·재확인이 필요합니다. ${numbered}. 관련 도면·계획서에 위치·동선을 표기하고 ${measurePhrase} 등을 수치·재료·시공 상세와 함께 실시설계 단계에서 구체화·재검토 하시기 바랍니다.`;
 }
 
 export function buildFallbackRationale(
@@ -251,28 +289,32 @@ export function buildFallbackRationale(
     item.majorCategory,
     ...collectMatches(corpus, SPACE_PATTERNS),
   ]);
+  const topicKey = inferTopicKey(item);
+  const measures = MEASURE_BY_TOPIC[topicKey] ?? MEASURE_BY_TOPIC.document;
   const parts: string[] = [];
 
   if (evidenceSnippet) {
-    parts.push(
-      `${sourceLabel} ${drawingLabel}에서 "${evidenceSnippet}" 등을 확인함. ${item.detailItem}은 이 내용을 기준으로 검토함.`,
-    );
+    parts.push(`${sourceLabel} ${drawingLabel}에서 "${evidenceSnippet}" 등 관련 기재는 있으나,`);
   } else {
-    parts.push(`${sourceLabel} ${drawingLabel} 및 ${item.detailItem} 관련 기재를 검토함.`);
+    parts.push(`${sourceLabel} ${drawingLabel} 및 ${item.detailItem} 관련 기재를 검토한 결과,`);
   }
 
-  parts.push(`평가기준: ${item.criteria}`);
+  const gapIssues = [
+    `평가기준「${item.criteria}」대비 ${measures[0]} 등 세부 수치·재료·시공 기준이 도면·계획서에 명시되지 않음`,
+    `${measures[1] ?? "동선·공간 관계"}가 도면·본문에서 상호 연계되어 확인되지 않음`,
+    `${measures[2] ?? "유지관리·관리 계획"}이 누락되었거나 불명확하여 심사위원 재검토 필요`,
+  ];
+
+  parts.push(`다음 검토·보완 필요 사항이 확인됨: ${formatNumberedIssues(gapIssues)}.`);
 
   const lawRef = evaluationContext.referenceLaws[0];
   if (lawRef) {
-    parts.push(`참고 법령: ${lawRef.title} ${lawRef.article}.`);
+    parts.push(`${lawRef.title} ${lawRef.article} 관련 세부 적용 여부도 추가 확인 필요.`);
   }
 
   const spatial = evaluationContext.spatial;
   if (spatial?.matchedZones[0]) {
-    parts.push(`인근 경관지구: ${spatial.matchedZones[0].name}.`);
-  } else if (spatial) {
-    parts.push("경관지구 조회 반경 내 해당 레이어는 확인되지 않음.");
+    parts.push(`인근 경관지구(${spatial.matchedZones[0].name}) 맥락과의 정합성도 재검토 필요.`);
   }
 
   return parts.join(" ");

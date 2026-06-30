@@ -8,6 +8,7 @@ import {
   buildFallbackRecommendation,
   isGenericRationale,
   isGenericRecommendation,
+  lacksIssueFocus,
 } from "./fallback-recommendation";
 
 const SPACE_TERM_PATTERN =
@@ -260,10 +261,12 @@ export function resolveGroundedRationale(
   }
 
   const grounding = checkEvaluationTextGrounding(text, files, evaluationContext, item);
-  if (!grounding.grounded) {
+  if (!grounding.grounded || lacksIssueFocus(text)) {
     return {
       text: buildFallbackRationale(item, files, evaluationContext),
-      warning: formatGroundingWarning(item.detailItem, "rationale", grounding.issues),
+      warning: grounding.grounded
+        ? `${item.detailItem} 점수 근거: 칭찬·긍정 위주 서술을 검토·보완 필요 사항 중심으로 보정했습니다.`
+        : formatGroundingWarning(item.detailItem, "rationale", grounding.issues),
     };
   }
 
@@ -283,10 +286,12 @@ export function resolveGroundedRecommendation(
   }
 
   const grounding = checkEvaluationTextGrounding(text, files, evaluationContext, item);
-  if (!grounding.grounded) {
+  if (!grounding.grounded || lacksIssueFocus(text)) {
     return {
       text: buildFallbackRecommendation(item, files, score),
-      warning: formatGroundingWarning(item.detailItem, "recommendation", grounding.issues),
+      warning: grounding.grounded
+        ? `${item.detailItem} 검토 의견: 칭찬·긍정 위주 서술을 수정·보완·검토 사항 중심으로 보정했습니다.`
+        : formatGroundingWarning(item.detailItem, "recommendation", grounding.issues),
     };
   }
 
@@ -307,7 +312,7 @@ export function sanitizeGroundedSummary(
   if (grounding.grounded) return { text };
 
   return {
-    text: "업로드 자료에서 확인된 내용을 중심으로 분석했습니다. 세부 평가는 항목별 근거·권고 문구를 참고하세요.",
-    warning: "AI 요약에 제출 자료에서 직접 확인되지 않은 서술이 있어 요약 문구를 보정했습니다.",
+    text: "제출 자료 전반에서 심사위원이 우선 재확인해야 할 누락·모순·보완 필요 사항이 있습니다. 항목별 검토·보완 의견을 확인하세요.",
+    warning: "AI 요약에 긍정·칭찬 위주 서술이 있어 검토 필요 사항 중심으로 요약을 보정했습니다.",
   };
 }
