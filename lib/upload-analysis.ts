@@ -43,7 +43,7 @@ const sectionLabels = [
 ];
 
 export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Promise<UploadAnalysisResult> {
-  const { providerPreference, files, evaluationContext } = input;
+  const { providerPreference, files, evaluationContext, onAnalysisProgress } = input;
   const items = input.evaluationItems?.length ? input.evaluationItems : defaultEvaluationItems;
   const baseWarnings = [...evaluationContext.warnings];
 
@@ -59,7 +59,7 @@ export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Pr
 
   if (providerPreference === "claude") {
     ensureProviderConfigured("claude");
-    return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings);
+    return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
   const provider = selectProvider("auto");
@@ -77,7 +77,7 @@ export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Pr
     return analyzeWithGemini(files, evaluationContext, items, baseWarnings);
   }
 
-  return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings);
+  return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
 }
 
 function ensureProviderConfigured(provider: "openai" | "gemini" | "claude") {
@@ -179,11 +179,13 @@ async function analyzeWithClaudeBatched(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   baseWarnings: string[],
+  onAnalysisProgress?: (label: string) => void,
 ): Promise<UploadAnalysisResult> {
   if (shouldBatchProviderAnalysis("claude", items.length)) {
-    return analyzeProviderInBatches("claude", files, evaluationContext, items, baseWarnings);
+    return analyzeProviderInBatches("claude", files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
+  onAnalysisProgress?.("Claude AI 평가 분석");
   return analyzeWithClaudeOnce(files, evaluationContext, items, baseWarnings);
 }
 
@@ -193,6 +195,7 @@ async function analyzeProviderInBatches(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   baseWarnings: string[],
+  onAnalysisProgress?: (label: string) => void,
 ): Promise<UploadAnalysisResult> {
   const batches = chunkEvaluationItems(items);
   const mergedWarnings = [...baseWarnings];
@@ -206,7 +209,11 @@ async function analyzeProviderInBatches(
     const promptOptions: AnalysisPromptOptions = {
       compact: true,
       evaluationOnly: index > 0,
+      includeVision: provider === "claude" ? index === 0 : undefined,
     };
+    onAnalysisProgress?.(
+      `${providerLabel(provider)} 분석 중 (${index + 1}/${batches.length}회차, 항목 ${batchItems.length}개)`,
+    );
     const partial =
       provider === "gemini"
         ? await analyzeWithGeminiOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions)
