@@ -7,7 +7,7 @@ import { buildClaudeUserBlocks, buildGeminiUserParts, buildOpenAiUserContent } f
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
 import { chunkEvaluationItems, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
-import { buildFallbackRecommendation, isGenericRecommendation } from "./ai/fallback-recommendation";
+import { buildFallbackRecommendation, buildFallbackRationale, isGenericRecommendation, isGenericRationale } from "./ai/fallback-recommendation";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
@@ -445,12 +445,26 @@ function normalizeEvaluations(
       itemName: String(row?.itemName ?? item.detailItem),
       score,
       grade: String(row?.grade ?? gradeScore(score)),
-      rationale: String(row?.rationale ?? buildFallbackRationale(item.criteria, evaluationContext)),
+      rationale: resolveRationale(row?.rationale, item, files, evaluationContext),
       recommendation: resolveRecommendation(row?.recommendation, item, files, score),
       laws: aiLawRefs,
       guidelines: aiGuidelineRefs.length > 0 ? aiGuidelineRefs : defaultGuidelineRefs,
     };
   });
+}
+
+function resolveRationale(
+  raw: unknown,
+  item: EvaluationItem,
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+): string {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (text && !isGenericRationale(text)) {
+    return text;
+  }
+
+  return buildFallbackRationale(item, files, evaluationContext);
 }
 
 function resolveRecommendation(
@@ -465,23 +479,6 @@ function resolveRecommendation(
   }
 
   return buildFallbackRecommendation(item, files, score);
-}
-
-function buildFallbackRationale(criteria: string, evaluationContext: EvaluationContext): string {
-  const lawRef = evaluationContext.referenceLaws[0];
-  const spatial = evaluationContext.spatial;
-  const parts = [criteria];
-
-  if (lawRef) {
-    parts.push(`${lawRef.title} ${lawRef.article} 및 실시간 법령 조회 결과를 참고함.`);
-  }
-  if (spatial?.matchedZones[0]) {
-    parts.push(`인근 경관지구: ${spatial.matchedZones[0].name}.`);
-  } else if (spatial) {
-    parts.push("경관지구 조회 반경 내 해당 레이어는 확인되지 않음.");
-  }
-
-  return parts.join(" ");
 }
 
 function attachContextMetadata(
