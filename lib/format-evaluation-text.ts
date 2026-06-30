@@ -1,10 +1,20 @@
-/** 평가 근거·의견 표시용 줄바꿈 정리 (①②③, 1. 2. 등) */
+const CIRCLED_NUMBERS = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"] as const;
+
+/** ①②③ → 1. 2. 3. 으로 변환합니다. */
+export function normalizeListNumbering(text: string): string {
+  let normalized = text;
+  for (let index = 0; index < CIRCLED_NUMBERS.length; index += 1) {
+    normalized = normalized.replaceAll(CIRCLED_NUMBERS[index]!, `${index + 1}.`);
+  }
+  return normalized;
+}
+
+/** 평가 근거·의견 표시용 줄바꿈 정리 (1. 2. 3. 등) */
 export function formatEvaluationText(text: string): string {
-  let formatted = text.trim();
+  let formatted = normalizeListNumbering(text.trim());
   if (!formatted) return "";
 
-  formatted = formatted.replace(/\s*([①②③④⑤⑥⑦⑧⑨⑩])/g, "\n$1");
-  formatted = formatted.replace(/(?<=\S)\s+(\d{1,2}\.)\s+(?=[「가-힣A-Za-z])/g, "\n$1 ");
+  formatted = formatted.replace(/(?<=\S)\s+(\d{1,2}\.)\s+(?=[「가-힣A-Za-z0-9])/g, "\n$1 ");
   formatted = formatted.replace(/(?<=\S)\s+([가나다]\.)\s+/g, "\n$1 ");
   formatted = formatted.replace(/\n{3,}/g, "\n\n");
 

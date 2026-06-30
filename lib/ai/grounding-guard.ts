@@ -10,6 +10,7 @@ import {
   isGenericRecommendation,
   lacksIssueFocus,
 } from "./fallback-recommendation";
+import { normalizeListNumbering } from "../format-evaluation-text";
 
 const SPACE_TERM_PATTERN =
   /(?:\d+층\s*)?(?:옥외(?:\s*공간)?|옥상(?:\s*정원|\s*테라스)?|공개공지|증축(?:\s*부분|\s*동)?|(?:옥외|야외)\s*휴게(?:\s*공간)?|(?:중정|마당|데크|발코니))/g;
@@ -257,20 +258,20 @@ export function resolveGroundedRationale(
 ): { text: string; warning?: string } {
   const text = typeof raw === "string" ? raw.trim() : "";
   if (!text || isGenericRationale(text)) {
-    return { text: buildFallbackRationale(item, files, evaluationContext) };
+    return { text: normalizeListNumbering(buildFallbackRationale(item, files, evaluationContext)) };
   }
 
   const grounding = checkEvaluationTextGrounding(text, files, evaluationContext, item);
   if (!grounding.grounded || lacksIssueFocus(text)) {
     return {
-      text: buildFallbackRationale(item, files, evaluationContext),
+      text: normalizeListNumbering(buildFallbackRationale(item, files, evaluationContext)),
       warning: grounding.grounded
         ? `${item.detailItem} 점수 근거: 칭찬·긍정 위주 서술을 검토·보완 필요 사항 중심으로 보정했습니다.`
         : formatGroundingWarning(item.detailItem, "rationale", grounding.issues),
     };
   }
 
-  return { text };
+  return { text: normalizeListNumbering(text) };
 }
 
 export function resolveGroundedRecommendation(
@@ -282,20 +283,20 @@ export function resolveGroundedRecommendation(
 ): { text: string; warning?: string } {
   const text = typeof raw === "string" ? raw.trim() : "";
   if (!text || isGenericRecommendation(text)) {
-    return { text: buildFallbackRecommendation(item, files, score) };
+    return { text: normalizeListNumbering(buildFallbackRecommendation(item, files, score)) };
   }
 
   const grounding = checkEvaluationTextGrounding(text, files, evaluationContext, item);
   if (!grounding.grounded || lacksIssueFocus(text)) {
     return {
-      text: buildFallbackRecommendation(item, files, score),
+      text: normalizeListNumbering(buildFallbackRecommendation(item, files, score)),
       warning: grounding.grounded
         ? `${item.detailItem} 검토 의견: 칭찬·긍정 위주 서술을 수정·보완·검토 사항 중심으로 보정했습니다.`
         : formatGroundingWarning(item.detailItem, "recommendation", grounding.issues),
     };
   }
 
-  return { text };
+  return { text: normalizeListNumbering(text) };
 }
 
 export function sanitizeGroundedSummary(
