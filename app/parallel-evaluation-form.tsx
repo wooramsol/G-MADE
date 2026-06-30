@@ -293,7 +293,7 @@ export default function ParallelEvaluationForm({
             type="button"
             onClick={submitEvaluation}
           >
-            {loading ? (uploadProgress ?? "분석 중 (최대 2분)...") : "하이브리드 평가 분석"}
+            {loading ? (uploadProgress ?? "분석 중 (최대 5분)...") : "하이브리드 평가 분석"}
           </button>
           {itemsDirty ? (
             <p className="mt-3 text-xs font-semibold text-amber-800">

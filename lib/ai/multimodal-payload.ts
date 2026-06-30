@@ -71,32 +71,39 @@ export function buildGeminiUserParts(files: UploadedFileSummary[], promptText: s
   return parts;
 }
 
-export function buildClaudeUserBlocks(files: UploadedFileSummary[], promptText: string): ClaudeContentBlock[] {
+export function buildClaudeUserBlocks(
+  files: UploadedFileSummary[],
+  promptText: string,
+  options?: { includeVision?: boolean },
+): ClaudeContentBlock[] {
+  const includeVision = options?.includeVision !== false;
   const blocks: ClaudeContentBlock[] = [];
 
-  for (const file of files) {
-    const pdf = pdfAssetForFile(file);
-    if (pdf) {
-      blocks.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf",
-          data: pdf.base64,
-        },
-      });
-      continue;
-    }
+  if (includeVision) {
+    for (const file of files) {
+      const pdf = pdfAssetForFile(file);
+      if (pdf) {
+        blocks.push({
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
+            data: pdf.base64,
+          },
+        });
+        continue;
+      }
 
-    for (const asset of imageAssetsForFile(file)) {
-      blocks.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: asset.mediaType,
-          data: asset.base64,
-        },
-      });
+      for (const asset of imageAssetsForFile(file)) {
+        blocks.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: asset.mediaType,
+            data: asset.base64,
+          },
+        });
+      }
     }
   }
 

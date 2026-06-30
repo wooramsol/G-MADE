@@ -11,12 +11,23 @@ import { getClaudeApiKey, getClaudeModel } from "./env-keys";
 import { extractJsonContent } from "./extract-json";
 import { fetchWithTimeout } from "../fetch-with-timeout";
 import { formatProviderApiError } from "./format-api-error";
-import { CLAUDE_ANALYSIS_MAX_OUTPUT_TOKENS } from "./output-token-limits";
+import {
+  CLAUDE_ANALYSIS_MAX_OUTPUT_TOKENS,
+  CLAUDE_VISION_ANALYSIS_MAX_OUTPUT_TOKENS,
+} from "./output-token-limits";
 import { isRetryableProviderError, retryDelayMs } from "./retryable-api-error";
+import {
+  buildAnthropicHeaders,
+  filesIncludePdfVision,
+  isClaudePayloadOrContextError,
+  shouldIncludeClaudeVision,
+} from "./anthropic-request";
 
 type ClaudeDeps = {
   normalizeAiJson: (content: string | undefined, items: EvaluationItem[]) => UploadAnalysisResult;
 };
+
+type ClaudeVisionMode = "vision" | "text-only";
 
 export async function analyzeWithClaude(
   files: UploadedFileSummary[],
@@ -41,43 +52,72 @@ export async function analyzeWithClaude(
   }
 
   const modelsToTry = getClaudeModelsToTry(getClaudeModel());
+  const visionModes: ClaudeVisionMode[] = shouldIncludeClaudeVision(files)
+    ? ["vision", "text-only"]
+    : ["text-only"];
   let lastStatus = 500;
   let lastBody = "";
 
   for (const model of modelsToTry) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const response = await requestClaude(apiKey, model, files, evaluationContext, items, promptOptions);
+    for (const visionMode of visionModes) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const response = await requestClaude(
+          apiKey,
+          model,
+          files,
+          evaluationContext,
+          items,
+          promptOptions,
+          visionMode,
+        );
 
-      if (response.ok) {
-        const payload = (await response.json()) as {
-          content?: Array<{ type?: string; text?: string }>;
-          stop_reason?: string;
-        };
-        if (payload.stop_reason === "max_tokens") {
-          throw new AiAnalysisError(
-            "Claude 출력이 길이 제한에 걸려 JSON 응답이 잘렸습니다. 잠시 후 다시 시도하거나 ChatGPT를 사용해 주세요.",
-            "claude",
-          );
+        if (response.ok) {
+          const payload = (await response.json()) as {
+            content?: Array<{ type?: string; text?: string }>;
+            stop_reason?: string;
+          };
+          if (payload.stop_reason === "max_tokens") {
+            throw new AiAnalysisError(
+              "Claude 출력이 길이 제한에 걸려 JSON 응답이 잘렸습니다. 잠시 후 다시 시도하거나 ChatGPT를 사용해 주세요.",
+              "claude",
+            );
+          }
+
+          const textBlock = payload.content?.find((block) => block.type === "text") ?? payload.content?.[0];
+          const content = extractJsonContent(textBlock?.text);
+          return deps.normalizeAiJson(content, items);
         }
 
-        const textBlock = payload.content?.find((block) => block.type === "text") ?? payload.content?.[0];
-        const content = extractJsonContent(textBlock?.text);
-        return deps.normalizeAiJson(content, items);
-      }
+        lastStatus = response.status;
+        lastBody = await response.text();
 
-      lastStatus = response.status;
-      lastBody = await response.text();
+        if (response.status === 404) {
+          break;
+        }
 
-      if (response.status === 404) {
+        if (isClaudePayloadOrContextError(response.status, lastBody) && visionMode === "vision") {
+          break;
+        }
+
+        if (isRetryableProviderError(response.status, lastBody) && attempt < 2) {
+          await sleep(retryDelayMs(attempt));
+          continue;
+        }
+
         break;
       }
 
-      if (isRetryableProviderError(response.status, lastBody) && attempt < 2) {
-        await sleep(retryDelayMs(attempt));
+      if (lastStatus === 404) {
+        break;
+      }
+
+      if (isClaudePayloadOrContextError(lastStatus, lastBody) && visionMode === "vision") {
         continue;
       }
 
-      break;
+      if (lastStatus !== 404) {
+        break;
+      }
     }
 
     if (lastStatus === 404) {
@@ -97,28 +137,30 @@ async function requestClaude(
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
-  promptOptions?: AnalysisPromptOptions,
+  promptOptions: AnalysisPromptOptions | undefined,
+  visionMode: ClaudeVisionMode,
 ) {
+  const includeVision = visionMode === "vision";
+  const promptText = buildAnalysisPrompt(files, evaluationContext, items, promptOptions);
+  const content = buildClaudeUserBlocks(files, promptText, { includeVision });
+  const includesPdf = includeVision && filesIncludePdfVision(files);
+  const maxTokens = includeVision
+    ? CLAUDE_VISION_ANALYSIS_MAX_OUTPUT_TOKENS
+    : CLAUDE_ANALYSIS_MAX_OUTPUT_TOKENS;
+
   return fetchWithTimeout(
     "https://api.anthropic.com/v1/messages",
     {
       method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
+      headers: buildAnthropicHeaders({ apiKey, includesPdf }),
       body: JSON.stringify({
         model,
-        max_tokens: CLAUDE_ANALYSIS_MAX_OUTPUT_TOKENS,
+        max_tokens: maxTokens,
         system: `${AI_EVALUATOR_SYSTEM_PROMPT}\n\n반드시 유효한 JSON 객체 하나만 반환하라. 마크다운 코드블록 없이 JSON만 출력하라.`,
         messages: [
           {
             role: "user",
-            content: buildClaudeUserBlocks(
-              files,
-              buildAnalysisPrompt(files, evaluationContext, items, promptOptions),
-            ),
+            content,
           },
         ],
       }),
