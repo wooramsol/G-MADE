@@ -211,7 +211,7 @@ export function isGenericRationale(text: string | undefined): boolean {
 }
 
 function formatNumberedIssues(issues: string[]): string {
-  return issues.map((issue, index) => `${["①", "②", "③", "④", "⑤"][index] ?? `${index + 1}.`} ${issue}`).join(" ");
+  return issues.map((issue, index) => `${["①", "②", "③", "④", "⑤"][index] ?? `${index + 1}.`} ${issue}`).join("\n");
 }
 
 /** AI 응답이 비었거나 일반·칭찬 위주일 때, 추출 본문에서 검토·보완 필요 사항을 끌어내 평가의견을 만듭니다. */
@@ -271,7 +271,7 @@ export function buildFallbackRecommendation(
   const numbered = formatNumberedIssues(reviewIssues.slice(0, 5));
   const measurePhrase = joinPhrases(measureList);
 
-  return `${evidenceLead} ${spacePhrase} 관련하여 다음 사항의 수정·보완·재확인이 필요합니다. ${numbered}. 관련 도면·계획서에 위치·동선을 표기하고 ${measurePhrase} 등을 수치·재료·시공 상세와 함께 실시설계 단계에서 구체화·재검토 하시기 바랍니다.`;
+  return `${evidenceLead} ${spacePhrase} 관련하여 다음 사항의 수정·보완·재확인이 필요합니다.\n${numbered}\n\n관련 도면·계획서에 위치·동선을 표기하고 ${measurePhrase} 등을 수치·재료·시공 상세와 함께 실시설계 단계에서 구체화·재검토 하시기 바랍니다.`;
 }
 
 export function buildFallbackRationale(
@@ -305,7 +305,7 @@ export function buildFallbackRationale(
     `${measures[2] ?? "유지관리·관리 계획"}이 누락되었거나 불명확하여 심사위원 재검토 필요`,
   ];
 
-  parts.push(`다음 검토·보완 필요 사항이 확인됨: ${formatNumberedIssues(gapIssues)}.`);
+  parts.push(`다음 검토·보완 필요 사항이 확인됨:\n${formatNumberedIssues(gapIssues)}`);
 
   const lawRef = evaluationContext.referenceLaws[0];
   if (lawRef) {

@@ -16,6 +16,7 @@ import {
 } from "@/components/typography";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
+import { combineAiEvaluationText, formatEvaluationText } from "@/lib/format-evaluation-text";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
@@ -562,19 +563,25 @@ function EvaluationRationaleCell({
   guidelineLinks: Array<{ title: string; section: string; href: string | null }>;
   roundId: string;
 }) {
+  const aiText = formatEvaluationText(
+    combineAiEvaluationText(result.aiEvaluation.rationale, result.aiEvaluation.recommendation),
+  );
+  const expertText = formatEvaluationText(result.humanEvaluation.comment ?? "");
+
   return (
     <div className="space-y-2 text-xs leading-5 text-[#64748b]">
-      <p className="whitespace-pre-wrap break-words text-[#475569]">
-        <span className="font-semibold text-[#2463b3]">AI:</span> {result.aiEvaluation.rationale}
-      </p>
-      {result.humanEvaluation.comment ? (
-        <p className="whitespace-pre-wrap break-words text-[#475569]">
-          <span className="font-semibold text-[#15345b]">전문가:</span> {result.humanEvaluation.comment}
-        </p>
+      {aiText ? (
+        <div>
+          <p className="font-semibold text-[#2463b3]">AI</p>
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[#475569]">{aiText}</p>
+        </div>
       ) : null}
-      <p className="whitespace-pre-wrap break-words font-semibold text-[#9a3412]">
-        {result.aiEvaluation.recommendation}
-      </p>
+      {expertText ? (
+        <div>
+          <p className="font-semibold text-[#15345b]">전문가</p>
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[#475569]">{expertText}</p>
+        </div>
+      ) : null}
       {lawLinks.length > 0 || guidelineLinks.length > 0 ? (
         <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-[#e2e8f0] pt-2">
           {lawLinks.map((law) => (
