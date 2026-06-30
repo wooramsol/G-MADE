@@ -211,7 +211,7 @@ export function isGenericRationale(text: string | undefined): boolean {
 }
 
 function formatNumberedIssues(issues: string[]): string {
-  return issues.map((issue, index) => `${["①", "②", "③", "④", "⑤"][index] ?? `${index + 1}.`} ${issue}`).join("\n");
+  return issues.map((issue, index) => `${index + 1}. ${issue}`).join("\n");
 }
 
 /** AI 응답이 비었거나 일반·칭찬 위주일 때, 추출 본문에서 검토·보완 필요 사항을 끌어내 평가의견을 만듭니다. */
