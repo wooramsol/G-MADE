@@ -5,6 +5,7 @@ import { buildAnalysisPrompt } from "./ai/analysis-prompt";
 import type { AnalysisPromptOptions } from "./ai/analysis-prompt-options";
 import { buildClaudeUserBlocks, buildGeminiUserParts, buildOpenAiUserContent } from "./ai/multimodal-payload";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
+import { GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS, OPENAI_ANALYSIS_MAX_COMPLETION_TOKENS } from "./ai/output-token-limits";
 import { chunkEvaluationItems, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
 import { filterVerifiedGuidelineRefs, filterVerifiedLawRefs, resolveGroundedRationale, resolveGroundedRecommendation, sanitizeGroundedSummary } from "./ai/grounding-guard";
@@ -138,6 +139,7 @@ async function analyzeWithOpenAi(
             },
           ],
           temperature: 0.2,
+          max_completion_tokens: OPENAI_ANALYSIS_MAX_COMPLETION_TOKENS,
         }),
       },
       240_000,
@@ -352,7 +354,7 @@ async function requestGemini(
       generationConfig: {
         temperature: 0.2,
         responseMimeType: "application/json",
-        maxOutputTokens: 8192,
+        maxOutputTokens: GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS,
       },
     },
     240_000,
