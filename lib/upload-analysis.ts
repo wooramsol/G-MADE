@@ -7,7 +7,7 @@ import { buildClaudeUserBlocks, buildGeminiUserParts, buildOpenAiUserContent } f
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
 import { chunkEvaluationItems, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
-import { buildFallbackRecommendation, buildFallbackRationale, isGenericRecommendation, isGenericRationale } from "./ai/fallback-recommendation";
+import { filterVerifiedGuidelineRefs, filterVerifiedLawRefs, resolveGroundedRationale, resolveGroundedRecommendation, sanitizeGroundedSummary } from "./ai/grounding-guard";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
@@ -384,7 +384,14 @@ function normalizeAiJson(
     );
   }
 
-  const evaluationPreview = normalizeEvaluations(parsed.evaluationPreview, evaluationContext, items, files);
+  const groundingWarnings: string[] = [];
+  const evaluationPreview = normalizeEvaluations(
+    parsed.evaluationPreview,
+    evaluationContext,
+    items,
+    files,
+    groundingWarnings,
+  );
   if (evaluationPreview.length === 0) {
     throw new AiAnalysisError(
       `${providerLabel(provider)} 분석 결과에 평가 항목이 없습니다. 자료 추출 또는 모델 응답을 확인한 뒤 다시 시도해 주세요.`,
@@ -392,14 +399,21 @@ function normalizeAiJson(
     );
   }
 
+  const summaryResult = sanitizeGroundedSummary(
+    String(parsed.summary ?? "업로드 자료와 실시간 법령·경관지구 정보를 기반으로 AI 분석을 완료했습니다."),
+    files,
+    evaluationContext,
+  );
+  if (summaryResult.warning) groundingWarnings.push(summaryResult.warning);
+
   return attachContextMetadata(
     {
       provider,
       mode: "live",
-      summary: String(parsed.summary ?? "업로드 자료와 실시간 법령·경관지구 정보를 기반으로 AI 분석을 완료했습니다."),
-      documentSections: normalizeSections(parsed.documentSections),
+      summary: summaryResult.text,
+      documentSections: normalizeSections(parsed.documentSections, files, evaluationContext, groundingWarnings),
       evaluationPreview,
-      warnings: baseWarnings,
+      warnings: [...baseWarnings, ...groundingWarnings],
     },
     evaluationContext,
     items,
@@ -410,14 +424,28 @@ function providerLabel(provider: "openai" | "gemini" | "claude"): string {
   return provider === "openai" ? "ChatGPT" : provider === "gemini" ? "Gemini" : "Claude";
 }
 
-function normalizeSections(value: unknown): UploadAnalysisResult["documentSections"] {
+function normalizeSections(
+  value: unknown,
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  groundingWarnings: string[],
+): UploadAnalysisResult["documentSections"] {
   if (!Array.isArray(value) || value.length === 0) return [];
 
-  return value.slice(0, 10).map((section, index) => ({
-    label: String(section?.label ?? sectionLabels[index] ?? "분석항목"),
-    confidence: clampNumber(Number(section?.confidence ?? 75)),
-    summary: String(section?.summary ?? "AI가 해당 자료를 분석했습니다."),
-  }));
+  return value.slice(0, 10).map((section, index) => {
+    const label = String(section?.label ?? sectionLabels[index] ?? "분석항목");
+    const rawSummary = String(section?.summary ?? "AI가 해당 자료를 분석했습니다.");
+    const summaryResult = sanitizeGroundedSummary(rawSummary, files, evaluationContext);
+    if (summaryResult.warning) {
+      groundingWarnings.push(`${label} 요약: ${summaryResult.warning}`);
+    }
+
+    return {
+      label,
+      confidence: clampNumber(Number(section?.confidence ?? 75)),
+      summary: summaryResult.text,
+    };
+  });
 }
 
 function normalizeEvaluations(
@@ -425,6 +453,7 @@ function normalizeEvaluations(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   files: UploadedFileSummary[] = [],
+  groundingWarnings: string[] = [],
 ): UploadAnalysisResult["evaluationPreview"] {
   if (!Array.isArray(value) || value.length === 0) return [];
 
@@ -433,52 +462,39 @@ function normalizeEvaluations(
   return value.slice(0, Math.max(items.length, 8)).map((row, index) => {
     const item = items[index % items.length];
     const score = clampNumber(Number(row?.score ?? 80 - index * 2));
-    const aiLawRefs = Array.isArray(row?.lawRefs)
-      ? row.lawRefs.map((law: unknown) => String(law)).filter(Boolean)
-      : [];
-    const aiGuidelineRefs = Array.isArray(row?.guidelineRefs)
-      ? row.guidelineRefs.map((guide: unknown) => String(guide)).filter(Boolean)
-      : [];
+    const aiLawRefs = filterVerifiedLawRefs(
+      Array.isArray(row?.lawRefs) ? row.lawRefs.map((law: unknown) => String(law)).filter(Boolean) : [],
+      evaluationContext,
+    );
+    const aiGuidelineRefs = filterVerifiedGuidelineRefs(
+      Array.isArray(row?.guidelineRefs)
+        ? row.guidelineRefs.map((guide: unknown) => String(guide)).filter(Boolean)
+        : [],
+      evaluationContext,
+    );
+
+    const rationaleResult = resolveGroundedRationale(row?.rationale, item, files, evaluationContext);
+    const recommendationResult = resolveGroundedRecommendation(
+      row?.recommendation,
+      item,
+      files,
+      evaluationContext,
+      score,
+    );
+    if (rationaleResult.warning) groundingWarnings.push(rationaleResult.warning);
+    if (recommendationResult.warning) groundingWarnings.push(recommendationResult.warning);
 
     return {
       itemId: item.id,
       itemName: String(row?.itemName ?? item.detailItem),
       score,
       grade: String(row?.grade ?? gradeScore(score)),
-      rationale: resolveRationale(row?.rationale, item, files, evaluationContext),
-      recommendation: resolveRecommendation(row?.recommendation, item, files, score),
+      rationale: rationaleResult.text,
+      recommendation: recommendationResult.text,
       laws: aiLawRefs,
       guidelines: aiGuidelineRefs.length > 0 ? aiGuidelineRefs : defaultGuidelineRefs,
     };
   });
-}
-
-function resolveRationale(
-  raw: unknown,
-  item: EvaluationItem,
-  files: UploadedFileSummary[],
-  evaluationContext: EvaluationContext,
-): string {
-  const text = typeof raw === "string" ? raw.trim() : "";
-  if (text && !isGenericRationale(text)) {
-    return text;
-  }
-
-  return buildFallbackRationale(item, files, evaluationContext);
-}
-
-function resolveRecommendation(
-  raw: unknown,
-  item: EvaluationItem,
-  files: UploadedFileSummary[],
-  score: number,
-): string {
-  const text = typeof raw === "string" ? raw.trim() : "";
-  if (text && !isGenericRecommendation(text)) {
-    return text;
-  }
-
-  return buildFallbackRecommendation(item, files, score);
 }
 
 function attachContextMetadata(

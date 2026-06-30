@@ -140,14 +140,9 @@ function findRelevantFile(files: UploadedFileSummary[], item: EvaluationItem): U
   return files.find((file) => (file.extractedTextPreview ?? "").trim().length > 0);
 }
 
-function inferDrawingLabel(corpus: string, item: EvaluationItem): string {
+function inferDrawingLabel(corpus: string): string {
   const drawingHits = collectMatches(corpus, DOCUMENT_DRAWING_PATTERNS);
   if (drawingHits.length > 0) return drawingHits[0];
-
-  if (/보행|동선|접근/.test(item.detailItem + item.middleCategory)) return "배치도·보행동선도";
-  if (/야간|조명/.test(item.detailItem + item.middleCategory)) return "야간경관 계획";
-  if (/색채|마감/.test(item.detailItem + item.middleCategory)) return "입면도·색채계획";
-  if (/녹지|조경/.test(item.detailItem + item.middleCategory)) return "조경계획";
   return "제출 도면·계획서";
 }
 
@@ -202,7 +197,7 @@ export function buildFallbackRecommendation(
   const corpus = files.map((file) => file.extractedTextPreview ?? "").join("\n");
   const relevantFile = findRelevantFile(files, item);
   const sourceLabel = relevantFile ? `「${relevantFile.originalName}」` : "제출 자료";
-  const drawingLabel = inferDrawingLabel(corpus, item);
+  const drawingLabel = inferDrawingLabel(corpus);
   const evidenceSnippet = extractEvidenceSnippet(corpus, [
     item.detailItem,
     item.middleCategory,
@@ -215,7 +210,7 @@ export function buildFallbackRecommendation(
   const topicKey = inferTopicKey(item);
   const measures = MEASURE_BY_TOPIC[topicKey] ?? MEASURE_BY_TOPIC.document;
 
-  const spacePhrase = spaces[0] ?? item.middleCategory;
+  const spacePhrase = spaces[0] ?? `${item.detailItem} 관련 공간`;
   const userPhrase = users.includes("고령 이용자") || users.includes("고령")
     ? "고령 이용자"
     : users[0] ?? "이용자";
@@ -249,7 +244,7 @@ export function buildFallbackRationale(
   const corpus = files.map((file) => file.extractedTextPreview ?? "").join("\n");
   const relevantFile = findRelevantFile(files, item);
   const sourceLabel = relevantFile ? `「${relevantFile.originalName}」` : "제출 자료";
-  const drawingLabel = inferDrawingLabel(corpus, item);
+  const drawingLabel = inferDrawingLabel(corpus);
   const evidenceSnippet = extractEvidenceSnippet(corpus, [
     item.detailItem,
     item.middleCategory,

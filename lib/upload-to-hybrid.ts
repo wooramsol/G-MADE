@@ -1,9 +1,7 @@
 import {
-  buildFallbackRationale,
-  buildFallbackRecommendation,
-  isGenericRationale,
-  isGenericRecommendation,
-} from "./ai/fallback-recommendation";
+  resolveGroundedRationale,
+  resolveGroundedRecommendation,
+} from "./ai/grounding-guard";
 import type { UploadedFileSummary } from "./ai/analysis-types";
 import type { EvaluationContext } from "./evaluation-context";
 import { collectUniqueRoundFiles } from "./evaluation-round-files";
@@ -67,20 +65,21 @@ export function buildHybridViewFromRound(round: EvaluationRound): SessionHybridV
 
     const rawRationale = preview?.rationale ?? item.criteria;
     const rawRecommendation = preview?.recommendation;
-    const rationaleText = typeof rawRationale === "string" ? rawRationale.trim() : "";
-    const recommendationText = typeof rawRecommendation === "string" ? rawRecommendation.trim() : "";
+    const rationaleResult = resolveGroundedRationale(rawRationale, item, fileSummaries, evaluationContext);
+    const recommendationResult = resolveGroundedRecommendation(
+      rawRecommendation,
+      item,
+      fileSummaries,
+      evaluationContext,
+      score,
+    );
 
     return {
       itemId: item.id,
       score,
       grade: (preview?.grade as EvaluationGrade) ?? gradeScore(score),
-      rationale: rationaleText && !isGenericRationale(rationaleText)
-        ? rationaleText
-        : buildFallbackRationale(item, fileSummaries, evaluationContext),
-      recommendation:
-        recommendationText && !isGenericRecommendation(recommendationText)
-          ? recommendationText
-          : buildFallbackRecommendation(item, fileSummaries, score),
+      rationale: rationaleResult.text,
+      recommendation: recommendationResult.text,
       scoreTrace: [
         {
           label: "문서 분석",
