@@ -14,7 +14,6 @@ import {
   SubsectionTitle,
   TabTitle,
 } from "@/components/typography";
-import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
@@ -297,14 +296,11 @@ export default function ProjectEvaluationWorkspace({
           </div>
 
           <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
-            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <SubsectionTitle>종합 평가 결과</SubsectionTitle>
-                <p className="mt-1 text-sm font-semibold text-[#2463b3]">
-                  종합 점수 {hybridView.projectScore} / {selectedRound.totalPoints}점
-                </p>
-              </div>
-              <EvaluationGradeLegend />
+            <div className="mb-5">
+              <SubsectionTitle>종합 평가 결과</SubsectionTitle>
+              <p className="mt-1 text-sm font-semibold text-[#2463b3]">
+                종합 점수 {hybridView.projectScore} / {selectedRound.totalPoints}점
+              </p>
             </div>
             <div className="mb-5 grid gap-4 sm:grid-cols-2">
               <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
