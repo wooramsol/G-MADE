@@ -8,6 +8,7 @@ import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
 import { GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS, OPENAI_ANALYSIS_MAX_COMPLETION_TOKENS } from "./ai/output-token-limits";
 import { chunkEvaluationItems, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
+import { sanitizeDocumentSectionSummary } from "./ai/document-section-summary";
 import { filterVerifiedGuidelineRefs, filterVerifiedLawRefs, resolveGroundedRationale, resolveGroundedRecommendation, sanitizeGroundedSummary } from "./ai/grounding-guard";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
@@ -436,8 +437,8 @@ function normalizeSections(
 
   return value.slice(0, 10).map((section, index) => {
     const label = String(section?.label ?? sectionLabels[index] ?? "분석항목");
-    const rawSummary = String(section?.summary ?? "AI가 해당 자료를 분석했습니다.");
-    const summaryResult = sanitizeGroundedSummary(rawSummary, files, evaluationContext);
+    const rawSummary = String(section?.summary ?? "");
+    const summaryResult = sanitizeDocumentSectionSummary(label, rawSummary, files, evaluationContext);
     if (summaryResult.warning) {
       groundingWarnings.push(`${label} 요약: ${summaryResult.warning}`);
     }
