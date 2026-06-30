@@ -1,7 +1,10 @@
 import type { EvaluationRound, Project } from "@/lib/types";
 import { extractApiErrorMessage } from "@/lib/extract-api-error-message";
 import { getMaxUploadFileLabel } from "@/lib/upload-limits";
-import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
+import {
+  clientFetchWithTimeout,
+  EVALUATION_STREAM_TIMEOUT_MS,
+} from "@/lib/client-fetch-with-timeout";
 import type { EvaluationAnalysisProgressEvent, EvaluationAnalysisStreamEvent } from "@/lib/evaluation-analysis-progress";
 
 export type EvaluationRoundStreamResult = {
@@ -11,19 +14,47 @@ export type EvaluationRoundStreamResult = {
   warnings?: string[];
 };
 
+function consumeStreamEvent(
+  event: EvaluationAnalysisStreamEvent,
+): EvaluationRoundStreamResult | null {
+  if (event.type === "error") {
+    throw new Error(
+      extractApiErrorMessage(
+        { error: (event as { error?: unknown }).error },
+        "하이브리드 평가 분석 중 오류가 발생했습니다.",
+      ),
+    );
+  }
+
+  if (event.type === "complete") {
+    return {
+      round: event.round as EvaluationRound,
+      project: event.project as Project | undefined,
+      analysisMode: event.analysisMode as "live" | "skipped" | "demo" | undefined,
+      warnings: event.warnings,
+    };
+  }
+
+  return null;
+}
+
 export async function submitEvaluationRoundStream(
   formData: FormData,
   onProgress: (event: EvaluationAnalysisProgressEvent) => void,
 ): Promise<EvaluationRoundStreamResult> {
   formData.set("stream", "1");
 
-  const response = await clientFetchWithTimeout("/api/evaluation-rounds", {
-    method: "POST",
-    body: formData,
-    headers: {
-      Accept: "application/x-ndjson",
+  const response = await clientFetchWithTimeout(
+    "/api/evaluation-rounds",
+    {
+      method: "POST",
+      body: formData,
+      headers: {
+        Accept: "application/x-ndjson",
+      },
     },
-  });
+    EVALUATION_STREAM_TIMEOUT_MS,
+  );
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
@@ -41,6 +72,7 @@ export async function submitEvaluationRoundStream(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let sawProgress = false;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -56,29 +88,34 @@ export async function submitEvaluationRoundStream(
 
       const event = JSON.parse(trimmed) as EvaluationAnalysisStreamEvent;
       if (event.type === "progress") {
+        sawProgress = true;
         onProgress(event);
         continue;
       }
 
-      if (event.type === "error") {
-        throw new Error(
-          extractApiErrorMessage(
-            { error: (event as { error?: unknown }).error },
-            "하이브리드 평가 분석 중 오류가 발생했습니다.",
-          ),
-        );
-      }
-
-      if (event.type === "complete") {
-        return {
-          round: event.round as EvaluationRound,
-          project: event.project as Project | undefined,
-          analysisMode: event.analysisMode as "live" | "skipped" | "demo" | undefined,
-          warnings: event.warnings,
-        };
+      const outcome = consumeStreamEvent(event);
+      if (outcome) {
+        return outcome;
       }
     }
   }
 
-  throw new Error("분석이 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.");
+  const trailing = buffer.trim();
+  if (trailing) {
+    const event = JSON.parse(trailing) as EvaluationAnalysisStreamEvent;
+    if (event.type === "progress") {
+      onProgress(event);
+    } else {
+      const outcome = consumeStreamEvent(event);
+      if (outcome) {
+        return outcome;
+      }
+    }
+  }
+
+  throw new Error(
+    sawProgress
+      ? "분석이 서버에서 중단되었습니다. Claude 사용 시 PDF 용량·항목 수에 따라 최대 5분까지 걸릴 수 있습니다. 잠시 후 다시 시도하거나 Gemini를 선택해 주세요."
+      : "분석이 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.",
+  );
 }
