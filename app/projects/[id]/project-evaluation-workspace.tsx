@@ -14,7 +14,7 @@ import {
   SubsectionTitle,
   TabTitle,
 } from "@/components/typography";
-import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
+import { formatProviderBadgeLabel, getProviderBadgeClass } from "@/lib/ai/provider-labels";
 import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
 import { resolveDocumentSectionsForDisplay } from "@/lib/ai/document-section-summary";
 import { combineAiEvaluationText, formatEvaluationText } from "@/lib/format-evaluation-text";
@@ -248,9 +248,16 @@ export default function ProjectEvaluationWorkspace({
                     onClick={() => setSelectedId(round.id)}
                   >
                     <TabTitle className="block">{formatEvaluationRoundLabel(round.evaluatedAt)}</TabTitle>
-                    <span className="mt-1 block text-[11px] text-[#64748b]">
-                      자료 {collectUniqueRoundFiles(round).length}개
-                    </span>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-[#64748b]">
+                        자료 {collectUniqueRoundFiles(round).length}개
+                      </span>
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${getProviderBadgeClass(round.aiAnalysis.provider)}`}
+                      >
+                        {formatProviderBadgeLabel(round.aiAnalysis.provider)}
+                      </span>
+                    </div>
                   </button>
                 </div>
               );
@@ -268,6 +275,9 @@ export default function ProjectEvaluationWorkspace({
             </Badge>
             <Badge className="bg-[#e8f1ff] text-[#2463b3]">
               AI {selectedRound.aiWeight}% · 전문가 {selectedRound.expertWeight}%
+            </Badge>
+            <Badge className={getProviderBadgeClass(selectedRound.aiAnalysis.provider)}>
+              {formatProviderBadgeLabel(selectedRound.aiAnalysis.provider)}
             </Badge>
             <Badge className="bg-slate-100 text-slate-700">{selectedRound.reviewerName}</Badge>
             <Badge className="bg-slate-100 text-slate-700">총 배점 {selectedRound.totalPoints}점</Badge>
