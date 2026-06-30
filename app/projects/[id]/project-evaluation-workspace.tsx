@@ -16,6 +16,7 @@ import {
 } from "@/components/typography";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
+import { resolveDocumentSectionsForDisplay } from "@/lib/ai/document-section-summary";
 import { combineAiEvaluationText, formatEvaluationText } from "@/lib/format-evaluation-text";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
@@ -309,7 +310,7 @@ export default function ProjectEvaluationWorkspace({
             </div>
 
             {selectedRound.aiAnalysis.documentSections.length > 0 ? (
-              <DocumentSectionsBlock sections={selectedRound.aiAnalysis.documentSections} />
+              <DocumentSectionsBlock sections={resolveDocumentSectionsForDisplay(selectedRound)} />
             ) : null}
 
             <FieldLabel as="p" className="mb-3">
@@ -397,7 +398,9 @@ function DocumentSectionsBlock({
                 문서이해도 {section.confidence}%
               </span>
             </div>
-            <p className="mt-2 text-xs leading-5 text-[#64748b]">{section.summary}</p>
+            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#64748b]">
+              {formatEvaluationText(section.summary)}
+            </p>
           </div>
         ))}
       </div>
