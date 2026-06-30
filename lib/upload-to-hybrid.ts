@@ -1,3 +1,9 @@
+import {
+  resolveGroundedRationale,
+  resolveGroundedRecommendation,
+} from "./ai/grounding-guard";
+import type { UploadedFileSummary } from "./ai/analysis-types";
+import type { EvaluationContext } from "./evaluation-context";
 import { collectUniqueRoundFiles } from "./evaluation-round-files";
 import { gradeScore, calculateHybridResults, calculateProjectScore } from "./hybrid-evaluation";
 import type {
@@ -43,6 +49,9 @@ export function buildHybridViewFromRound(round: EvaluationRound): SessionHybridV
           guidelineIds: [],
         }));
 
+  const fileSummaries = buildStoredFileSummaries(round);
+  const evaluationContext = buildStoredEvaluationContext(round);
+
   const aiEvaluations: AiEvaluation[] = targetItems.map((item, index) => {
     const preview =
       previewByItemId.get(item.id) ??
@@ -54,12 +63,23 @@ export function buildHybridViewFromRound(round: EvaluationRound): SessionHybridV
     const lawEvidence =
       laws.length > 0 ? `적용 법령: ${laws.join(", ")}` : "업로드 자료 및 실시간 법령·공간정보 기반 분석";
 
+    const rawRationale = preview?.rationale ?? item.criteria;
+    const rawRecommendation = preview?.recommendation;
+    const rationaleResult = resolveGroundedRationale(rawRationale, item, fileSummaries, evaluationContext);
+    const recommendationResult = resolveGroundedRecommendation(
+      rawRecommendation,
+      item,
+      fileSummaries,
+      evaluationContext,
+      score,
+    );
+
     return {
       itemId: item.id,
       score,
       grade: (preview?.grade as EvaluationGrade) ?? gradeScore(score),
-      rationale: preview?.rationale ?? item.criteria,
-      recommendation: preview?.recommendation ?? "심사위원 검토가 필요합니다.",
+      rationale: rationaleResult.text,
+      recommendation: recommendationResult.text,
       scoreTrace: [
         {
           label: "문서 분석",
@@ -117,4 +137,70 @@ export function buildHybridViewFromRound(round: EvaluationRound): SessionHybridV
 
 function clamp(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function buildStoredFileSummaries(round: EvaluationRound): UploadedFileSummary[] {
+  const corpus = [
+    round.aiAnalysis.summary,
+    ...round.aiAnalysis.documentSections.map((section) => `${section.label}: ${section.summary}`),
+  ]
+    .filter((part) => part?.trim())
+    .join("\n");
+
+  const files = collectUniqueRoundFiles(round);
+  if (files.length === 0) {
+    if (!corpus.trim()) return [];
+
+    return [
+      {
+        id: "analysis-summary",
+        originalName: "분석 요약",
+        fileType: "text/plain",
+        sizeBytes: corpus.length,
+        storagePath: "",
+        extractedTextPreview: corpus,
+      },
+    ];
+  }
+
+  return files.map((file, index) => ({
+    id: file.id,
+    originalName: file.originalName,
+    fileType: file.fileType,
+    sizeBytes: file.sizeBytes,
+    storagePath: file.storageKey ?? "",
+    extractedTextPreview: index === 0 ? corpus : "",
+  }));
+}
+
+function buildStoredEvaluationContext(round: EvaluationRound): EvaluationContext {
+  const analysis = round.aiAnalysis;
+
+  return {
+    spatial: analysis.spatialContext
+      ? {
+          address: analysis.spatialContext.address,
+          point: { x: 0, y: 0, source: "address" },
+          inLandscapeZone: analysis.spatialContext.inLandscapeZone,
+          matchedZones: analysis.spatialContext.matchedZones,
+          disclaimer: "",
+        }
+      : null,
+    referenceLaws: (analysis.referenceLaws ?? []).map((law, index) => ({
+      id: `stored-law-${index}`,
+      title: law.title,
+      article: law.article,
+      summary: law.summary,
+      ministry: "",
+      enforcementDate: "",
+      sourceUrl: law.sourceUrl,
+      source: analysis.lawSource ?? "demo-fallback",
+    })),
+    referenceGuidelines: [],
+    guidelines: [],
+    lawSource: analysis.lawSource ?? "demo-fallback",
+    guidelineSource: "demo-fallback",
+    fetchedAt: analysis.contextFetchedAt ?? round.evaluatedAt,
+    warnings: analysis.warnings ?? [],
+  };
 }
