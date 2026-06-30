@@ -11,6 +11,7 @@ import { getClaudeApiKey, getClaudeModel } from "./env-keys";
 import { extractJsonContent } from "./extract-json";
 import { fetchWithTimeout } from "../fetch-with-timeout";
 import { formatProviderApiError } from "./format-api-error";
+import { CLAUDE_ANALYSIS_MAX_OUTPUT_TOKENS } from "./output-token-limits";
 import { isRetryableProviderError, retryDelayMs } from "./retryable-api-error";
 
 type ClaudeDeps = {
@@ -54,7 +55,7 @@ export async function analyzeWithClaude(
         };
         if (payload.stop_reason === "max_tokens") {
           throw new AiAnalysisError(
-            "Claude 출력 토큰 한도에 도달해 JSON 응답이 잘렸습니다. 평가 항목이 많으면 자동 분할 분석이 적용됩니다. 다시 시도하거나 ChatGPT를 사용해 주세요.",
+            "Claude 출력이 길이 제한에 걸려 JSON 응답이 잘렸습니다. 잠시 후 다시 시도하거나 ChatGPT를 사용해 주세요.",
             "claude",
           );
         }
@@ -109,7 +110,7 @@ async function requestClaude(
       },
       body: JSON.stringify({
         model,
-        max_tokens: 8192,
+        max_tokens: CLAUDE_ANALYSIS_MAX_OUTPUT_TOKENS,
         system: `${AI_EVALUATOR_SYSTEM_PROMPT}\n\n반드시 유효한 JSON 객체 하나만 반환하라. 마크다운 코드블록 없이 JSON만 출력하라.`,
         messages: [
           {
