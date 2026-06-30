@@ -192,6 +192,15 @@ export async function runEvaluationRound(
           files: textBudget.files,
           evaluationContext,
           evaluationItems,
+          onAnalysisProgress: (label) => {
+            emit?.({
+              type: "progress",
+              step: "ai-analysis",
+              label,
+              stepIndex: 5,
+              stepCount: EVALUATION_ANALYSIS_STEPS.length,
+            });
+          },
         })
       : null;
 

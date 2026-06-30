@@ -20,7 +20,7 @@ import {
   buildAnthropicHeaders,
   filesIncludePdfVision,
   isClaudePayloadOrContextError,
-  shouldIncludeClaudeVision,
+  resolveClaudeVisionModes,
 } from "./anthropic-request";
 
 type ClaudeDeps = {
@@ -52,9 +52,7 @@ export async function analyzeWithClaude(
   }
 
   const modelsToTry = getClaudeModelsToTry(getClaudeModel());
-  const visionModes: ClaudeVisionMode[] = shouldIncludeClaudeVision(files)
-    ? ["vision", "text-only"]
-    : ["text-only"];
+  const visionModes = resolveClaudeVisionModes(files, promptOptions);
   let lastStatus = 500;
   let lastBody = "";
 
@@ -165,7 +163,7 @@ async function requestClaude(
         ],
       }),
     },
-    240_000,
+    includeVision ? 180_000 : 120_000,
   );
 }
 

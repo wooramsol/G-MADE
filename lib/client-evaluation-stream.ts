@@ -87,6 +87,9 @@ export async function submitEvaluationRoundStream(
       if (!trimmed) continue;
 
       const event = JSON.parse(trimmed) as EvaluationAnalysisStreamEvent;
+      if (event.type === "heartbeat") {
+        continue;
+      }
       if (event.type === "progress") {
         sawProgress = true;
         onProgress(event);
@@ -103,7 +106,9 @@ export async function submitEvaluationRoundStream(
   const trailing = buffer.trim();
   if (trailing) {
     const event = JSON.parse(trailing) as EvaluationAnalysisStreamEvent;
-    if (event.type === "progress") {
+    if (event.type === "heartbeat") {
+      // ignore trailing heartbeat
+    } else if (event.type === "progress") {
       onProgress(event);
     } else {
       const outcome = consumeStreamEvent(event);

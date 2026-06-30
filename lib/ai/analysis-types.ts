@@ -62,4 +62,5 @@ export type AnalyzeUploadedFilesInput = {
   files: UploadedFileSummary[];
   evaluationContext: EvaluationContext;
   evaluationItems?: EvaluationItem[];
+  onAnalysisProgress?: (label: string) => void;
 };

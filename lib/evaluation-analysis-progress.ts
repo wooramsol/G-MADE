@@ -28,10 +28,17 @@ export type EvaluationAnalysisErrorEvent = {
   error: string;
 };
 
+/** 장시간 AI API 대기 중 프록시·브라우저 연결 유지용 */
+export type EvaluationAnalysisHeartbeatEvent = {
+  type: "heartbeat";
+  at: number;
+};
+
 export type EvaluationAnalysisStreamEvent =
   | EvaluationAnalysisProgressEvent
   | EvaluationAnalysisCompleteEvent
-  | EvaluationAnalysisErrorEvent;
+  | EvaluationAnalysisErrorEvent
+  | EvaluationAnalysisHeartbeatEvent;
 
 export const EVALUATION_ANALYSIS_STEPS: Array<{ id: EvaluationAnalysisStepId; label: string }> = [
   { id: "validate", label: "입력 내용 확인" },
@@ -43,7 +50,7 @@ export const EVALUATION_ANALYSIS_STEPS: Array<{ id: EvaluationAnalysisStepId; la
   { id: "save", label: "결과 저장" },
 ];
 
-export const EVALUATION_ANALYSIS_BUDGET_SECONDS = 120;
+export const EVALUATION_ANALYSIS_BUDGET_SECONDS = 280;
 
 export function formatRemainingSeconds(seconds: number): string {
   const safe = Math.max(0, Math.ceil(seconds));

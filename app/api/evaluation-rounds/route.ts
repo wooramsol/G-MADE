@@ -49,6 +49,10 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
           };
 
+          const heartbeat = setInterval(() => {
+            write({ type: "heartbeat", at: Date.now() });
+          }, 12_000);
+
           try {
             const result = await runEvaluationRound(input, (progress) => write(progress));
             revalidateProjectViews(input.projectId);
@@ -65,6 +69,7 @@ export async function POST(request: NextRequest) {
               error: error instanceof Error ? error.message : "하이브리드 평가 분석 중 오류가 발생했습니다.",
             });
           } finally {
+            clearInterval(heartbeat);
             controller.close();
           }
         },
