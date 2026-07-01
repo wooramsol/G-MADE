@@ -1,6 +1,7 @@
 import type { EvaluationContext } from "../evaluation-context";
 import type { EvaluationItem } from "../types";
 import type { UploadedFileSummary } from "./analysis-types";
+import { extractEvidenceWithPage } from "./page-citation";
 
 const SPACE_PATTERNS = [
   /(?:\d+층\s*)?옥외(?:\s*공간)?/g,
@@ -110,24 +111,14 @@ function normalizeSnippet(text: string): string {
 }
 
 function extractEvidenceSnippet(corpus: string, keywords: string[], radius = 90): string {
-  const lowerCorpus = corpus.toLowerCase();
+  return extractEvidenceWithPage(corpus, keywords, radius).snippet;
+}
 
-  for (const keyword of keywords) {
-    const trimmed = keyword.trim();
-    if (trimmed.length < 2) continue;
-
-    const idx = lowerCorpus.indexOf(trimmed.toLowerCase());
-    if (idx < 0) continue;
-
-    const start = Math.max(0, idx - radius);
-    const end = Math.min(corpus.length, idx + trimmed.length + radius);
-    const snippet = normalizeSnippet(corpus.slice(start, end));
-    if (snippet.length >= 12) {
-      return snippet.length > 160 ? `${snippet.slice(0, 160)}…` : snippet;
-    }
+function formatSourceWithPage(sourceLabel: string, drawingLabel: string, pageRef: string | null): string {
+  if (pageRef) {
+    return `${pageRef} ${drawingLabel}`;
   }
-
-  return "";
+  return `${sourceLabel} ${drawingLabel}`;
 }
 
 function findRelevantFile(files: UploadedFileSummary[], item: EvaluationItem): UploadedFileSummary | undefined {
@@ -224,13 +215,16 @@ export function buildFallbackRecommendation(
   const relevantFile = findRelevantFile(files, item);
   const sourceLabel = relevantFile ? `「${relevantFile.originalName}」` : "제출 자료";
   const drawingLabel = inferDrawingLabel(corpus);
-  const evidenceSnippet = extractEvidenceSnippet(corpus, [
+  const evidenceKeywords = [
     item.detailItem,
     item.middleCategory,
     item.majorCategory,
     ...collectMatches(corpus, SPACE_PATTERNS),
     ...collectMatches(corpus, DOCUMENT_DRAWING_PATTERNS),
-  ]);
+  ];
+  const evidence = extractEvidenceWithPage(corpus, evidenceKeywords);
+  const evidenceSnippet = evidence.snippet;
+  const sourceWithPage = formatSourceWithPage(sourceLabel, drawingLabel, evidence.pageRef);
   const spaces = collectMatches(corpus, SPACE_PATTERNS);
   const users = collectMatches(corpus, USER_PATTERNS);
   const topicKey = inferTopicKey(item);
@@ -243,8 +237,8 @@ export function buildFallbackRecommendation(
   const measureList = measures.slice(0, 4);
 
   const evidenceLead = evidenceSnippet
-    ? `${sourceLabel} ${drawingLabel} 및 본문 "${evidenceSnippet}" 등을 검토한 결과,`
-    : `${sourceLabel} ${drawingLabel} 및 ${item.detailItem} 관련 제출 자료를 검토한 결과,`;
+    ? `${sourceWithPage} 및 본문 "${evidenceSnippet}" 등을 검토한 결과,`
+    : `${sourceWithPage} 및 ${item.detailItem} 관련 제출 자료를 검토한 결과,`;
 
   const reviewIssues: string[] = [
     `${spacePhrase}에 대한 ${measureList[0] ?? "시공·안전 기준"}이 도면·계획서에 수치·재료·시공 상세로 제시되지 않음`,
@@ -283,20 +277,22 @@ export function buildFallbackRationale(
   const relevantFile = findRelevantFile(files, item);
   const sourceLabel = relevantFile ? `「${relevantFile.originalName}」` : "제출 자료";
   const drawingLabel = inferDrawingLabel(corpus);
-  const evidenceSnippet = extractEvidenceSnippet(corpus, [
+  const evidence = extractEvidenceWithPage(corpus, [
     item.detailItem,
     item.middleCategory,
     item.majorCategory,
     ...collectMatches(corpus, SPACE_PATTERNS),
   ]);
+  const evidenceSnippet = evidence.snippet;
+  const sourceWithPage = formatSourceWithPage(sourceLabel, drawingLabel, evidence.pageRef);
   const topicKey = inferTopicKey(item);
   const measures = MEASURE_BY_TOPIC[topicKey] ?? MEASURE_BY_TOPIC.document;
   const parts: string[] = [];
 
   if (evidenceSnippet) {
-    parts.push(`${sourceLabel} ${drawingLabel}에서 "${evidenceSnippet}" 등 관련 기재는 있으나,`);
+    parts.push(`${sourceWithPage}에서 "${evidenceSnippet}" 등 관련 기재는 있으나,`);
   } else {
-    parts.push(`${sourceLabel} ${drawingLabel} 및 ${item.detailItem} 관련 기재를 검토한 결과,`);
+    parts.push(`${sourceWithPage} 및 ${item.detailItem} 관련 기재를 검토한 결과,`);
   }
 
   const gapIssues = [
