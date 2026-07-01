@@ -55,7 +55,7 @@ export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Pr
 
   if (providerPreference === "gemini") {
     ensureProviderConfigured("gemini");
-    return analyzeWithGemini(files, evaluationContext, items, baseWarnings);
+    return analyzeWithGemini(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
   if (providerPreference === "claude") {
@@ -75,7 +75,7 @@ export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Pr
   }
 
   if (provider === "gemini") {
-    return analyzeWithGemini(files, evaluationContext, items, baseWarnings);
+    return analyzeWithGemini(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
   return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
@@ -167,11 +167,13 @@ async function analyzeWithGemini(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   baseWarnings: string[],
+  onAnalysisProgress?: (label: string) => void,
 ): Promise<UploadAnalysisResult> {
   if (shouldBatchProviderAnalysis("gemini", items.length)) {
-    return analyzeProviderInBatches("gemini", files, evaluationContext, items, baseWarnings);
+    return analyzeProviderInBatches("gemini", files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
+  onAnalysisProgress?.("Gemini AI 평가 분석");
   return analyzeWithGeminiOnce(files, evaluationContext, items, baseWarnings);
 }
 
