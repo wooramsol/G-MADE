@@ -1,4 +1,5 @@
 import { analyzeWithClaude } from "./ai/analyze-claude";
+import { prepareFilesForClaudeAnalysis } from "./ai/claude-analysis-prep";
 import { shouldIncludeClaudeVision } from "./ai/anthropic-request";
 import { AiAnalysisError } from "./ai/analysis-error";
 import { getGeminiApiKey, getGeminiModel, getOpenAiApiKey, getOpenAiModel } from "./ai/env-keys";
@@ -259,20 +260,23 @@ async function analyzeWithClaudeOnce(
   promptOptions?: AnalysisPromptOptions,
 ): Promise<UploadAnalysisResult> {
   const warnings = [...baseWarnings];
-  const hasVisionAssets = files.some((file) => (file.visionAssets ?? []).length > 0);
-  if (hasVisionAssets && !shouldIncludeClaudeVision(files)) {
+  const prepared = prepareFilesForClaudeAnalysis(files);
+  warnings.push(...prepared.warnings);
+
+  const hasVisionAssets = prepared.files.some((file) => (file.visionAssets ?? []).length > 0);
+  if (hasVisionAssets && !shouldIncludeClaudeVision(prepared.files)) {
     warnings.push(
       "Claude PDF·이미지 비전 입력이 API 요청 한도(약 32MB)에 가까워 추출된 텍스트 위주로 분석합니다. 스캔 PDF는 Gemini 사용을 권장합니다.",
     );
   }
 
   return analyzeWithClaude(
-    files,
+    prepared.files,
     evaluationContext,
     items,
     {
       normalizeAiJson: (content, batchItems) =>
-        normalizeAiJson(content, files, "claude", evaluationContext, batchItems, warnings),
+        normalizeAiJson(content, prepared.files, "claude", evaluationContext, batchItems, warnings),
     },
     promptOptions,
   );
