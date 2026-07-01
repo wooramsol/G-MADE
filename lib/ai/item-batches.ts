@@ -1,7 +1,7 @@
 import type { EvaluationItem } from "../types";
 
-/** Gemini는 출력 잘림 방지를 위해 소규모 배치를 유지합니다. */
-export const GEMINI_ITEM_BATCH_SIZE = 3;
+/** Gemini도 Vercel 한도 안에서 끝나도록 배치 크기를 키웁니다. */
+export const GEMINI_ITEM_BATCH_SIZE = 10;
 
 /** Claude는 API 호출 횟수를 줄여 Vercel 시간 한도 안에서 완료합니다. */
 export const CLAUDE_ITEM_BATCH_SIZE = 12;

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { runEvaluationRound } from "@/lib/run-evaluation-round";
+import {
+  EVALUATION_SERVER_DEADLINE_MESSAGE,
+  EVALUATION_SERVER_DEADLINE_MS,
+} from "@/lib/evaluation-stream-messages";
 import { resolveAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { isFileLike } from "@/lib/save-uploaded-files";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
@@ -54,8 +58,12 @@ export async function POST(request: NextRequest) {
           }, 12_000);
 
           try {
-            const result = await runEvaluationRound(input, (progress) => write(progress));
-            revalidateProjectViews(input.projectId);
+            const result = await Promise.race([
+              runEvaluationRound(input, (progress) => write(progress)),
+              new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error(EVALUATION_SERVER_DEADLINE_MESSAGE)), EVALUATION_SERVER_DEADLINE_MS);
+              }),
+            ]);
             write({
               type: "complete",
               round: result.round,
@@ -63,6 +71,11 @@ export async function POST(request: NextRequest) {
               analysisMode: result.analysisMode,
               warnings: result.warnings,
             });
+            try {
+              revalidateProjectViews(input.projectId);
+            } catch {
+              // 완료 응답 이후 캐시 갱신 실패는 분석 결과에 영향 없음
+            }
           } catch (error) {
             write({
               type: "error",

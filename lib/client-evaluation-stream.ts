@@ -5,6 +5,7 @@ import {
   clientFetchWithTimeout,
   EVALUATION_STREAM_TIMEOUT_MS,
 } from "@/lib/client-fetch-with-timeout";
+import { formatInterruptedStreamMessage } from "@/lib/evaluation-stream-messages";
 import type { EvaluationAnalysisProgressEvent, EvaluationAnalysisStreamEvent } from "@/lib/evaluation-analysis-progress";
 
 export type EvaluationRoundStreamResult = {
@@ -43,6 +44,7 @@ export async function submitEvaluationRoundStream(
   onProgress: (event: EvaluationAnalysisProgressEvent) => void,
 ): Promise<EvaluationRoundStreamResult> {
   formData.set("stream", "1");
+  const providerPreference = String(formData.get("provider") ?? "");
 
   const response = await clientFetchWithTimeout(
     "/api/evaluation-rounds",
@@ -120,7 +122,7 @@ export async function submitEvaluationRoundStream(
 
   throw new Error(
     sawProgress
-      ? "분석이 서버에서 중단되었습니다. Claude 사용 시 PDF 용량·항목 수에 따라 최대 5분까지 걸릴 수 있습니다. 잠시 후 다시 시도하거나 Gemini를 선택해 주세요."
+      ? formatInterruptedStreamMessage(providerPreference)
       : "분석이 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.",
   );
 }
