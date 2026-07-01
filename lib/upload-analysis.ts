@@ -7,7 +7,7 @@ import type { AnalysisPromptOptions } from "./ai/analysis-prompt-options";
 import { buildClaudeUserBlocks, buildGeminiUserParts, buildOpenAiUserContent } from "./ai/multimodal-payload";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
 import { GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS, OPENAI_ANALYSIS_MAX_COMPLETION_TOKENS } from "./ai/output-token-limits";
-import { chunkEvaluationItems, shouldBatchProviderAnalysis } from "./ai/item-batches";
+import { chunkEvaluationItems, getProviderItemBatchSize, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
 import { sanitizeDocumentSectionSummary } from "./ai/document-section-summary";
 import { filterVerifiedGuidelineRefs, filterVerifiedLawRefs, resolveGroundedRationale, resolveGroundedRecommendation, sanitizeGroundedSummary } from "./ai/grounding-guard";
@@ -197,7 +197,7 @@ async function analyzeProviderInBatches(
   baseWarnings: string[],
   onAnalysisProgress?: (label: string) => void,
 ): Promise<UploadAnalysisResult> {
-  const batches = chunkEvaluationItems(items);
+  const batches = chunkEvaluationItems(items, getProviderItemBatchSize(provider));
   const mergedWarnings = [...baseWarnings];
   mergedWarnings.push(
     `${providerLabel(provider)} 분석: 평가 항목 ${items.length}개를 ${batches.length}회로 나누어 처리합니다.`,
