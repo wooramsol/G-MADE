@@ -60,15 +60,29 @@ export async function analyzeWithClaude(
   for (const model of modelsToTry) {
     for (const visionMode of visionModes) {
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const response = await requestClaude(
-          apiKey,
-          model,
-          files,
-          evaluationContext,
-          items,
-          promptOptions,
-          visionMode,
-        );
+        let response: Response;
+        try {
+          response = await requestClaude(
+            apiKey,
+            model,
+            files,
+            evaluationContext,
+            items,
+            promptOptions,
+            visionMode,
+          );
+        } catch (error) {
+          if (error instanceof Error && error.message.includes("초과했습니다")) {
+            const timeoutSeconds = Math.round(
+              resolveClaudeFetchTimeoutMs(visionMode === "vision", promptOptions?.batchCount) / 1000,
+            );
+            throw new AiAnalysisError(
+              `Claude 응답이 ${timeoutSeconds}초 안에 오지 않았습니다. 평가 항목이 많거나 PDF가 크면 Gemini 사용을 권장합니다.`,
+              "claude",
+            );
+          }
+          throw error;
+        }
 
         if (response.ok) {
           const payload = (await response.json()) as {
