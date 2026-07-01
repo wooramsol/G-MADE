@@ -1,5 +1,5 @@
 import { buildPdfPageMarkedText, buildSlideMarkedText } from "./ai/page-citation";
-import { normalizeWhitespace } from "./document-text-utils";
+import { normalizeDocumentText, normalizeDocumentTextPreserveLines } from "./document-text-utils";
 
 export type VisionAsset = {
   label: string;
@@ -56,7 +56,7 @@ export async function extractDocumentContent(buffer: Buffer, fileName: string): 
     }
     if (extension === "txt" || extension === "md") {
       return {
-        fullText: normalizeWhitespace(buffer.toString("utf8")),
+        fullText: normalizeDocumentText(buffer.toString("utf8")),
         visionAssets: [],
         warnings: [],
       };
@@ -93,9 +93,10 @@ async function extractPdfContent(buffer: Buffer, fileName: string): Promise<Docu
   const pdf = await getDocumentProxy(uint8);
   const extracted = await extractText(pdf, { mergePages: false });
   const pageTexts = Array.isArray(extracted.text) ? extracted.text : [extracted.text ?? ""];
+  const normalizedPages = pageTexts.map((pageText) => normalizeDocumentText(pageText ?? ""));
   const totalPages = extracted.totalPages ?? pageTexts.length;
-  const markedText = buildPdfPageMarkedText(fileName, pageTexts);
-  const normalizedText = normalizeWhitespace(markedText);
+  const markedText = buildPdfPageMarkedText(fileName, normalizedPages);
+  const normalizedText = normalizeDocumentTextPreserveLines(markedText);
 
   const fullText =
     normalizedText ||
@@ -143,7 +144,7 @@ async function extractDocxText(buffer: Buffer): Promise<string> {
   if (!xml) return "";
 
   const texts = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((match) => match[1]);
-  return normalizeWhitespace(texts.join(" "));
+  return normalizeDocumentText(texts.join(" "));
 }
 
 async function extractPptxContent(buffer: Buffer, fileName: string): Promise<{ fullText: string; totalPages: number }> {

@@ -11,6 +11,7 @@ import {
   lacksIssueFocus,
 } from "./fallback-recommendation";
 import { normalizeListNumbering } from "../format-evaluation-text";
+import { sanitizeBrokenHangulQuotes } from "../document-text-utils";
 import {
   extractMentionedPageCitations,
   pageCitationIsKnown,
@@ -286,7 +287,7 @@ export function resolveGroundedRationale(
     };
   }
 
-  return { text: normalizeListNumbering(text) };
+  return { text: normalizeListNumbering(sanitizeBrokenHangulQuotes(text)) };
 }
 
 export function resolveGroundedRecommendation(
@@ -311,7 +312,7 @@ export function resolveGroundedRecommendation(
     };
   }
 
-  return { text: normalizeListNumbering(text) };
+  return { text: normalizeListNumbering(sanitizeBrokenHangulQuotes(text)) };
 }
 
 export function sanitizeGroundedSummary(

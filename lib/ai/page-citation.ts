@@ -1,4 +1,4 @@
-import { normalizeWhitespace } from "../document-text-utils";
+import { normalizeDocumentText, sliceGraphemeRange, truncateGraphemes } from "../document-text-utils";
 import type { UploadedFileSummary } from "./analysis-types";
 
 /** 추출 본문에 삽입하는 페이지 구분 마커 (`--- 「file.pdf」 p.3 ---`) */
@@ -7,7 +7,7 @@ export const PAGE_MARKER_LINE_PATTERN = /^---\s*「([^」]+)」\s*p\.(\d+)\s*---
 export function buildPdfPageMarkedText(fileName: string, pageTexts: string[]): string {
   return pageTexts
     .map((pageText, index) => {
-      const body = normalizeWhitespace(pageText ?? "");
+      const body = normalizeDocumentText(pageText ?? "");
       if (!body) return "";
       return `--- 「${fileName}」 p.${index + 1} ---\n${body}`;
     })
@@ -18,7 +18,7 @@ export function buildPdfPageMarkedText(fileName: string, pageTexts: string[]): s
 export function buildSlideMarkedText(fileName: string, slideTexts: string[]): string {
   return slideTexts
     .map((slideText, index) => {
-      const body = normalizeWhitespace(slideText ?? "");
+      const body = normalizeDocumentText(slideText ?? "");
       if (!body) return "";
       return `--- 「${fileName}」 슬라이드 ${index + 1} ---\n${body}`;
     })
@@ -46,7 +46,8 @@ export function extractEvidenceWithPage(
   keywords: string[],
   radius = 90,
 ): { snippet: string; pageRef: string | null } {
-  const lowerCorpus = corpus.toLowerCase();
+  const normalizedCorpus = corpus.normalize("NFC");
+  const lowerCorpus = normalizedCorpus.toLowerCase();
 
   for (const keyword of keywords) {
     const trimmed = keyword.trim();
@@ -56,18 +57,27 @@ export function extractEvidenceWithPage(
     if (idx < 0) continue;
 
     const start = Math.max(0, idx - radius);
-    const end = Math.min(corpus.length, idx + trimmed.length + radius);
-    const snippet = normalizeWhitespace(corpus.slice(start, end));
+    const end = Math.min(normalizedCorpus.length, idx + trimmed.length + radius);
+    const snippet = normalizeDocumentText(sliceGraphemeRange(normalizedCorpus, start, end));
     if (snippet.length < 12) continue;
 
-    const marker = findPageMarkerBefore(corpus, idx);
+    const marker = findPageMarkerBefore(normalizedCorpus, idx);
     const pageRef = marker ? formatPageReference(marker.fileName, marker.page) : null;
-    const clipped = snippet.length > 160 ? `${snippet.slice(0, 160)}…` : snippet;
+    const clipped = truncateGraphemes(snippet, 160);
+    const suffix = segmentCount(snippet) > 160 ? "…" : "";
 
-    return { snippet: clipped, pageRef };
+    return { snippet: `${clipped}${suffix}`, pageRef };
   }
 
   return { snippet: "", pageRef: null };
+}
+
+function segmentCount(text: string): number {
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new Intl.Segmenter("ko", { granularity: "grapheme" });
+    return [...segmenter.segment(text)].length;
+  }
+  return [...text].length;
 }
 
 export function extractMentionedPageCitations(text: string): Array<{ fileName: string; page: number }> {

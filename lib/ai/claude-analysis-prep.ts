@@ -1,3 +1,4 @@
+import { truncateGraphemes } from "../document-text-utils";
 import type { UploadedFileSummary } from "./analysis-types";
 
 /** Claude 요청당 파일 본문 상한 (초과 시 앞부분만 사용). */
@@ -21,7 +22,7 @@ export function prepareFilesForClaudeAnalysis(
 
     return {
       ...file,
-      extractedTextPreview: `${source.slice(0, maxCharsPerFile)}\n...[본문 일부 생략 — 전체 분석은 Gemini 권장]`,
+      extractedTextPreview: `${truncateGraphemes(source, maxCharsPerFile)}\n...[본문 일부 생략 — 전체 분석은 Gemini 권장]`,
     };
   });
 

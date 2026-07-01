@@ -1,3 +1,5 @@
+import { sanitizeBrokenHangulQuotes } from "./document-text-utils";
+
 const CIRCLED_NUMBERS = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"] as const;
 
 /** ①②③ → 1. 2. 3. 으로 변환합니다. */
@@ -11,7 +13,7 @@ export function normalizeListNumbering(text: string): string {
 
 /** 평가 근거·의견 표시용 줄바꿈 정리 (1. 2. 3. 등) */
 export function formatEvaluationText(text: string): string {
-  let formatted = normalizeListNumbering(text.trim());
+  let formatted = sanitizeBrokenHangulQuotes(normalizeListNumbering(text.trim()));
   if (!formatted) return "";
 
   formatted = formatted.replace(/(?<=\S)\s+(\d{1,2}\.)\s+(?=[「가-힣A-Za-z0-9])/g, "\n$1 ");

@@ -1,6 +1,13 @@
 import type { EvaluationContext } from "../evaluation-context";
 import { collectUniqueRoundFiles } from "../evaluation-round-files";
 import type { EvaluationRound } from "../types";
+import {
+  hasBrokenHangulLead,
+  normalizeDocumentText,
+  sanitizeBrokenHangulQuotes,
+  sliceGraphemeRange,
+  truncateGraphemes,
+} from "../document-text-utils";
 import type { UploadedFileSummary } from "./analysis-types";
 import { buildAnalysisCorpus, checkEvaluationTextGrounding } from "./grounding-guard";
 import { lacksIssueFocus } from "./fallback-recommendation";
@@ -34,12 +41,9 @@ const SECTION_REVIEW_GAPS: Record<string, string[]> = {
   주변현황: ["인접 건축물·도로", "경관지구·조망", "소음·일조 영향"],
 };
 
-function normalizeSnippet(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
-}
-
 function extractSectionSnippet(corpus: string, keywords: string[]): string {
-  const lowerCorpus = corpus.toLowerCase();
+  const normalizedCorpus = corpus.normalize("NFC");
+  const lowerCorpus = normalizedCorpus.toLowerCase();
 
   for (const keyword of keywords) {
     const trimmed = keyword.trim();
@@ -49,10 +53,13 @@ function extractSectionSnippet(corpus: string, keywords: string[]): string {
     if (idx < 0) continue;
 
     const start = Math.max(0, idx - 70);
-    const end = Math.min(corpus.length, idx + trimmed.length + 90);
-    const snippet = normalizeSnippet(corpus.slice(start, end));
-    if (snippet.length >= 10) {
-      return snippet.length > 140 ? `${snippet.slice(0, 140)}…` : snippet;
+    const end = Math.min(normalizedCorpus.length, idx + trimmed.length + 90);
+    const snippet = sanitizeBrokenHangulQuotes(
+      normalizeDocumentText(sliceGraphemeRange(normalizedCorpus, start, end)),
+    );
+    if (snippet.length >= 10 && !hasBrokenHangulLead(snippet)) {
+      const clipped = truncateGraphemes(snippet, 140);
+      return clipped.length < snippet.length ? `${clipped}…` : clipped;
     }
   }
 
@@ -95,7 +102,7 @@ export function buildFallbackDocumentSectionSummary(
   const sourceLabel = relevantFile ? `「${relevantFile.originalName}」` : "제출 자료";
   const snippet = extractSectionSnippet(corpus, keywords);
 
-  if (snippet) {
+  if (snippet && !hasBrokenHangulLead(snippet)) {
     return [
       `${sourceLabel}에서 ${label} 관련 "${snippet}" 등을 확인함.`,
       `다만 ${gaps[0]}, ${gaps[1]} 등이 도면·본문에 미기재·불명확하여 심사위원 재확인 필요.`,
@@ -132,7 +139,7 @@ export function sanitizeDocumentSectionSummary(
   if (!isGenericSectionSummary(text) && !lacksIssueFocus(text) && mentionsSectionLabel(text, label)) {
     const grounding = checkEvaluationTextGrounding(text, files, evaluationContext);
     if (grounding.grounded) {
-      return { text };
+      return { text: sanitizeBrokenHangulQuotes(text) };
     }
   }
 
@@ -142,10 +149,10 @@ export function sanitizeDocumentSectionSummary(
     text.length >= 48 &&
     mentionsSectionLabel(text, label)
   ) {
-    return { text };
+    return { text: sanitizeBrokenHangulQuotes(text) };
   }
 
-  const fallback = buildFallbackDocumentSectionSummary(label, files);
+  const fallback = sanitizeBrokenHangulQuotes(buildFallbackDocumentSectionSummary(label, files));
   const warning =
     text && text !== fallback
       ? `${label} 요약: 항목별 고유 내용이 부족해 도면·본문 기반 요약으로 보정했습니다.`
