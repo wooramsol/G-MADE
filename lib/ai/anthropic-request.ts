@@ -118,7 +118,7 @@ export function resolveClaudeFetchTimeoutMs(includeVision: boolean, batchCount =
   const modeCap = includeVision ? 180_000 : 240_000;
 
   if (safeBatchCount === 1) {
-    return modeCap;
+    return 280_000;
   }
 
   if (safeBatchCount === 2) {
