@@ -210,6 +210,7 @@ async function analyzeProviderInBatches(
       compact: true,
       evaluationOnly: index > 0,
       includeVision: provider === "claude" ? index === 0 : undefined,
+      batchCount: batches.length,
     };
     onAnalysisProgress?.(
       `${providerLabel(provider)} 분석 중 (${index + 1}/${batches.length}회차, 항목 ${batchItems.length}개)`,

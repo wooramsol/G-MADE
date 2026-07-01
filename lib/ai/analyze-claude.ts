@@ -20,6 +20,7 @@ import {
   buildAnthropicHeaders,
   filesIncludePdfVision,
   isClaudePayloadOrContextError,
+  resolveClaudeFetchTimeoutMs,
   resolveClaudeVisionModes,
 } from "./anthropic-request";
 
@@ -163,7 +164,7 @@ async function requestClaude(
         ],
       }),
     },
-    includeVision ? 180_000 : 120_000,
+    resolveClaudeFetchTimeoutMs(includeVision, promptOptions?.batchCount),
   );
 }
 
