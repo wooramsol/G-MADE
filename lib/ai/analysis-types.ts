@@ -11,6 +11,8 @@ export type UploadedFileSummary = {
   storagePath: string;
   /** 추출된 전체 본문(글자 수 제한 없음) */
   extractedTextPreview: string;
+  /** PDF·PPTX 등 다면 문서의 총 페이지(슬라이드) 수 */
+  totalPages?: number;
   /** PDF 원본·페이지 렌더·이미지 등 비전 분석 자료 */
   visionAssets?: VisionAsset[];
 };

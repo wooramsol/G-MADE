@@ -1,3 +1,4 @@
+import { buildPdfPageMarkedText, buildSlideMarkedText } from "./ai/page-citation";
 import { normalizeWhitespace } from "./document-text-utils";
 
 export type VisionAsset = {
@@ -10,6 +11,8 @@ export type DocumentContent = {
   fullText: string;
   visionAssets: VisionAsset[];
   warnings: string[];
+  /** PDF 등 다면 문서의 총 페이지(또는 슬라이드) 수 */
+  totalPages?: number;
 };
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png"]);
@@ -36,10 +39,12 @@ export async function extractDocumentContent(buffer: Buffer, fileName: string): 
       return extractImageContent(buffer, fileName, extension);
     }
     if (extension === "pptx") {
+      const { fullText, totalPages } = await extractPptxContent(buffer, fileName);
       return {
-        fullText: await extractPptxText(buffer),
+        fullText,
         visionAssets: [],
         warnings: [],
+        totalPages,
       };
     }
     if (extension === "docx") {
@@ -86,8 +91,11 @@ async function extractPdfContent(buffer: Buffer, fileName: string): Promise<Docu
   const uint8 = new Uint8Array(buffer);
   const { extractText, getDocumentProxy } = await import("unpdf");
   const pdf = await getDocumentProxy(uint8);
-  const { text } = await extractText(pdf, { mergePages: true });
-  const normalizedText = normalizeWhitespace(text ?? "");
+  const extracted = await extractText(pdf, { mergePages: false });
+  const pageTexts = Array.isArray(extracted.text) ? extracted.text : [extracted.text ?? ""];
+  const totalPages = extracted.totalPages ?? pageTexts.length;
+  const markedText = buildPdfPageMarkedText(fileName, pageTexts);
+  const normalizedText = normalizeWhitespace(markedText);
 
   const fullText =
     normalizedText ||
@@ -95,6 +103,7 @@ async function extractPdfContent(buffer: Buffer, fileName: string): Promise<Docu
 
   return {
     fullText,
+    totalPages: totalPages > 0 ? totalPages : undefined,
     visionAssets: [
       {
         label: `${fileName} (전체 PDF)`,
@@ -137,22 +146,25 @@ async function extractDocxText(buffer: Buffer): Promise<string> {
   return normalizeWhitespace(texts.join(" "));
 }
 
-async function extractPptxText(buffer: Buffer): Promise<string> {
+async function extractPptxContent(buffer: Buffer, fileName: string): Promise<{ fullText: string; totalPages: number }> {
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(buffer);
   const slideFiles = Object.keys(zip.files)
     .filter((name) => name.match(/^ppt\/slides\/slide\d+\.xml$/))
     .sort();
 
-  const chunks: string[] = [];
+  const slideTexts: string[] = [];
   for (const slidePath of slideFiles) {
     const xml = await zip.file(slidePath)?.async("string");
     if (!xml) continue;
     const texts = [...xml.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)].map((match) => match[1]);
     if (texts.length > 0) {
-      chunks.push(texts.join(" "));
+      slideTexts.push(texts.join(" "));
     }
   }
 
-  return normalizeWhitespace(chunks.join("\n"));
+  return {
+    fullText: buildSlideMarkedText(fileName, slideTexts),
+    totalPages: slideTexts.length,
+  };
 }

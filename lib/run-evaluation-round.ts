@@ -168,6 +168,7 @@ export async function runEvaluationRound(
                 storagePath: file.storagePath ?? file.storageKey,
                 extractedTextPreview: content.fullText,
                 visionAssets: content.visionAssets,
+                totalPages: content.totalPages,
               };
             }),
           )

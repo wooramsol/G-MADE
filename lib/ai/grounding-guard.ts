@@ -11,6 +11,10 @@ import {
   lacksIssueFocus,
 } from "./fallback-recommendation";
 import { normalizeListNumbering } from "../format-evaluation-text";
+import {
+  extractMentionedPageCitations,
+  pageCitationIsKnown,
+} from "./page-citation";
 
 const SPACE_TERM_PATTERN =
   /(?:\d+층\s*)?(?:옥외(?:\s*공간)?|옥상(?:\s*정원|\s*테라스)?|공개공지|증축(?:\s*부분|\s*동)?|(?:옥외|야외)\s*휴게(?:\s*공간)?|(?:중정|마당|데크|발코니))/g;
@@ -27,7 +31,8 @@ export type GroundingIssue =
   | { kind: "unknown_file"; detail: string }
   | { kind: "ungrounded_space"; detail: string }
   | { kind: "ungrounded_user"; detail: string }
-  | { kind: "ungrounded_law"; detail: string };
+  | { kind: "ungrounded_law"; detail: string }
+  | { kind: "invalid_page"; detail: string };
 
 export type GroundingCheckResult = {
   grounded: boolean;
@@ -211,6 +216,15 @@ export function checkEvaluationTextGrounding(
     }
   }
 
+  for (const citation of extractMentionedPageCitations(normalized)) {
+    if (!pageCitationIsKnown(citation, files)) {
+      issues.push({
+        kind: "invalid_page",
+        detail: citation.fileName ? `${citation.fileName} p.${citation.page}` : `p.${citation.page}`,
+      });
+    }
+  }
+
   return { grounded: issues.length === 0, issues };
 }
 
@@ -241,6 +255,7 @@ export function formatGroundingWarning(itemLabel: string, field: "rationale" | "
     ungrounded_space: "자료에 없는 공간·위치",
     ungrounded_user: "자료에 없는 이용자 유형",
     ungrounded_law: "조회되지 않은 법령 인용",
+    invalid_page: "확인되지 않는 페이지",
   };
   const detail = issues
     .slice(0, 2)
