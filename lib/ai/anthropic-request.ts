@@ -109,3 +109,13 @@ export function isClaudePayloadOrContextError(status: number, body: string): boo
     lower.includes("request size")
   );
 }
+
+/** Vercel 함수 한도(300s) 안에서 배치별 Claude API 대기 시간을 나눕니다. */
+export const CLAUDE_FUNCTION_BUDGET_MS = 270_000;
+
+export function resolveClaudeFetchTimeoutMs(includeVision: boolean, batchCount = 1): number {
+  const safeBatchCount = Math.max(1, batchCount);
+  const perBatchBudget = Math.max(90_000, Math.floor(CLAUDE_FUNCTION_BUDGET_MS / safeBatchCount));
+  const modeCap = includeVision ? 180_000 : 240_000;
+  return Math.min(modeCap, perBatchBudget);
+}

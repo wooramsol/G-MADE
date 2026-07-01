@@ -5,4 +5,6 @@ export type AnalysisPromptOptions = {
   evaluationOnly?: boolean;
   /** PDF·이미지 비전 블록 포함 (배치 2차부터는 false 권장) */
   includeVision?: boolean;
+  /** 분할 분석 시 전체 회차 수 (타임아웃 예산 분배용) */
+  batchCount?: number;
 };
