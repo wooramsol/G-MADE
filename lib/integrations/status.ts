@@ -2,6 +2,7 @@ import { getConfiguredProviders } from "../ai/env-keys";
 import { getDefaultAiProvider, isProviderConfigured } from "../ai/select-provider";
 import { getLawReferer, isLawApiConfigured } from "../law/config";
 import { isPostgresConfigured } from "../postgres-env";
+import { isProjectStoragePersistent } from "../project-persistence";
 import { isDatabaseAvailable } from "../prisma";
 import { readServerEnv } from "../server-env";
 import { getVWorldDomain, isVWorldConfigured } from "../vworld/config";
@@ -44,6 +45,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
   const lawConfigured = isLawApiConfigured();
   const spatialConfigured = isVWorldConfigured();
   const databaseConfigured = await isDatabaseAvailable();
+  const projectStoragePersistent = await isProjectStoragePersistent();
 
   const aiRows: IntegrationRow[] = [
     {
@@ -133,7 +135,9 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       configured: databaseConfigured,
       envKeys: ["DATABASE_URL", "POSTGRES_PRISMA_URL", "POSTGRES_URL"],
       detail: databaseConfigured
-        ? "로그인·역할·로그인 히스토리용 (프로젝트·평가 데이터는 JSON/로컬 저장)"
+        ? projectStoragePersistent
+          ? "계정·로그인 기록 + 프로젝트·평가 데이터 영속 저장"
+          : "계정·로그인 기록용 (stored_projects 테이블 없음 — prisma db push 필요)"
         : isPostgresConfigured()
           ? "연결 문자열은 있으나 DB 응답 없음"
           : undefined,
@@ -165,7 +169,8 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       {
         id: "database",
         title: "데이터베이스 연동 상태",
-        description: "계정·역할·로그인 기록에 사용합니다. 프로젝트·평가 결과는 서버 JSON과 브라우저 저장소를 사용합니다.",
+        description:
+          "계정·역할·로그인 기록과 프로젝트·평가 데이터 영속 저장에 사용합니다. 미연결 시 프로젝트 데이터는 서버 임시 JSON과 브라우저 저장소에만 남습니다.",
         rows: databaseRows,
       },
     ],

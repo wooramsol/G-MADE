@@ -69,6 +69,19 @@ model LoginHistory {
   @@map("login_history")
 }
 
+/// 애플리케이션 프로젝트 스냅샷 저장소 (lib/types.ts Project 직렬화).
+/// Postgres가 연결되면 /tmp JSON 파일 대신 이 테이블이 source of truth가 된다.
+model StoredProject {
+  id        String    @id
+  payload   Json
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([updatedAt(sort: Desc)])
+  @@map("stored_projects")
+}
+
 model Project {
   id          String        @id @default(cuid())
   name        String
