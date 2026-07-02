@@ -86,11 +86,10 @@ function buildAiEvaluation(itemId: string, score: number): AiEvaluation {
     grade: gradeScore(score),
     rationale: "근거",
     recommendation: "권고",
-    scoreTrace: [{ factor: "테스트", weight: 1, evidence: "증거." }],
-    lawRefs: [],
-    guidelineRefs: [],
-    caseRefs: [],
-    modelName: "test",
+    scoreTrace: [{ label: "테스트", weight: 1, score, evidence: "증거." }],
+    lawIds: [],
+    guidelineIds: [],
+    caseStudyIds: [],
   };
 }
 
