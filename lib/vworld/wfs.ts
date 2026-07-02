@@ -58,20 +58,36 @@ export class VWorldWfsError extends Error {
   }
 }
 
+export type SpatialLayerQueryResult = {
+  features: SpatialLayerFeature[];
+  /** 조회에 실패한 레이어 목록. "결과 없음"과 "조회 실패"를 구분하기 위해 반환한다. */
+  failedLayers: Array<{ id: string; label: string; error: string }>;
+};
+
 export async function querySpatialLayersNearPoint(
   point: GeoPoint,
   layerIds?: string[],
-): Promise<SpatialLayerFeature[]> {
+): Promise<SpatialLayerQueryResult> {
   const selected =
     layerIds && layerIds.length > 0
       ? SPATIAL_LAYERS.filter((layer) => layerIds.includes(layer.id))
       : SPATIAL_LAYERS;
 
+  const failedLayers: SpatialLayerQueryResult["failedLayers"] = [];
   const results = await Promise.all(
-    selected.map((layer) => queryWfsLayer(point, layer).catch(() => [] as SpatialLayerFeature[])),
+    selected.map((layer) =>
+      queryWfsLayer(point, layer).catch((error: unknown) => {
+        failedLayers.push({
+          id: layer.id,
+          label: layer.label,
+          error: error instanceof Error ? error.message : "조회 실패",
+        });
+        return [] as SpatialLayerFeature[];
+      }),
+    ),
   );
 
-  return results.flat();
+  return { features: results.flat(), failedLayers };
 }
 
 async function queryWfsLayer(point: GeoPoint, layer: SpatialLayerConfig): Promise<SpatialLayerFeature[]> {
