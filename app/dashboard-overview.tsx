@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
-  Badge,
   MetricLabel,
   MetricValue,
-  MutedText,
   SectionDescription,
   SectionTitle,
-  SubsectionTitle,
 } from "@/components/typography";
+import { Panel } from "@/components/panel";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import {
   buildDashboardStats,
@@ -19,7 +17,7 @@ import {
 } from "@/lib/dashboard-projects";
 import type { DashboardRole } from "@/lib/dashboard-data";
 import type { Project } from "@/lib/types";
-import { getLocalProjects } from "./projects/local-project-storage";
+import { useLocalProjects } from "./projects/local-project-storage";
 
 type DashboardOverviewProps = {
   serverProjects: Project[];
@@ -27,12 +25,7 @@ type DashboardOverviewProps = {
 };
 
 export default function DashboardOverview({ serverProjects, roles }: DashboardOverviewProps) {
-  const [localProjects, setLocalProjects] = useState<Project[]>([]);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setLocalProjects(getLocalProjects()), 0);
-    return () => window.clearTimeout(timeout);
-  }, []);
+  const { projects: localProjects } = useLocalProjects();
 
   const projects = useMemo(
     () => mergeManagedProjects(serverProjects, localProjects),
@@ -59,7 +52,14 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-      <Panel title="최근 프로젝트" action="프로젝트 관리">
+      <Panel
+        action={
+          <Link className="type-badge rounded-full bg-[#e8f1ff] px-3 py-1 text-[#2463b3]" href="/projects">
+            프로젝트 관리
+          </Link>
+        }
+        title="최근 프로젝트"
+      >
         {recentProjects.length === 0 ? (
           <p className="rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
             등록된 프로젝트가 없습니다.{" "}
@@ -119,26 +119,6 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
       </Panel>
       </section>
     </>
-  );
-}
-
-function Panel({ title, action, children }: { title: string; action?: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <SubsectionTitle>{title}</SubsectionTitle>
-        {action ? (
-          action === "프로젝트 관리" ? (
-            <Link className="type-badge rounded-full bg-[#e8f1ff] px-3 py-1 text-[#2463b3]" href="/projects">
-              {action}
-            </Link>
-          ) : (
-            <Badge className="bg-[#e8f1ff] text-[#2463b3]">{action}</Badge>
-          )
-        ) : null}
-      </div>
-      {children}
-    </div>
   );
 }
 

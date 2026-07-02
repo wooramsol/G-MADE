@@ -40,10 +40,7 @@ function validateProjectUploadPath(projectId: string, pathname: string) {
   validateUploadExtension(fileName);
 }
 
-export async function GET(
-  _request: Request,
-  _context: { params: Promise<{ id: string }> },
-) {
+export async function GET() {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult.response;
 

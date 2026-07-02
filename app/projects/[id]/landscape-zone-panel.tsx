@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import OverflowChipRow from "@/components/overflow-chip-row";
 import { Badge, SubsectionTitle } from "@/components/typography";
 import type { ProjectLocationPoint } from "@/lib/types";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
   ssr: false,
@@ -81,7 +82,7 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
           params.set("address", address.trim());
         }
 
-        const response = await fetch(`/api/spatial/landscape-zone?${params.toString()}`, {
+        const response = await clientFetchWithTimeout(`/api/spatial/landscape-zone?${params.toString()}`, {
           credentials: "same-origin",
         });
         const payload = (await response.json()) as LandscapeZoneResponse | LandscapeZoneErrorResponse;

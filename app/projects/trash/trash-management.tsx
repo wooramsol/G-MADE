@@ -1,18 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import { CardTitle, Eyebrow, MutedText } from "@/components/typography";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 import { formatEvaluationRoundLabel, formatUploadDateTime } from "@/lib/format-datetime";
 import { mergeProjectWithLocal } from "@/lib/merge-project-state";
 import { getTrashedEvaluationRounds, isProjectTrashed } from "@/lib/trash";
 import type { Project } from "@/lib/types";
 import { showToast } from "../../toast";
 import {
-  getLocalProjects,
   purgeLocalProject,
   restoreLocalProject,
+  useLocalProjects,
 } from "../local-project-storage";
 
 type TrashManagementProps = {
@@ -24,18 +25,9 @@ type ConfirmAction =
   | { type: "purge"; project: Project };
 
 export default function TrashManagement({ serverTrashedProjects }: TrashManagementProps) {
-  const [localProjects, setLocalProjects] = useState<Project[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const { projects: localProjects, hydrated } = useLocalProjects();
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setLocalProjects(getLocalProjects());
-      setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, []);
 
   const trashedProjects = useMemo(() => {
     const localById = new Map(localProjects.map((project) => [project.id, project]));
@@ -65,7 +57,9 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
 
     try {
       if (confirmAction.type === "restore") {
-        const response = await fetch(`/api/projects/${confirmAction.project.id}/restore`, { method: "POST" });
+        const response = await clientFetchWithTimeout(`/api/projects/${confirmAction.project.id}/restore`, {
+          method: "POST",
+        });
         const payload = (await response.json().catch(() => ({}))) as { error?: string; project?: Project };
 
         if (!response.ok && response.status !== 404) {
@@ -76,7 +70,7 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
         showToast({ message: "프로젝트가 복원되었습니다.", tone: "success" });
       } else {
         const project = confirmAction.project;
-        const response = await fetch(`/api/projects/${project.id}?permanent=true`, {
+        const response = await clientFetchWithTimeout(`/api/projects/${project.id}?permanent=true`, {
           method: "DELETE",
         });
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
@@ -92,7 +86,7 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
         }
       }
 
-      setLocalProjects(getLocalProjects());
+      // localStorage 변경은 useLocalProjects 구독으로 자동 반영된다.
       setConfirmAction(null);
     } catch (error) {
       showToast({

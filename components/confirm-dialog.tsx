@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MutedText, SubsectionTitle } from "@/components/typography";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
@@ -34,9 +34,13 @@ export default function ConfirmDialog({
       ? "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
       : "rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60";
   useBodyScrollLock(open);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open || loading) return;
+
+    // 다이얼로그가 열리면 취소 버튼에 초기 포커스를 준다 (키보드 접근성).
+    cancelButtonRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -68,6 +72,7 @@ export default function ConfirmDialog({
           <button
             className="rounded-lg border border-[#d7dee8] bg-white px-4 py-2 text-sm font-bold text-[#475569] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-60"
             disabled={loading}
+            ref={cancelButtonRef}
             type="button"
             onClick={onCancel}
           >

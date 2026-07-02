@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import {
   filterActiveProjects,
   filterTrashedProjects,
@@ -17,6 +18,7 @@ import type {
 } from "@/lib/types";
 
 const STORAGE_KEY = "gmadehive.localProjects";
+const CHANGE_EVENT = "gmadehive:local-projects-changed";
 
 export function getLocalProjects(): Project[] {
   if (typeof window === "undefined") return [];
@@ -28,6 +30,76 @@ export function getLocalProjects(): Project[] {
   } catch {
     return [];
   }
+}
+
+function notifyLocalProjectsChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(CHANGE_EVENT));
+  }
+}
+
+const EMPTY_PROJECTS: Project[] = [];
+let snapshotCache: { raw: string | null; projects: Project[] } = {
+  raw: null,
+  projects: EMPTY_PROJECTS,
+};
+
+function getLocalProjectsSnapshot(): Project[] {
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return EMPTY_PROJECTS;
+  }
+
+  if (raw !== snapshotCache.raw) {
+    let projects: Project[] = EMPTY_PROJECTS;
+    try {
+      const parsed = raw ? JSON.parse(raw) : [];
+      projects = Array.isArray(parsed) ? parsed : EMPTY_PROJECTS;
+    } catch {
+      projects = EMPTY_PROJECTS;
+    }
+    snapshotCache = { raw, projects };
+  }
+
+  return snapshotCache.projects;
+}
+
+function getServerProjectsSnapshot(): Project[] {
+  return EMPTY_PROJECTS;
+}
+
+function subscribeToLocalProjects(callback: () => void): () => void {
+  window.addEventListener("storage", callback);
+  window.addEventListener(CHANGE_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(CHANGE_EVENT, callback);
+  };
+}
+
+function subscribeNever(): () => void {
+  return () => undefined;
+}
+
+/**
+ * localStorage 프로젝트 목록을 구독한다.
+ * SSR/hydration 중에는 빈 배열 + hydrated=false를 반환하고,
+ * 저장소가 변경되면(같은 탭의 저장 포함) 자동으로 다시 렌더링한다.
+ */
+export function useLocalProjects(): { projects: Project[]; hydrated: boolean } {
+  const projects = useSyncExternalStore(
+    subscribeToLocalProjects,
+    getLocalProjectsSnapshot,
+    getServerProjectsSnapshot,
+  );
+  const hydrated = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+  return { projects, hydrated };
 }
 
 export function getActiveLocalProjects(): Project[] {
@@ -47,6 +119,7 @@ export function saveLocalProject(project: Project) {
     };
     const nextProjects = [nextProject, ...projects.filter((item) => item.id !== project.id)];
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProjects));
+    notifyLocalProjectsChanged();
   } catch {
     // localStorage quota/private mode — 서버 동기화에만 의존합니다.
   }
@@ -80,6 +153,7 @@ export function restoreLocalProject(projectId: string): Project | undefined {
 export function purgeLocalProject(projectId: string) {
   const projects = getLocalProjects().filter((project) => project.id !== projectId);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  notifyLocalProjectsChanged();
 }
 
 /** @deprecated trashLocalProject를 사용하세요. */

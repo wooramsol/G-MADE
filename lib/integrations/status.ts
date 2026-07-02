@@ -4,7 +4,6 @@ import { getLawReferer, isLawApiConfigured } from "../law/config";
 import { isPostgresConfigured } from "../postgres-env";
 import { isProjectStoragePersistent } from "../project-persistence";
 import { isDatabaseAvailable } from "../prisma";
-import { readServerEnv } from "../server-env";
 import { getVWorldDomain, isVWorldConfigured } from "../vworld/config";
 
 export type IntegrationTone = "active" | "inactive" | "fallback";

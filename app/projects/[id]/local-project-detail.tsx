@@ -1,34 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
-import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
+import { Eyebrow, MutedText, PageTitle } from "@/components/typography";
 import type { Project } from "@/lib/types";
 import CompleteEvaluationButton from "../complete-evaluation-button";
 import {
   getLocalProjects,
   trashLocalProject,
+  useLocalProjects,
 } from "../local-project-storage";
 import { showToast } from "../../toast";
 import LandscapeZonePanel from "./landscape-zone-panel";
-import ProjectLocationEditor from "./project-location-editor";
-import ProjectMetadataEditor from "./project-metadata-editor";
+import ProjectOverviewPanel from "./project-overview-panel";
 import ProjectUploadSection from "./project-upload-section";
 
 export default function LocalProjectDetail({ projectId }: { projectId: string }) {
-  const [project, setProject] = useState<Project | null | undefined>(undefined);
+  const { projects: localProjects, hydrated } = useLocalProjects();
+  const [override, setOverride] = useState<Project | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(
-      () => setProject(getLocalProjects().find((item) => item.id === projectId) ?? null),
-      0,
-    );
-    return () => window.clearTimeout(timeout);
-  }, [projectId]);
+  const project: Project | null | undefined = hydrated
+    ? override ?? localProjects.find((item) => item.id === projectId) ?? null
+    : undefined;
+  const setProject = setOverride;
 
   if (project === undefined) {
     return (
@@ -99,30 +97,7 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
 
       <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
         <section className="space-y-5">
-          <Panel title="프로젝트 개요" action="브라우저 저장 프로젝트">
-            <ProjectMetadataEditor project={project} onUpdated={setProject} />
-            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-              <Info label="사업명" value={project.name} />
-              <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
-                <Eyebrow>사업위치</Eyebrow>
-                <p className="mt-2 font-semibold leading-6 text-[#172033]">{project.location}</p>
-                <ProjectLocationEditor project={project} onUpdated={setProject} />
-              </div>
-              <Info label="시행자" value={project.client} />
-              <Info label="설계자" value={project.designer} />
-              <Info label="사업유형" value={project.projectType} />
-              <Info label="규모" value={project.scale} />
-              <Info label="심의종류" value={project.reviewType} />
-              <Info label="접수일" value={project.receivedAt} />
-              <Info label="상태" value={project.status} />
-              {project.summary ? (
-                <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
-                  <Eyebrow>사업개요</Eyebrow>
-                  <p className="mt-2 whitespace-pre-wrap font-semibold leading-6 text-[#172033]">{project.summary}</p>
-                </div>
-              ) : null}
-            </div>
-          </Panel>
+          <ProjectOverviewPanel badgeLabel="브라우저 저장 프로젝트" project={project} onUpdated={setProject} />
 
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
 
@@ -133,26 +108,5 @@ export default function LocalProjectDetail({ projectId }: { projectId: string })
         </section>
       </div>
     </main>
-  );
-}
-
-function Panel({ title, action, children }: { title: string; action?: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <SubsectionTitle>{title}</SubsectionTitle>
-        {action ? <Badge className="bg-[#e8f1ff] text-[#2463b3]">{action}</Badge> : null}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <Eyebrow>{label}</Eyebrow>
-      <p className="mt-2 font-semibold leading-6 text-[#172033]">{value}</p>
-    </div>
   );
 }

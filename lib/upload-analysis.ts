@@ -10,7 +10,7 @@ import { buildFallbackRecommendation, isGenericRecommendation } from "./ai/fallb
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
-import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
+import { getGeminiModelsToTry } from "./ai/gemini-models";
 import { requestGeminiGenerateContent } from "./ai/gemini-request";
 import { describeGeminiResponseIssue, readGeminiGenerateContent } from "./ai/gemini-response";
 import { isProviderConfigured, selectProvider } from "./ai/select-provider";

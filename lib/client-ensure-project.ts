@@ -2,9 +2,10 @@
 
 import { extractApiErrorMessage } from "@/lib/extract-api-error-message";
 import type { Project } from "@/lib/types";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 export async function ensureProjectOnServer(project: Project): Promise<void> {
-  const response = await fetch(`/api/projects/${project.id}/ensure`, {
+  const response = await clientFetchWithTimeout(`/api/projects/${project.id}/ensure`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(project),

@@ -47,24 +47,27 @@ export default function ProjectUploadSection({
     roundsRef.current = rounds;
   }, [rounds]);
 
-  useEffect(() => {
+  // 서버에서 새 project prop이 내려오면 렌더 중에 상태를 보정한다.
+  // (effect 대신 "adjust state during render" 패턴 — 캐스케이드 렌더 방지)
+  const [lastSyncedProject, setLastSyncedProject] = useState(project);
+  if (lastSyncedProject !== project) {
+    setLastSyncedProject(project);
+
     const localProject = getLocalProjects().find((item) => item.id === project.id);
     const mergedProject = mergeProjectWithLocal(project, localProject);
 
     setActiveProject(mergedProject);
     setFiles(mergedProject.files);
     setTrashedRounds(getTrashedEvaluationRounds(mergedProject));
-    setRounds((current) => {
-      const next = resolveProjectRounds({
+    setRounds((current) =>
+      resolveProjectRounds({
         serverProject: project,
         localProject,
         currentRounds: current.length > 0 ? current : roundsRef.current,
         excludedRoundIds: excludedRoundIdsRef.current,
-      });
-      roundsRef.current = next;
-      return next;
-    });
-  }, [project]);
+      }),
+    );
+  }
 
   function syncRounds(
     nextRounds: EvaluationRound[],
