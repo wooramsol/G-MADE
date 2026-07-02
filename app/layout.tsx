@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ClearLegacyLocalProjects from "@/components/clear-legacy-local-projects";
 import "./globals.css";
 import GlobalHeader from "./global-header";
 import SiteFooter from "./site-footer";
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <span className="font-bold tracking-wide">STAGING:</span> 정식 서비스 배포 전 검증용 시범 운영 환경입니다. 문의: G-MADE HIVE 연구소장 정우람솔
         </div>
         <div className="pt-9">
+          <ClearLegacyLocalProjects />
           <ToastHost />
           <GlobalHeader />
           {children}

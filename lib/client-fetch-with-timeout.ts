@@ -1,3 +1,6 @@
+/** Vercel 함수 maxDuration(300s)에 맞춘 평가 스트림 클라이언트 타임아웃. */
+export const EVALUATION_STREAM_TIMEOUT_MS = 280_000;
+
 const DEFAULT_CLIENT_FETCH_TIMEOUT_MS = 120_000;
 
 export async function clientFetchWithTimeout(

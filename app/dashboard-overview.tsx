@@ -3,21 +3,22 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import {
+  Badge,
   MetricLabel,
   MetricValue,
   SectionDescription,
   SectionTitle,
+  SubsectionTitle,
 } from "@/components/typography";
-import { Panel } from "@/components/panel";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import {
   buildDashboardStats,
   getRecentProjects,
-  mergeManagedProjects,
+  sortProjectsByReceivedAt,
 } from "@/lib/dashboard-projects";
+import { filterActiveProjects } from "@/lib/trash";
 import type { DashboardRole } from "@/lib/dashboard-data";
 import type { Project } from "@/lib/types";
-import { useLocalProjects } from "./projects/local-project-storage";
 
 type DashboardOverviewProps = {
   serverProjects: Project[];
@@ -25,11 +26,9 @@ type DashboardOverviewProps = {
 };
 
 export default function DashboardOverview({ serverProjects, roles }: DashboardOverviewProps) {
-  const { projects: localProjects } = useLocalProjects();
-
   const projects = useMemo(
-    () => mergeManagedProjects(serverProjects, localProjects),
-    [localProjects, serverProjects],
+    () => filterActiveProjects(sortProjectsByReceivedAt(serverProjects)),
+    [serverProjects],
   );
   const stats = useMemo(() => buildDashboardStats(projects), [projects]);
   const recentProjects = useMemo(() => getRecentProjects(projects), [projects]);
@@ -43,23 +42,15 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
             프로젝트 관리에 등록된 심의 프로젝트의 평가대기·평가 진행 현황을 한 화면에서 확인합니다.
           </SectionDescription>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <MetricCard label="전체 프로젝트" value={stats.total.toString()} delta="등록된 심의 프로젝트" />
-          <MetricCard label="평가대기 중" value={stats.waiting.toString()} delta="평가 기록 없음" />
-          <MetricCard label="평가 중" value={stats.inEvaluation.toString()} delta="1건 이상 평가 진행" />
-          <MetricCard label="평가완료" value={stats.completed.toString()} delta="평가완료 처리된 프로젝트" />
+          <MetricCard label="평가대기" value={stats.waiting.toString()} delta="평가 기록 없음" />
+          <MetricCard label="평가중" value={stats.inEvaluation.toString()} delta="1건 이상 평가 진행" />
         </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-      <Panel
-        action={
-          <Link className="type-badge rounded-full bg-[#e8f1ff] px-3 py-1 text-[#2463b3]" href="/projects">
-            프로젝트 관리
-          </Link>
-        }
-        title="최근 프로젝트"
-      >
+      <Panel title="최근 프로젝트" action="프로젝트 관리">
         {recentProjects.length === 0 ? (
           <p className="rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
             등록된 프로젝트가 없습니다.{" "}
@@ -122,6 +113,26 @@ export default function DashboardOverview({ serverProjects, roles }: DashboardOv
   );
 }
 
+function Panel({ title, action, children }: { title: string; action?: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <SubsectionTitle>{title}</SubsectionTitle>
+        {action ? (
+          action === "프로젝트 관리" ? (
+            <Link className="type-badge rounded-full bg-[#e8f1ff] px-3 py-1 text-[#2463b3]" href="/projects">
+              {action}
+            </Link>
+          ) : (
+            <Badge className="bg-[#e8f1ff] text-[#2463b3]">{action}</Badge>
+          )
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function MetricCard({ label, value, delta }: { label: string; value: string; delta: string }) {
   return (
     <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
@@ -131,4 +142,3 @@ function MetricCard({ label, value, delta }: { label: string; value: string; del
     </div>
   );
 }
-

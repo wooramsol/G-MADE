@@ -39,7 +39,7 @@ export function describeGeminiResponseIssue(input: {
   }
 
   if (input.finishReason === "MAX_TOKENS") {
-    return "Gemini 출력 토큰 한도에 도달해 JSON 응답이 잘렸습니다. 평가 항목 수를 줄이거나 ChatGPT를 사용해 주세요.";
+    return "Gemini 출력이 길이 제한에 걸려 JSON이 잘렸습니다. 잠시 후 다시 시도하거나 ChatGPT를 사용해 주세요.";
   }
 
   if (!input.hasText) {

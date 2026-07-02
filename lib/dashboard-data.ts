@@ -1,5 +1,5 @@
 import { roles as demoRoles } from "./demo-data";
-import { buildDashboardStats, getRecentProjects, mergeManagedProjects } from "./dashboard-projects";
+import { buildDashboardStats, getRecentProjects } from "./dashboard-projects";
 import { getAllProjects } from "./project-store";
 import type { Role } from "@prisma/client";
 import { getPrismaClient, isDatabaseAvailable } from "./prisma";
@@ -61,4 +61,4 @@ function mapDemoRole(role: (typeof demoRoles)[number]): DashboardRole {
   };
 }
 
-export { mergeManagedProjects, buildDashboardStats, getRecentProjects };
+export { buildDashboardStats, getRecentProjects };

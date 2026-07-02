@@ -1,5 +1,5 @@
 import { getProjectEvaluationRounds } from "./evaluation-rounds";
-import { mergeEvaluationRounds } from "./merge-project-state";
+import { getTrashedEvaluationRoundIds } from "./trash";
 import type { EvaluationRound, Project } from "./types";
 
 function sortRounds(rounds: EvaluationRound[]): EvaluationRound[] {
@@ -26,7 +26,10 @@ function withoutExcluded(rounds: EvaluationRound[], excludedRoundIds?: ReadonlyS
   return rounds.filter((round) => !excludedRoundIds.has(round.id));
 }
 
-/** 서버·로컬·현재 React 상태의 평가 차수를 합칩니다. 신규 분석 직후 서버가 비어 있어도 차수가 줄지 않습니다. */
+/**
+ * 서버 evaluationRounds를 기준으로 표시 목록을 만듭니다.
+ * 분석 직후처럼 아직 서버에 반영되지 않은 currentRounds만 임시로 합칩니다.
+ */
 export function resolveProjectRounds({
   serverProject,
   localProject,
@@ -38,17 +41,28 @@ export function resolveProjectRounds({
   currentRounds?: EvaluationRound[];
   excludedRoundIds?: ReadonlySet<string>;
 }): EvaluationRound[] {
-  const serverRounds = withoutExcluded(getProjectEvaluationRounds(serverProject), excludedRoundIds);
-  const localRounds = withoutExcluded(
+  const trashedRoundIds = getTrashedEvaluationRoundIds(serverProject, localProject);
+
+  if (Array.isArray(serverProject.evaluationRounds)) {
+    const serverActive = withoutExcluded(serverProject.evaluationRounds, excludedRoundIds).filter(
+      (round) => !trashedRoundIds.has(round.id),
+    );
+    const serverIds = new Set(serverActive.map((round) => round.id));
+    const pendingCurrent = withoutExcluded(currentRounds ?? [], excludedRoundIds).filter(
+      (round) => !trashedRoundIds.has(round.id) && !serverIds.has(round.id),
+    );
+
+    return unionRounds(pendingCurrent, serverActive);
+  }
+
+  const localActive = withoutExcluded(
     localProject ? getProjectEvaluationRounds(localProject) : [],
     excludedRoundIds,
+  ).filter((round) => !trashedRoundIds.has(round.id));
+  const localIds = new Set(localActive.map((round) => round.id));
+  const pendingCurrent = withoutExcluded(currentRounds ?? [], excludedRoundIds).filter(
+    (round) => !trashedRoundIds.has(round.id) && !localIds.has(round.id),
   );
-  const mergedMeta = mergeEvaluationRounds(serverProject.evaluationRounds, localProject?.evaluationRounds);
-  const mergedFromMeta = withoutExcluded(
-    mergedMeta ? getProjectEvaluationRounds({ ...serverProject, evaluationRounds: mergedMeta }) : [],
-    excludedRoundIds,
-  );
-  const safeCurrent = withoutExcluded(currentRounds ?? [], excludedRoundIds);
 
-  return unionRounds(safeCurrent, mergedFromMeta, localRounds, serverRounds);
+  return unionRounds(pendingCurrent, localActive);
 }

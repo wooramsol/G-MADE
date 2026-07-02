@@ -1,8 +1,10 @@
 export const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6";
 
+export const CLAUDE_FAST_MODEL = "claude-haiku-4-5";
+
 const claudeModelFallbacks = [
   DEFAULT_CLAUDE_MODEL,
-  "claude-haiku-4-5",
+  CLAUDE_FAST_MODEL,
   "claude-sonnet-4-5",
   "claude-haiku-4-5-20251001",
   "claude-sonnet-4-20250514",

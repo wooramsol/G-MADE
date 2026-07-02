@@ -22,8 +22,8 @@ export const roles: Array<{ code: RoleCode; label: string; authority: string }> 
 ];
 
 export const hybridSettings: HybridSettings = {
-  aiWeight: 30,
-  humanWeight: 70,
+  aiWeight: 100,
+  humanWeight: 0,
 };
 
 export const evaluationItems: EvaluationItem[] = [

@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ErrorText, FormLabel } from "@/components/typography";
 import type { Project } from "@/lib/types";
-import { getLocalProjects, saveLocalProject } from "../local-project-storage";
 import { showToast } from "../../toast";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
@@ -100,22 +99,11 @@ export default function ProjectMetadataEditor({
         project?: Project;
       };
 
-      let updatedProject: Project;
-
-      if (response.ok && payload.project) {
-        updatedProject = payload.project;
-      } else if (response.status === 404 || response.status === 401) {
-        const local = getLocalProjects().find((item) => item.id === project.id);
-        updatedProject = {
-          ...(local ?? project),
-          ...patch,
-          updatedAt: new Date().toISOString(),
-        };
-      } else {
+      if (!response.ok || !payload.project) {
         throw new Error(payload.error ?? "프로젝트 정보 수정에 실패했습니다.");
       }
 
-      saveLocalProject(updatedProject);
+      const updatedProject = payload.project;
       onUpdated?.(updatedProject);
       setForm(toFormState(updatedProject));
       router.refresh();

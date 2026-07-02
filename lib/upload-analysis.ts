@@ -1,16 +1,21 @@
 import { analyzeWithClaude } from "./ai/analyze-claude";
+import { prepareFilesForClaudeAnalysis } from "./ai/claude-analysis-prep";
+import { shouldIncludeClaudeVision } from "./ai/anthropic-request";
 import { AiAnalysisError } from "./ai/analysis-error";
-import { getGeminiApiKey, getGeminiModel, getOpenAiApiKey } from "./ai/env-keys";
+import { getGeminiApiKey, getGeminiModel, getOpenAiApiKey, getOpenAiModel } from "./ai/env-keys";
 import { buildAnalysisPrompt } from "./ai/analysis-prompt";
 import type { AnalysisPromptOptions } from "./ai/analysis-prompt-options";
+import { buildClaudeUserBlocks, buildGeminiUserParts, buildOpenAiUserContent } from "./ai/multimodal-payload";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
+import { GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS, OPENAI_ANALYSIS_MAX_COMPLETION_TOKENS } from "./ai/output-token-limits";
 import { chunkEvaluationItems, getProviderItemBatchSize, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
-import { buildFallbackRecommendation, isGenericRecommendation } from "./ai/fallback-recommendation";
+import { sanitizeDocumentSectionSummary } from "./ai/document-section-summary";
+import { filterVerifiedGuidelineRefs, filterVerifiedLawRefs, resolveGroundedRationale, resolveGroundedRecommendation, sanitizeGroundedSummary } from "./ai/grounding-guard";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
-import { getGeminiModelsToTry } from "./ai/gemini-models";
+import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
 import { requestGeminiGenerateContent } from "./ai/gemini-request";
 import { describeGeminiResponseIssue, readGeminiGenerateContent } from "./ai/gemini-response";
 import { isProviderConfigured, selectProvider } from "./ai/select-provider";
@@ -39,7 +44,7 @@ const sectionLabels = [
 ];
 
 export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Promise<UploadAnalysisResult> {
-  const { providerPreference, files, evaluationContext } = input;
+  const { providerPreference, files, evaluationContext, onAnalysisProgress } = input;
   const items = input.evaluationItems?.length ? input.evaluationItems : defaultEvaluationItems;
   const baseWarnings = [...evaluationContext.warnings];
 
@@ -50,12 +55,12 @@ export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Pr
 
   if (providerPreference === "gemini") {
     ensureProviderConfigured("gemini");
-    return analyzeWithGemini(files, evaluationContext, items, baseWarnings);
+    return analyzeWithGemini(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
   if (providerPreference === "claude") {
     ensureProviderConfigured("claude");
-    return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings);
+    return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
   const provider = selectProvider("auto");
@@ -70,10 +75,10 @@ export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Pr
   }
 
   if (provider === "gemini") {
-    return analyzeWithGemini(files, evaluationContext, items, baseWarnings);
+    return analyzeWithGemini(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
-  return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings);
+  return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
 }
 
 function ensureProviderConfigured(provider: "openai" | "gemini" | "claude") {
@@ -97,20 +102,6 @@ async function analyzeWithOpenAi(
   items: EvaluationItem[],
   baseWarnings: string[],
 ): Promise<UploadAnalysisResult> {
-  if (shouldBatchProviderAnalysis("openai", items.length)) {
-    return analyzeProviderInBatches("openai", files, evaluationContext, items, baseWarnings);
-  }
-
-  return analyzeWithOpenAiOnce(files, evaluationContext, items, baseWarnings);
-}
-
-async function analyzeWithOpenAiOnce(
-  files: UploadedFileSummary[],
-  evaluationContext: EvaluationContext,
-  items: EvaluationItem[],
-  baseWarnings: string[],
-  promptOptions?: AnalysisPromptOptions,
-): Promise<UploadAnalysisResult> {
   const apiKey = getOpenAiApiKey();
   if (!apiKey) {
     throw new AiAnalysisError(
@@ -119,21 +110,27 @@ async function analyzeWithOpenAiOnce(
     );
   }
 
-  let lastStatus = 500;
-  let lastBody = "";
-
   try {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+    const openAiContent = buildOpenAiUserContent(files, buildAnalysisPrompt(files, evaluationContext, items));
+    const hasVisionImages = openAiContent.some((part) => part.type === "image_url");
+    const warnings = [...baseWarnings];
+    if (!hasVisionImages && files.some((file) => file.visionAssets?.some((asset) => asset.mediaType === "application/pdf"))) {
+      warnings.push(
+        "ChatGPT(OpenAI)는 PDF 원본 비전 입력을 지원하지 않아 PDF 본문 텍스트 위주로 분석합니다. 도면·스캔 PDF는 Gemini 또는 Claude 사용을 권장합니다.",
+      );
+    }
+
+    const response = await fetchWithTimeout(
+      "https://api.openai.com/v1/chat/completions",
+      {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+          model: getOpenAiModel() ?? "gpt-4o",
           response_format: { type: "json_object" },
-          max_tokens: 8192,
           messages: [
             {
               role: "system",
@@ -141,41 +138,28 @@ async function analyzeWithOpenAiOnce(
             },
             {
               role: "user",
-              content: buildAnalysisPrompt(files, evaluationContext, items, promptOptions),
+              content: buildOpenAiUserContent(files, buildAnalysisPrompt(files, evaluationContext, items)),
             },
           ],
           temperature: 0.2,
+          max_completion_tokens: OPENAI_ANALYSIS_MAX_COMPLETION_TOKENS,
         }),
-      });
+      },
+      240_000,
+    );
 
-      if (response.ok) {
-        const payload = await response.json();
-        const choice = payload.choices?.[0];
-        if (choice?.finish_reason === "length") {
-          throw new AiAnalysisError(
-            "ChatGPT 출력 토큰 한도에 도달해 JSON 응답이 잘렸습니다. 평가 항목이 많으면 자동 분할 분석이 적용됩니다. 다시 시도해 주세요.",
-            "openai",
-          );
-        }
-        return normalizeAiJson(choice?.message?.content, files, "openai", evaluationContext, items, baseWarnings);
-      }
-
-      lastStatus = response.status;
-      lastBody = await response.text();
-
-      if (isRetryableProviderError(response.status, lastBody) && attempt < 2) {
-        await sleep(retryDelayMs(attempt));
-        continue;
-      }
-
-      break;
+    if (!response.ok) {
+      const message = await response.text();
+      throw new AiAnalysisError(formatProviderApiError("openai", "OpenAI", response.status, message), "openai");
     }
+
+    const payload = await response.json();
+    const content = payload.choices?.[0]?.message?.content;
+    return normalizeAiJson(content, files, "openai", evaluationContext, items, warnings);
   } catch (error) {
     if (error instanceof AiAnalysisError) throw error;
     throw new AiAnalysisError(formatProviderTransportError("OpenAI", error), "openai");
   }
-
-  throw new AiAnalysisError(formatProviderApiError("openai", "OpenAI", lastStatus, lastBody), "openai");
 }
 
 async function analyzeWithGemini(
@@ -183,11 +167,13 @@ async function analyzeWithGemini(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   baseWarnings: string[],
+  onAnalysisProgress?: (label: string) => void,
 ): Promise<UploadAnalysisResult> {
   if (shouldBatchProviderAnalysis("gemini", items.length)) {
-    return analyzeProviderInBatches("gemini", files, evaluationContext, items, baseWarnings);
+    return analyzeProviderInBatches("gemini", files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
+  onAnalysisProgress?.("Gemini AI 평가 분석");
   return analyzeWithGeminiOnce(files, evaluationContext, items, baseWarnings);
 }
 
@@ -196,20 +182,23 @@ async function analyzeWithClaudeBatched(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   baseWarnings: string[],
+  onAnalysisProgress?: (label: string) => void,
 ): Promise<UploadAnalysisResult> {
   if (shouldBatchProviderAnalysis("claude", items.length)) {
-    return analyzeProviderInBatches("claude", files, evaluationContext, items, baseWarnings);
+    return analyzeProviderInBatches("claude", files, evaluationContext, items, baseWarnings, onAnalysisProgress);
   }
 
+  onAnalysisProgress?.("Claude AI 평가 분석");
   return analyzeWithClaudeOnce(files, evaluationContext, items, baseWarnings);
 }
 
 async function analyzeProviderInBatches(
-  provider: "gemini" | "claude" | "openai",
+  provider: "gemini" | "claude",
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   baseWarnings: string[],
+  onAnalysisProgress?: (label: string) => void,
 ): Promise<UploadAnalysisResult> {
   const batches = chunkEvaluationItems(items, getProviderItemBatchSize(provider));
   const mergedWarnings = [...baseWarnings];
@@ -223,13 +212,16 @@ async function analyzeProviderInBatches(
     const promptOptions: AnalysisPromptOptions = {
       compact: true,
       evaluationOnly: index > 0,
+      includeVision: provider === "claude" ? index === 0 : undefined,
+      batchCount: batches.length,
     };
+    onAnalysisProgress?.(
+      `${providerLabel(provider)} 분석 중 (${index + 1}/${batches.length}회차, 항목 ${batchItems.length}개)`,
+    );
     const partial =
       provider === "gemini"
         ? await analyzeWithGeminiOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions)
-        : provider === "claude"
-          ? await analyzeWithClaudeOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions)
-          : await analyzeWithOpenAiOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions);
+        : await analyzeWithClaudeOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions);
     partials.push(partial);
   }
 
@@ -237,7 +229,7 @@ async function analyzeProviderInBatches(
 }
 
 function mergeBatchAnalysisResults(
-  provider: "gemini" | "claude" | "openai",
+  provider: "gemini" | "claude",
   partials: UploadAnalysisResult[],
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
@@ -248,32 +240,13 @@ function mergeBatchAnalysisResults(
     throw new AiAnalysisError(`${providerLabel(provider)} 분할 분석 결과가 비어 있습니다.`, provider);
   }
 
-  // 배치 간 중복 itemId 제거 (뒤 배치가 앞 배치를 덮어쓰지 않도록 첫 결과 유지)
-  const seenItemIds = new Set<string>();
-  const evaluationPreview = partials
-    .flatMap((partial) => partial.evaluationPreview)
-    .filter((row) => {
-      if (seenItemIds.has(row.itemId)) return false;
-      seenItemIds.add(row.itemId);
-      return true;
-    });
-
-  const missingItems = items.filter((item) => !seenItemIds.has(item.id));
-  if (missingItems.length > 0) {
-    warnings.push(
-      `분할 분석 결과에서 ${missingItems.length}개 항목(${missingItems
-        .map((item) => item.detailItem)
-        .join(", ")})의 결과가 누락되었습니다. 재분석을 권장합니다.`,
-    );
-  }
-
   return attachContextMetadata(
     {
       provider,
       mode: "live",
       summary: first.summary,
       documentSections: first.documentSections,
-      evaluationPreview,
+      evaluationPreview: partials.flatMap((partial) => partial.evaluationPreview),
       warnings,
     },
     evaluationContext,
@@ -288,13 +261,24 @@ async function analyzeWithClaudeOnce(
   baseWarnings: string[],
   promptOptions?: AnalysisPromptOptions,
 ): Promise<UploadAnalysisResult> {
+  const warnings = [...baseWarnings];
+  const prepared = prepareFilesForClaudeAnalysis(files);
+  warnings.push(...prepared.warnings);
+
+  const hasVisionAssets = prepared.files.some((file) => (file.visionAssets ?? []).length > 0);
+  if (hasVisionAssets && !shouldIncludeClaudeVision(prepared.files)) {
+    warnings.push(
+      "Claude PDF·이미지 비전 입력이 API 요청 한도(약 32MB)에 가까워 추출된 텍스트 위주로 분석합니다. 스캔 PDF는 Gemini 사용을 권장합니다.",
+    );
+  }
+
   return analyzeWithClaude(
-    files,
+    prepared.files,
     evaluationContext,
     items,
     {
       normalizeAiJson: (content, batchItems) =>
-        normalizeAiJson(content, files, "claude", evaluationContext, batchItems, baseWarnings),
+        normalizeAiJson(content, prepared.files, "claude", evaluationContext, batchItems, warnings),
     },
     promptOptions,
   );
@@ -388,16 +372,16 @@ async function requestGemini(
       contents: [
         {
           role: "user",
-          parts: [{ text: buildAnalysisPrompt(files, evaluationContext, items, promptOptions) }],
+          parts: buildGeminiUserParts(files, buildAnalysisPrompt(files, evaluationContext, items, promptOptions)),
         },
       ],
       generationConfig: {
         temperature: 0.2,
         responseMimeType: "application/json",
-        maxOutputTokens: 8192,
+        maxOutputTokens: GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS,
       },
     },
-    110_000,
+    240_000,
   );
 }
 
@@ -426,7 +410,14 @@ function normalizeAiJson(
     );
   }
 
-  const evaluationPreview = normalizeEvaluations(parsed.evaluationPreview, evaluationContext, items, files, baseWarnings);
+  const groundingWarnings: string[] = [];
+  const evaluationPreview = normalizeEvaluations(
+    parsed.evaluationPreview,
+    evaluationContext,
+    items,
+    files,
+    groundingWarnings,
+  );
   if (evaluationPreview.length === 0) {
     throw new AiAnalysisError(
       `${providerLabel(provider)} 분석 결과에 평가 항목이 없습니다. 자료 추출 또는 모델 응답을 확인한 뒤 다시 시도해 주세요.`,
@@ -434,14 +425,21 @@ function normalizeAiJson(
     );
   }
 
+  const summaryResult = sanitizeGroundedSummary(
+    String(parsed.summary ?? "업로드 자료와 실시간 법령·경관지구 정보를 기반으로 AI 분석을 완료했습니다."),
+    files,
+    evaluationContext,
+  );
+  if (summaryResult.warning) groundingWarnings.push(summaryResult.warning);
+
   return attachContextMetadata(
     {
       provider,
       mode: "live",
-      summary: String(parsed.summary ?? "업로드 자료와 실시간 법령·경관지구 정보를 기반으로 AI 분석을 완료했습니다."),
-      documentSections: normalizeSections(parsed.documentSections),
+      summary: summaryResult.text,
+      documentSections: normalizeSections(parsed.documentSections, files, evaluationContext, groundingWarnings),
       evaluationPreview,
-      warnings: baseWarnings,
+      warnings: [...baseWarnings, ...groundingWarnings],
     },
     evaluationContext,
     items,
@@ -452,143 +450,77 @@ function providerLabel(provider: "openai" | "gemini" | "claude"): string {
   return provider === "openai" ? "ChatGPT" : provider === "gemini" ? "Gemini" : "Claude";
 }
 
-function normalizeSections(value: unknown): UploadAnalysisResult["documentSections"] {
+function normalizeSections(
+  value: unknown,
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  groundingWarnings: string[],
+): UploadAnalysisResult["documentSections"] {
   if (!Array.isArray(value) || value.length === 0) return [];
 
-  return value.slice(0, 10).map((section, index) => ({
-    label: String(section?.label ?? sectionLabels[index] ?? "분석항목"),
-    confidence: clampNumber(Number(section?.confidence ?? 75)),
-    summary: String(section?.summary ?? "AI가 해당 자료를 분석했습니다."),
-  }));
+  return value.slice(0, 10).map((section, index) => {
+    const label = String(section?.label ?? sectionLabels[index] ?? "분석항목");
+    const rawSummary = String(section?.summary ?? "");
+    const summaryResult = sanitizeDocumentSectionSummary(label, rawSummary, files, evaluationContext);
+    if (summaryResult.warning) {
+      groundingWarnings.push(`${label} 요약: ${summaryResult.warning}`);
+    }
+
+    return {
+      label,
+      confidence: clampNumber(Number(section?.confidence ?? 75)),
+      summary: summaryResult.text,
+    };
+  });
 }
 
-function normalizeItemName(value: string): string {
-  return value.toLowerCase().replace(/[\s·().,\-_/]/g, "");
-}
-
-/**
- * AI 응답의 evaluationPreview를 평가항목에 매핑한다.
- *
- * 응답 순서·개수가 요청과 다를 수 있으므로 itemName으로 매칭하고,
- * 매칭되지 않은 행은 남은 항목에 순서대로 배정한다. 응답에서 누락된 항목은
- * 기본 근거로 보완하고 경고를 남긴다 (조용한 오매핑·누락 방지).
- */
 function normalizeEvaluations(
   value: unknown,
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   files: UploadedFileSummary[] = [],
-  warnings?: string[],
+  groundingWarnings: string[] = [],
 ): UploadAnalysisResult["evaluationPreview"] {
   if (!Array.isArray(value) || value.length === 0) return [];
 
   const defaultGuidelineRefs = evaluationContext.guidelines.slice(0, 2).map((guide) => `${guide.title} ${guide.section}`);
 
-  const itemsByName = new Map<string, EvaluationItem>();
-  for (const item of items) {
-    itemsByName.set(normalizeItemName(item.detailItem), item);
-  }
-
-  const rowByItemId = new Map<string, Record<string, unknown>>();
-  const unmatchedRows: Record<string, unknown>[] = [];
-
-  for (const raw of value) {
-    const row = (raw ?? {}) as Record<string, unknown>;
-    const rowName = normalizeItemName(String(row.itemName ?? ""));
-    const matched =
-      itemsByName.get(rowName) ??
-      (rowName
-        ? items.find((item) => {
-            const itemName = normalizeItemName(item.detailItem);
-            return itemName.includes(rowName) || rowName.includes(itemName);
-          })
-        : undefined);
-
-    if (matched && !rowByItemId.has(matched.id)) {
-      rowByItemId.set(matched.id, row);
-    } else {
-      unmatchedRows.push(row);
-    }
-  }
-
-  // 이름 매칭에 실패한 행은 아직 결과가 없는 항목에 순서대로 배정
-  for (const item of items) {
-    if (rowByItemId.has(item.id)) continue;
-    const nextRow = unmatchedRows.shift();
-    if (!nextRow) break;
-    rowByItemId.set(item.id, nextRow);
-  }
-
-  const missingItems = items.filter((item) => !rowByItemId.has(item.id));
-  if (missingItems.length > 0 && warnings) {
-    warnings.push(
-      `AI 응답에서 ${missingItems.length}개 항목(${missingItems
-        .map((item) => item.detailItem)
-        .join(", ")})이 누락되어 평가 기준 기반 기본 근거로 표시합니다. 해당 항목은 재분석을 권장합니다.`,
+  return value.slice(0, Math.max(items.length, 8)).map((row, index) => {
+    const item = items[index % items.length];
+    const score = clampNumber(Number(row?.score ?? 80 - index * 2));
+    const aiLawRefs = filterVerifiedLawRefs(
+      Array.isArray(row?.lawRefs) ? row.lawRefs.map((law: unknown) => String(law)).filter(Boolean) : [],
+      evaluationContext,
     );
-  }
+    const aiGuidelineRefs = filterVerifiedGuidelineRefs(
+      Array.isArray(row?.guidelineRefs)
+        ? row.guidelineRefs.map((guide: unknown) => String(guide)).filter(Boolean)
+        : [],
+      evaluationContext,
+    );
 
-  const matchedScores = [...rowByItemId.values()]
-    .map((row) => Number(row.score))
-    .filter((score) => Number.isFinite(score));
-  const fallbackScore = clampNumber(
-    matchedScores.length > 0
-      ? matchedScores.reduce((sum, score) => sum + score, 0) / matchedScores.length
-      : 60,
-  );
-
-  return items.map((item) => {
-    const row = rowByItemId.get(item.id);
-    const score = clampNumber(Number(row?.score ?? fallbackScore));
-    const aiLawRefs = Array.isArray(row?.lawRefs)
-      ? row.lawRefs.map((law: unknown) => String(law)).filter(Boolean)
-      : [];
-    const aiGuidelineRefs = Array.isArray(row?.guidelineRefs)
-      ? row.guidelineRefs.map((guide: unknown) => String(guide)).filter(Boolean)
-      : [];
+    const rationaleResult = resolveGroundedRationale(row?.rationale, item, files, evaluationContext);
+    const recommendationResult = resolveGroundedRecommendation(
+      row?.recommendation,
+      item,
+      files,
+      evaluationContext,
+      score,
+    );
+    if (rationaleResult.warning) groundingWarnings.push(rationaleResult.warning);
+    if (recommendationResult.warning) groundingWarnings.push(recommendationResult.warning);
 
     return {
       itemId: item.id,
-      itemName: item.detailItem,
+      itemName: String(row?.itemName ?? item.detailItem),
       score,
       grade: String(row?.grade ?? gradeScore(score)),
-      rationale: String(row?.rationale ?? buildFallbackRationale(item.criteria, evaluationContext)),
-      recommendation: resolveRecommendation(row?.recommendation, item, files, score),
+      rationale: rationaleResult.text,
+      recommendation: recommendationResult.text,
       laws: aiLawRefs,
       guidelines: aiGuidelineRefs.length > 0 ? aiGuidelineRefs : defaultGuidelineRefs,
     };
   });
-}
-
-function resolveRecommendation(
-  raw: unknown,
-  item: EvaluationItem,
-  files: UploadedFileSummary[],
-  score: number,
-): string {
-  const text = typeof raw === "string" ? raw.trim() : "";
-  if (text && !isGenericRecommendation(text)) {
-    return text;
-  }
-
-  return buildFallbackRecommendation(item, files, score);
-}
-
-function buildFallbackRationale(criteria: string, evaluationContext: EvaluationContext): string {
-  const lawRef = evaluationContext.referenceLaws[0];
-  const spatial = evaluationContext.spatial;
-  const parts = [criteria];
-
-  if (lawRef) {
-    parts.push(`${lawRef.title} ${lawRef.article} 및 실시간 법령 조회 결과를 참고함.`);
-  }
-  if (spatial?.matchedZones[0]) {
-    parts.push(`인근 경관지구: ${spatial.matchedZones[0].name}.`);
-  } else if (spatial) {
-    parts.push("경관지구 조회 반경 내 해당 레이어는 확인되지 않음.");
-  }
-
-  return parts.join(" ");
 }
 
 function attachContextMetadata(

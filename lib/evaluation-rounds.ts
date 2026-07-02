@@ -1,54 +1,13 @@
-import { evaluationItems as defaultEvaluationItems } from "./demo-data";
 import type { EvaluationItem, EvaluationRound, Project } from "./types";
+import { evaluationItems as defaultEvaluationItems } from "./demo-data";
 
 export function createDefaultEvaluationItems(): EvaluationItem[] {
   return defaultEvaluationItems.map((item) => ({ ...item }));
 }
 
+/** 평가 차수는 evaluationRounds 배열만 사용합니다. (레거시 uploadAnalyses 복원 금지) */
 export function getProjectEvaluationRounds(project: Project): EvaluationRound[] {
-  if (Array.isArray(project.evaluationRounds)) {
-    return project.evaluationRounds;
-  }
-
-  const aiSessions = [...(project.uploadAnalyses ?? [])].sort(
-    (a, b) => new Date(a.analyzedAt).getTime() - new Date(b.analyzedAt).getTime(),
-  );
-  const expertSessions = [...(project.humanEvaluationSessions ?? [])].sort(
-    (a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime(),
-  );
-
-  const count = Math.max(aiSessions.length, expertSessions.length);
-  if (count === 0) return [];
-
-  return Array.from({ length: count }, (_, index) => {
-    const ai = aiSessions[index];
-    const expert = expertSessions[index];
-    const evaluatedAt = ai?.analyzedAt ?? expert?.uploadedAt ?? new Date().toISOString();
-
-    return {
-      id: ai?.id ?? expert?.id ?? `legacy-round-${index}`,
-      evaluatedAt,
-      aiWeight: ai?.aiWeight ?? 30,
-      expertWeight: ai?.expertWeight ?? 70,
-      evaluationItems: createDefaultEvaluationItems(),
-      totalPoints: ai?.totalPoints ?? createDefaultEvaluationItems().reduce((sum, item) => sum + item.points, 0),
-      reviewerName: expert?.reviewerName ?? "전문가",
-      expertSummary: expert?.summary,
-      aiFiles: ai?.files ?? [],
-      expertFiles: expert?.files ?? [],
-      aiAnalysis:
-        ai?.analysis ??
-        ({
-          provider: "demo",
-          mode: "demo",
-          summary: "AI 분석 결과가 없습니다.",
-          documentSections: [],
-          evaluationPreview: [],
-          warnings: [],
-        } as EvaluationRound["aiAnalysis"]),
-      expertItemScores: expert?.itemScores ?? [],
-    };
-  });
+  return Array.isArray(project.evaluationRounds) ? project.evaluationRounds : [];
 }
 
 export function createEmptyEvaluationItem(index: number): EvaluationItem {

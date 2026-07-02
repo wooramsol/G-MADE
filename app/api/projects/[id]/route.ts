@@ -3,19 +3,34 @@ import { requireApiRole, requireApiSession } from "@/lib/api-auth";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import {
   getProjectById,
-  getStoredProjectRecord,
+  getProjectRecordById,
   isDemoProjectId,
   purgeProjectRecord,
   trashProjectRecord,
   updateProject,
 } from "@/lib/project-store";
+import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { deleteSavedUploadFiles, storedRefsToSavedFiles } from "@/lib/save-uploaded-files";
+import { isProjectTrashed } from "@/lib/trash";
 
 const PROJECT_STATUSES = new Set(["접수", "심사 진행중", "완료"]);
 import type { EvaluationItem } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
+
+  const { id } = await params;
+  const project = await getProjectById(id);
+  if (!project) {
+    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  return NextResponse.json({ project });
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const authResult = await requireApiSession();
@@ -100,6 +115,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "프로젝트를 수정할 수 없습니다." }, { status: 404 });
     }
 
+    revalidateProjectViews(id);
     return NextResponse.json({ project });
   } catch {
     return NextResponse.json({ error: "프로젝트 수정 중 오류가 발생했습니다." }, { status: 500 });
@@ -144,23 +160,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const roleResult = await requireApiRole("ADMIN", "OFFICER");
     if (roleResult.response) return roleResult.response;
 
-    if (isDemoProjectId(id)) {
-      // 데모 프로젝트는 tombstone으로 영구히 숨긴다. (과거 브라우저에서만
-      // 휴지통 처리되어 서버 오버레이가 없는 경우도 tombstone을 생성한다.)
-      const purged = await purgeProjectRecord(id);
-      if (!purged) {
-        return NextResponse.json({ error: "영구 삭제할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
-      }
-      return NextResponse.json({ ok: true });
+    const record = await getProjectRecordById(id);
+
+    if (!record) {
+      return NextResponse.json({ error: "영구 삭제할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const stored = await getStoredProjectRecord(id);
-
-    if (!stored) {
-      return NextResponse.json({ ok: true });
-    }
-
-    if (!stored.deletedAt) {
+    if (!isProjectTrashed(record)) {
       return NextResponse.json({ error: "휴지통에 있는 프로젝트만 영구 삭제할 수 있습니다." }, { status: 400 });
     }
 
@@ -170,9 +176,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     // 고아 Blob 방지: 프로젝트에 연결된 업로드 파일을 함께 삭제한다.
-    const storedFiles = collectProjectStoredFiles(stored);
-    await deleteSavedUploadFiles(storedRefsToSavedFiles(storedFiles)).catch(() => undefined);
+    // (데모 프로젝트는 원본 데모 파일 메타를 포함할 수 있어 제외)
+    if (!isDemoProjectId(id)) {
+      const storedFiles = collectProjectStoredFiles(record);
+      await deleteSavedUploadFiles(storedRefsToSavedFiles(storedFiles)).catch(() => undefined);
+    }
 
+    revalidateProjectViews(id);
     return NextResponse.json({ ok: true });
   }
 
@@ -186,5 +196,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ error: "프로젝트를 휴지통으로 이동하지 못했습니다." }, { status: 404 });
   }
 
+  revalidateProjectViews(id);
   return NextResponse.json({ project });
 }

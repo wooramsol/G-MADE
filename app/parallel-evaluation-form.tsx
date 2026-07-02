@@ -9,6 +9,7 @@ import { exceedsServerlessUploadLimit, SERVERLESS_UPLOAD_LIMIT_LABEL } from "@/l
 import { toClientAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { createDefaultEvaluationItems } from "@/lib/evaluation-rounds";
 import {
+  DEFAULT_AI_WEIGHT,
   getExpertWeight,
   requiresAiUploadMaterials,
   requiresEvaluationUploadMaterials,
@@ -56,7 +57,7 @@ export default function ParallelEvaluationForm({
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [selectedRefs, setSelectedRefs] = useState<StoredFileRef[]>([]);
   const [reviewerName, setReviewerName] = useState("");
-  const [aiWeight, setAiWeight] = useState(30);
+  const [aiWeight, setAiWeight] = useState(DEFAULT_AI_WEIGHT);
   const [provider, setProvider] = useState<AiProviderPreference | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -296,7 +297,7 @@ export default function ParallelEvaluationForm({
             type="button"
             onClick={submitEvaluation}
           >
-            {loading ? (uploadProgress ?? "분석 중 (최대 2분)...") : "하이브리드 평가 분석"}
+            {loading ? (uploadProgress ?? "분석 중 (최대 5분)...") : "하이브리드 평가 분석"}
           </button>
           {itemsDirty ? (
             <p className="mt-3 text-xs font-semibold text-amber-800">
@@ -324,13 +325,13 @@ function resolveNextEvaluationRounds(
   project: ParallelEvaluationFormProps["project"],
   payload: EvaluationRoundApiResponse,
 ): EvaluationRound[] {
-  const existing = project.evaluationRounds ?? [];
-  const fromServer = payload.project?.evaluationRounds ?? [];
-  const byId = new Map<string, EvaluationRound>();
-
-  for (const round of [...existing, ...fromServer, payload.round]) {
-    byId.set(round.id, round);
+  if (Array.isArray(payload.project?.evaluationRounds)) {
+    return payload.project.evaluationRounds;
   }
+
+  const existing = project.evaluationRounds ?? [];
+  const byId = new Map(existing.map((round) => [round.id, round]));
+  byId.set(payload.round.id, payload.round);
 
   return Array.from(byId.values()).sort(
     (left, right) => new Date(right.evaluatedAt).getTime() - new Date(left.evaluatedAt).getTime(),

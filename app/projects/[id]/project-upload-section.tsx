@@ -1,23 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { getProjectEvaluationRounds } from "@/lib/evaluation-rounds";
-import { mergeProjectWithLocal } from "@/lib/merge-project-state";
-import { resolveProjectRounds } from "@/lib/resolve-project-rounds";
 import { scrollToHybridEvaluationResults } from "@/lib/scroll-to-hybrid-evaluation-results";
 import type { EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import ParallelEvaluationForm from "../../parallel-evaluation-form";
-import { getLocalProjects, syncLocalProjectRounds } from "../local-project-storage";
 import ProjectEvaluationWorkspace from "./project-evaluation-workspace";
 import TrashedRoundsPanel from "./trashed-rounds-panel";
-import { getTrashedEvaluationRounds } from "@/lib/trash";
-
-function readMergedProject(serverProject: Project): Project {
-  const localProject = getLocalProjects().find((item) => item.id === serverProject.id);
-  return mergeProjectWithLocal(serverProject, localProject);
-}
 
 export default function ProjectUploadSection({
   project,
@@ -27,109 +18,51 @@ export default function ProjectUploadSection({
   onProjectUpdated?: () => void;
 }) {
   const router = useRouter();
-  const roundsRef = useRef<EvaluationRound[]>(getProjectEvaluationRounds(project));
-  const excludedRoundIdsRef = useRef<Set<string>>(new Set());
+  const [files, setFiles] = useState<ProjectFile[]>(project.files);
+  const [rounds, setRounds] = useState<EvaluationRound[]>(() => getProjectEvaluationRounds(project));
+  const [trashedRounds, setTrashedRounds] = useState<EvaluationRound[]>(
+    () => project.trashedEvaluationRounds ?? [],
+  );
   const [focusRoundId, setFocusRoundId] = useState<string | null>(null);
-  const [activeProject, setActiveProject] = useState<Project>(() =>
-    typeof window === "undefined" ? project : readMergedProject(project),
-  );
-  const [files, setFiles] = useState<ProjectFile[]>(activeProject.files);
-  const [rounds, setRounds] = useState<EvaluationRound[]>(() =>
-    typeof window === "undefined"
-      ? getProjectEvaluationRounds(project)
-      : resolveProjectRounds({ serverProject: project }),
-  );
-  const [trashedRounds, setTrashedRounds] = useState<EvaluationRound[]>(() =>
-    getTrashedEvaluationRounds(project),
-  );
 
   useEffect(() => {
-    roundsRef.current = rounds;
-  }, [rounds]);
+    setFiles(project.files);
+    setRounds(getProjectEvaluationRounds(project));
+    setTrashedRounds(project.trashedEvaluationRounds ?? []);
+  }, [project]);
 
-  // 서버에서 새 project prop이 내려오면 렌더 중에 상태를 보정한다.
-  // (effect 대신 "adjust state during render" 패턴 — 캐스케이드 렌더 방지)
-  const [lastSyncedProject, setLastSyncedProject] = useState(project);
-  if (lastSyncedProject !== project) {
-    setLastSyncedProject(project);
-
-    const localProject = getLocalProjects().find((item) => item.id === project.id);
-    const mergedProject = mergeProjectWithLocal(project, localProject);
-
-    setActiveProject(mergedProject);
-    setFiles(mergedProject.files);
-    setTrashedRounds(getTrashedEvaluationRounds(mergedProject));
-    setRounds((current) =>
-      resolveProjectRounds({
-        serverProject: project,
-        localProject,
-        currentRounds: current.length > 0 ? current : roundsRef.current,
-        excludedRoundIds: excludedRoundIdsRef.current,
-      }),
-    );
-  }
-
-  function syncRounds(
-    nextRounds: EvaluationRound[],
-    nextFiles = files,
-    options?: {
-      refresh?: boolean;
-      trashedEvaluationRounds?: EvaluationRound[];
-      focusRoundId?: string;
-    },
-  ) {
-    const previousIds = new Set(roundsRef.current.map((round) => round.id));
-    const nextIds = new Set(nextRounds.map((round) => round.id));
-
-    for (const roundId of previousIds) {
-      if (!nextIds.has(roundId)) {
-        excludedRoundIdsRef.current.add(roundId);
-      }
-    }
-
-    for (const roundId of nextIds) {
-      if (!previousIds.has(roundId)) {
-        excludedRoundIdsRef.current.delete(roundId);
-      }
-    }
-
-    const addedRound = nextRounds.length > roundsRef.current.length;
-
-    const nextTrashedRounds = options?.trashedEvaluationRounds ?? trashedRounds;
-
-    roundsRef.current = nextRounds;
-    setRounds(nextRounds);
-    setTrashedRounds(nextTrashedRounds);
-    setFiles(nextFiles);
-
-    setActiveProject((current) => {
-      const syncedProject = syncLocalProjectRounds(
-        project.id,
-        current,
-        nextFiles,
-        nextRounds,
-        nextTrashedRounds,
-      );
-      return {
-        ...syncedProject,
-        files: nextFiles,
-        evaluationRounds: nextRounds,
-        trashedEvaluationRounds: nextTrashedRounds,
-      };
-    });
+  function refreshProjectData(options?: { focusRoundId?: string; scrollToResults?: boolean }) {
     onProjectUpdated?.();
+    router.refresh();
 
     if (options?.focusRoundId) {
       setFocusRoundId(options.focusRoundId);
     }
 
-    if (addedRound || options?.focusRoundId) {
+    if (options?.scrollToResults) {
       scrollToHybridEvaluationResults();
     }
+  }
 
-    if (options?.refresh) {
-      window.setTimeout(() => router.refresh(), 0);
+  function handleRoundsChange(
+    nextRounds: EvaluationRound[],
+    nextFiles?: ProjectFile[],
+    options?: {
+      trashedEvaluationRounds?: EvaluationRound[];
+      focusRoundId?: string;
+      scrollToResults?: boolean;
+    },
+  ) {
+    setRounds(nextRounds);
+    if (nextFiles) setFiles(nextFiles);
+    if (options?.trashedEvaluationRounds) {
+      setTrashedRounds(options.trashedEvaluationRounds);
     }
+
+    refreshProjectData({
+      focusRoundId: options?.focusRoundId,
+      scrollToResults: options?.scrollToResults ?? nextRounds.length > rounds.length,
+    });
   }
 
   return (
@@ -140,9 +73,9 @@ export default function ProjectUploadSection({
         description="공통 평가항목·배점을 설정한 뒤, AI·전문가 자료를 대칭 구조로 업로드하고 한 번에 하이브리드 평가 분석을 실행합니다."
       >
         <ParallelEvaluationForm
-          project={activeProject}
+          project={project}
           onRoundsChange={(nextRounds, nextFiles) =>
-            syncRounds(nextRounds, nextFiles ?? files, { refresh: false })
+            handleRoundsChange(nextRounds, nextFiles ?? files, { scrollToResults: true })
           }
         />
       </WorkspaceSectionCard>
@@ -154,33 +87,27 @@ export default function ProjectUploadSection({
       >
         <ProjectEvaluationWorkspace
           focusRoundId={focusRoundId}
-          project={activeProject}
+          project={project}
           rounds={rounds}
           showHeader={false}
           onFocusRoundHandled={() => setFocusRoundId(null)}
           onRoundsChange={(next, nextTrashedRounds) =>
-            syncRounds(next, files, {
-              refresh: false,
-              trashedEvaluationRounds: nextTrashedRounds,
-            })
+            handleRoundsChange(next, files, { trashedEvaluationRounds: nextTrashedRounds })
           }
         />
       </WorkspaceSectionCard>
 
       <TrashedRoundsPanel
-        project={activeProject}
+        project={project}
         trashedRounds={trashedRounds}
         onPurged={(nextRounds, nextTrashedRounds) =>
-          syncRounds(nextRounds, files, {
-            refresh: false,
-            trashedEvaluationRounds: nextTrashedRounds,
-          })
+          handleRoundsChange(nextRounds, files, { trashedEvaluationRounds: nextTrashedRounds })
         }
         onRestored={(nextRounds, nextTrashedRounds, restoredRoundId) =>
-          syncRounds(nextRounds, files, {
-            focusRoundId: restoredRoundId,
-            refresh: false,
+          handleRoundsChange(nextRounds, files, {
             trashedEvaluationRounds: nextTrashedRounds,
+            focusRoundId: restoredRoundId,
+            scrollToResults: true,
           })
         }
       />

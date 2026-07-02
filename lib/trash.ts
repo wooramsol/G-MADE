@@ -4,6 +4,10 @@ export function isProjectTrashed(project: Pick<Project, "deletedAt">): boolean {
   return Boolean(project.deletedAt);
 }
 
+export function isProjectPurged(project: Pick<Project, "purgedAt">): boolean {
+  return Boolean(project.purgedAt);
+}
+
 export function filterActiveProjects(projects: Project[]): Project[] {
   return projects.filter((project) => !isProjectTrashed(project));
 }
@@ -14,6 +18,20 @@ export function filterTrashedProjects(projects: Project[]): Project[] {
 
 export function getTrashedEvaluationRounds(project: Project): EvaluationRound[] {
   return project.trashedEvaluationRounds ?? [];
+}
+
+export function getTrashedEvaluationRoundIds(
+  ...projects: Array<Pick<Project, "trashedEvaluationRounds"> | undefined>
+): Set<string> {
+  const ids = new Set<string>();
+
+  for (const project of projects) {
+    for (const round of project?.trashedEvaluationRounds ?? []) {
+      ids.add(round.id);
+    }
+  }
+
+  return ids;
 }
 
 function sortRoundsByEvaluatedAt(rounds: EvaluationRound[]): EvaluationRound[] {

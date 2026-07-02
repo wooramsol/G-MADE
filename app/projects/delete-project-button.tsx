@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
-import { saveLocalProject, trashLocalProject } from "./local-project-storage";
 import type { Project } from "@/lib/types";
 import { showToast } from "../toast";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
@@ -29,15 +28,10 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
         project?: Project;
       };
 
-      if (!response.ok && response.status !== 404) {
+      if (!response.ok) {
         throw new Error(payload.error ?? "프로젝트 삭제에 실패했습니다.");
       }
 
-      if (payload.project) {
-        saveLocalProject(payload.project);
-      } else {
-        trashLocalProject(projectId);
-      }
       setConfirmOpen(false);
       showToast({ message: "프로젝트가 휴지통으로 이동했습니다.", tone: "success" });
 
@@ -64,7 +58,7 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
         type="button"
         onClick={() => setConfirmOpen(true)}
       >
-        휴지통으로 이동
+        프로젝트 삭제
       </button>
       <ConfirmDialog
         description={`"${projectName}" 프로젝트를 휴지통으로 이동합니다. 평가 진행 중이어도 이동할 수 있으며, 휴지통에서 복원하거나 영구 삭제할 수 있습니다.`}

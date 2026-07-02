@@ -5,6 +5,7 @@ import {
   type EvaluationAnalysisProgressEvent,
 } from "@/lib/evaluation-analysis-progress";
 import {
+  DEFAULT_AI_WEIGHT,
   requiresAiUploadMaterials,
   requiresEvaluationUploadMaterials,
   requiresExpertUploadMaterials,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/evaluation-weight-requirements";
 import { addProjectEvaluationRound, getProjectById, upsertProjectRecord } from "@/lib/project-store";
 import { ensureProjectRecordFromSnapshot } from "@/lib/ensure-project-record";
+import { isProjectTrashed } from "@/lib/trash";
 import { createSkippedUploadAnalysis } from "@/lib/skipped-upload-analysis";
 import {
   deleteSavedUploadFiles,
@@ -24,10 +26,9 @@ import {
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project } from "@/lib/types";
 import { isAiAnalysisError } from "@/lib/ai/analysis-error";
-import { analyzeUploadedFiles } from "@/lib/upload-analysis";
-import { applyFilesTextBudget, LIGHTWEIGHT_PROVIDER_TOTAL_AI_TEXT_CHARS } from "@/lib/ai/document-text-budget";
-import { resolveAnalysisProvider } from "@/lib/ai/resolve-analysis-provider";
 import type { AiProviderPreference } from "@/lib/ai/types";
+import { analyzeUploadedFiles } from "@/lib/upload-analysis";
+import { applyFilesTextBudget } from "@/lib/ai/document-text-budget";
 import type { SavedUploadFile } from "@/lib/save-uploaded-files";
 
 export type RunEvaluationRoundInput = {
@@ -101,11 +102,15 @@ export async function runEvaluationRound(
       throw new Error("프로젝트를 찾을 수 없습니다. 프로젝트를 다시 등록하거나 페이지를 새로고침해 주세요.");
     }
 
+    if (isProjectTrashed(project)) {
+      throw new Error("휴지통에 있는 프로젝트는 평가할 수 없습니다.");
+    }
+
     if (evaluationItems.length === 0) {
       throw new Error("평가항목을 1개 이상 등록해 주세요.");
     }
 
-    const normalizedAiWeight = Number.isFinite(aiWeight) ? aiWeight : 30;
+    const normalizedAiWeight = Number.isFinite(aiWeight) ? aiWeight : DEFAULT_AI_WEIGHT;
     const normalizedExpertWeight = Number.isFinite(expertWeight) ? expertWeight : 100 - normalizedAiWeight;
     const weightError = validateEvaluationWeights(normalizedAiWeight, normalizedExpertWeight);
     if (weightError) {
@@ -144,33 +149,38 @@ export async function runEvaluationRound(
       return true;
     });
 
-    const { extractDocumentText } = await import("@/lib/document-extract");
+    const { extractDocumentContent } = await import("@/lib/document-content");
 
     emitStep(emit, "extract");
+    const extractionWarnings: string[] = [];
     const filesForAnalysis =
       needsMaterials
         ? await Promise.all(
-            savedFiles.map(async (file) => ({
-              ...file,
-              storagePath: file.storagePath ?? file.storageKey,
-              extractedTextPreview: await extractDocumentText(
+            savedFiles.map(async (file) => {
+              const content = await extractDocumentContent(
                 await readSavedUploadFile(file),
                 file.originalName,
-              ),
-            })),
+              );
+              extractionWarnings.push(...content.warnings);
+
+              return {
+                ...file,
+                storagePath: file.storagePath ?? file.storageKey,
+                extractedTextPreview: content.fullText,
+                visionAssets: content.visionAssets,
+                totalPages: content.totalPages,
+              };
+            }),
           )
         : [];
 
-    const analysisProvider = resolveAnalysisProvider(providerPreference);
-    const textBudget = applyFilesTextBudget(
-      filesForAnalysis,
-      analysisProvider === "openai" ? undefined : LIGHTWEIGHT_PROVIDER_TOTAL_AI_TEXT_CHARS,
-    );
+    const textBudget = applyFilesTextBudget(filesForAnalysis);
 
     emitStep(emit, "law-context");
     const evaluationContext = await buildEvaluationContext(projectId, evaluationItems);
     evaluationContext.warnings = [
       ...evaluationContext.warnings,
+      ...extractionWarnings,
       ...textBudget.warnings,
     ];
 
@@ -183,6 +193,15 @@ export async function runEvaluationRound(
           files: textBudget.files,
           evaluationContext,
           evaluationItems,
+          onAnalysisProgress: (label) => {
+            emit?.({
+              type: "progress",
+              step: "ai-analysis",
+              label,
+              stepIndex: 5,
+              stepCount: EVALUATION_ANALYSIS_STEPS.length,
+            });
+          },
         })
       : null;
 
