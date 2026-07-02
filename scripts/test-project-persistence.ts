@@ -5,10 +5,12 @@
  * 실행: DATABASE_URL=... npx tsx scripts/test-project-persistence.ts
  */
 import assert from "node:assert";
+import { deleteStoredProjectById } from "../lib/project-persistence";
 import {
   createProject,
   getProjectById,
   getStoredProjectRecord,
+  getTrashedProjects,
   purgeProjectRecord,
   trashProjectRecord,
   restoreProjectRecord,
@@ -77,6 +79,25 @@ async function main() {
   const purged = await purgeProjectRecord(project.id);
   assert.equal(purged, true, "영구 삭제가 성공해야 한다");
   assert(!(await getStoredProjectRecord(project.id)), "영구 삭제 후 레코드가 없어야 한다");
+
+  // 데모 프로젝트 영구 삭제: 레코드 삭제 대신 tombstone으로 영구 숨김
+  const demoId = "project-001";
+  assert(await getProjectById(demoId), "테스트 전 데모 프로젝트가 보여야 한다");
+  await trashProjectRecord(demoId);
+  const demoPurged = await purgeProjectRecord(demoId);
+  assert.equal(demoPurged, true, "데모 프로젝트 영구 삭제가 성공해야 한다");
+  assert(!(await getProjectById(demoId)), "tombstone 이후 데모 프로젝트가 목록에 없어야 한다");
+  const trashedAfterPurge = await getTrashedProjects();
+  assert(
+    !trashedAfterPurge.some((item) => item.id === demoId),
+    "tombstone 이후 휴지통에도 없어야 한다",
+  );
+  const tombstone = await getStoredProjectRecord(demoId);
+  assert(tombstone?.purgedAt, "tombstone 레코드에 purgedAt이 있어야 한다");
+
+  // 테스트 정리: tombstone 제거로 데모 프로젝트 복구
+  await deleteStoredProjectById(demoId);
+  assert(await getProjectById(demoId), "정리 후 데모 프로젝트가 복구되어야 한다");
 
   console.log("✅ project persistence integration test passed");
 }

@@ -191,6 +191,11 @@ export type Project = {
   trashedEvaluationRounds?: EvaluationRound[];
   /** 휴지통으로 이동한 시각 (ISO). 설정되면 목록에서 숨깁니다. */
   deletedAt?: string;
+  /**
+   * 영구 삭제 시각 (ISO). 코드에 내장된 데모 프로젝트는 레코드를 지우면 되살아나므로,
+   * tombstone 오버레이로 남겨 목록·휴지통 모두에서 숨깁니다.
+   */
+  purgedAt?: string;
 };
 
 export type AiEvaluation = {

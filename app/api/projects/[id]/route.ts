@@ -144,6 +144,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const roleResult = await requireApiRole("ADMIN", "OFFICER");
     if (roleResult.response) return roleResult.response;
 
+    if (isDemoProjectId(id)) {
+      // 데모 프로젝트는 tombstone으로 영구히 숨긴다. (과거 브라우저에서만
+      // 휴지통 처리되어 서버 오버레이가 없는 경우도 tombstone을 생성한다.)
+      const purged = await purgeProjectRecord(id);
+      if (!purged) {
+        return NextResponse.json({ error: "영구 삭제할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     const stored = await getStoredProjectRecord(id);
 
     if (!stored) {
@@ -160,11 +170,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     // 고아 Blob 방지: 프로젝트에 연결된 업로드 파일을 함께 삭제한다.
-    // (데모 프로젝트 오버레이는 원본 데모 파일 메타를 포함할 수 있어 제외)
-    if (!isDemoProjectId(id)) {
-      const storedFiles = collectProjectStoredFiles(stored);
-      await deleteSavedUploadFiles(storedRefsToSavedFiles(storedFiles)).catch(() => undefined);
-    }
+    const storedFiles = collectProjectStoredFiles(stored);
+    await deleteSavedUploadFiles(storedRefsToSavedFiles(storedFiles)).catch(() => undefined);
 
     return NextResponse.json({ ok: true });
   }
