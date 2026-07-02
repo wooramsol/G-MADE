@@ -5,7 +5,7 @@
  * 실행: DATABASE_URL=... npx tsx scripts/test-project-persistence.ts
  */
 import assert from "node:assert";
-import { deleteStoredProjectById } from "../lib/project-persistence";
+import { deleteManagedProjectFromDatabase } from "../lib/project-db-persistence";
 import {
   createProject,
   getProjectById,
@@ -95,9 +95,11 @@ async function main() {
   const tombstone = await getStoredProjectRecord(demoId);
   assert(tombstone?.purgedAt, "tombstone 레코드에 purgedAt이 있어야 한다");
 
-  // 테스트 정리: tombstone 제거로 데모 프로젝트 복구
-  await deleteStoredProjectById(demoId);
-  assert(await getProjectById(demoId), "정리 후 데모 프로젝트가 복구되어야 한다");
+  // 테스트 정리: tombstone 제거로 데모 프로젝트 복구 (DB 모드일 때만 정리 가능)
+  if (process.env.DATABASE_URL) {
+    await deleteManagedProjectFromDatabase(demoId);
+    assert(await getProjectById(demoId), "정리 후 데모 프로젝트가 복구되어야 한다");
+  }
 
   console.log("✅ project persistence integration test passed");
 }

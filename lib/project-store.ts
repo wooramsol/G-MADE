@@ -265,8 +265,15 @@ export async function purgeProjectEvaluationRound(
   });
 }
 
-/** 모든 프로젝트의 평가 데이터를 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다. */
-export async function purgeAllProjectEvaluationRounds(): Promise<{ projectsUpdated: number }> {
+/**
+ * 모든 프로젝트의 평가 데이터를 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다.
+ * excludeProjectIds에 지정한 프로젝트의 평가는 유지합니다.
+ */
+export async function purgeAllProjectEvaluationRounds(options?: {
+  excludeProjectIds?: string[];
+}): Promise<{ projectsUpdated: number }> {
+  const excluded = new Set(options?.excludeProjectIds ?? []);
+
   return withProjectStoreLock(async () => {
     const allProjects = await getAllProjectsIncludingTrashed();
     const updatedAt = new Date().toISOString();
@@ -274,6 +281,7 @@ export async function purgeAllProjectEvaluationRounds(): Promise<{ projectsUpdat
 
     for (const source of allProjects) {
       if (isProjectPurged(source)) continue;
+      if (excluded.has(source.id)) continue;
 
       const nextProject: Project = {
         ...source,

@@ -133,3 +133,16 @@ export async function deleteManagedProjectFromDatabase(id: string): Promise<bool
   const result = await prisma.managedProject.deleteMany({ where: { id } });
   return result.count > 0;
 }
+
+/** 프로젝트·평가 데이터가 DB에 영속 저장되는지 여부 (통합 상태 표시용). */
+export async function isProjectStoragePersistent(): Promise<boolean> {
+  const prisma = getPrismaClient();
+  if (!prisma) return false;
+
+  try {
+    await prisma.managedProject.count();
+    return true;
+  } catch {
+    return false;
+  }
+}
