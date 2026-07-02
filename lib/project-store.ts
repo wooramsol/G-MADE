@@ -315,6 +315,25 @@ export async function getStoredProjectRecord(id: string): Promise<Project | unde
 /** 저장소에서 프로젝트 레코드를 영구 삭제합니다. */
 export async function purgeProjectRecord(id: string): Promise<boolean> {
   return withProjectStoreLock(async () => {
+    if (isDemoProjectId(id)) {
+      // 데모 프로젝트는 코드에 내장되어 있어 오버레이 레코드를 지우면 원본이 되살아난다.
+      // 대신 purgedAt tombstone을 남겨 목록·휴지통 모두에서 영구히 숨긴다.
+      const storedProjects = await readStoredProjects();
+      const stored = storedProjects.find((project) => project.id === id);
+      const demoOriginal = demoProjects.find((project) => project.id === id);
+      const base = stored ?? demoOriginal;
+      if (!base) return false;
+
+      const now = new Date().toISOString();
+      await putStoredProject({
+        ...base,
+        deletedAt: base.deletedAt ?? now,
+        purgedAt: now,
+        updatedAt: now,
+      });
+      return true;
+    }
+
     return deleteStoredProjectById(id);
   });
 }
@@ -352,5 +371,8 @@ async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
 
   const activeStored = storedProjects.filter((project) => !demoProjectIds.has(project.id));
 
-  return sortProjectsByUpdatedAt([...mergedDemoProjects, ...activeStored]);
+  // 영구 삭제 tombstone(purgedAt)이 있는 레코드는 목록·휴지통 어디에도 보이지 않는다.
+  return sortProjectsByUpdatedAt([...mergedDemoProjects, ...activeStored]).filter(
+    (project) => !project.purgedAt,
+  );
 }
