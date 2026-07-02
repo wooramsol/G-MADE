@@ -2,7 +2,7 @@ import { getConfiguredProviders } from "../ai/env-keys";
 import { getDefaultAiProvider, isProviderConfigured } from "../ai/select-provider";
 import { getLawReferer, isLawApiConfigured } from "../law/config";
 import { isPostgresConfigured } from "../postgres-env";
-import { isProjectStoragePersistent } from "../project-persistence";
+import { isProjectStoragePersistent } from "../project-db-persistence";
 import { isDatabaseAvailable } from "../prisma";
 import { getVWorldDomain, isVWorldConfigured } from "../vworld/config";
 
@@ -136,7 +136,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       detail: databaseConfigured
         ? projectStoragePersistent
           ? "계정·로그인 기록 + 프로젝트·평가 데이터 영속 저장"
-          : "계정·로그인 기록용 (stored_projects 테이블 없음 — prisma db push 필요)"
+          : "계정·로그인 기록용 (managed_projects 테이블 없음 — prisma db push 필요)"
         : isPostgresConfigured()
           ? "연결 문자열은 있으나 DB 응답 없음"
           : undefined,

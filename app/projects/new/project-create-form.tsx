@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LocationPicker, type LocationSelection } from "@/components/location-picker";
 import { ErrorText, FormLabel, MutedText } from "@/components/typography";
-import { saveLocalProject } from "../local-project-storage";
 import { showToast } from "../../toast";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
@@ -86,7 +85,6 @@ export default function ProjectCreateForm() {
         throw new Error(payload.error ?? "프로젝트 생성에 실패했습니다.");
       }
 
-      saveLocalProject(payload.project);
       showToast({ message: "프로젝트가 생성되었습니다.", tone: "success" });
       window.setTimeout(() => router.push(`/projects/${payload.project.id}`), 650);
       router.refresh();

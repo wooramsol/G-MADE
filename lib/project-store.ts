@@ -1,12 +1,17 @@
+import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
 import {
-  deleteStoredProjectById,
-  putStoredProject,
-  readStoredProjects,
-} from "./project-persistence";
+  deleteManagedProjectFromDatabase,
+  readManagedProjectsFromDatabase,
+  upsertManagedProjectToDatabase,
+  writeManagedProjectsToDatabase,
+} from "./project-db-persistence";
+import { isDatabaseAvailable } from "./prisma";
 import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
+import { getWritableStoragePath } from "./runtime-storage";
 import {
+  isProjectPurged,
   isProjectTrashed,
   purgeEvaluationRound,
   restoreEvaluationRound,
@@ -22,6 +27,8 @@ import type {
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
+const storeDir = getWritableStoragePath();
+const storePath = getWritableStoragePath("projects.json");
 const demoProjectIds = new Set(demoProjects.map((project) => project.id));
 
 export function isDemoProjectId(id: string): boolean {
@@ -66,8 +73,7 @@ export async function createProject(input: ProjectInput): Promise<Project> {
       updatedAt: now,
     };
 
-    await putStoredProject(project);
-
+    await persistProjectRecord(project);
     return project;
   });
 }
@@ -76,6 +82,13 @@ export async function addProjectFiles(id: string, files: ProjectFile[]): Promise
   return updateStoredProject(id, (project) => ({
     ...project,
     files: mergeProjectFiles(project.files, files),
+  }));
+}
+
+export async function removeProjectFile(id: string, fileId: string): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    files: project.files.filter((file) => file.id !== fileId),
   }));
 }
 
@@ -169,7 +182,7 @@ export async function upsertProjectRecord(project: Project): Promise<Project> {
       updatedAt: new Date().toISOString(),
     };
 
-    await putStoredProject(nextProject);
+    await persistProjectRecord(nextProject);
     return nextProject;
   });
 }
@@ -252,23 +265,54 @@ export async function purgeProjectEvaluationRound(
   });
 }
 
+/**
+ * 모든 프로젝트의 평가 데이터를 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다.
+ * excludeProjectIds에 지정한 프로젝트의 평가는 유지합니다.
+ */
+export async function purgeAllProjectEvaluationRounds(options?: {
+  excludeProjectIds?: string[];
+}): Promise<{ projectsUpdated: number }> {
+  const excluded = new Set(options?.excludeProjectIds ?? []);
+
+  return withProjectStoreLock(async () => {
+    const allProjects = await getAllProjectsIncludingTrashed();
+    const updatedAt = new Date().toISOString();
+    let projectsUpdated = 0;
+
+    for (const source of allProjects) {
+      if (isProjectPurged(source)) continue;
+      if (excluded.has(source.id)) continue;
+
+      const nextProject: Project = {
+        ...source,
+        evaluationRounds: [],
+        trashedEvaluationRounds: [],
+        uploadAnalyses: [],
+        humanEvaluationSessions: [],
+        updatedAt,
+      };
+
+      await persistProjectRecord(nextProject);
+      projectsUpdated += 1;
+    }
+
+    return { projectsUpdated };
+  });
+}
+
 async function updateStoredProject(
   id: string,
   updater: (project: Project) => Project,
 ): Promise<Project | undefined> {
   return withProjectStoreLock(async () => {
-    const storedProjects = await readStoredProjects();
-    const stored = storedProjects.find((project) => project.id === id);
+    const allProjects = await getAllProjectsIncludingTrashed();
+    const existingProject = allProjects.find((project) => project.id === id);
 
-    let baseProject = stored;
-    if (!baseProject) {
-      // 저장소에 없는 경우 데모 프로젝트를 기반으로 오버레이 레코드를 만든다.
-      const allProjects = await getAllProjectsIncludingTrashed();
-      baseProject = allProjects.find((project) => project.id === id);
-    }
+    if (!existingProject || isProjectPurged(existingProject)) return undefined;
 
-    if (!baseProject) return undefined;
-
+    const storedProjects = await readCreatedProjects();
+    const storedIndex = storedProjects.findIndex((project) => project.id === id);
+    const baseProject = storedIndex >= 0 ? storedProjects[storedIndex] : existingProject;
     const nextProject = updater({
       ...baseProject,
       uploadAnalyses: baseProject.uploadAnalyses ?? [],
@@ -278,7 +322,7 @@ async function updateStoredProject(
       updatedAt: new Date().toISOString(),
     });
 
-    await putStoredProject(nextProject);
+    await persistProjectRecord(nextProject);
     return nextProject;
   });
 }
@@ -306,9 +350,9 @@ export async function restoreProjectRecord(id: string): Promise<Project | undefi
   });
 }
 
-/** 저장소의 원본 프로젝트 레코드를 조회합니다. (데모 병합 없음) */
+/** JSON 저장소의 원본 프로젝트 레코드를 조회합니다. (데모 병합 없음) */
 export async function getStoredProjectRecord(id: string): Promise<Project | undefined> {
-  const storedProjects = await readStoredProjects();
+  const storedProjects = await readCreatedProjects();
   return storedProjects.find((project) => project.id === id);
 }
 
@@ -316,26 +360,47 @@ export async function getStoredProjectRecord(id: string): Promise<Project | unde
 export async function purgeProjectRecord(id: string): Promise<boolean> {
   return withProjectStoreLock(async () => {
     if (isDemoProjectId(id)) {
-      // 데모 프로젝트는 코드에 내장되어 있어 오버레이 레코드를 지우면 원본이 되살아난다.
-      // 대신 purgedAt tombstone을 남겨 목록·휴지통 모두에서 영구히 숨긴다.
-      const storedProjects = await readStoredProjects();
-      const stored = storedProjects.find((project) => project.id === id);
-      const demoOriginal = demoProjects.find((project) => project.id === id);
-      const base = stored ?? demoOriginal;
-      if (!base) return false;
-
-      const now = new Date().toISOString();
-      await putStoredProject({
-        ...base,
-        deletedAt: base.deletedAt ?? now,
-        purgedAt: now,
-        updatedAt: now,
-      });
-      return true;
+      return purgeDemoProjectRecord(id);
     }
 
-    return deleteStoredProjectById(id);
+    if (await isDatabaseAvailable()) {
+      const deleted = await deleteManagedProjectFromDatabase(id);
+      if (deleted) return true;
+    }
+
+    const createdProjects = await readCreatedProjectsFromJsonFile();
+    const nextProjects = createdProjects.filter((project) => project.id !== id);
+
+    if (nextProjects.length === createdProjects.length) {
+      return false;
+    }
+
+    await writeCreatedProjects(nextProjects);
+    return true;
   });
+}
+
+async function purgeDemoProjectRecord(id: string): Promise<boolean> {
+  const demoProject = demoProjects.find((project) => project.id === id);
+  if (!demoProject) return false;
+
+  const storedProjects = await readCreatedProjects();
+  const stored = storedProjects.find((project) => project.id === id);
+  const purgedAt = new Date().toISOString();
+  const tombstone: Project = {
+    ...demoProject,
+    ...(stored ?? {}),
+    purgedAt,
+    deletedAt: undefined,
+    evaluationRounds: [],
+    trashedEvaluationRounds: [],
+    uploadAnalyses: [],
+    humanEvaluationSessions: [],
+    updatedAt: purgedAt,
+  };
+
+  await persistProjectRecord(tombstone);
+  return true;
 }
 
 export async function deleteCreatedProject(id: string): Promise<boolean> {
@@ -350,29 +415,120 @@ export async function deleteProjectRecord(id: string): Promise<boolean> {
 }
 
 async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
-  const storedProjects = await readStoredProjects();
+  const storedProjects = await readCreatedProjects();
   const storedById = new Map(storedProjects.map((project) => [project.id, project]));
-  const mergedDemoProjects = demoProjects.map((project) => {
-    const stored = storedById.get(project.id);
-    return stored
-      ? {
-          ...project,
-          ...stored,
-          files: stored.files ?? project.files,
-          uploadAnalyses: stored.uploadAnalyses ?? project.uploadAnalyses ?? [],
-          humanEvaluationSessions:
-            stored.humanEvaluationSessions ?? project.humanEvaluationSessions ?? [],
-          evaluationRounds: stored.evaluationRounds ?? project.evaluationRounds ?? [],
-          trashedEvaluationRounds: stored.trashedEvaluationRounds ?? project.trashedEvaluationRounds ?? [],
-          savedEvaluationItems: stored.savedEvaluationItems ?? project.savedEvaluationItems,
-        }
-      : project;
-  });
+  const mergedDemoProjects = demoProjects
+    .filter((project) => !isProjectPurged(storedById.get(project.id) ?? project))
+    .map((project) => {
+      const stored = storedById.get(project.id);
+      return stored
+        ? {
+            ...project,
+            ...stored,
+            files: stored.files ?? project.files,
+            uploadAnalyses: pickStoredArrayField<UploadAnalysisSession>(stored, "uploadAnalyses"),
+            humanEvaluationSessions: pickStoredArrayField<HumanEvaluationSession>(
+              stored,
+              "humanEvaluationSessions",
+            ),
+            evaluationRounds: pickStoredArrayField<EvaluationRound>(stored, "evaluationRounds"),
+            trashedEvaluationRounds: pickStoredArrayField<EvaluationRound>(
+              stored,
+              "trashedEvaluationRounds",
+            ),
+            savedEvaluationItems: stored.savedEvaluationItems ?? project.savedEvaluationItems,
+          }
+        : project;
+    });
 
-  const activeStored = storedProjects.filter((project) => !demoProjectIds.has(project.id));
-
-  // 영구 삭제 tombstone(purgedAt)이 있는 레코드는 목록·휴지통 어디에도 보이지 않는다.
-  return sortProjectsByUpdatedAt([...mergedDemoProjects, ...activeStored]).filter(
-    (project) => !project.purgedAt,
+  const activeStored = storedProjects.filter(
+    (project) => !demoProjectIds.has(project.id) && !isProjectPurged(project),
   );
+
+  return sortProjectsByUpdatedAt([...mergedDemoProjects, ...activeStored]).map(normalizeProjectEvaluationState);
+}
+
+function normalizeProjectEvaluationState(project: Project): Project {
+  return {
+    ...project,
+    evaluationRounds: project.evaluationRounds ?? [],
+    trashedEvaluationRounds: project.trashedEvaluationRounds ?? [],
+    uploadAnalyses: project.uploadAnalyses ?? [],
+    humanEvaluationSessions: project.humanEvaluationSessions ?? [],
+  };
+}
+
+function pickStoredArrayField<T>(
+  stored: Project,
+  key: "uploadAnalyses" | "humanEvaluationSessions" | "evaluationRounds" | "trashedEvaluationRounds",
+): T[] {
+  if (!(key in stored)) return [];
+  const value = stored[key];
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+async function persistProjectRecord(project: Project): Promise<void> {
+  if (await isDatabaseAvailable()) {
+    await upsertManagedProjectToDatabase(project);
+    return;
+  }
+
+  const storedProjects = await readCreatedProjectsFromJsonFile();
+  const storedIndex = storedProjects.findIndex((item) => item.id === project.id);
+  if (storedIndex >= 0) {
+    storedProjects[storedIndex] = project;
+  } else {
+    storedProjects.unshift(project);
+  }
+  await writeCreatedProjectsToJsonFile(storedProjects);
+}
+
+async function readCreatedProjects(): Promise<Project[]> {
+  if (await isDatabaseAvailable()) {
+    const fromDatabase = await readManagedProjectsFromDatabase();
+    if (fromDatabase.length > 0) {
+      return fromDatabase;
+    }
+
+    const fromJson = await readCreatedProjectsFromJsonFile();
+    if (fromJson.length > 0) {
+      await writeManagedProjectsToDatabase(fromJson);
+      return fromJson;
+    }
+
+    return [];
+  }
+
+  return readCreatedProjectsFromJsonFile();
+}
+
+async function readCreatedProjectsFromJsonFile(): Promise<Project[]> {
+  try {
+    const content = await readFile(storePath, "utf8");
+    const parsed = JSON.parse(content);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    if (isMissingFileError(error)) return [];
+    throw error;
+  }
+}
+
+async function writeCreatedProjects(projects: Project[]) {
+  if (await isDatabaseAvailable()) {
+    await writeManagedProjectsToDatabase(projects);
+    return;
+  }
+
+  await writeCreatedProjectsToJsonFile(projects);
+}
+
+async function writeCreatedProjectsToJsonFile(projects: Project[]) {
+  await mkdir(storeDir, { recursive: true });
+  const tempPath = `${storePath}.${Date.now()}.tmp`;
+  await writeFile(tempPath, JSON.stringify(projects, null, 2), "utf8");
+  await rename(tempPath, storePath);
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }

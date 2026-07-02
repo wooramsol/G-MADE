@@ -7,8 +7,6 @@ import { getProjectEvaluationRounds } from "@/lib/evaluation-rounds";
 import { formatEvaluationRoundLabel, formatUploadDateTime } from "@/lib/format-datetime";
 import type { EvaluationRound, Project } from "@/lib/types";
 import { showToast } from "../../toast";
-import { purgeLocalProjectRound, restoreLocalProjectRound } from "../local-project-storage";
-import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 type TrashedRoundsPanelProps = {
   project: Project;
@@ -43,7 +41,7 @@ export default function TrashedRoundsPanel({
     setLoading(true);
 
     try {
-      const response = await clientFetchWithTimeout(`/api/projects/${project.id}/evaluation-rounds/${roundId}/restore`, {
+      const response = await fetch(`/api/projects/${project.id}/evaluation-rounds/${roundId}/restore`, {
         method: "POST",
       });
       const payload = (await response.json().catch(() => ({}))) as {
@@ -57,12 +55,6 @@ export default function TrashedRoundsPanel({
       if (response.ok && payload.project) {
         activeRounds = getProjectEvaluationRounds(payload.project);
         nextTrashed = payload.project.trashedEvaluationRounds ?? nextTrashed;
-      } else if (response.status === 404) {
-        const restored = restoreLocalProjectRound(project.id, roundId);
-        if (restored) {
-          activeRounds = getProjectEvaluationRounds(restored);
-          nextTrashed = restored.trashedEvaluationRounds ?? nextTrashed;
-        }
       } else {
         throw new Error(payload.error ?? "평가 기록 복원에 실패했습니다.");
       }
@@ -87,7 +79,7 @@ export default function TrashedRoundsPanel({
     setLoading(true);
 
     try {
-      const response = await clientFetchWithTimeout(
+      const response = await fetch(
         `/api/projects/${project.id}/evaluation-rounds/${roundId}?permanent=true`,
         { method: "DELETE" },
       );
@@ -102,14 +94,6 @@ export default function TrashedRoundsPanel({
       if (response.ok && payload.project) {
         activeRounds = getProjectEvaluationRounds(payload.project);
         nextTrashed = payload.project.trashedEvaluationRounds ?? nextTrashed;
-      } else if (response.status === 404) {
-        const purged = purgeLocalProjectRound(project.id, roundId);
-        if (purged) {
-          activeRounds = getProjectEvaluationRounds(purged);
-          nextTrashed = purged.trashedEvaluationRounds ?? nextTrashed;
-        } else {
-          throw new Error("휴지통에 있는 평가만 영구 삭제할 수 있습니다.");
-        }
       } else {
         throw new Error(payload.error ?? "평가 기록 영구 삭제에 실패했습니다.");
       }

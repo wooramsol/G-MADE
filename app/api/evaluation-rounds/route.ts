@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { runEvaluationRound } from "@/lib/run-evaluation-round";
+import {
+  EVALUATION_SERVER_DEADLINE_MESSAGE,
+  EVALUATION_SERVER_DEADLINE_MS,
+} from "@/lib/evaluation-stream-messages";
 import { resolveAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { isFileLike } from "@/lib/save-uploaded-files";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, HumanEvaluationItemScore, Project } from "@/lib/types";
+import { DEFAULT_AI_WEIGHT, DEFAULT_EXPERT_WEIGHT } from "@/lib/evaluation-weight-requirements";
 import type { AiProviderPreference } from "@/lib/ai/types";
 
 export const runtime = "nodejs";
@@ -55,8 +61,8 @@ export async function POST(request: NextRequest) {
       ) as AiProviderPreference,
       reviewerName: String(formData.get("reviewerName") ?? "").trim(),
       expertSummary: String(formData.get("expertSummary") ?? "").trim(),
-      aiWeight: Number(formData.get("aiWeight") ?? 30),
-      expertWeight: Number(formData.get("expertWeight") ?? 70),
+      aiWeight: Number(formData.get("aiWeight") ?? DEFAULT_AI_WEIGHT),
+      expertWeight: Number(formData.get("expertWeight") ?? DEFAULT_EXPERT_WEIGHT),
       evaluationItems: parseEvaluationItems(formData.get("evaluationItems")),
       manualExpertScores: parseExpertItemScores(formData.get("expertItemScores")),
       fileRefs,
@@ -72,8 +78,17 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
           };
 
+          const heartbeat = setInterval(() => {
+            write({ type: "heartbeat", at: Date.now() });
+          }, 12_000);
+
           try {
-            const result = await runEvaluationRound(input, (progress) => write(progress));
+            const result = await Promise.race([
+              runEvaluationRound(input, (progress) => write(progress)),
+              new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error(EVALUATION_SERVER_DEADLINE_MESSAGE)), EVALUATION_SERVER_DEADLINE_MS);
+              }),
+            ]);
             write({
               type: "complete",
               round: result.round,
@@ -81,12 +96,18 @@ export async function POST(request: NextRequest) {
               analysisMode: result.analysisMode,
               warnings: result.warnings,
             });
+            try {
+              revalidateProjectViews(input.projectId);
+            } catch {
+              // 완료 응답 이후 캐시 갱신 실패는 분석 결과에 영향 없음
+            }
           } catch (error) {
             write({
               type: "error",
               error: error instanceof Error ? error.message : "하이브리드 평가 분석 중 오류가 발생했습니다.",
             });
           } finally {
+            clearInterval(heartbeat);
             controller.close();
           }
         },
@@ -101,6 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await runEvaluationRound(input);
+    revalidateProjectViews(input.projectId);
     return NextResponse.json({
       round: result.round,
       project: result.project,

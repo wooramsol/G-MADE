@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import {
   getProjectById,
   purgeProjectEvaluationRound,
@@ -32,6 +33,7 @@ export async function DELETE(
       return NextResponse.json({ error: "휴지통에 있는 평가만 영구 삭제할 수 있습니다." }, { status: 404 });
     }
 
+    revalidateProjectViews(id);
     return NextResponse.json({ project });
   }
 
@@ -40,5 +42,6 @@ export async function DELETE(
     return NextResponse.json({ error: "평가 기록을 휴지통으로 이동하지 못했습니다." }, { status: 404 });
   }
 
+  revalidateProjectViews(id);
   return NextResponse.json({ project });
 }

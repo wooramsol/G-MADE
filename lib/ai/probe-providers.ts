@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "../fetch-with-timeout";
+import { buildAnthropicHeaders } from "./anthropic-request";
 import { getClaudeModelsToTry } from "./claude-models";
 import { formatProviderApiError } from "./format-api-error";
 import {
@@ -218,11 +219,7 @@ async function probeClaude(): Promise<ProviderProbeResult> {
         "https://api.anthropic.com/v1/messages",
         {
           method: "POST",
-          headers: {
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-          },
+          headers: buildAnthropicHeaders({ apiKey }),
           body: JSON.stringify({
             model,
             max_tokens: 32,

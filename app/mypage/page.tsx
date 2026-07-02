@@ -5,9 +5,11 @@ import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/
 import LoginHistoryPanel from "@/components/login-history-panel";
 import { getIntegrationStatuses } from "@/lib/integrations/status";
 import { getLoginHistoryForEmail } from "@/lib/login-history";
+import { getAllProjects } from "@/lib/project-store";
 import { getRoleLabel } from "@/lib/role-labels";
 import SaasPageShell from "../saas-page-shell";
 import LogoutButton from "./logout-button";
+import PurgeEvaluationsPanel from "./purge-evaluations-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,10 @@ export default async function MyPage() {
   const initial = user?.name?.slice(0, 1) ?? "?";
   const integrations = await getIntegrationStatuses();
   const loginHistory = user?.email ? await getLoginHistoryForEmail(user.email) : [];
+  const purgeableProjects =
+    user?.role === "ADMIN"
+      ? (await getAllProjects()).map((project) => ({ id: project.id, name: project.name }))
+      : [];
 
   return (
     <SaasPageShell
@@ -102,6 +108,8 @@ export default async function MyPage() {
           </div>
         </div>
       </section>
+
+      {user?.role === "ADMIN" ? <PurgeEvaluationsPanel projects={purgeableProjects} /> : null}
 
       <section>
         <Panel title="로그인 히스토리">

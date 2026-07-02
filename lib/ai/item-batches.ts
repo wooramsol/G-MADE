@@ -1,23 +1,21 @@
 import type { EvaluationItem } from "../types";
-import type { AiProviderId } from "./types";
 
-/**
- * 한 번에 처리할 평가 항목 수 제한 (출력 JSON 잘림 방지).
- * OpenAI는 json_object 모드가 안정적이어서 더 큰 배치를 허용한다.
- */
-const PROVIDER_ITEM_BATCH_SIZES: Record<AiProviderId, number> = {
-  gemini: 3,
-  claude: 3,
-  openai: 8,
-};
+/** Gemini도 Vercel 한도 안에서 끝나도록 배치 크기를 키웁니다. */
+export const GEMINI_ITEM_BATCH_SIZE = 10;
 
-export function getProviderItemBatchSize(provider: AiProviderId): number {
-  return PROVIDER_ITEM_BATCH_SIZES[provider];
+/** Claude는 API 호출 횟수를 줄여 Vercel 시간 한도 안에서 완료합니다. */
+export const CLAUDE_ITEM_BATCH_SIZE = 12;
+
+/** @deprecated provider별 상수를 사용하세요. */
+export const PROVIDER_ITEM_BATCH_SIZE = GEMINI_ITEM_BATCH_SIZE;
+
+export function getProviderItemBatchSize(provider: "gemini" | "claude"): number {
+  return provider === "claude" ? CLAUDE_ITEM_BATCH_SIZE : GEMINI_ITEM_BATCH_SIZE;
 }
 
 export function chunkEvaluationItems(
   items: EvaluationItem[],
-  batchSize: number,
+  batchSize = GEMINI_ITEM_BATCH_SIZE,
 ): EvaluationItem[][] {
   if (items.length <= batchSize) {
     return [items];
@@ -31,7 +29,7 @@ export function chunkEvaluationItems(
 }
 
 export function shouldBatchProviderAnalysis(
-  provider: AiProviderId,
+  provider: "gemini" | "claude",
   itemCount: number,
 ): boolean {
   return itemCount > getProviderItemBatchSize(provider);
