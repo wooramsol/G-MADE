@@ -107,7 +107,16 @@ npm run dev
 
 Vercel Postgres를 연결하면 `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING` 등이 자동 주입됩니다. **배포(Redeploy) 시** `prisma db push`를 시도합니다. 실패해도 **배포 자체는 계속**됩니다.
 
+PostgreSQL이 연결되면 **프로젝트·평가 데이터가 `stored_projects` 테이블에 영속 저장**됩니다 (재배포·콜드스타트에도 유지). DB가 없으면 로컬 JSON 파일 + 브라우저 localStorage로 동작하며, 이 모드는 개발·데모 용도로만 사용해야 합니다.
+
 로그인 히스토리 테이블이 없으면 Vercel Storage → Postgres → **Query** 탭에서 `prisma/sql/login_history.sql` 내용을 한 번 실행합니다.
+
+### 보안 관련 환경 변수
+
+- `AUTH_SECRET`: `openssl rand -base64 32` 등으로 생성한 긴 무작위 값 (필수)
+- `ADMIN_EMAIL` / `ADMIN_PASSWORD`: 환경 변수 기반 관리자 로그인 (강한 비밀번호 필수)
+- `ADMIN_INITIAL_PASSWORD`: `prisma db seed` 시 최초 관리자 계정 생성용 (기존 계정 비밀번호는 덮어쓰지 않음)
+- `BLOB_DEFAULT_ACCESS`: 기본값 `private` — 업로드 파일은 인증된 API를 통해서만 다운로드됩니다.
 
 ### 가비아 DNS 설정
 
@@ -123,4 +132,4 @@ Vercel Project Settings > Domains에 아래 도메인을 추가합니다.
 | A | @ | 76.76.21.21 |
 | CNAME | www | cname.vercel-dns.com |
 
-참고: 현재 프로젝트 생성/삭제와 업로드 파일 저장은 데모용 임시 저장 방식입니다. Vercel에서는 서버리스 환경 특성상 장기 보관이 보장되지 않습니다. 운영용으로 사용하려면 PostgreSQL, Firebase, Vercel Blob 같은 영구 저장소를 연결해야 합니다.
+참고: PostgreSQL과 Vercel Blob을 연결하면 프로젝트·평가 데이터와 업로드 파일이 영구 저장됩니다. 둘 다 연결하지 않은 경우 서버리스 환경 특성상 데이터가 재배포 시 사라질 수 있으므로 운영 배포 전 반드시 연결하세요. (마이페이지 → API 연동 상태에서 확인 가능)
