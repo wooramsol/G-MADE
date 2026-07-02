@@ -3,7 +3,7 @@ import { getDefaultAiProvider, isProviderConfigured } from "../ai/select-provide
 import { getLawReferer, isLawApiConfigured } from "../law/config";
 import { isPostgresConfigured } from "../postgres-env";
 import { isDatabaseAvailable } from "../prisma";
-import { readServerEnv, readServerEnvHint } from "../server-env";
+import { readServerEnv } from "../server-env";
 import { getVWorldDomain, isVWorldConfigured } from "../vworld/config";
 
 export type IntegrationTone = "active" | "inactive" | "fallback";
@@ -54,7 +54,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       envKeys: providers.geminiEnvKey
         ? [providers.geminiEnvKey]
         : ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
-      detail: providers.geminiKeyHint ? `키 확인: ${providers.geminiKeyHint}` : undefined,
+      detail: providers.gemini ? "키 설정됨" : undefined,
       fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
       ...rowStatus(providers.gemini),
     },
@@ -64,7 +64,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       provider: "OpenAI",
       configured: providers.openai,
       envKeys: ["OPENAI_API_KEY"],
-      detail: providers.openaiKeyHint ? `키 확인: ${providers.openaiKeyHint}` : undefined,
+      detail: providers.openai ? "키 설정됨" : undefined,
       fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
       ...rowStatus(providers.openai),
     },
@@ -76,7 +76,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       envKeys: providers.claudeEnvKey
         ? [providers.claudeEnvKey]
         : ["CLAUDE_API_KEY", "ANTHROPIC_API_KEY"],
-      detail: providers.claudeKeyHint ? `키 확인: ${providers.claudeKeyHint}` : undefined,
+      detail: providers.claude ? "키 설정됨" : undefined,
       fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
       ...rowStatus(providers.claude),
     },
@@ -103,7 +103,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       configured: lawConfigured,
       envKeys: ["LAW_OC", "LAW_API_KEY"],
       detail: lawConfigured
-        ? `OC 확인: ${readServerEnvHint("LAW_OC", 6) ?? readServerEnvHint("LAW_API_KEY", 6) ?? "설정됨"} · Referer ${getLawReferer()} · 법령·자치법규·행정규칙·별표`
+        ? `OC 설정됨 · Referer ${getLawReferer()} · 법령·자치법규·행정규칙·별표`
         : undefined,
       fallback: "미설정 시 내장 법령·지침 요약 사용",
       ...rowStatus(lawConfigured, "내장 법령 요약"),

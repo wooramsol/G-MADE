@@ -1,4 +1,5 @@
 import { MutedText, PageTitle } from "@/components/typography";
+import { sanitizeCallbackUrl } from "@/lib/safe-callback-url";
 import LoginForm from "./login-form";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +10,7 @@ export default async function LoginPage({
   searchParams?: Promise<{ callbackUrl?: string }>;
 }) {
   const params = await searchParams;
-  const callbackUrl = params?.callbackUrl?.startsWith("/") ? params.callbackUrl : "/";
+  const callbackUrl = sanitizeCallbackUrl(params?.callbackUrl);
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">

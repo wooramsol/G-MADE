@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireApiRole, requireApiSession } from "@/lib/api-auth";
 import {
   getProjectById,
   getStoredProjectRecord,
@@ -137,6 +137,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const permanent = request.nextUrl.searchParams.get("permanent") === "true";
 
   if (permanent) {
+    // 영구 삭제는 관리자·공무원만 수행할 수 있다.
+    const roleResult = await requireApiRole("ADMIN", "OFFICER");
+    if (roleResult.response) return roleResult.response;
+
     const stored = await getStoredProjectRecord(id);
 
     if (!stored) {

@@ -1,6 +1,14 @@
+import { timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { getPrismaClient, isDatabaseAvailable } from "./prisma";
 import type { RoleCode } from "./types";
+
+function secureCompare(a: string, b: string): boolean {
+  const bufferA = Buffer.from(a, "utf8");
+  const bufferB = Buffer.from(b, "utf8");
+  if (bufferA.length !== bufferB.length) return false;
+  return timingSafeEqual(bufferA, bufferB);
+}
 
 export type AuthenticatedUser = {
   id: string;
@@ -25,9 +33,10 @@ function getEnvAdminCredentials(): AuthenticatedUser | null {
 
 function matchesEnvAdmin(email: string, password: string): AuthenticatedUser | null {
   const admin = getEnvAdminCredentials();
-  if (!admin) return null;
+  const expectedPassword = process.env.ADMIN_PASSWORD?.trim();
+  if (!admin || !expectedPassword) return null;
   if (email.toLowerCase() !== admin.email) return null;
-  if (password !== process.env.ADMIN_PASSWORD?.trim()) return null;
+  if (!secureCompare(password, expectedPassword)) return null;
   return admin;
 }
 

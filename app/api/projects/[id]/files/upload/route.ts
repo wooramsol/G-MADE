@@ -3,6 +3,7 @@ import { issueSignedToken } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { getBlobUploadStatus } from "@/lib/blob-upload-status";
+import { getProjectById } from "@/lib/project-store";
 import { getExtension, validateUploadExtension } from "@/lib/upload-validation";
 
 export const runtime = "nodejs";
@@ -62,6 +63,14 @@ export async function POST(
   }
 
   const { id: projectId } = await context.params;
+
+  const project = await getProjectById(projectId);
+  if (!project) {
+    return NextResponse.json(
+      { error: "존재하지 않는 프로젝트에는 파일을 업로드할 수 없습니다." },
+      { status: 404 },
+    );
+  }
 
   const body = (await request.json()) as HandleUploadBody | HandleUploadPresignedBody;
 

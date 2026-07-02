@@ -54,7 +54,6 @@ export async function GET() {
   return NextResponse.json({
     configured: true,
     domain,
-    keyPreview: `${key.slice(0, 6)}...`,
     sampleAddress,
     checks,
     notes: [

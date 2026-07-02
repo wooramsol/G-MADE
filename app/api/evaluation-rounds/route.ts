@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { runEvaluationRound } from "@/lib/run-evaluation-round";
 import { resolveAiProviderPreference } from "@/lib/resolve-ai-provider-preference";
 import { isFileLike } from "@/lib/save-uploaded-files";
@@ -16,15 +17,39 @@ export async function POST(request: NextRequest) {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult.response;
 
+  const rateKey = `evaluation:${authResult.session.user?.id ?? authResult.session.user?.email ?? "anonymous"}`;
+  const rate = checkRateLimit(rateKey, RATE_LIMITS.evaluation.limit, RATE_LIMITS.evaluation.windowMs);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: `평가 요청이 너무 잦습니다. ${rate.retryAfterSeconds}초 후 다시 시도해 주세요.` },
+      { status: 429 },
+    );
+  }
+
   try {
     const formData = await request.formData();
     const wantsStream = String(formData.get("stream") ?? "") === "1";
 
+    const projectId = String(formData.get("projectId") ?? "").trim();
+    if (!projectId) {
+      return NextResponse.json({ error: "projectId가 필요합니다." }, { status: 400 });
+    }
+
     const fileRefs = resolveEvaluationFileRefs(formData);
+    const invalidRef = fileRefs.find(
+      (ref) => !ref.storageKey.startsWith(`projects/${projectId}/files/`),
+    );
+    if (invalidRef) {
+      return NextResponse.json(
+        { error: "다른 프로젝트의 파일은 참조할 수 없습니다." },
+        { status: 400 },
+      );
+    }
+
     const files = resolveEvaluationFiles(formData);
 
     const input = {
-      projectId: String(formData.get("projectId") ?? "").trim(),
+      projectId,
       providerPreference: resolveAiProviderPreference(
         String(formData.get("provider") ?? ""),
       ) as AiProviderPreference,
