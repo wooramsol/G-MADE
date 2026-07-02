@@ -8,6 +8,7 @@ import { formatEvaluationRoundLabel, formatUploadDateTime } from "@/lib/format-d
 import type { EvaluationRound, Project } from "@/lib/types";
 import { showToast } from "../../toast";
 import { purgeLocalProjectRound, restoreLocalProjectRound } from "../local-project-storage";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 type TrashedRoundsPanelProps = {
   project: Project;
@@ -42,7 +43,7 @@ export default function TrashedRoundsPanel({
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/projects/${project.id}/evaluation-rounds/${roundId}/restore`, {
+      const response = await clientFetchWithTimeout(`/api/projects/${project.id}/evaluation-rounds/${roundId}/restore`, {
         method: "POST",
       });
       const payload = (await response.json().catch(() => ({}))) as {
@@ -86,7 +87,7 @@ export default function TrashedRoundsPanel({
     setLoading(true);
 
     try {
-      const response = await fetch(
+      const response = await clientFetchWithTimeout(
         `/api/projects/${project.id}/evaluation-rounds/${roundId}?permanent=true`,
         { method: "DELETE" },
       );

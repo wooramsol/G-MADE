@@ -21,9 +21,8 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
         <input
           autoComplete="email"
           className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
-          defaultValue="admin@gmadehive.com"
           name="email"
-          placeholder="admin@gmadehive.com"
+          placeholder="이메일을 입력하세요"
           required
           type="email"
         />

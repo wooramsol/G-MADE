@@ -4,6 +4,7 @@ import type { LawSearchHit } from "./search";
 import type { OrdinSearchHit } from "./ordin-search";
 
 const SEARCH_CACHE_TTL_MS = 60 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 500;
 
 type CacheEntry<T> = {
   value: T;
@@ -82,6 +83,19 @@ function readCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null 
 }
 
 function writeCache<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T): void {
+  // 장기 실행 인스턴스에서 캐시가 무한히 커지지 않도록 상한을 둔다 (가장 오래된 항목부터 제거).
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const now = Date.now();
+    for (const [entryKey, entry] of cache) {
+      if (entry.expiresAt <= now) cache.delete(entryKey);
+    }
+    while (cache.size >= MAX_CACHE_ENTRIES) {
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey === undefined) break;
+      cache.delete(oldestKey);
+    }
+  }
+
   cache.set(key, {
     value: cloneEntry(value),
     expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,

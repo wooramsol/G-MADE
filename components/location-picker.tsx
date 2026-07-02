@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Caption, FormLabel, MutedText, SubsectionTitle } from "@/components/typography";
 import { useCallback, useEffect, useState } from "react";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 export type LocationSelection = {
   address: string;
@@ -59,7 +60,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
       setSearching(true);
       setSearchError(null);
       try {
-        const res = await fetch(
+        const res = await clientFetchWithTimeout(
           `/api/spatial/address-search?q=${encodeURIComponent(q)}&mode=${mode}`,
         );
         const data = (await res.json()) as {
@@ -111,7 +112,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
 
   const handleMapSelect = async (x: number, y: number) => {
     try {
-      const res = await fetch(`/api/spatial/reverse-geocode?x=${x}&y=${y}`);
+      const res = await clientFetchWithTimeout(`/api/spatial/reverse-geocode?x=${x}&y=${y}`);
       const data = (await res.json()) as { address?: string; error?: string };
       const label =
         res.ok && data.address

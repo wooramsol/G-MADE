@@ -1,5 +1,8 @@
+import { get } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
+import { getBlobAccess } from "@/lib/blob-config";
+import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
 import { findStoredFileInProject } from "@/lib/project-file-pool";
 import { getProjectById } from "@/lib/project-store";
 
@@ -23,6 +26,24 @@ export async function GET(
   const file = findStoredFileInProject(project, fileId);
   if (!file) {
     return NextResponse.json({ error: "파일을 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  if (file.storageKey && isBlobStorageEnabled()) {
+    // private blob은 인증된 서버에서 스트리밍한다.
+    try {
+      const result = await get(file.storageKey, { access: getBlobAccess() });
+      if (result?.stream) {
+        return new Response(result.stream, {
+          headers: {
+            "Content-Type": result.blob.contentType ?? "application/octet-stream",
+            "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+            "Cache-Control": "private, no-store",
+          },
+        });
+      }
+    } catch {
+      // 과거 public 모드로 업로드된 blob은 아래 URL redirect로 처리한다.
+    }
   }
 
   if (file.blobUrl) {

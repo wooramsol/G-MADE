@@ -1,4 +1,4 @@
-import { del, head, put } from "@vercel/blob";
+import { del, get, head, put } from "@vercel/blob";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { getBlobAccess, isBlobStorageConfigured } from "./blob-config";
@@ -76,6 +76,17 @@ export async function readPersistedUploadFile(file: PersistedUploadFile): Promis
 
   if (!isBlobStorageEnabled()) {
     throw new Error("파일 저장소를 사용할 수 없습니다. Vercel Blob 스토어 연결을 확인해 주세요.");
+  }
+
+  // private blob은 인증된 get()으로 읽는다. 과거 public으로 업로드된 blob은
+  // get(access) 불일치로 실패할 수 있으므로 head+fetch로 한 번 더 시도한다.
+  try {
+    const result = await get(file.storageKey, { access: getBlobAccess() });
+    if (result?.stream) {
+      return Buffer.from(await new Response(result.stream).arrayBuffer());
+    }
+  } catch {
+    // Fall through to public URL fetch.
   }
 
   const metadata = await head(file.storageKey);

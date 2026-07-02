@@ -25,31 +25,25 @@ export default function OverflowChipRow({
 }: OverflowChipRowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const [visibleCount, setVisibleCount] = useState(items.length);
+  const [measuredCount, setMeasuredCount] = useState<number | null>(null);
 
   useLayoutEffect(() => {
-    if (expanded) {
-      setVisibleCount(items.length);
-      return;
-    }
+    if (expanded) return;
 
     const container = containerRef.current;
     const measure = measureRef.current;
-    if (!container || !measure || items.length === 0) {
-      setVisibleCount(items.length);
-      return;
-    }
+    if (!container || !measure || items.length === 0) return;
 
     const calculate = () => {
       const containerWidth = container.clientWidth;
       if (containerWidth <= 0) {
-        setVisibleCount(items.length);
+        setMeasuredCount(null);
         return;
       }
 
       const chips = measure.querySelectorAll<HTMLElement>("[data-chip]");
       if (chips.length === 0) {
-        setVisibleCount(items.length);
+        setMeasuredCount(null);
         return;
       }
 
@@ -65,15 +59,16 @@ export default function OverflowChipRow({
         }
       }
 
-      setVisibleCount(fit);
+      setMeasuredCount(fit);
     };
 
-    calculate();
+    // ResizeObserver는 observe 직후 초기 크기로 1회 콜백을 실행하므로 별도 초기 계산이 필요 없다.
     const observer = new ResizeObserver(calculate);
     observer.observe(container);
     return () => observer.disconnect();
   }, [expanded, items]);
 
+  const visibleCount = expanded ? items.length : Math.min(measuredCount ?? items.length, items.length);
   const hiddenCount = Math.max(0, items.length - visibleCount);
   const visibleItems = expanded ? items : items.slice(0, visibleCount);
 

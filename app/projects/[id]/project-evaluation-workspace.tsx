@@ -1,37 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import {
   Badge,
-  BodyText,
-  Caption,
   FieldLabel,
   MutedText,
-  ScoreValue,
   SectionDescription,
   SectionTitle,
   SubsectionTitle,
-  TabTitle,
 } from "@/components/typography";
 import EvaluationGradeLegend from "@/components/evaluation-grade-legend";
 import { formatProviderBadgeLabel } from "@/lib/ai/provider-labels";
 import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
-import ReferenceLinkTitle from "@/components/reference-link-title";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
-import { pickRelatedReferenceLaws, lawMatchesCitation } from "@/lib/related-reference-laws";
-import {
-  guidelineMatchesCitation,
-  pickRelatedReferenceGuidelines,
-} from "@/lib/related-reference-guidelines";
+import { pickRelatedReferenceLaws } from "@/lib/related-reference-laws";
+import { pickRelatedReferenceGuidelines } from "@/lib/related-reference-guidelines";
 import { buildAdmrulReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
 import { collectUniqueRoundFiles } from "@/lib/evaluation-round-files";
 import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
-import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
+import type { EvaluationRound, Project } from "@/lib/types";
 import { trashLocalProjectRound } from "../local-project-storage";
 import { showToast } from "../../toast";
+import EvaluationResultsTable from "./evaluation-results-table";
+import EvaluationRoundTabs from "./evaluation-round-tabs";
 
 type Props = {
   project: Project;
@@ -57,74 +52,77 @@ export default function ProjectEvaluationWorkspace({
   }, [rounds]);
 
   const [selectedId, setSelectedId] = useState<string | null>(sorted[0]?.id ?? null);
-  const previousRoundCountRef = useRef(rounds.length);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingRoundId, setDeletingRoundId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const selectedRound = sorted.find((round) => round.id === selectedId) ?? sorted[0];
-  const hybridView = selectedRound ? buildHybridViewFromRound(selectedRound) : null;
 
-  const aiAvg =
-    hybridView && hybridView.results.length > 0
-      ? Math.round(
-          (hybridView.results.reduce((sum, row) => sum + row.aiEvaluation.score, 0) /
-            hybridView.results.length) *
-            10,
-        ) / 10
-      : null;
-  const expertAvg =
-    hybridView && hybridView.results.length > 0
-      ? Math.round(
-          (hybridView.results.reduce((sum, row) => sum + row.humanEvaluation.score, 0) /
-            hybridView.results.length) *
-            10,
-        ) / 10
-      : null;
-
-  const deletingRound = sorted.find((round) => round.id === deletingRoundId);
-  const referenceLaws = dedupeReferenceLaws(
-    pickRelatedReferenceLaws({
-      pool: selectedRound?.aiAnalysis.referenceLaws ?? [],
-      evaluationPreview: selectedRound?.aiAnalysis.evaluationPreview,
-      evaluationItems: selectedRound?.evaluationItems,
-    }),
-  ).filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null);
-  const referenceGuidelines = pickRelatedReferenceGuidelines({
-    pool: selectedRound?.aiAnalysis.referenceGuidelines ?? [],
-    evaluationPreview: selectedRound?.aiAnalysis.evaluationPreview,
-    evaluationItems: selectedRound?.evaluationItems,
-  }).filter((guide) => buildAdmrulReferenceUrl(guide.title, guide.sourceUrl) !== null);
-  const analysisWarnings = dedupeWarnings(selectedRound?.aiAnalysis.warnings ?? []);
-
-  useEffect(() => {
-    if (sorted.length === 0) {
-      setSelectedId(null);
-      return;
-    }
-
-    setSelectedId((current) => {
-      if (!current || !sorted.some((round) => round.id === current)) {
-        return sorted[0].id;
-      }
-      return current;
-    });
-  }, [sorted]);
-
-  useEffect(() => {
-    if (rounds.length > previousRoundCountRef.current && sorted[0]) {
+  // 새 평가가 추가되면 최신 평가를 선택한다 (렌더 중 상태 보정 패턴).
+  const [prevRoundCount, setPrevRoundCount] = useState(rounds.length);
+  if (rounds.length !== prevRoundCount) {
+    setPrevRoundCount(rounds.length);
+    if (rounds.length > prevRoundCount && sorted[0]) {
       setSelectedId(sorted[0].id);
     }
-    previousRoundCountRef.current = rounds.length;
-  }, [rounds.length, sorted]);
+  }
+
+  // 복원 등으로 특정 평가에 포커스 요청이 오면 해당 탭을 선택한다.
+  const [handledFocusId, setHandledFocusId] = useState<string | null>(null);
+  if (focusRoundId && focusRoundId !== handledFocusId && sorted.some((round) => round.id === focusRoundId)) {
+    setHandledFocusId(focusRoundId);
+    setSelectedId(focusRoundId);
+  }
 
   useEffect(() => {
-    if (!focusRoundId) return;
-
-    if (sorted.some((round) => round.id === focusRoundId)) {
-      setSelectedId(focusRoundId);
+    if (focusRoundId && handledFocusId === focusRoundId) {
       onFocusRoundHandled?.();
     }
-  }, [focusRoundId, onFocusRoundHandled, sorted]);
+  }, [focusRoundId, handledFocusId, onFocusRoundHandled]);
+
+  // selectedId가 목록에 없으면 최신 평가로 대체 (별도 effect 없이 렌더에서 처리)
+  const selectedRound = sorted.find((round) => round.id === selectedId) ?? sorted[0];
+  const hybridView = useMemo(
+    () => (selectedRound ? buildHybridViewFromRound(selectedRound) : null),
+    [selectedRound],
+  );
+
+  const { aiAvg, expertAvg } = useMemo(() => {
+    if (!hybridView || hybridView.results.length === 0) {
+      return { aiAvg: null as number | null, expertAvg: null as number | null };
+    }
+    const count = hybridView.results.length;
+    return {
+      aiAvg: Math.round((hybridView.results.reduce((sum, row) => sum + row.aiEvaluation.score, 0) / count) * 10) / 10,
+      expertAvg:
+        Math.round((hybridView.results.reduce((sum, row) => sum + row.humanEvaluation.score, 0) / count) * 10) / 10,
+    };
+  }, [hybridView]);
+
+  const deletingRound = sorted.find((round) => round.id === deletingRoundId);
+
+  const referenceLaws = useMemo(
+    () =>
+      dedupeReferenceLaws(
+        pickRelatedReferenceLaws({
+          pool: selectedRound?.aiAnalysis.referenceLaws ?? [],
+          evaluationPreview: selectedRound?.aiAnalysis.evaluationPreview,
+          evaluationItems: selectedRound?.evaluationItems,
+        }),
+      ).filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null),
+    [selectedRound],
+  );
+  const referenceGuidelines = useMemo(
+    () =>
+      pickRelatedReferenceGuidelines({
+        pool: selectedRound?.aiAnalysis.referenceGuidelines ?? [],
+        evaluationPreview: selectedRound?.aiAnalysis.evaluationPreview,
+        evaluationItems: selectedRound?.evaluationItems,
+      }).filter((guide) => buildAdmrulReferenceUrl(guide.title, guide.sourceUrl) !== null),
+    [selectedRound],
+  );
+  const analysisWarnings = useMemo(
+    () => dedupeWarnings(selectedRound?.aiAnalysis.warnings ?? []),
+    [selectedRound],
+  );
 
   function requestDeleteRound(roundId: string) {
     setDeletingRoundId(roundId);
@@ -140,9 +138,10 @@ export default function ProjectEvaluationWorkspace({
     setDeleting(true);
 
     try {
-      const response = await fetch(`/api/projects/${project.id}/evaluation-rounds/${roundId}`, {
-        method: "DELETE",
-      });
+      const response = await clientFetchWithTimeout(
+        `/api/projects/${project.id}/evaluation-rounds/${roundId}`,
+        { method: "DELETE" },
+      );
       const payload = (await response.json().catch(() => ({}))) as {
         error?: string;
         project?: { evaluationRounds?: EvaluationRound[]; trashedEvaluationRounds?: EvaluationRound[] };
@@ -195,10 +194,12 @@ export default function ProjectEvaluationWorkspace({
     <div className="space-y-8">
       <section>
         {showHeader ? (
-          <WorkspaceSectionHeading
-            title="통합 평가 결과"
-            description="AI·전문가 자료를 함께 분석한 평가별 통합 결과와 종합 점수입니다."
-          />
+          <div>
+            <SectionTitle>통합 평가 결과</SectionTitle>
+            <SectionDescription>
+              AI·전문가 자료를 함께 분석한 평가별 통합 결과와 종합 점수입니다.
+            </SectionDescription>
+          </div>
         ) : null}
 
         <div className={`flex flex-wrap items-center gap-3 ${showHeader ? "mt-5" : ""}`}>
@@ -222,47 +223,12 @@ export default function ProjectEvaluationWorkspace({
           onConfirm={deleteRound}
         />
 
-        <div className="mt-4 overflow-x-auto rounded-xl border border-[#d7dee8] bg-white p-1">
-          <div className="flex min-w-max gap-1">
-            {sorted.map((round) => {
-              const active = round.id === selectedRound.id;
-              return (
-                <div
-                  key={round.id}
-                  className={`relative rounded-lg sm:min-w-[210px] ${
-                    active
-                      ? "bg-[#eef4fb] shadow-sm ring-1 ring-[#2463b3]/25"
-                      : "hover:bg-[#f8fafc]"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    aria-label={`${formatEvaluationRoundLabel(round.evaluatedAt)} 평가 삭제`}
-                    className="absolute right-1 top-1 z-10 rounded p-0.5 text-[10px] font-bold leading-none text-red-500 hover:bg-red-50 hover:text-red-700"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      requestDeleteRound(round.id);
-                    }}
-                  >
-                    ✕
-                  </button>
-                  <button
-                    type="button"
-                    className={`w-full rounded-lg px-3 py-2 pr-6 text-left transition ${
-                      active ? "text-[#15345b]" : "text-[#64748b] hover:text-[#15345b]"
-                    }`}
-                    onClick={() => setSelectedId(round.id)}
-                  >
-                    <TabTitle className="block">{formatEvaluationRoundLabel(round.evaluatedAt)}</TabTitle>
-                    <span className="mt-1 block text-[11px] text-[#64748b]">
-                      자료 {collectUniqueRoundFiles(round).length}개
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <EvaluationRoundTabs
+          rounds={sorted}
+          selectedRoundId={selectedRound.id}
+          onRequestDelete={requestDeleteRound}
+          onSelect={setSelectedId}
+        />
 
         <div className="mt-5 space-y-5 rounded-2xl border border-[#d7dee8] bg-[#f8fafc] p-4">
           {selectedRound.aiWeight > 0 && selectedRound.aiAnalysis.mode === "demo" ? (
@@ -297,9 +263,7 @@ export default function ProjectEvaluationWorkspace({
               {selectedRound.expertSummary ? (
                 <p className="mt-2 text-sm leading-6 text-[#475569]">{selectedRound.expertSummary}</p>
               ) : null}
-              <p className={`text-sm leading-6 text-[#475569] ${selectedRound.expertSummary ? "mt-2" : "mt-2"}`}>
-                {selectedRound.aiAnalysis.summary}
-              </p>
+              <p className="mt-2 text-sm leading-6 text-[#475569]">{selectedRound.aiAnalysis.summary}</p>
             </div>
           </div>
 
@@ -325,7 +289,7 @@ export default function ProjectEvaluationWorkspace({
             <FieldLabel as="p" className="mb-3">
               평가항목 총 {hybridView.results.length}개
             </FieldLabel>
-            <EvaluationTable
+            <EvaluationResultsTable
               evaluationPreview={selectedRound.aiAnalysis.evaluationPreview}
               referenceGuidelines={referenceGuidelines}
               referenceLaws={referenceLaws}
@@ -374,15 +338,6 @@ function AnalysisWarningText({ warning }: { warning: string }) {
   );
 }
 
-function WorkspaceSectionHeading({ title, description }: { title: string; description: string }) {
-  return (
-    <div>
-      <SectionTitle>{title}</SectionTitle>
-      <SectionDescription>{description}</SectionDescription>
-    </div>
-  );
-}
-
 function DocumentSectionsBlock({
   sections,
 }: {
@@ -397,10 +352,7 @@ function DocumentSectionsBlock({
       </MutedText>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {sections.map((section) => (
-          <div
-            className="rounded-xl border border-[#d7dee8] bg-white p-3"
-            key={section.label}
-          >
+          <div className="rounded-xl border border-[#d7dee8] bg-white p-3" key={section.label}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <p className="text-sm font-bold text-[#15345b]">{section.label}</p>
               <span className="shrink-0 rounded-full bg-[#e8f1ff] px-2 py-0.5 text-[11px] font-bold text-[#2463b3]">
@@ -446,16 +398,7 @@ function FileList({
       <ul className="mt-2 space-y-1 text-xs text-[#64748b]">
         {files.map((file) => (
           <li key={file.id}>
-            {file.blobUrl ? (
-              <a
-                className="font-semibold text-[#2463b3] underline-offset-2 hover:underline"
-                href={file.blobUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                {file.originalName}
-              </a>
-            ) : file.storageKey ? (
+            {file.blobUrl || file.storageKey ? (
               <a
                 className="font-semibold text-[#2463b3] underline-offset-2 hover:underline"
                 href={`/api/projects/${projectId}/files/${file.id}`}
@@ -473,193 +416,4 @@ function FileList({
       </ul>
     </div>
   );
-}
-
-function EvaluationTable({
-  results,
-  evaluationPreview,
-  referenceLaws,
-  referenceGuidelines,
-  roundId,
-}: {
-  results: HybridResult[];
-  evaluationPreview: EvaluationRound["aiAnalysis"]["evaluationPreview"];
-  referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>;
-  referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>;
-  roundId: string;
-}) {
-  return (
-    <div className="rounded-xl border border-[#d7dee8]">
-      <table className="w-full table-fixed border-collapse text-left text-sm">
-        <colgroup>
-          <col className="w-[36px]" />
-          <col className="w-[14%]" />
-          <col className="w-[52px]" />
-          <col className="w-[56px]" />
-          <col className="w-[72px]" />
-          <col className="w-[64px]" />
-          <col />
-        </colgroup>
-        <thead className="bg-[#eef4fb] text-[#15345b]">
-          <tr>
-            <th className="px-2 py-2.5 text-center">#</th>
-            <th className="px-3 py-2.5">평가항목</th>
-            <th className="px-2 py-2.5 text-center">배점</th>
-            <th className="px-2 py-2.5 text-center">AI</th>
-            <th className="px-2 py-2.5 text-center">전문가</th>
-            <th className="px-2 py-2.5 text-center">최종</th>
-            <th className="px-3 py-2.5">평가 근거 / 의견</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#d7dee8] bg-white">
-          {results.map((result, index) => {
-            const preview =
-              evaluationPreview.find((row) => row.itemId === result.item.id) ??
-              evaluationPreview.find((row) => row.itemName === result.item.detailItem);
-            const itemLawLinks = matchItemReferenceLaws(preview, referenceLaws);
-            const itemGuidelineLinks = matchItemReferenceGuidelines(preview, referenceGuidelines);
-
-            return (
-              <tr key={result.item.id}>
-                <td className="px-2 py-3 align-top text-center text-xs font-bold text-[#64748b]">
-                  {index + 1}
-                </td>
-                <td className="px-3 py-3 align-top">
-                  <p className="text-sm font-bold leading-5 text-[#15345b]">{result.item.detailItem}</p>
-                  <p className="mt-0.5 text-[10px] leading-4 text-[#64748b]">
-                    {result.item.majorCategory} · {result.item.middleCategory}
-                  </p>
-                </td>
-                <td className="px-2 py-3 align-top text-center font-semibold text-[#15345b]">
-                  {result.item.points}
-                </td>
-                <td className="px-2 py-3 align-top text-center font-bold text-[#2463b3]">
-                  {result.aiEvaluation.score}
-                </td>
-                <td className="px-2 py-3 align-top text-center font-bold text-[#15345b]">
-                  {result.humanEvaluation.score}
-                </td>
-                <td className="px-2 py-3 align-top text-center">
-                  <ScoreValue>{result.finalScore}</ScoreValue>
-                  <p className="text-[10px] leading-4 text-[#64748b]">
-                    {result.finalGrade}
-                  </p>
-                </td>
-                <td className="px-3 py-3 align-top">
-                  <EvaluationRationaleCell
-                    guidelineLinks={itemGuidelineLinks}
-                    lawLinks={itemLawLinks}
-                    result={result}
-                    roundId={roundId}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function EvaluationRationaleCell({
-  result,
-  lawLinks,
-  guidelineLinks,
-  roundId,
-}: {
-  result: HybridResult;
-  lawLinks: Array<{ title: string; article: string; href: string | null }>;
-  guidelineLinks: Array<{ title: string; section: string; href: string | null }>;
-  roundId: string;
-}) {
-  return (
-    <div className="space-y-2 text-xs leading-5 text-[#64748b]">
-      <p className="whitespace-pre-wrap break-words text-[#475569]">
-        <span className="font-semibold text-[#2463b3]">AI:</span> {result.aiEvaluation.rationale}
-      </p>
-      {result.humanEvaluation.comment ? (
-        <p className="whitespace-pre-wrap break-words text-[#475569]">
-          <span className="font-semibold text-[#15345b]">전문가:</span> {result.humanEvaluation.comment}
-        </p>
-      ) : null}
-      <p className="whitespace-pre-wrap break-words font-semibold text-[#9a3412]">
-        {result.aiEvaluation.recommendation}
-      </p>
-      {lawLinks.length > 0 || guidelineLinks.length > 0 ? (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-[#e2e8f0] pt-2">
-          {lawLinks.map((law) => (
-            <span key={`${roundId}-${law.title}-${law.article}`}>
-              {law.href ? (
-                <ReferenceLinkTitle title={`${law.title} ${law.article}`} href={law.href} />
-              ) : (
-                <span className="text-[#2463b3]">
-                  {law.title} {law.article}
-                </span>
-              )}
-            </span>
-          ))}
-          {guidelineLinks.map((guide) => (
-            <span key={`${roundId}-${guide.title}-${guide.section}`}>
-              {guide.href ? (
-                <ReferenceLinkTitle title={`${guide.title} ${guide.section}`} href={guide.href} />
-              ) : (
-                <span className="text-[#2463b3]">
-                  {guide.title} {guide.section}
-                </span>
-              )}
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function matchItemReferenceLaws(
-  preview: EvaluationRound["aiAnalysis"]["evaluationPreview"][number] | undefined,
-  referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>,
-) {
-  const citations = preview?.laws ?? [];
-  const matched = referenceLaws.filter((law) =>
-    citations.some((citation) => lawMatchesCitation(law, citation)),
-  );
-
-  if (matched.length > 0) {
-    return matched.map((law) => ({
-      title: law.title,
-      article: law.article,
-      href: buildLawReferenceUrl(law.title, law.sourceUrl),
-    }));
-  }
-
-  return citations.map((citation) => ({
-    title: citation,
-    article: "",
-    href: null,
-  }));
-}
-
-function matchItemReferenceGuidelines(
-  preview: EvaluationRound["aiAnalysis"]["evaluationPreview"][number] | undefined,
-  referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>,
-) {
-  const citations = preview?.guidelines ?? [];
-  const matched = referenceGuidelines.filter((guide) =>
-    citations.some((citation) => guidelineMatchesCitation(guide, citation)),
-  );
-
-  if (matched.length > 0) {
-    return matched.map((guide) => ({
-      title: guide.title,
-      section: guide.section,
-      href: buildAdmrulReferenceUrl(guide.title, guide.sourceUrl),
-    }));
-  }
-
-  return citations.map((citation) => ({
-    title: citation,
-    section: "",
-    href: null,
-  }));
 }

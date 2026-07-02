@@ -6,6 +6,7 @@ import ConfirmDialog from "@/components/confirm-dialog";
 import { saveLocalProject, trashLocalProject } from "./local-project-storage";
 import type { Project } from "@/lib/types";
 import { showToast } from "../toast";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 type DeleteProjectButtonProps = {
   projectId: string;
@@ -22,7 +23,7 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+      const response = await clientFetchWithTimeout(`/api/projects/${projectId}`, { method: "DELETE" });
       const payload = (await response.json().catch(() => ({}))) as {
         error?: string;
         project?: Project;

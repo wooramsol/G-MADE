@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { CardTitle, Eyebrow } from "@/components/typography";
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { getProjectEvaluationStatus } from "@/lib/project-evaluation-status";
@@ -9,7 +9,7 @@ import { sortProjectsByUpdatedAt } from "@/lib/project-sort";
 import type { Project } from "@/lib/types";
 import { mergeProjectWithLocal } from "@/lib/merge-project-state";
 import { filterActiveProjects } from "@/lib/trash";
-import { getLocalProjects } from "./local-project-storage";
+import { useLocalProjects } from "./local-project-storage";
 
 type ProjectManagementGridProps = {
   serverProjects: Project[];
@@ -17,16 +17,7 @@ type ProjectManagementGridProps = {
 };
 
 export default function ProjectManagementGrid({ serverProjects, query }: ProjectManagementGridProps) {
-  const [localProjects, setLocalProjects] = useState<Project[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setLocalProjects(getLocalProjects());
-      setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, []);
+  const { projects: localProjects, hydrated } = useLocalProjects();
 
   const normalizedQuery = query.trim().toLowerCase();
 

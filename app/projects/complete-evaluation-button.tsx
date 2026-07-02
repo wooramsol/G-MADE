@@ -7,6 +7,7 @@ import { isProjectEvaluationComplete } from "@/lib/project-evaluation-status";
 import type { Project } from "@/lib/types";
 import { getLocalProjects, saveLocalProject } from "./local-project-storage";
 import { showToast } from "../toast";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 type CompleteEvaluationButtonProps = {
   project: Project;
@@ -26,7 +27,7 @@ export default function CompleteEvaluationButton({ project, onUpdated }: Complet
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/projects/${project.id}`, {
+      const response = await clientFetchWithTimeout(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "완료" }),

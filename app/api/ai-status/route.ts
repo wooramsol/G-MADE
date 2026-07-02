@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { getConfiguredProviders } from "@/lib/ai/env-keys";
 import { getConfiguredModelSummary, probeConfiguredAiProviders } from "@/lib/ai/probe-providers";
 import { probeDocumentAnalysisForProviders } from "@/lib/ai/probe-document-analysis";
@@ -13,6 +14,19 @@ export async function GET(request: NextRequest) {
 
   const providers = getConfiguredProviders();
   const probeMode = request.nextUrl.searchParams.get("probe");
+
+  if (probeMode) {
+    // probe는 실제 AI API 호출(비용 발생)이므로 호출 빈도를 제한한다.
+    const rateKey = `ai-probe:${authResult.session.user?.id ?? authResult.session.user?.email ?? "anonymous"}`;
+    const rate = checkRateLimit(rateKey, RATE_LIMITS.aiProbe.limit, RATE_LIMITS.aiProbe.windowMs);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: `AI 연결 확인 요청이 너무 잦습니다. ${rate.retryAfterSeconds}초 후 다시 시도해 주세요.` },
+        { status: 429 },
+      );
+    }
+  }
+
   const probes =
     probeMode === "analysis"
       ? await probeDocumentAnalysisForProviders()
@@ -28,18 +42,15 @@ export async function GET(request: NextRequest) {
         configured: providers.gemini,
         envKey: providers.geminiEnvKey ?? "GEMINI_API_KEY",
         acceptedKeys: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
-        keyHint: providers.geminiKeyHint,
       },
       openai: {
         configured: providers.openai,
         envKey: "OPENAI_API_KEY",
-        keyHint: providers.openaiKeyHint,
       },
       claude: {
         configured: providers.claude,
         envKey: providers.claudeEnvKey ?? "CLAUDE_API_KEY",
         acceptedKeys: ["CLAUDE_API_KEY", "ANTHROPIC_API_KEY"],
-        keyHint: providers.claudeKeyHint,
       },
     },
     probes,

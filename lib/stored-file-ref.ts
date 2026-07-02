@@ -1,4 +1,4 @@
-import type { EvaluationSessionFile, Project, ProjectFile } from "./types";
+import type { EvaluationSessionFile, ProjectFile } from "./types";
 
 /** Blob에 저장된 프로젝트 자료 참조 (차수 간 재사용) */
 export type StoredFileRef = {

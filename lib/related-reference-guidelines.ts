@@ -1,4 +1,3 @@
-import { dedupeReferenceLaws, type ReferenceLawLike } from "./dedupe-reference-laws";
 import type { EvaluationItem } from "./types";
 
 const GUIDELINE_ID_KEYWORDS: Record<string, string[]> = {

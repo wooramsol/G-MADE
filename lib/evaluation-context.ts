@@ -116,6 +116,12 @@ async function loadSpatialContext(
 
     const result: LandscapeZoneLookupResult = await lookupLandscapeZoneByAddress(project.location, point);
 
+    if (result.failedLayerLabels.length > 0) {
+      warnings.push(
+        `공간정보 일부 레이어(${result.failedLayerLabels.join(", ")}) 조회에 실패해 결과에 반영되지 않았습니다.`,
+      );
+    }
+
     return {
       address: result.address,
       point: {

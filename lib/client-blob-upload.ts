@@ -8,6 +8,7 @@ import type { BlobUploadMode } from "@/lib/blob-upload-status";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { Project } from "@/lib/types";
 import { buildProjectBlobPathname, validateUploadMetadata } from "@/lib/upload-validation";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 type BlobUploadStatusResponse = {
   ready: boolean;
@@ -17,7 +18,7 @@ type BlobUploadStatusResponse = {
 };
 
 async function fetchBlobUploadStatus(projectId: string): Promise<BlobUploadStatusResponse> {
-  const response = await fetch(`/api/projects/${projectId}/files/upload`);
+  const response = await clientFetchWithTimeout(`/api/projects/${projectId}/files/upload`);
   const payload = (await response.json().catch(() => ({}))) as BlobUploadStatusResponse & {
     error?: string;
   };

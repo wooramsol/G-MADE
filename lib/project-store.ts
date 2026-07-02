@@ -1,8 +1,11 @@
-import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
+import {
+  deleteStoredProjectById,
+  putStoredProject,
+  readStoredProjects,
+} from "./project-persistence";
 import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
-import { getWritableStoragePath } from "./runtime-storage";
 import {
   isProjectTrashed,
   purgeEvaluationRound,
@@ -19,8 +22,6 @@ import type {
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
-const storeDir = getWritableStoragePath();
-const storePath = getWritableStoragePath("projects.json");
 const demoProjectIds = new Set(demoProjects.map((project) => project.id));
 
 export function isDemoProjectId(id: string): boolean {
@@ -65,8 +66,7 @@ export async function createProject(input: ProjectInput): Promise<Project> {
       updatedAt: now,
     };
 
-    const createdProjects = await readCreatedProjects();
-    await writeCreatedProjects([project, ...createdProjects]);
+    await putStoredProject(project);
 
     return project;
   });
@@ -155,8 +155,6 @@ export async function upsertProjectRecord(project: Project): Promise<Project> {
   return withProjectStoreLock(async () => {
     const allProjects = await getAllProjectsIncludingTrashed();
     const existing = allProjects.find((item) => item.id === project.id);
-    const storedProjects = await readCreatedProjects();
-    const storedIndex = storedProjects.findIndex((item) => item.id === project.id);
     const base = existing ?? project;
 
     const nextProject: Project = {
@@ -171,13 +169,7 @@ export async function upsertProjectRecord(project: Project): Promise<Project> {
       updatedAt: new Date().toISOString(),
     };
 
-    if (storedIndex >= 0) {
-      storedProjects[storedIndex] = nextProject;
-    } else {
-      storedProjects.unshift(nextProject);
-    }
-
-    await writeCreatedProjects(storedProjects);
+    await putStoredProject(nextProject);
     return nextProject;
   });
 }
@@ -265,14 +257,18 @@ async function updateStoredProject(
   updater: (project: Project) => Project,
 ): Promise<Project | undefined> {
   return withProjectStoreLock(async () => {
-    const allProjects = await getAllProjectsIncludingTrashed();
-    const existingProject = allProjects.find((project) => project.id === id);
+    const storedProjects = await readStoredProjects();
+    const stored = storedProjects.find((project) => project.id === id);
 
-    if (!existingProject) return undefined;
+    let baseProject = stored;
+    if (!baseProject) {
+      // 저장소에 없는 경우 데모 프로젝트를 기반으로 오버레이 레코드를 만든다.
+      const allProjects = await getAllProjectsIncludingTrashed();
+      baseProject = allProjects.find((project) => project.id === id);
+    }
 
-    const storedProjects = await readCreatedProjects();
-    const storedIndex = storedProjects.findIndex((project) => project.id === id);
-    const baseProject = storedIndex >= 0 ? storedProjects[storedIndex] : existingProject;
+    if (!baseProject) return undefined;
+
     const nextProject = updater({
       ...baseProject,
       uploadAnalyses: baseProject.uploadAnalyses ?? [],
@@ -282,13 +278,7 @@ async function updateStoredProject(
       updatedAt: new Date().toISOString(),
     });
 
-    if (storedIndex >= 0) {
-      storedProjects[storedIndex] = nextProject;
-    } else {
-      storedProjects.unshift(nextProject);
-    }
-
-    await writeCreatedProjects(storedProjects);
+    await putStoredProject(nextProject);
     return nextProject;
   });
 }
@@ -316,24 +306,16 @@ export async function restoreProjectRecord(id: string): Promise<Project | undefi
   });
 }
 
-/** JSON 저장소의 원본 프로젝트 레코드를 조회합니다. (데모 병합 없음) */
+/** 저장소의 원본 프로젝트 레코드를 조회합니다. (데모 병합 없음) */
 export async function getStoredProjectRecord(id: string): Promise<Project | undefined> {
-  const storedProjects = await readCreatedProjects();
+  const storedProjects = await readStoredProjects();
   return storedProjects.find((project) => project.id === id);
 }
 
 /** 저장소에서 프로젝트 레코드를 영구 삭제합니다. */
 export async function purgeProjectRecord(id: string): Promise<boolean> {
   return withProjectStoreLock(async () => {
-    const createdProjects = await readCreatedProjects();
-    const nextProjects = createdProjects.filter((project) => project.id !== id);
-
-    if (nextProjects.length === createdProjects.length) {
-      return false;
-    }
-
-    await writeCreatedProjects(nextProjects);
-    return true;
+    return deleteStoredProjectById(id);
   });
 }
 
@@ -349,7 +331,7 @@ export async function deleteProjectRecord(id: string): Promise<boolean> {
 }
 
 async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
-  const storedProjects = await readCreatedProjects();
+  const storedProjects = await readStoredProjects();
   const storedById = new Map(storedProjects.map((project) => [project.id, project]));
   const mergedDemoProjects = demoProjects.map((project) => {
     const stored = storedById.get(project.id);
@@ -371,26 +353,4 @@ async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
   const activeStored = storedProjects.filter((project) => !demoProjectIds.has(project.id));
 
   return sortProjectsByUpdatedAt([...mergedDemoProjects, ...activeStored]);
-}
-
-async function readCreatedProjects(): Promise<Project[]> {
-  try {
-    const content = await readFile(storePath, "utf8");
-    const parsed = JSON.parse(content);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    if (isMissingFileError(error)) return [];
-    throw error;
-  }
-}
-
-async function writeCreatedProjects(projects: Project[]) {
-  await mkdir(storeDir, { recursive: true });
-  const tempPath = `${storePath}.${Date.now()}.tmp`;
-  await writeFile(tempPath, JSON.stringify(projects, null, 2), "utf8");
-  await rename(tempPath, storePath);
-}
-
-function isMissingFileError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }

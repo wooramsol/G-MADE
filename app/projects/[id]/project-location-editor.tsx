@@ -6,6 +6,7 @@ import { LocationPicker, type LocationSelection } from "@/components/location-pi
 import type { Project } from "@/lib/types";
 import { getLocalProjects, saveLocalProject } from "../local-project-storage";
 import { showToast } from "../../toast";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 function formatLocationLabel(selection: LocationSelection): string {
   if (selection.note?.trim()) {
@@ -57,7 +58,7 @@ export default function ProjectLocationEditor({
     setLoading(true);
     try {
       const patch = buildLocationPatch(location);
-      const response = await fetch(`/api/projects/${project.id}`, {
+      const response = await clientFetchWithTimeout(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),

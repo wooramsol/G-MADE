@@ -39,25 +39,36 @@ async function main() {
     },
   });
 
-  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase() ?? "admin@gmadehive.com";
-  const adminPassword = process.env.ADMIN_INITIAL_PASSWORD?.trim() ?? "gmadehive-admin";
-  const passwordHash = await bcrypt.hash(adminPassword, 12);
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_INITIAL_PASSWORD?.trim();
 
-  await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {
-      name: "시스템 관리자",
-      passwordHash,
-      roleId: adminRole.id,
-      active: true,
-    },
-    create: {
-      email: adminEmail,
-      name: "시스템 관리자",
-      passwordHash,
-      roleId: adminRole.id,
-    },
-  });
+  if (adminEmail && adminPassword) {
+    const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+
+    if (existingAdmin) {
+      // 이미 존재하는 계정의 비밀번호는 seed가 덮어쓰지 않는다.
+      await prisma.user.update({
+        where: { email: adminEmail },
+        data: { roleId: adminRole.id, active: true },
+      });
+      console.log(`관리자 계정이 이미 존재하여 비밀번호는 변경하지 않았습니다: ${adminEmail}`);
+    } else {
+      const passwordHash = await bcrypt.hash(adminPassword, 12);
+      await prisma.user.create({
+        data: {
+          email: adminEmail,
+          name: "시스템 관리자",
+          passwordHash,
+          roleId: adminRole.id,
+        },
+      });
+      console.log(`관리자 계정을 생성했습니다: ${adminEmail}`);
+    }
+  } else {
+    console.warn(
+      "ADMIN_EMAIL / ADMIN_INITIAL_PASSWORD 환경 변수가 없어 관리자 계정 seed를 건너뜁니다.",
+    );
+  }
 
   await prisma.setting.upsert({
     where: { key: "hybrid_evaluation_weights" },

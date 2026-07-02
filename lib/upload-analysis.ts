@@ -4,13 +4,13 @@ import { getGeminiApiKey, getGeminiModel, getOpenAiApiKey } from "./ai/env-keys"
 import { buildAnalysisPrompt } from "./ai/analysis-prompt";
 import type { AnalysisPromptOptions } from "./ai/analysis-prompt-options";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
-import { chunkEvaluationItems, shouldBatchProviderAnalysis } from "./ai/item-batches";
+import { chunkEvaluationItems, getProviderItemBatchSize, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
 import { buildFallbackRecommendation, isGenericRecommendation } from "./ai/fallback-recommendation";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
 import { formatProviderApiError } from "./ai/format-api-error";
-import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
+import { getGeminiModelsToTry } from "./ai/gemini-models";
 import { requestGeminiGenerateContent } from "./ai/gemini-request";
 import { describeGeminiResponseIssue, readGeminiGenerateContent } from "./ai/gemini-response";
 import { isProviderConfigured, selectProvider } from "./ai/select-provider";
@@ -97,6 +97,20 @@ async function analyzeWithOpenAi(
   items: EvaluationItem[],
   baseWarnings: string[],
 ): Promise<UploadAnalysisResult> {
+  if (shouldBatchProviderAnalysis("openai", items.length)) {
+    return analyzeProviderInBatches("openai", files, evaluationContext, items, baseWarnings);
+  }
+
+  return analyzeWithOpenAiOnce(files, evaluationContext, items, baseWarnings);
+}
+
+async function analyzeWithOpenAiOnce(
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  items: EvaluationItem[],
+  baseWarnings: string[],
+  promptOptions?: AnalysisPromptOptions,
+): Promise<UploadAnalysisResult> {
   const apiKey = getOpenAiApiKey();
   if (!apiKey) {
     throw new AiAnalysisError(
@@ -105,42 +119,63 @@ async function analyzeWithOpenAi(
     );
   }
 
+  let lastStatus = 500;
+  let lastBody = "";
+
   try {
-    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: AI_EVALUATOR_SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: buildAnalysisPrompt(files, evaluationContext, items),
-          },
-        ],
-        temperature: 0.2,
-      }),
-    });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+          response_format: { type: "json_object" },
+          max_tokens: 8192,
+          messages: [
+            {
+              role: "system",
+              content: AI_EVALUATOR_SYSTEM_PROMPT,
+            },
+            {
+              role: "user",
+              content: buildAnalysisPrompt(files, evaluationContext, items, promptOptions),
+            },
+          ],
+          temperature: 0.2,
+        }),
+      });
 
-    if (!response.ok) {
-      const message = await response.text();
-      throw new AiAnalysisError(formatProviderApiError("openai", "OpenAI", response.status, message), "openai");
+      if (response.ok) {
+        const payload = await response.json();
+        const choice = payload.choices?.[0];
+        if (choice?.finish_reason === "length") {
+          throw new AiAnalysisError(
+            "ChatGPT 출력 토큰 한도에 도달해 JSON 응답이 잘렸습니다. 평가 항목이 많으면 자동 분할 분석이 적용됩니다. 다시 시도해 주세요.",
+            "openai",
+          );
+        }
+        return normalizeAiJson(choice?.message?.content, files, "openai", evaluationContext, items, baseWarnings);
+      }
+
+      lastStatus = response.status;
+      lastBody = await response.text();
+
+      if (isRetryableProviderError(response.status, lastBody) && attempt < 2) {
+        await sleep(retryDelayMs(attempt));
+        continue;
+      }
+
+      break;
     }
-
-    const payload = await response.json();
-    const content = payload.choices?.[0]?.message?.content;
-    return normalizeAiJson(content, files, "openai", evaluationContext, items, baseWarnings);
   } catch (error) {
     if (error instanceof AiAnalysisError) throw error;
     throw new AiAnalysisError(formatProviderTransportError("OpenAI", error), "openai");
   }
+
+  throw new AiAnalysisError(formatProviderApiError("openai", "OpenAI", lastStatus, lastBody), "openai");
 }
 
 async function analyzeWithGemini(
@@ -170,13 +205,13 @@ async function analyzeWithClaudeBatched(
 }
 
 async function analyzeProviderInBatches(
-  provider: "gemini" | "claude",
+  provider: "gemini" | "claude" | "openai",
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   baseWarnings: string[],
 ): Promise<UploadAnalysisResult> {
-  const batches = chunkEvaluationItems(items);
+  const batches = chunkEvaluationItems(items, getProviderItemBatchSize(provider));
   const mergedWarnings = [...baseWarnings];
   mergedWarnings.push(
     `${providerLabel(provider)} 분석: 평가 항목 ${items.length}개를 ${batches.length}회로 나누어 처리합니다.`,
@@ -192,7 +227,9 @@ async function analyzeProviderInBatches(
     const partial =
       provider === "gemini"
         ? await analyzeWithGeminiOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions)
-        : await analyzeWithClaudeOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions);
+        : provider === "claude"
+          ? await analyzeWithClaudeOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions)
+          : await analyzeWithOpenAiOnce(files, evaluationContext, batchItems, mergedWarnings, promptOptions);
     partials.push(partial);
   }
 
@@ -200,7 +237,7 @@ async function analyzeProviderInBatches(
 }
 
 function mergeBatchAnalysisResults(
-  provider: "gemini" | "claude",
+  provider: "gemini" | "claude" | "openai",
   partials: UploadAnalysisResult[],
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
@@ -211,13 +248,32 @@ function mergeBatchAnalysisResults(
     throw new AiAnalysisError(`${providerLabel(provider)} 분할 분석 결과가 비어 있습니다.`, provider);
   }
 
+  // 배치 간 중복 itemId 제거 (뒤 배치가 앞 배치를 덮어쓰지 않도록 첫 결과 유지)
+  const seenItemIds = new Set<string>();
+  const evaluationPreview = partials
+    .flatMap((partial) => partial.evaluationPreview)
+    .filter((row) => {
+      if (seenItemIds.has(row.itemId)) return false;
+      seenItemIds.add(row.itemId);
+      return true;
+    });
+
+  const missingItems = items.filter((item) => !seenItemIds.has(item.id));
+  if (missingItems.length > 0) {
+    warnings.push(
+      `분할 분석 결과에서 ${missingItems.length}개 항목(${missingItems
+        .map((item) => item.detailItem)
+        .join(", ")})의 결과가 누락되었습니다. 재분석을 권장합니다.`,
+    );
+  }
+
   return attachContextMetadata(
     {
       provider,
       mode: "live",
       summary: first.summary,
       documentSections: first.documentSections,
-      evaluationPreview: partials.flatMap((partial) => partial.evaluationPreview),
+      evaluationPreview,
       warnings,
     },
     evaluationContext,
@@ -370,7 +426,7 @@ function normalizeAiJson(
     );
   }
 
-  const evaluationPreview = normalizeEvaluations(parsed.evaluationPreview, evaluationContext, items, files);
+  const evaluationPreview = normalizeEvaluations(parsed.evaluationPreview, evaluationContext, items, files, baseWarnings);
   if (evaluationPreview.length === 0) {
     throw new AiAnalysisError(
       `${providerLabel(provider)} 분석 결과에 평가 항목이 없습니다. 자료 추출 또는 모델 응답을 확인한 뒤 다시 시도해 주세요.`,
@@ -406,19 +462,84 @@ function normalizeSections(value: unknown): UploadAnalysisResult["documentSectio
   }));
 }
 
+function normalizeItemName(value: string): string {
+  return value.toLowerCase().replace(/[\s·().,\-_/]/g, "");
+}
+
+/**
+ * AI 응답의 evaluationPreview를 평가항목에 매핑한다.
+ *
+ * 응답 순서·개수가 요청과 다를 수 있으므로 itemName으로 매칭하고,
+ * 매칭되지 않은 행은 남은 항목에 순서대로 배정한다. 응답에서 누락된 항목은
+ * 기본 근거로 보완하고 경고를 남긴다 (조용한 오매핑·누락 방지).
+ */
 function normalizeEvaluations(
   value: unknown,
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   files: UploadedFileSummary[] = [],
+  warnings?: string[],
 ): UploadAnalysisResult["evaluationPreview"] {
   if (!Array.isArray(value) || value.length === 0) return [];
 
   const defaultGuidelineRefs = evaluationContext.guidelines.slice(0, 2).map((guide) => `${guide.title} ${guide.section}`);
 
-  return value.slice(0, Math.max(items.length, 8)).map((row, index) => {
-    const item = items[index % items.length];
-    const score = clampNumber(Number(row?.score ?? 80 - index * 2));
+  const itemsByName = new Map<string, EvaluationItem>();
+  for (const item of items) {
+    itemsByName.set(normalizeItemName(item.detailItem), item);
+  }
+
+  const rowByItemId = new Map<string, Record<string, unknown>>();
+  const unmatchedRows: Record<string, unknown>[] = [];
+
+  for (const raw of value) {
+    const row = (raw ?? {}) as Record<string, unknown>;
+    const rowName = normalizeItemName(String(row.itemName ?? ""));
+    const matched =
+      itemsByName.get(rowName) ??
+      (rowName
+        ? items.find((item) => {
+            const itemName = normalizeItemName(item.detailItem);
+            return itemName.includes(rowName) || rowName.includes(itemName);
+          })
+        : undefined);
+
+    if (matched && !rowByItemId.has(matched.id)) {
+      rowByItemId.set(matched.id, row);
+    } else {
+      unmatchedRows.push(row);
+    }
+  }
+
+  // 이름 매칭에 실패한 행은 아직 결과가 없는 항목에 순서대로 배정
+  for (const item of items) {
+    if (rowByItemId.has(item.id)) continue;
+    const nextRow = unmatchedRows.shift();
+    if (!nextRow) break;
+    rowByItemId.set(item.id, nextRow);
+  }
+
+  const missingItems = items.filter((item) => !rowByItemId.has(item.id));
+  if (missingItems.length > 0 && warnings) {
+    warnings.push(
+      `AI 응답에서 ${missingItems.length}개 항목(${missingItems
+        .map((item) => item.detailItem)
+        .join(", ")})이 누락되어 평가 기준 기반 기본 근거로 표시합니다. 해당 항목은 재분석을 권장합니다.`,
+    );
+  }
+
+  const matchedScores = [...rowByItemId.values()]
+    .map((row) => Number(row.score))
+    .filter((score) => Number.isFinite(score));
+  const fallbackScore = clampNumber(
+    matchedScores.length > 0
+      ? matchedScores.reduce((sum, score) => sum + score, 0) / matchedScores.length
+      : 60,
+  );
+
+  return items.map((item) => {
+    const row = rowByItemId.get(item.id);
+    const score = clampNumber(Number(row?.score ?? fallbackScore));
     const aiLawRefs = Array.isArray(row?.lawRefs)
       ? row.lawRefs.map((law: unknown) => String(law)).filter(Boolean)
       : [];
@@ -428,7 +549,7 @@ function normalizeEvaluations(
 
     return {
       itemId: item.id,
-      itemName: String(row?.itemName ?? item.detailItem),
+      itemName: item.detailItem,
       score,
       grade: String(row?.grade ?? gradeScore(score)),
       rationale: String(row?.rationale ?? buildFallbackRationale(item.criteria, evaluationContext)),

@@ -11,19 +11,26 @@ export type EvaluationRoundStreamResult = {
   warnings?: string[];
 };
 
+/** 서버 maxDuration(300초)보다 길게 잡아 클라이언트가 먼저 끊지 않도록 한다. */
+const EVALUATION_STREAM_TIMEOUT_MS = 320_000;
+
 export async function submitEvaluationRoundStream(
   formData: FormData,
   onProgress: (event: EvaluationAnalysisProgressEvent) => void,
 ): Promise<EvaluationRoundStreamResult> {
   formData.set("stream", "1");
 
-  const response = await clientFetchWithTimeout("/api/evaluation-rounds", {
-    method: "POST",
-    body: formData,
-    headers: {
-      Accept: "application/x-ndjson",
+  const response = await clientFetchWithTimeout(
+    "/api/evaluation-rounds",
+    {
+      method: "POST",
+      body: formData,
+      headers: {
+        Accept: "application/x-ndjson",
+      },
     },
-  });
+    EVALUATION_STREAM_TIMEOUT_MS,
+  );
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
@@ -42,6 +49,44 @@ export async function submitEvaluationRoundStream(
   const decoder = new TextDecoder();
   let buffer = "";
 
+  const handleLine = (line: string): EvaluationRoundStreamResult | null => {
+    const trimmed = line.trim();
+    if (!trimmed) return null;
+
+    let event: EvaluationAnalysisStreamEvent;
+    try {
+      event = JSON.parse(trimmed) as EvaluationAnalysisStreamEvent;
+    } catch {
+      // 손상된 NDJSON 한 줄이 전체 분석을 실패시키지 않도록 무시한다.
+      return null;
+    }
+
+    if (event.type === "progress") {
+      onProgress(event);
+      return null;
+    }
+
+    if (event.type === "error") {
+      throw new Error(
+        extractApiErrorMessage(
+          { error: (event as { error?: unknown }).error },
+          "하이브리드 평가 분석 중 오류가 발생했습니다.",
+        ),
+      );
+    }
+
+    if (event.type === "complete") {
+      return {
+        round: event.round as EvaluationRound,
+        project: event.project as Project | undefined,
+        analysisMode: event.analysisMode as "live" | "skipped" | "demo" | undefined,
+        warnings: event.warnings,
+      };
+    }
+
+    return null;
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -51,33 +96,16 @@ export async function submitEvaluationRoundStream(
     buffer = lines.pop() ?? "";
 
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      const event = JSON.parse(trimmed) as EvaluationAnalysisStreamEvent;
-      if (event.type === "progress") {
-        onProgress(event);
-        continue;
-      }
-
-      if (event.type === "error") {
-        throw new Error(
-          extractApiErrorMessage(
-            { error: (event as { error?: unknown }).error },
-            "하이브리드 평가 분석 중 오류가 발생했습니다.",
-          ),
-        );
-      }
-
-      if (event.type === "complete") {
-        return {
-          round: event.round as EvaluationRound,
-          project: event.project as Project | undefined,
-          analysisMode: event.analysisMode as "live" | "skipped" | "demo" | undefined,
-          warnings: event.warnings,
-        };
-      }
+      const result = handleLine(line);
+      if (result) return result;
     }
+  }
+
+  // 스트림 종료 시 개행 없이 남은 마지막 이벤트(complete 등)를 처리한다.
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    const result = handleLine(buffer);
+    if (result) return result;
   }
 
   throw new Error("분석이 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.");

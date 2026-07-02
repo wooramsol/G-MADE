@@ -1,7 +1,7 @@
 export function isRetryableProviderError(status: number, body: string): boolean {
   const lower = body.toLowerCase();
 
-  if (status === 429 || status === 503 || status === 529) {
+  if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || status === 529) {
     return true;
   }
 

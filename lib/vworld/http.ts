@@ -49,7 +49,36 @@ function formatNetworkError(error: unknown): string {
   return `${error.message}${cause}`;
 }
 
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1_500;
+
+function isRetryableResult(result: { ok: boolean; status: number }): boolean {
+  if (result.ok) return false;
+  // 네트워크 실패(0), 타임아웃(408), 일시적 서버 오류(5xx)는 재시도
+  return result.status === 0 || result.status === 408 || result.status >= 500;
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function vworldGetJson<T>(url: string, label: string): Promise<VWorldHttpResult<T>> {
+  let lastResult: VWorldHttpResult<T> | null = null;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    lastResult = await vworldGetJsonOnce<T>(url, label);
+    if (!isRetryableResult(lastResult)) {
+      return lastResult;
+    }
+    if (attempt < MAX_ATTEMPTS - 1) {
+      await sleepMs(RETRY_DELAY_MS * (attempt + 1));
+    }
+  }
+
+  return lastResult!;
+}
+
+async function vworldGetJsonOnce<T>(url: string, label: string): Promise<VWorldHttpResult<T>> {
   try {
     const { status, body } = await httpsGetText(url);
 

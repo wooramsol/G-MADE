@@ -6,10 +6,3 @@ export function readServerEnv(name: string): string | undefined {
   const trimmed = raw.trim().replace(/^["']|["']$/g, "");
   return trimmed || undefined;
 }
-
-export function readServerEnvHint(name: string, visible = 4): string | null {
-  const value = readServerEnv(name);
-  if (!value) return null;
-  if (value.length <= visible) return value;
-  return `${value.slice(0, visible)}…`;
-}
