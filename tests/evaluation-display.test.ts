@@ -46,6 +46,19 @@ test("structureEvaluationDisplay corrects bogus p.2 배치도 evidence when file
   assert.equal(display.points[1]!.evidence, "p.12 배치도");
 });
 
+test("structureEvaluationDisplay filters broken law clause fragments", () => {
+  const input = [
+    "1. p.14 배치도 — 평가기준 대비 수치·재료 미기재",
+    "2. 관련 내용 — 인공조명에 의한 빛공해 방지법 제11조 적용·저촉 검토 필요",
+    "3. 관련 내용 — 인공조명에 의한",
+  ].join("\n");
+
+  const display = structureEvaluationDisplay(input);
+
+  assert.equal(display.points.length, 1);
+  assert.match(display.points[0]!.content, /수치·재료 미기재/);
+});
+
 test("structureEvaluationDisplay builds point list with evidence under content", () => {
   const input = [
     `「${longFile}」 p.12 배치도·경관체크리스트 검토.`,
