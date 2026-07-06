@@ -249,29 +249,12 @@ export function filterVerifiedGuidelineRefs(refs: string[], evaluationContext: E
   );
 }
 
-export function formatGroundingWarning(itemLabel: string, field: "rationale" | "recommendation", issues: GroundingIssue[]): string {
-  const labels: Record<GroundingIssue["kind"], string> = {
-    quoted_not_in_corpus: "본문 인용 미확인",
-    unknown_file: "존재하지 않는 파일명",
-    ungrounded_space: "자료에 없는 공간·위치",
-    ungrounded_user: "자료에 없는 이용자 유형",
-    ungrounded_law: "조회되지 않은 법령 인용",
-    invalid_page: "확인되지 않는 페이지",
-  };
-  const detail = issues
-    .slice(0, 2)
-    .map((issue) => `${labels[issue.kind]}(${issue.detail})`)
-    .join(", ");
-  const fieldLabel = field === "rationale" ? "점수 근거" : "개선 권고";
-  return `${itemLabel} ${fieldLabel}: 제출 자료·조회 맥락에서 확인되지 않은 내용을 보정했습니다 — ${detail}`;
-}
-
 export function resolveGroundedRationale(
   raw: unknown,
   item: EvaluationItem,
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
-): { text: string; warning?: string } {
+): { text: string } {
   const text = typeof raw === "string" ? raw.trim() : "";
   if (!text || isGenericRationale(text)) {
     return { text: normalizeListNumbering(buildFallbackRationale(item, files, evaluationContext)) };
@@ -279,12 +262,7 @@ export function resolveGroundedRationale(
 
   const grounding = checkEvaluationTextGrounding(text, files, evaluationContext, item);
   if (!grounding.grounded || lacksIssueFocus(text)) {
-    return {
-      text: normalizeListNumbering(buildFallbackRationale(item, files, evaluationContext)),
-      warning: grounding.grounded
-        ? `${item.detailItem} 점수 근거: 칭찬·긍정 위주 서술을 검토·보완 필요 사항 중심으로 보정했습니다.`
-        : formatGroundingWarning(item.detailItem, "rationale", grounding.issues),
-    };
+    return { text: normalizeListNumbering(buildFallbackRationale(item, files, evaluationContext)) };
   }
 
   return { text: normalizeListNumbering(sanitizeBrokenHangulQuotes(text)) };
@@ -296,7 +274,7 @@ export function resolveGroundedRecommendation(
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
   score: number,
-): { text: string; warning?: string } {
+): { text: string } {
   const text = typeof raw === "string" ? raw.trim() : "";
   if (!text || isGenericRecommendation(text)) {
     return { text: normalizeListNumbering(buildFallbackRecommendation(item, files, score)) };
@@ -304,12 +282,7 @@ export function resolveGroundedRecommendation(
 
   const grounding = checkEvaluationTextGrounding(text, files, evaluationContext, item);
   if (!grounding.grounded || lacksIssueFocus(text)) {
-    return {
-      text: normalizeListNumbering(buildFallbackRecommendation(item, files, score)),
-      warning: grounding.grounded
-        ? `${item.detailItem} 검토 의견: 칭찬·긍정 위주 서술을 수정·보완·검토 사항 중심으로 보정했습니다.`
-        : formatGroundingWarning(item.detailItem, "recommendation", grounding.issues),
-    };
+    return { text: normalizeListNumbering(buildFallbackRecommendation(item, files, score)) };
   }
 
   return { text: normalizeListNumbering(sanitizeBrokenHangulQuotes(text)) };
@@ -319,7 +292,7 @@ export function sanitizeGroundedSummary(
   summary: string,
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
-): { text: string; warning?: string } {
+): { text: string } {
   const text = summary.trim();
   if (!text) {
     return { text: "업로드 자료와 실시간 법령·경관지구 정보를 기반으로 AI 분석을 완료했습니다." };
@@ -330,6 +303,5 @@ export function sanitizeGroundedSummary(
 
   return {
     text: "제출 자료 전반에서 심사위원이 우선 재확인해야 할 누락·모순·보완 필요 사항이 있습니다. 항목별 검토·보완 의견을 확인하세요.",
-    warning: "AI 요약에 긍정·칭찬 위주 서술이 있어 검토 필요 사항 중심으로 요약을 보정했습니다.",
   };
 }

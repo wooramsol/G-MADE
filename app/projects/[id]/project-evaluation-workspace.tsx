@@ -20,7 +20,7 @@ import { prepareEvaluationDisplay } from "@/lib/evaluation-display";
 import { formatEvaluationText } from "@/lib/format-evaluation-text";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
-import { dedupeWarnings } from "@/lib/analysis-warnings";
+import { filterUserFacingAnalysisWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
 import { pickRelatedReferenceLaws, lawMatchesCitation } from "@/lib/related-reference-laws";
 import {
@@ -111,7 +111,7 @@ export default function ProjectEvaluationWorkspace({
     evaluationPreview: selectedRound?.aiAnalysis.evaluationPreview,
     evaluationItems: selectedRound?.evaluationItems,
   }).filter((guide) => buildAdmrulReferenceUrl(guide.title, guide.sourceUrl) !== null);
-  const analysisWarnings = dedupeWarnings(selectedRound?.aiAnalysis.warnings ?? []);
+  const analysisWarnings = filterUserFacingAnalysisWarnings(selectedRound?.aiAnalysis.warnings ?? []);
 
   useEffect(() => {
     if (focusRoundId && handledFocusId === focusRoundId) {
