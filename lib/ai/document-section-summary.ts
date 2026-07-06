@@ -152,8 +152,7 @@ export function sanitizeDocumentSectionSummary(
   rawSummary: string,
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
-): { text: string; warning?: string } {
-  const label = item.detailItem;
+): { text: string } {
   const keywords = getDocumentKeywordsForItem(item);
   const text = rawSummary.trim();
 
@@ -180,12 +179,7 @@ export function sanitizeDocumentSectionSummary(
   }
 
   const fallback = sanitizeBrokenHangulQuotes(buildFallbackDocumentSectionSummary(item, files));
-  const warning =
-    text && text !== fallback
-      ? `${label} 요약: 평가 문구가 포함되어 읽은 위치 목록으로 보정했습니다.`
-      : undefined;
-
-  return { text: fallback, warning };
+  return { text: fallback };
 }
 
 function clampConfidence(value: number): number {
@@ -233,7 +227,6 @@ export function alignDocumentSectionsToEvaluationItems(
   sections: DocumentSectionRecord[],
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
-  groundingWarnings: string[] = [],
 ): DocumentSectionRecord[] {
   if (items.length === 0) return [];
 
@@ -242,9 +235,6 @@ export function alignDocumentSectionsToEvaluationItems(
     const matched = pickSectionForItem(item, sections, usedIndexes);
     const rawSummary = matched?.summary ?? "";
     const summaryResult = sanitizeDocumentSectionSummary(item, rawSummary, files, evaluationContext);
-    if (summaryResult.warning) {
-      groundingWarnings.push(summaryResult.warning);
-    }
 
     return {
       itemId: item.id,

@@ -406,13 +406,11 @@ function normalizeAiJson(
     );
   }
 
-  const groundingWarnings: string[] = [];
   const evaluationPreview = normalizeEvaluations(
     parsed.evaluationPreview,
     evaluationContext,
     items,
     files,
-    groundingWarnings,
   );
   if (evaluationPreview.length === 0) {
     throw new AiAnalysisError(
@@ -426,7 +424,6 @@ function normalizeAiJson(
     files,
     evaluationContext,
   );
-  if (summaryResult.warning) groundingWarnings.push(summaryResult.warning);
 
   return attachContextMetadata(
     {
@@ -438,10 +435,9 @@ function normalizeAiJson(
         files,
         evaluationContext,
         items,
-        groundingWarnings,
       ),
       evaluationPreview,
-      warnings: [...baseWarnings, ...groundingWarnings],
+      warnings: [...baseWarnings],
     },
     evaluationContext,
     items,
@@ -458,7 +454,6 @@ function normalizeSections(
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
-  groundingWarnings: string[],
 ): UploadAnalysisResult["documentSections"] {
   const rawSections = Array.isArray(value)
     ? value.map((section) => ({
@@ -469,7 +464,7 @@ function normalizeSections(
       }))
     : [];
 
-  return alignDocumentSectionsToEvaluationItems(items, rawSections, files, evaluationContext, groundingWarnings);
+  return alignDocumentSectionsToEvaluationItems(items, rawSections, files, evaluationContext);
 }
 
 function resolveEvaluationItem(
@@ -501,7 +496,6 @@ function normalizeEvaluations(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   files: UploadedFileSummary[] = [],
-  groundingWarnings: string[] = [],
 ): UploadAnalysisResult["evaluationPreview"] {
   if (!Array.isArray(value) || value.length === 0) return [];
 
@@ -529,8 +523,6 @@ function normalizeEvaluations(
       evaluationContext,
       score,
     );
-    if (rationaleResult.warning) groundingWarnings.push(rationaleResult.warning);
-    if (recommendationResult.warning) groundingWarnings.push(recommendationResult.warning);
 
     return {
       itemId: item.id,
