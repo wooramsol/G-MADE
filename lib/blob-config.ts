@@ -7,7 +7,9 @@ export function getBlobAccess(): BlobAccess {
   if (configured === "private" || configured === "public") {
     return configured;
   }
-  return "public";
+  // 심의 자료(도면·보고서)가 공개 URL로 노출되지 않도록 기본값은 private.
+  // 다운로드는 인증된 API(/api/projects/{id}/files/{fileId})를 통해서만 제공된다.
+  return "private";
 }
 
 export function hasBlobClientUploadToken(): boolean {

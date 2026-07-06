@@ -51,13 +51,11 @@ export function getConfiguredProviders() {
     gemini,
     openai,
     claude,
-    claudeKeyHint: claude ? getClaudeApiKey()?.slice(0, 7) : null,
     claudeEnvKey: claude
       ? sanitizeSecret(process.env.CLAUDE_API_KEY)
         ? "CLAUDE_API_KEY"
         : "ANTHROPIC_API_KEY"
       : null,
-    geminiKeyHint: gemini ? getGeminiApiKey()?.slice(0, 4) : null,
     geminiEnvKey: gemini
       ? sanitizeSecret(process.env.GEMINI_API_KEY)
         ? "GEMINI_API_KEY"
@@ -65,6 +63,5 @@ export function getConfiguredProviders() {
           ? "GOOGLE_API_KEY"
           : "GOOGLE_GENERATIVE_AI_API_KEY"
       : null,
-    openaiKeyHint: openai ? getOpenAiApiKey()?.slice(0, 3) : null,
   };
 }

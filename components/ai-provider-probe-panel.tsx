@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MutedText } from "@/components/typography";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 type ProbeResult = {
   provider: "gemini" | "openai" | "claude";
@@ -20,7 +21,12 @@ export default function AiProviderProbePanel() {
     setError("");
 
     try {
-      const response = await fetch("/api/ai-status?probe=analysis", { cache: "no-store" });
+      // 실제 AI 분석을 실행하므로 넉넉한 타임아웃(3분)을 준다.
+      const response = await clientFetchWithTimeout(
+        "/api/ai-status?probe=analysis",
+        { cache: "no-store" },
+        180_000,
+      );
       const payload = (await response.json()) as { probes?: ProbeResult[]; error?: string };
 
       if (!response.ok) {

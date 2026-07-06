@@ -9,7 +9,6 @@ import { gradeScore, calculateHybridResults, calculateProjectScore } from "./hyb
 import type {
   AiEvaluation,
   EvaluationGrade,
-  EvaluationItem,
   EvaluationRound,
   HumanEvaluation,
   HybridResult,

@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import {
   Badge,
-  BodyText,
-  Caption,
   FieldLabel,
   MutedText,
   ScoreValue,
@@ -57,10 +55,27 @@ export default function ProjectEvaluationWorkspace({
   }, [rounds]);
 
   const [selectedId, setSelectedId] = useState<string | null>(sorted[0]?.id ?? null);
-  const previousRoundCountRef = useRef(rounds.length);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingRoundId, setDeletingRoundId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // 새 평가가 추가되면 최신 평가를 선택한다 (렌더 중 상태 보정 패턴).
+  const [prevRoundCount, setPrevRoundCount] = useState(rounds.length);
+  if (rounds.length !== prevRoundCount) {
+    setPrevRoundCount(rounds.length);
+    if (rounds.length > prevRoundCount && sorted[0]) {
+      setSelectedId(sorted[0].id);
+    }
+  }
+
+  // 복원 등으로 특정 평가에 포커스 요청이 오면 해당 탭을 선택한다.
+  const [handledFocusId, setHandledFocusId] = useState<string | null>(null);
+  if (focusRoundId && focusRoundId !== handledFocusId && sorted.some((round) => round.id === focusRoundId)) {
+    setHandledFocusId(focusRoundId);
+    setSelectedId(focusRoundId);
+  }
+
+  // selectedId가 목록에 없으면 최신 평가로 대체 (별도 effect 불필요)
   const selectedRound = sorted.find((round) => round.id === selectedId) ?? sorted[0];
   const hybridView = selectedRound ? buildHybridViewFromRound(selectedRound) : null;
 
@@ -97,34 +112,10 @@ export default function ProjectEvaluationWorkspace({
   const analysisWarnings = dedupeWarnings(selectedRound?.aiAnalysis.warnings ?? []);
 
   useEffect(() => {
-    if (sorted.length === 0) {
-      setSelectedId(null);
-      return;
-    }
-
-    setSelectedId((current) => {
-      if (!current || !sorted.some((round) => round.id === current)) {
-        return sorted[0].id;
-      }
-      return current;
-    });
-  }, [sorted]);
-
-  useEffect(() => {
-    if (rounds.length > previousRoundCountRef.current && sorted[0]) {
-      setSelectedId(sorted[0].id);
-    }
-    previousRoundCountRef.current = rounds.length;
-  }, [rounds.length, sorted]);
-
-  useEffect(() => {
-    if (!focusRoundId) return;
-
-    if (sorted.some((round) => round.id === focusRoundId)) {
-      setSelectedId(focusRoundId);
+    if (focusRoundId && handledFocusId === focusRoundId) {
       onFocusRoundHandled?.();
     }
-  }, [focusRoundId, onFocusRoundHandled, sorted]);
+  }, [focusRoundId, handledFocusId, onFocusRoundHandled]);
 
   function requestDeleteRound(roundId: string) {
     setDeletingRoundId(roundId);

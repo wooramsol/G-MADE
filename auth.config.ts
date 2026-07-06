@@ -18,7 +18,13 @@ export const authConfig = {
       const isAuthApi = pathname.startsWith("/api/auth");
       const isApiRoute = pathname.startsWith("/api/");
 
-      if (isAuthApi || isApiRoute) return true;
+      if (isAuthApi) return true;
+
+      // API는 기본 차단: 라우트 핸들러의 세션 검사가 누락되어도 공개되지 않도록 한다.
+      if (isApiRoute) {
+        if (isLoggedIn) return true;
+        return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
+      }
 
       if (isLoginPage) {
         if (isLoggedIn) {

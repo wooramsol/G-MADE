@@ -5,6 +5,7 @@ import { useState } from "react";
 import { LocationPicker, type LocationSelection } from "@/components/location-picker";
 import { ErrorText, FormLabel, MutedText } from "@/components/typography";
 import { showToast } from "../../toast";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 const reviewTypes = ["경관사전심의", "경관심의", "공공디자인심의"];
 const projectTypes = ["복합문화시설", "공공공간", "생활SOC", "업무시설", "공동주택", "기반시설"];
@@ -64,7 +65,7 @@ export default function ProjectCreateForm() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/projects", {
+      const response = await clientFetchWithTimeout("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

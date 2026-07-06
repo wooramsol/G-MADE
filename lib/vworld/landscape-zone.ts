@@ -21,6 +21,8 @@ export type LandscapeZoneLookupResult = {
     name: string;
     geometry: GeoJSON.Geometry | null;
   }>;
+  /** 조회에 실패한 레이어 라벨 목록 ("해당 없음"과 구분) */
+  failedLayerLabels: string[];
   source: "vworld-wfs";
   disclaimer: string;
 };
@@ -36,7 +38,7 @@ export class VWorldLandscapeZoneError extends Error {
 }
 
 export async function lookupLandscapeZoneByAddress(address: string, point: GeoPoint): Promise<LandscapeZoneLookupResult> {
-  const layerFeatures = await querySpatialLayersNearPoint(point);
+  const { features: layerFeatures, failedLayers } = await querySpatialLayersNearPoint(point);
   const matchedZones = layerFeatures
     .filter((feature) => feature.layerId === "landscape-zone")
     .map((feature) => mapLayerToLandscapeZone(feature));
@@ -52,6 +54,7 @@ export async function lookupLandscapeZoneByAddress(address: string, point: GeoPo
       name: feature.name,
       geometry: feature.geometry,
     })),
+    failedLayerLabels: failedLayers.map((layer) => layer.label),
     source: "vworld-wfs",
     disclaimer: DISCLAIMER,
   };

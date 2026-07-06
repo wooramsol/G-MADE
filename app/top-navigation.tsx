@@ -21,6 +21,7 @@ export default function TopNavigation({ isAuthenticated }: { isAuthenticated: bo
 
           return (
             <Link
+              aria-current={active ? "page" : undefined}
               className={`type-nav-link rounded-lg px-4 py-2 transition ${
                 active ? "bg-[#15345b] !text-white shadow-sm" : "text-[#15345b] hover:bg-[#e8f1ff]"
               }`}

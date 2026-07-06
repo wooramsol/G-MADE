@@ -31,11 +31,24 @@ export class VWorldGeocodeError extends Error {
 }
 
 export async function geocodeAddress(address: string): Promise<GeoPoint> {
-  const road = await geocodeAddressByType(address, "ROAD");
-  if (road) return road;
+  // 도로명 조회가 오류로 실패해도 지번 조회는 시도한다.
+  let roadError: VWorldGeocodeError | null = null;
+  try {
+    const road = await geocodeAddressByType(address, "ROAD");
+    if (road) return road;
+  } catch (error) {
+    roadError = error instanceof VWorldGeocodeError ? error : new VWorldGeocodeError(String(error));
+  }
 
-  const parcel = await geocodeAddressByType(address, "PARCEL");
-  if (parcel) return parcel;
+  try {
+    const parcel = await geocodeAddressByType(address, "PARCEL");
+    if (parcel) return parcel;
+  } catch (error) {
+    // 두 방식 모두 오류라면 더 구체적인 원인을 우선 전달
+    throw roadError ?? (error instanceof VWorldGeocodeError ? error : new VWorldGeocodeError(String(error)));
+  }
+
+  if (roadError) throw roadError;
 
   throw new VWorldGeocodeError(
     "주소를 좌표로 변환하지 못했습니다. 도로명주소를 더 구체적으로 입력해 주세요. (예: 서울특별시 중구 세종대로 175)",

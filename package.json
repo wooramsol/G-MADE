@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "deploy:production": "node scripts/deploy-production.mjs",
+    "test": "tsx --test tests/*.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:seed": "tsx prisma/seed.ts"
   },

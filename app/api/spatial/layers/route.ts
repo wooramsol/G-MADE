@@ -36,11 +36,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "address 또는 x,y 좌표가 필요합니다." }, { status: 400 });
     }
 
-    const features = await querySpatialLayersNearPoint(point, layers);
+    const { features, failedLayers } = await querySpatialLayersNearPoint(point, layers);
     return NextResponse.json({
       point,
       layers: SPATIAL_LAYERS,
       features,
+      failedLayers,
     });
   } catch (error) {
     return NextResponse.json(

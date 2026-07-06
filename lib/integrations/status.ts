@@ -2,8 +2,8 @@ import { getConfiguredProviders } from "../ai/env-keys";
 import { getDefaultAiProvider, isProviderConfigured } from "../ai/select-provider";
 import { getLawReferer, isLawApiConfigured } from "../law/config";
 import { isPostgresConfigured } from "../postgres-env";
+import { isProjectStoragePersistent } from "../project-db-persistence";
 import { isDatabaseAvailable } from "../prisma";
-import { readServerEnv, readServerEnvHint } from "../server-env";
 import { getVWorldDomain, isVWorldConfigured } from "../vworld/config";
 
 export type IntegrationTone = "active" | "inactive" | "fallback";
@@ -44,6 +44,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
   const lawConfigured = isLawApiConfigured();
   const spatialConfigured = isVWorldConfigured();
   const databaseConfigured = await isDatabaseAvailable();
+  const projectStoragePersistent = await isProjectStoragePersistent();
 
   const aiRows: IntegrationRow[] = [
     {
@@ -54,7 +55,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       envKeys: providers.geminiEnvKey
         ? [providers.geminiEnvKey]
         : ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
-      detail: providers.geminiKeyHint ? `키 확인: ${providers.geminiKeyHint}` : undefined,
+      detail: providers.gemini ? "키 설정됨" : undefined,
       fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
       ...rowStatus(providers.gemini),
     },
@@ -64,7 +65,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       provider: "OpenAI",
       configured: providers.openai,
       envKeys: ["OPENAI_API_KEY"],
-      detail: providers.openaiKeyHint ? `키 확인: ${providers.openaiKeyHint}` : undefined,
+      detail: providers.openai ? "키 설정됨" : undefined,
       fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
       ...rowStatus(providers.openai),
     },
@@ -76,7 +77,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       envKeys: providers.claudeEnvKey
         ? [providers.claudeEnvKey]
         : ["CLAUDE_API_KEY", "ANTHROPIC_API_KEY"],
-      detail: providers.claudeKeyHint ? `키 확인: ${providers.claudeKeyHint}` : undefined,
+      detail: providers.claude ? "키 설정됨" : undefined,
       fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
       ...rowStatus(providers.claude),
     },
@@ -103,7 +104,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       configured: lawConfigured,
       envKeys: ["LAW_OC", "LAW_API_KEY"],
       detail: lawConfigured
-        ? `OC 확인: ${readServerEnvHint("LAW_OC", 6) ?? readServerEnvHint("LAW_API_KEY", 6) ?? "설정됨"} · Referer ${getLawReferer()} · 법령·자치법규·행정규칙·별표`
+        ? `OC 설정됨 · Referer ${getLawReferer()} · 법령·자치법규·행정규칙·별표`
         : undefined,
       fallback: "미설정 시 내장 법령·지침 요약 사용",
       ...rowStatus(lawConfigured, "내장 법령 요약"),
@@ -133,7 +134,9 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       configured: databaseConfigured,
       envKeys: ["DATABASE_URL", "POSTGRES_PRISMA_URL", "POSTGRES_URL"],
       detail: databaseConfigured
-        ? "로그인·역할·로그인 히스토리용 (프로젝트·평가 데이터는 JSON/로컬 저장)"
+        ? projectStoragePersistent
+          ? "계정·로그인 기록 + 프로젝트·평가 데이터 영속 저장"
+          : "계정·로그인 기록용 (managed_projects 테이블 없음 — prisma db push 필요)"
         : isPostgresConfigured()
           ? "연결 문자열은 있으나 DB 응답 없음"
           : undefined,
@@ -165,7 +168,8 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       {
         id: "database",
         title: "데이터베이스 연동 상태",
-        description: "계정·역할·로그인 기록에 사용합니다. 프로젝트·평가 결과는 서버 JSON과 브라우저 저장소를 사용합니다.",
+        description:
+          "계정·역할·로그인 기록과 프로젝트·평가 데이터 영속 저장에 사용합니다. 미연결 시 프로젝트 데이터는 서버 임시 JSON과 브라우저 저장소에만 남습니다.",
         rows: databaseRows,
       },
     ],

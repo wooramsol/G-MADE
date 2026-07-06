@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ErrorText, FormLabel } from "@/components/typography";
 import type { Project } from "@/lib/types";
 import { showToast } from "../../toast";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 const reviewTypes = ["경관사전심의", "경관심의", "공공디자인심의"];
 const projectTypes = ["복합문화시설", "공공공간", "생활SOC", "업무시설", "공동주택", "기반시설"];
@@ -88,7 +89,7 @@ export default function ProjectMetadataEditor({
     };
 
     try {
-      const response = await fetch(`/api/projects/${project.id}`, {
+      const response = await clientFetchWithTimeout(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),

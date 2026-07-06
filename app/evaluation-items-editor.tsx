@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AutoResizeTextarea from "@/components/auto-resize-textarea";
 import { MutedText, StepTitle } from "@/components/typography";
 import { interactiveCardClassName } from "@/components/interactive-card";
+import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 import { createEmptyEvaluationItem, isCustomEvaluationItem } from "@/lib/evaluation-rounds";
 import type { EvaluationItem, Project } from "@/lib/types";
 import { showToast } from "./toast";
@@ -36,7 +37,7 @@ export default function EvaluationItemsEditor({
   onDirtyChange,
 }: EvaluationItemsEditorProps) {
   const totalPoints = items.reduce((sum, item) => sum + Number(item.points || 0), 0);
-  const [focusItemId, setFocusItemId] = useState<string | null>(null);
+  const pendingFocusItemIdRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
     serializeItems(project.savedEvaluationItems ?? items),
@@ -49,13 +50,14 @@ export default function EvaluationItemsEditor({
   }, [isDirty, onDirtyChange]);
 
   useEffect(() => {
+    const focusItemId = pendingFocusItemIdRef.current;
     if (!focusItemId) return;
+    pendingFocusItemIdRef.current = null;
 
     const row = document.querySelector<HTMLElement>(`[data-evaluation-item-id="${focusItemId}"]`);
     const input = row?.querySelector<HTMLInputElement>("input, textarea");
     input?.focus();
-    setFocusItemId(null);
-  }, [focusItemId, items]);
+  }, [items]);
 
   function updateItem(itemId: string, patch: Partial<EvaluationItem>) {
     onItemsChange(items.map((item) => (item.id === itemId ? { ...item, ...patch } : item)));
@@ -68,8 +70,8 @@ export default function EvaluationItemsEditor({
 
   function addItem() {
     const newItem = createEmptyEvaluationItem(items.length + 1);
+    pendingFocusItemIdRef.current = newItem.id;
     onItemsChange([newItem, ...items]);
-    setFocusItemId(newItem.id);
   }
 
   async function saveItems() {
@@ -91,7 +93,7 @@ export default function EvaluationItemsEditor({
     setSaving(true);
 
     try {
-      const response = await fetch(`/api/projects/${project.id}`, {
+      const response = await clientFetchWithTimeout(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ savedEvaluationItems: validItems }),
@@ -186,6 +188,7 @@ export default function EvaluationItemsEditor({
                   </td>
                   <td className="align-top px-3 py-3">
                     <input
+                      aria-label={`${index + 1}행 대분류`}
                       className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"
                       placeholder={isNew ? PLACEHOLDERS.majorCategory : undefined}
                       value={item.majorCategory}
@@ -194,6 +197,7 @@ export default function EvaluationItemsEditor({
                   </td>
                   <td className="align-top px-3 py-3">
                     <input
+                      aria-label={`${index + 1}행 중분류`}
                       className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"
                       placeholder={isNew ? PLACEHOLDERS.middleCategory : undefined}
                       value={item.middleCategory}
@@ -202,6 +206,7 @@ export default function EvaluationItemsEditor({
                   </td>
                   <td className="align-top px-3 py-3">
                     <input
+                      aria-label={`${index + 1}행 세부항목`}
                       className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm font-semibold outline-none placeholder:text-[#94a3b8] focus:border-[#2463b3] focus:bg-white"
                       placeholder={isNew ? PLACEHOLDERS.detailItem : undefined}
                       value={item.detailItem}
@@ -210,6 +215,7 @@ export default function EvaluationItemsEditor({
                   </td>
                   <td className="align-top px-3 py-3">
                     <input
+                      aria-label={`${index + 1}행 배점`}
                       className="w-full rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-2 py-1.5 text-sm font-bold outline-none focus:border-[#2463b3] focus:bg-white"
                       min="0"
                       type="number"

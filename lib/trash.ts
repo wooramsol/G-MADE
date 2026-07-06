@@ -67,7 +67,8 @@ export function restoreEvaluationRound(
   const round = trashedRounds.find((item) => item.id === roundId);
   if (!round) return null;
 
-  const { deletedAt: _deletedAt, ...restored } = round;
+  const restored = { ...round };
+  delete restored.deletedAt;
 
   return {
     activeRounds: sortRoundsByEvaluatedAt([...activeRounds.filter((item) => item.id !== roundId), restored]),

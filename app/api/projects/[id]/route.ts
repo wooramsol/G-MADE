@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireApiRole, requireApiSession } from "@/lib/api-auth";
+import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import {
   getProjectById,
   getProjectRecordById,
+  isDemoProjectId,
   purgeProjectRecord,
   trashProjectRecord,
   updateProject,
 } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
+import { deleteSavedUploadFiles, storedRefsToSavedFiles } from "@/lib/save-uploaded-files";
 import { isProjectTrashed } from "@/lib/trash";
 
 const PROJECT_STATUSES = new Set(["접수", "심사 진행중", "완료"]);
@@ -153,6 +156,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const permanent = request.nextUrl.searchParams.get("permanent") === "true";
 
   if (permanent) {
+    // 영구 삭제는 관리자·공무원만 수행할 수 있다.
+    const roleResult = await requireApiRole("ADMIN", "OFFICER");
+    if (roleResult.response) return roleResult.response;
+
     const record = await getProjectRecordById(id);
 
     if (!record) {
@@ -166,6 +173,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const purged = await purgeProjectRecord(id);
     if (!purged) {
       return NextResponse.json({ error: "영구 삭제할 프로젝트를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    // 고아 Blob 방지: 프로젝트에 연결된 업로드 파일을 함께 삭제한다.
+    // (데모 프로젝트는 원본 데모 파일 메타를 포함할 수 있어 제외)
+    if (!isDemoProjectId(id)) {
+      const storedFiles = collectProjectStoredFiles(record);
+      await deleteSavedUploadFiles(storedRefsToSavedFiles(storedFiles)).catch(() => undefined);
     }
 
     revalidateProjectViews(id);

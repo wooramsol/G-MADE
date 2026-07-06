@@ -21,5 +21,11 @@ export function validateEvaluationWeights(aiWeight: number, expertWeight: number
   if (aiWeight <= 0 && expertWeight <= 0) {
     return "AI 또는 전문가 가중치 중 하나는 0%보다 커야 합니다.";
   }
+  if (aiWeight < 0 || expertWeight < 0 || aiWeight > 100 || expertWeight > 100) {
+    return "가중치는 0~100% 범위여야 합니다.";
+  }
+  if (aiWeight + expertWeight !== 100) {
+    return "AI 가중치와 전문가 가중치의 합은 100%여야 합니다.";
+  }
   return null;
 }

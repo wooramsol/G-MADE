@@ -6,7 +6,7 @@ import {
   getLawRefererSource,
   isLawApiConfigured,
 } from "@/lib/law/config";
-import { readServerEnv, readServerEnvHint } from "@/lib/server-env";
+import { readServerEnv } from "@/lib/server-env";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,11 +26,7 @@ export async function GET() {
     provider: "law.go.kr",
     diagnostics: {
       vercelEnv: process.env.VERCEL_ENV ?? null,
-      vercelUrl: process.env.VERCEL_URL ?? null,
-      vercelGitBranch: process.env.VERCEL_GIT_COMMIT_REF ?? null,
       lawOcEnvDefined: Boolean(readServerEnv("LAW_OC")),
-      lawOcLength: readServerEnv("LAW_OC")?.length ?? 0,
-      lawOcHint: readServerEnvHint("LAW_OC", 6),
       lawApiKeyEnvDefined: Boolean(readServerEnv("LAW_API_KEY")),
       lawRefererEnvDefined: Boolean(readServerEnv("LAW_REFERER")),
       lawRefererSource: getLawRefererSource(),
@@ -39,6 +35,6 @@ export async function GET() {
     },
     setupHint: oc
       ? null
-      : "Vercel Project Settings > Environment Variables에서 LAW_OC=gmadehive0515 를 Production에 추가한 뒤 Redeploy 하세요. referer만 보이는 것은 기본값일 수 있습니다.",
+      : "Vercel Project Settings > Environment Variables에서 LAW_OC(open.law.go.kr에서 발급한 OC)를 Production에 추가한 뒤 Redeploy 하세요. referer만 보이는 것은 기본값일 수 있습니다.",
   });
 }

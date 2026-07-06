@@ -20,6 +20,25 @@ export async function requireApiSession(): Promise<ApiSessionResult> {
   return { session, response: null };
 }
 
+/** 세션 검사 후, 지정한 역할 중 하나가 아니면 403을 반환한다. */
+export async function requireApiRole(...roles: RoleCode[]): Promise<ApiSessionResult> {
+  const result = await requireApiSession();
+  if (result.response) return result;
+
+  const role = result.session.user?.role;
+  if (!role || !roles.includes(role)) {
+    return {
+      session: null,
+      response: NextResponse.json(
+        { error: "이 작업을 수행할 권한이 없습니다." },
+        { status: 403 },
+      ),
+    };
+  }
+
+  return result;
+}
+
 export async function requireAdminSession(): Promise<ApiSessionResult> {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult;

@@ -1,7 +1,6 @@
 "use client";
 
 export const TOAST_EVENT = "gmadehive:toast";
-export const TOAST_STORAGE_KEY = "gmadehive.toast";
 
 export type ToastPayload = {
   message: string;

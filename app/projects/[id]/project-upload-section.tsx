@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { getProjectEvaluationRounds } from "@/lib/evaluation-rounds";
 import { scrollToHybridEvaluationResults } from "@/lib/scroll-to-hybrid-evaluation-results";
@@ -25,11 +25,14 @@ export default function ProjectUploadSection({
   );
   const [focusRoundId, setFocusRoundId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // 서버에서 새 project prop이 내려오면 렌더 중에 상태를 보정한다 (캐스케이드 렌더 방지).
+  const [lastSyncedProject, setLastSyncedProject] = useState(project);
+  if (lastSyncedProject !== project) {
+    setLastSyncedProject(project);
     setFiles(project.files);
     setRounds(getProjectEvaluationRounds(project));
     setTrashedRounds(project.trashedEvaluationRounds ?? []);
-  }, [project]);
+  }
 
   function refreshProjectData(options?: { focusRoundId?: string; scrollToResults?: boolean }) {
     onProjectUpdated?.();
