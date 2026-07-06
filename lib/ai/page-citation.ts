@@ -5,7 +5,32 @@ import type { UploadedFileSummary } from "./analysis-types";
 export const PAGE_MARKER_LINE_PATTERN = /^---\s*「([^」]+)」\s*p\.(\d+)\s*---$/m;
 
 const DRAWING_CONTENT_MARKERS =
-  /㎡|m²|m\b|mm|cm|층|주차|동선|면적|규모|위치|진입|배치|난간|계단|조경|식재|색채|재료|마감|조도|규격|체크|표|도면|\d{2,}/;
+  /㎡|m²|mm|cm|층|주차|동선|면적|규모|위치|진입|난간|계단|조경|식재|색채|재료|마감|조도|규격|체크|표|도면|\d+\s*(?:㎡|m²|m|mm|cm|층|대|면|%|kW|lux)/;
+
+const SECTION_DIVIDER_HEADING_PATTERN =
+  /^\d{1,2}\s+(?:사업개요|경관자원|경관특성|건축계획|건축개요|배치|입면|조감|색채|야간|보행|공공|주변|녹지|경관|현황|조경|체크리스트)/;
+
+const CONTENT_HINT_KEYWORDS = [
+  "옥외",
+  "옥상",
+  "보행",
+  "동선",
+  "주차",
+  "조명",
+  "야간",
+  "색채",
+  "입면",
+  "배치",
+  "조감",
+  "스카이라인",
+  "식재",
+  "녹지",
+  "경관",
+  "장애인",
+  "보행약자",
+  "난간",
+  "계단",
+] as const;
 
 const MIN_DRAWING_PAGE_SCORE = 3;
 
@@ -195,6 +220,9 @@ export function isTitleOnlyPageText(text: string, sectionLabel?: string): boolea
   if (!normalized) return true;
   if (isTocPageText(normalized)) return true;
 
+  if (SECTION_DIVIDER_HEADING_PATTERN.test(normalized) && normalized.length <= 80) return true;
+  if (/^\d{1,2}\s+[가-힣][가-힣\s·및과의]{2,48}$/.test(normalized) && normalized.length <= 60) return true;
+
   if (DRAWING_CONTENT_MARKERS.test(normalized) && normalized.length >= 15) return false;
   if (normalized.length >= 400) return false;
 
@@ -211,7 +239,11 @@ export function isTitleOnlyPageText(text: string, sectionLabel?: string): boolea
   const keywordHits = DRAWING_SECTION_KEYWORDS.filter((keyword) => normalized.includes(keyword)).length;
   if (keywordHits >= 3 && normalized.length < 350) return true;
 
-  if (sectionLabel && normalized.length < 100) {
+  if (
+    sectionLabel &&
+    (DRAWING_SECTION_KEYWORDS as readonly string[]).includes(sectionLabel) &&
+    normalized.length < 100
+  ) {
     const withoutLabel = normalized
       .replace(new RegExp(sectionLabel, "gi"), "")
       .replace(/\d+[\s.)-]/g, " ")
@@ -222,6 +254,38 @@ export function isTitleOnlyPageText(text: string, sectionLabel?: string): boolea
   return false;
 }
 
+function extractKeywordsFromContentHint(contentHint: string): string[] {
+  const keywords = new Set<string>();
+
+  for (const keyword of CONTENT_HINT_KEYWORDS) {
+    if (contentHint.includes(keyword)) keywords.add(keyword);
+  }
+
+  for (const keyword of DRAWING_SECTION_KEYWORDS) {
+    if (contentHint.includes(keyword)) keywords.add(keyword);
+  }
+
+  return [...keywords];
+}
+
+function findNextSubstantivePage(
+  slices: PageSlice[],
+  afterPage: number,
+  keyword = "도면",
+): PageSlice | null {
+  const candidates = slices
+    .filter((slice) => slice.page > afterPage)
+    .sort((left, right) => left.page - right.page);
+
+  for (const slice of candidates) {
+    if (scoreDrawingPageText(slice.text, keyword) >= MIN_DRAWING_PAGE_SCORE) {
+      return slice;
+    }
+  }
+
+  return null;
+}
+
 export function scoreDrawingPageText(text: string, keyword: string): number {
   if (isNonDrawablePageText(text, keyword)) return -1;
 
@@ -230,7 +294,8 @@ export function scoreDrawingPageText(text: string, keyword: string): number {
 
   score += Math.min(Math.floor(normalized.length / 60), 8);
   if (DRAWING_CONTENT_MARKERS.test(normalized)) score += 4;
-  if (normalized.toLowerCase().includes(keyword.toLowerCase())) score += 2;
+  if (normalized.toLowerCase().includes(keyword.toLowerCase())) score += 3;
+  if (extractSectionLabel(normalized) === keyword) score += 2;
 
   const keywordHits = DRAWING_SECTION_KEYWORDS.filter((entry) => normalized.includes(entry)).length;
   if (keywordHits >= 3 && normalized.length < 350) score -= 6;
@@ -284,6 +349,27 @@ function formatCompactEvidence(page: number, sectionLabel?: string): string {
   return `p.${page}`;
 }
 
+function locateEvidencePage(
+  files: UploadedFileSummary[],
+  keywords: string[],
+  afterPage?: number,
+): { fileName: string; page: number; sectionLabel: string } | null {
+  const located = findPageForSection(files, keywords);
+  if (located) return located;
+
+  if (afterPage == null) return null;
+
+  const slices = parsePageSlices(files);
+  const next = findNextSubstantivePage(slices, afterPage, keywords[0] ?? "도면");
+  if (!next) return null;
+
+  return {
+    fileName: next.fileName,
+    page: next.page,
+    sectionLabel: extractSectionLabel(next.text) ?? keywords[0] ?? "도면",
+  };
+}
+
 /** 근거 문구의 페이지·섹션을 PDF 본문과 대조해 보정합니다. */
 export function resolvePageEvidence(
   files: UploadedFileSummary[],
@@ -291,12 +377,24 @@ export function resolvePageEvidence(
   contentHint = "",
 ): string {
   const trimmed = evidence.trim();
-  if (!trimmed) return "";
+  const hintKeywords = extractKeywordsFromContentHint(contentHint);
+
+  if (!trimmed) {
+    if (hintKeywords.length === 0) return "";
+    const located = locateEvidencePage(files, hintKeywords);
+    return located ? formatCompactEvidence(located.page, located.sectionLabel) : "";
+  }
 
   if (isCriteriaLikeText(trimmed)) {
     const hint = `${contentHint} ${trimmed}`;
     const sectionLabel = extractSectionLabel(hint);
-    const located = findPageForSection(files, sectionLabel ? [sectionLabel] : DRAWING_SECTION_KEYWORDS as unknown as string[]);
+    const combinedKeywords = extractKeywordsFromContentHint(hint);
+    const keywords = sectionLabel
+      ? [sectionLabel, ...combinedKeywords]
+      : combinedKeywords.length > 0
+        ? combinedKeywords
+        : DRAWING_SECTION_KEYWORDS as unknown as string[];
+    const located = locateEvidencePage(files, keywords);
     return located ? formatCompactEvidence(located.page, located.sectionLabel) : sectionLabel ?? "";
   }
 
@@ -305,34 +403,42 @@ export function resolvePageEvidence(
   const sectionLabel = extractSectionLabel(trimmed) ?? extractSectionLabel(contentHint);
 
   if (!page) {
-    if (sectionLabel) {
-      const located = findPageForSection(files, [sectionLabel]);
-      return located ? formatCompactEvidence(located.page, located.sectionLabel) : sectionLabel;
-    }
-    return trimmed;
+    const keywords = sectionLabel ? [sectionLabel, ...hintKeywords] : hintKeywords;
+    if (keywords.length === 0) return trimmed;
+    const located = locateEvidencePage(files, keywords);
+    return located ? formatCompactEvidence(located.page, located.sectionLabel) : sectionLabel ?? trimmed;
   }
 
   const slices = parsePageSlices(files);
   const slice = slices.find((entry) => entry.page === page);
-  if (!slice) return trimmed;
 
-  if (isNonDrawablePageText(slice.text, sectionLabel ?? undefined)) {
-    const keywords = sectionLabel ? [sectionLabel] : DRAWING_SECTION_KEYWORDS as unknown as string[];
-    const located = findPageForSection(files, keywords);
+  if (!slice || isNonDrawablePageText(slice.text, sectionLabel ?? undefined)) {
+    const keywords = sectionLabel
+      ? [sectionLabel, ...hintKeywords]
+      : hintKeywords.length > 0
+        ? hintKeywords
+        : DRAWING_SECTION_KEYWORDS as unknown as string[];
+    const located = locateEvidencePage(files, keywords, page);
     if (located) return formatCompactEvidence(located.page, located.sectionLabel);
     return sectionLabel ?? "";
   }
 
   if (sectionLabel && !slice.text.includes(sectionLabel)) {
-    const located = findPageForSection(files, [sectionLabel]);
+    const located = locateEvidencePage(files, [sectionLabel, ...hintKeywords], page);
     if (located) return formatCompactEvidence(located.page, located.sectionLabel);
     if (isTitleOnlyPageText(slice.text, sectionLabel)) return sectionLabel;
   }
 
   if (sectionLabel && scoreDrawingPageText(slice.text, sectionLabel) < MIN_DRAWING_PAGE_SCORE) {
-    const located = findPageForSection(files, [sectionLabel]);
+    const located = locateEvidencePage(files, [sectionLabel, ...hintKeywords], page);
     if (located) return formatCompactEvidence(located.page, located.sectionLabel);
     return sectionLabel;
+  }
+
+  if (scoreDrawingPageText(slice.text, sectionLabel ?? hintKeywords[0] ?? "도면") < MIN_DRAWING_PAGE_SCORE) {
+    const located = locateEvidencePage(files, hintKeywords.length > 0 ? hintKeywords : [sectionLabel ?? "도면"], page);
+    if (located) return formatCompactEvidence(located.page, located.sectionLabel);
+    return sectionLabel ?? "";
   }
 
   return sectionLabel ? formatCompactEvidence(page, sectionLabel) : `p.${page}`;

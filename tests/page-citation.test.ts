@@ -23,6 +23,48 @@ function makeFile(corpus: string, name = "심의도서.pdf"): UploadedFileSummar
   };
 }
 
+test("isTitleOnlyPageText detects chapter divider like p.5 경관자원", () => {
+  assert.equal(isTitleOnlyPageText("02 경관자원 및 경관특성"), true);
+  assert.equal(isTitleOnlyPageText("01 사업개요"), true);
+});
+
+test("resolvePageEvidence redirects p.5 divider page to next content page", () => {
+  const corpus = [
+    "--- 「심의도서.pdf」 p.5 ---",
+    "02 경관자원 및 경관특성",
+    "",
+    "--- 「심의도서.pdf」 p.6 ---",
+    "경관자원 분석",
+    "주변 경관 현황 사진 및 위치도",
+    "식생·지형 특성 표",
+    "면적 1,240㎡",
+  ].join("\n");
+
+  const files = [makeFile(corpus)];
+  const resolved = resolvePageEvidence(files, "p.5", "옥외 공간 관련 누락 도면");
+
+  assert.match(resolved, /^p\.6(?:\s|$)/);
+});
+
+test("resolvePageEvidence does not keep bare p.5 for every point", () => {
+  const corpus = [
+    "--- 「심의도서.pdf」 p.5 ---",
+    "02 경관자원 및 경관특성",
+    "",
+    "--- 「심의도서.pdf」 p.12 ---",
+    "배치도",
+    "주차장 12면 보행 동선",
+    "",
+    "--- 「심의도서.pdf」 p.18 ---",
+    "야간경관 조명 계획",
+    "조도 25lux 기준",
+  ].join("\n");
+
+  const files = [makeFile(corpus)];
+  assert.equal(resolvePageEvidence(files, "p.5 배치도", "배치도 수치 미기재"), "p.12 배치도");
+  assert.equal(resolvePageEvidence(files, "p.5", "야간 조명 기준 불명확"), "p.18 야간경관");
+});
+
 test("isTitleOnlyPageText detects section title divider page", () => {
   assert.equal(isTitleOnlyPageText("03 배치도"), true);
   assert.equal(

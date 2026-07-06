@@ -1,5 +1,5 @@
 /** PR마다 갱신하는 fallback PR 번호. fast-forward 배포 시 헤더 배지에 사용된다. */
-export const RELEASE_PR_NUMBER = 78;
+export const RELEASE_PR_NUMBER = 79;
 
 function extractPrNumber(text: string): number | null {
   const match = text.match(/#(\d+)/);
