@@ -301,19 +301,19 @@ export function buildFallbackRationale(
     `${sourceWithPage} — ${measures[2] ?? "유지관리·관리 계획"}이 누락되었거나 불명확함`,
   ];
 
-  parts.push(`다음 평가 근거가 확인됨:\n${formatNumberedIssues(gapIssues)}`);
-
   const lawRef = evaluationContext.referenceLaws[0];
   if (lawRef) {
-    parts.push(
-      `4. ${sourceWithPage} 관련 내용 — ${lawRef.title} ${lawRef.article}(${lawRef.summary.slice(0, 60)}…) 기준 적용·저촉 여부 검토 필요.`,
+    gapIssues.push(
+      `${sourceWithPage} 관련 내용 — ${lawRef.title} ${lawRef.article}(${lawRef.summary.slice(0, 60)}…) 기준 적용·저촉 여부 검토 필요`,
     );
   }
+
+  parts.push(`다음 평가 근거가 확인됨:\n${formatNumberedIssues(gapIssues)}`);
 
   const spatial = evaluationContext.spatial;
   if (spatial?.matchedZones[0]) {
     parts.push(`인근 경관지구(${spatial.matchedZones[0].name}) 맥락과의 정합성도 재검토 필요.`);
   }
 
-  return parts.join(" ");
+  return parts.join("\n\n");
 }
