@@ -312,8 +312,11 @@ export default function ProjectEvaluationWorkspace({
               <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
             </div>
 
-            {selectedRound.aiAnalysis.documentSections.length > 0 ? (
-              <DocumentSectionsBlock sections={resolveDocumentSectionsForDisplay(selectedRound)} />
+            {selectedRound.evaluationItems.length > 0 ? (
+              <DocumentSectionsBlock
+                evaluationItems={selectedRound.evaluationItems}
+                sections={resolveDocumentSectionsForDisplay(selectedRound)}
+              />
             ) : null}
 
             <FieldLabel as="p" className="mb-3">
@@ -380,24 +383,38 @@ function WorkspaceSectionHeading({ title, description }: { title: string; descri
 
 function DocumentSectionsBlock({
   sections,
+  evaluationItems,
 }: {
   sections: EvaluationRound["aiAnalysis"]["documentSections"];
+  evaluationItems: EvaluationRound["evaluationItems"];
 }) {
+  const itemById = new Map(evaluationItems.map((item) => [item.id, item]));
+
   return (
     <div className="mb-5 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
       <FieldLabel as="p">업로드 자료 문서 이해</FieldLabel>
       <MutedText className="mt-1">
-        평가항목별로 AI가 심의 자료에서 읽은 파일·페이지·도면·섹션 위치입니다. 평가·판단은 아래 평가표에서
-        확인하세요.
+        평가항목 {evaluationItems.length}개와 동일한 항목별로, AI가 심의 자료에서 읽은 파일·페이지·도면·섹션
+        위치입니다. 평가·판단은 아래 평가표에서 확인하세요.
       </MutedText>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {sections.map((section) => (
+        {sections.map((section) => {
+          const item = section.itemId ? itemById.get(section.itemId) : undefined;
+
+          return (
           <div
             className="rounded-xl border border-[#d7dee8] bg-white p-3"
-            key={section.label}
+            key={section.itemId ?? section.label}
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <p className="text-sm font-bold text-[#15345b]">{section.label}</p>
+              <div>
+                <p className="text-sm font-bold text-[#15345b]">{section.label}</p>
+                {item ? (
+                  <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
+                    {item.majorCategory} · {item.middleCategory}
+                  </p>
+                ) : null}
+              </div>
               <span className="shrink-0 rounded-full bg-[#e8f1ff] px-2 py-0.5 text-[11px] font-bold text-[#2463b3]">
                 문서이해도 {section.confidence}%
               </span>
@@ -406,7 +423,8 @@ function DocumentSectionsBlock({
               {formatEvaluationText(section.summary)}
             </p>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
