@@ -1,5 +1,4 @@
-import { guidelineMatchesCitation } from "./related-reference-guidelines";
-import { lawMatchesCitation } from "./related-reference-laws";
+import { isUsableQuoteSnippet } from "./document-text-utils";
 import {
   combineAiEvaluationText,
   extractNumberedItems,
@@ -8,25 +7,13 @@ import {
   renumberEvaluationText,
 } from "./format-evaluation-text";
 
-export type EvaluationReferenceLink = {
-  title: string;
-  subtitle: string;
-  href: string | null;
-};
-
 export type EvaluationPoint = {
   content: string;
   evidence: string;
-  references: EvaluationReferenceLink[];
 };
 
 export type StructuredEvaluationDisplay = {
   points: EvaluationPoint[];
-};
-
-export type EvaluationReferenceContext = {
-  lawLinks: EvaluationReferenceLink[];
-  guidelineLinks: EvaluationReferenceLink[];
 };
 
 const FILE_QUOTE_PATTERN = /「([^」]+)」/g;
@@ -36,6 +23,28 @@ const LAW_IN_TEXT_PATTERN =
 
 const BOILERPLATE_LINES =
   /^(?:다음\s*(?:평가\s*근거|검토|사항).*(?:확인됨|필요)|관련\s*도면·계획서에\s*위치|실시설계\s*단계에서\s*구체화|심사위원\s*검토가\s*필요)/;
+
+const BOILERPLATE_CONTENT =
+  /(?:등을?\s*검토한\s*결과|다음\s*사항의\s*수정·보완·재확인이\s*필요|실시설계\s*단계에서\s*구체화|관련\s*도면·계획서에\s*위치·동선을\s*표기)/;
+
+function isInvalidPointContent(content: string): boolean {
+  const trimmed = content.trim();
+  if (!trimmed) return true;
+  if (isBoilerplateLine(trimmed)) return true;
+  if (BOILERPLATE_CONTENT.test(trimmed)) return true;
+  if (/^["「]?\s*\.{2,}\s*["」]?\s*등\s*확인/.test(trimmed)) return true;
+  if (/^["「]?\s*\.{2,}/.test(trimmed)) return true;
+  if (!isUsableQuoteSnippet(trimmed) && /^["「].*["」]?\s*등/.test(trimmed)) return true;
+  if (trimmed.length < 8) return true;
+  return false;
+}
+
+function sanitizePointContent(content: string): string {
+  return content
+    .replace(/^["「]\s*\.{2,}\s*["」]\s*등\s*(?:확인|검토)[^.]*\.?\s*/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
 
 const TOPIC_KEYWORDS = [
   "스카이라인",
@@ -169,7 +178,7 @@ function extractPageLocation(text: string): string {
 function splitPointItem(
   text: string,
   fallbackEvidence: string,
-): { content: string; evidence: string; lawTexts: string[] } {
+): { content: string; evidence: string } {
   const lawTexts = extractLawTexts(text);
   let working = text.trim();
   for (const law of lawTexts) {
@@ -190,53 +199,12 @@ function splitPointItem(
   }
 
   if (!evidence) evidence = fallbackEvidence;
-  content = content.replace(/^\s*[—\-]\s*/, "").trim();
+  content = sanitizePointContent(content.replace(/^\s*[—\-]\s*/, "").trim());
 
   return {
-    content: content || text.trim(),
+    content: content || sanitizePointContent(text.trim()),
     evidence,
-    lawTexts,
   };
-}
-
-function matchReferences(
-  lawTexts: string[],
-  context: EvaluationReferenceContext,
-): EvaluationReferenceLink[] {
-  const matched: EvaluationReferenceLink[] = [];
-  const seen = new Set<string>();
-
-  for (const citation of lawTexts) {
-    for (const law of context.lawLinks) {
-      const key = `${law.title}-${law.subtitle}`;
-      if (seen.has(key)) continue;
-      if (lawMatchesCitation({ title: law.title, article: law.subtitle }, citation)) {
-        seen.add(key);
-        matched.push(law);
-      }
-    }
-    for (const guide of context.guidelineLinks) {
-      const key = `${guide.title}-${guide.subtitle}`;
-      if (seen.has(key)) continue;
-      if (guidelineMatchesCitation({ title: guide.title, section: guide.subtitle }, citation)) {
-        seen.add(key);
-        matched.push(guide);
-      }
-    }
-  }
-
-  if (matched.length === 0 && lawTexts.length === 0) {
-    const fallback = [...context.lawLinks, ...context.guidelineLinks].slice(0, 2);
-    for (const link of fallback) {
-      const key = `${link.title}-${link.subtitle}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        matched.push(link);
-      }
-    }
-  }
-
-  return matched;
 }
 
 function buildFallbackEvidence(files: string[], pages: number[]): string {
@@ -247,14 +215,11 @@ function buildFallbackEvidence(files: string[], pages: number[]): string {
 }
 
 /** 평가 근거·의견을 화면용 평가 포인트 목록으로 변환합니다. */
-export function structureEvaluationDisplay(
-  text: string,
-  context: EvaluationReferenceContext = { lawLinks: [], guidelineLinks: [] },
-): StructuredEvaluationDisplay {
+export function structureEvaluationDisplay(text: string): StructuredEvaluationDisplay {
   const normalized = formatEvaluationText(text);
-  const { lead, items } = extractNumberedItems(normalized);
+  const { items } = extractNumberedItems(normalized);
 
-  const corpus = [lead, ...items].join("\n");
+  const corpus = items.join("\n");
   const files = extractQuotedFiles(corpus);
   const pages = extractPageNumbers(corpus);
   const fallbackEvidence = buildFallbackEvidence(files, pages);
@@ -268,12 +233,11 @@ export function structureEvaluationDisplay(
     if (isBoilerplateLine(item)) continue;
 
     const split = splitPointItem(item, fallbackEvidence);
-    if (!split.content.trim()) continue;
+    if (isInvalidPointContent(split.content)) continue;
 
     points.push({
       content: split.content,
       evidence: split.evidence,
-      references: matchReferences(split.lawTexts, context),
     });
   }
 
@@ -284,10 +248,9 @@ export function structureEvaluationDisplay(
 export function prepareEvaluationDisplay(
   rationale: string,
   recommendation: string,
-  context: EvaluationReferenceContext = { lawLinks: [], guidelineLinks: [] },
 ): StructuredEvaluationDisplay {
   const combined = combineAiEvaluationText(rationale, recommendation);
-  return structureEvaluationDisplay(combined, context);
+  return structureEvaluationDisplay(combined);
 }
 
 export { combineAiEvaluationText, formatEvaluationText, normalizeListNumbering, renumberEvaluationText };

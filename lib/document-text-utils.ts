@@ -68,3 +68,13 @@ export function hasBrokenHangulLead(text: string): boolean {
   const trimmed = text.trim();
   return /^[ㄱ-ㅎㅏ-ㅣ]{2,}/.test(trimmed) || /"[ㄱ-ㅎㅏ-ㅣ]{1,4}[가-힣]/.test(trimmed);
 }
+
+/** 본문 인용 스니펫이 평가 문장에 쓸 만큼 유효한지 검사합니다. */
+export function isUsableQuoteSnippet(snippet: string): boolean {
+  const trimmed = snippet.trim();
+  if (trimmed.length < 12) return false;
+  if (/^\.{2,}$/.test(trimmed) || trimmed === "…") return false;
+  if (/^["「]?\s*\.{2,}/.test(trimmed)) return false;
+  if (hasBrokenHangulLead(trimmed)) return false;
+  return true;
+}
