@@ -460,7 +460,7 @@ function EnsembleProviderPanel({ round }: { round: EvaluationRound }) {
     <div className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
       <SubsectionTitle>AI 엔진별 분석</SubsectionTitle>
       <SectionDescription className="mt-1">
-        각 엔진의 초기 분석과 상호 피드백 결과입니다. 종합 점수는 상호 검토 후 합의(중앙값)입니다.
+        각 엔진의 초기 분석과 중재 엔진의 상호 검토 합성 결과입니다. 종합 점수는 교차 검토 후 확정됩니다.
       </SectionDescription>
 
       <div className="mt-4 flex flex-wrap gap-2">

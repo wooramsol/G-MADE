@@ -2,10 +2,16 @@ import type { EvaluationContext } from "../evaluation-context";
 import type { EvaluationItem } from "../types";
 import { AiAnalysisError } from "./analysis-error";
 import type { UploadedFileSummary, UploadAnalysisResult } from "./analysis-types";
-import { buildCrossFeedbackPrompt } from "./cross-feedback-prompt";
+import { buildArbiterSynthesisPrompt } from "./cross-feedback-prompt";
 import { mergeConsensusAnalysis } from "./consensus-merge";
+import {
+  ENSEMBLE_ARBITER_TIMEOUT_MS,
+  ENSEMBLE_INITIAL_PROVIDER_TIMEOUT_MS,
+  ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS,
+  withOperationTimeout,
+} from "./ensemble-time-budget";
 import { formatProviderBadgeLabel } from "./provider-labels";
-import { getConfiguredLiveProviders } from "./select-provider";
+import { getConfiguredLiveProviders, resolveArbiterProvider } from "./select-provider";
 import type { AiProviderId } from "./types";
 import { analyzeUploadedFilesWithProvider } from "../upload-analysis";
 
@@ -27,8 +33,9 @@ export async function analyzeWithMultiProviderEnsemble(input: {
   evaluationContext: EvaluationContext;
   evaluationItems: EvaluationItem[];
   onAnalysisProgress?: (label: string) => void;
+  getRemainingBudgetMs?: () => number;
 }): Promise<MultiProviderEvaluationResult> {
-  const { files, evaluationContext, evaluationItems, onAnalysisProgress } = input;
+  const { files, evaluationContext, evaluationItems, onAnalysisProgress, getRemainingBudgetMs } = input;
   const providers = getConfiguredLiveProviders();
 
   if (providers.length === 0) {
@@ -67,15 +74,26 @@ export async function analyzeWithMultiProviderEnsemble(input: {
     `AI 종합 평가: ${providers.map((provider) => formatProviderBadgeLabel(provider)).join(", ")} ${providers.length}개 엔진을 병렬 분석합니다.`,
   );
 
+  const remainingForInitial = getRemainingBudgetMs?.() ?? ENSEMBLE_INITIAL_PROVIDER_TIMEOUT_MS + ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS;
+  const initialTimeout = Math.min(
+    ENSEMBLE_INITIAL_PROVIDER_TIMEOUT_MS,
+    Math.max(60_000, remainingForInitial - ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS - 5_000),
+  );
+
   onAnalysisProgress?.(`1단계: ${providers.length}개 AI 엔진 병렬 분석`);
   const initialResults = await Promise.allSettled(
     providers.map(async (provider) => {
-      onAnalysisProgress?.(`${formatProviderBadgeLabel(provider)} 초기 분석`);
-      const analysis = await analyzeUploadedFilesWithProvider(provider, {
-        files,
-        evaluationContext,
-        evaluationItems,
-      });
+      const label = formatProviderBadgeLabel(provider);
+      onAnalysisProgress?.(`${label} 초기 분석`);
+      const analysis = await withOperationTimeout(
+        analyzeUploadedFilesWithProvider(provider, {
+          files,
+          evaluationContext,
+          evaluationItems,
+        }),
+        initialTimeout,
+        `${label} 초기 분석`,
+      );
       return { provider, analysis } satisfies ProviderAnalysisEntry;
     }),
   );
@@ -117,21 +135,42 @@ export async function analyzeWithMultiProviderEnsemble(input: {
     };
   }
 
-  onAnalysisProgress?.("2단계: AI 상호 피드백·교차 검토");
-  const crossFeedbackResults = await Promise.allSettled(
-    initialSuccesses.map(async (entry) => {
-      const peers = initialSuccesses.filter((peer) => peer.provider !== entry.provider);
-      const prompt = buildCrossFeedbackPrompt({
-        selfProvider: entry.provider,
-        selfAnalysis: entry.analysis,
-        peerAnalyses: peers,
-        files,
-        context: evaluationContext,
-        items: evaluationItems,
-      });
+  const remainingAfterInitial = getRemainingBudgetMs?.() ?? ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS;
+  const arbiterProvider = resolveArbiterProvider(initialSuccesses.map((entry) => entry.provider));
 
-      onAnalysisProgress?.(`${formatProviderBadgeLabel(entry.provider)} 상호 검토`);
-      const revised = await analyzeUploadedFilesWithProvider(entry.provider, {
+  if (!arbiterProvider || remainingAfterInitial < ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS) {
+    warnings.push(
+      remainingAfterInitial < ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS
+        ? "남은 분석 시간이 부족해 상호 검토 단계를 생략하고 초기 분석 합의(중앙값)로 종합했습니다."
+        : "중재 엔진을 찾지 못해 초기 분석 합의(중앙값)로 종합했습니다.",
+    );
+    onAnalysisProgress?.("3단계: AI 합의 점수 산출(초기 분석)");
+    const consensus = mergeConsensusAnalysis({
+      analyses: initialSuccesses,
+      items: evaluationItems,
+      providersUsed: initialSuccesses.map((entry) => entry.provider),
+    });
+    consensus.warnings = [...warnings, ...(consensus.warnings ?? [])];
+    return {
+      consensus,
+      initialByProvider,
+      crossFeedbackByProvider: {},
+      providersUsed: initialSuccesses.map((entry) => entry.provider),
+      warnings,
+    };
+  }
+
+  const arbiterTimeout = Math.min(
+    ENSEMBLE_ARBITER_TIMEOUT_MS,
+    Math.max(45_000, remainingAfterInitial - 10_000),
+  );
+
+  onAnalysisProgress?.(`2단계: ${formatProviderBadgeLabel(arbiterProvider)} 중재·상호 검토 합성`);
+  let arbiterAnalysis: UploadAnalysisResult | null = null;
+
+  try {
+    const revised = await withOperationTimeout(
+      analyzeUploadedFilesWithProvider(arbiterProvider, {
         files,
         evaluationContext,
         evaluationItems,
@@ -139,39 +178,49 @@ export async function analyzeWithMultiProviderEnsemble(input: {
           compact: true,
           evaluationOnly: true,
           includeVision: false,
-          userPromptOverride: prompt,
+          userPromptOverride: buildArbiterSynthesisPrompt({
+            arbiterProvider,
+            providerAnalyses: initialSuccesses,
+            files,
+            context: evaluationContext,
+            items: evaluationItems,
+          }),
         },
-      });
-
-      return { provider: entry.provider, analysis: revised } satisfies ProviderAnalysisEntry;
-    }),
-  );
-
-  const crossFeedbackSuccesses: ProviderAnalysisEntry[] = [];
-  const crossFeedbackByProvider: Partial<Record<AiProviderId, UploadAnalysisResult>> = {};
-
-  for (const result of crossFeedbackResults) {
-    if (result.status === "fulfilled") {
-      crossFeedbackSuccesses.push(result.value);
-      crossFeedbackByProvider[result.value.provider] = result.value.analysis;
-      continue;
-    }
-
-    const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
-    warnings.push(`상호 피드백 실패: ${message}`);
+      }),
+      arbiterTimeout,
+      `${formatProviderBadgeLabel(arbiterProvider)} 중재 합성`,
+    );
+    arbiterAnalysis = revised;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    warnings.push(`상호 검토 합성 실패: ${message}`);
   }
 
-  const mergeSource =
-    crossFeedbackSuccesses.length > 0 ? crossFeedbackSuccesses : initialSuccesses;
+  const crossFeedbackByProvider: Partial<Record<AiProviderId, UploadAnalysisResult>> = {};
+  if (arbiterAnalysis) {
+    crossFeedbackByProvider[arbiterProvider] = arbiterAnalysis;
+  }
 
-  onAnalysisProgress?.("3단계: AI 합의 점수 산출");
-  const consensus = mergeConsensusAnalysis({
-    analyses: mergeSource,
-    items: evaluationItems,
-    providersUsed: mergeSource.map((entry) => entry.provider),
-  });
+  onAnalysisProgress?.("3단계: AI 합의 점수 확정");
+  const consensus = arbiterAnalysis
+    ? {
+        ...arbiterAnalysis,
+        provider: "ensemble" as const,
+        warnings: [
+          ...warnings,
+          ...(arbiterAnalysis.warnings ?? []),
+          `${formatProviderBadgeLabel(arbiterProvider)}가 ${initialSuccesses.length}개 엔진 초기 분석을 교차 검토해 종합 평가를 확정했습니다.`,
+        ],
+      }
+    : mergeConsensusAnalysis({
+        analyses: initialSuccesses,
+        items: evaluationItems,
+        providersUsed: initialSuccesses.map((entry) => entry.provider),
+      });
 
-  consensus.warnings = [...warnings, ...(consensus.warnings ?? [])];
+  if (!arbiterAnalysis) {
+    consensus.warnings = [...warnings, ...(consensus.warnings ?? [])];
+  }
 
   return {
     consensus,
