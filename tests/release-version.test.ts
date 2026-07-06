@@ -58,5 +58,5 @@ test("getReleaseVersionLabel never returns raw commit SHA", () => {
 });
 
 test("RELEASE_PR_NUMBER tracks latest merged PR", () => {
-  assert.equal(RELEASE_PR_NUMBER, 83);
+  assert.equal(RELEASE_PR_NUMBER, 84);
 });
