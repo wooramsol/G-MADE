@@ -21,6 +21,7 @@ import { DEFAULT_GEMINI_MODEL, getGeminiModelsToTry } from "./ai/gemini-models";
 import { requestGeminiGenerateContent } from "./ai/gemini-request";
 import { describeGeminiResponseIssue, readGeminiGenerateContent } from "./ai/gemini-response";
 import { isProviderConfigured, selectProvider } from "./ai/select-provider";
+import type { AiProviderId } from "./ai/types";
 import type { EvaluationContext } from "./evaluation-context";
 import { evaluationItems as defaultEvaluationItems } from "./demo-data";
 import { toStoredReferenceLaws } from "./dedupe-reference-laws";
@@ -59,12 +60,41 @@ export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Pr
     );
   }
 
+  return analyzeUploadedFilesWithProvider(provider, {
+    files,
+    evaluationContext,
+    evaluationItems: items,
+    onAnalysisProgress,
+  });
+}
+
+export async function analyzeUploadedFilesWithProvider(
+  provider: AiProviderId,
+  input: Omit<AnalyzeUploadedFilesInput, "providerPreference"> & {
+    promptOptions?: AnalysisPromptOptions;
+  },
+): Promise<UploadAnalysisResult> {
+  const { files, evaluationContext, onAnalysisProgress, promptOptions } = input;
+  const items = input.evaluationItems?.length ? input.evaluationItems : defaultEvaluationItems;
+  const baseWarnings = [...evaluationContext.warnings];
+
+  ensureProviderConfigured(provider);
+
   if (provider === "openai") {
-    return analyzeWithOpenAi(files, evaluationContext, items, baseWarnings);
+    return analyzeWithOpenAi(files, evaluationContext, items, baseWarnings, promptOptions);
   }
 
   if (provider === "gemini") {
+    if (promptOptions?.userPromptOverride) {
+      onAnalysisProgress?.("Gemini AI 상호 검토");
+      return analyzeWithGeminiOnce(files, evaluationContext, items, baseWarnings, promptOptions);
+    }
     return analyzeWithGemini(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
+  }
+
+  if (promptOptions?.userPromptOverride) {
+    onAnalysisProgress?.("Claude AI 상호 검토");
+    return analyzeWithClaudeOnce(files, evaluationContext, items, baseWarnings, promptOptions);
   }
 
   return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
@@ -90,6 +120,7 @@ async function analyzeWithOpenAi(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   baseWarnings: string[],
+  promptOptions?: AnalysisPromptOptions,
 ): Promise<UploadAnalysisResult> {
   const apiKey = getOpenAiApiKey();
   if (!apiKey) {
@@ -99,11 +130,17 @@ async function analyzeWithOpenAi(
     );
   }
 
+  const prompt = buildAnalysisPrompt(files, evaluationContext, items, promptOptions);
+
   try {
-    const openAiContent = buildOpenAiUserContent(files, buildAnalysisPrompt(files, evaluationContext, items));
+    const openAiContent = buildOpenAiUserContent(files, prompt);
     const hasVisionImages = openAiContent.some((part) => part.type === "image_url");
     const warnings = [...baseWarnings];
-    if (!hasVisionImages && files.some((file) => file.visionAssets?.some((asset) => asset.mediaType === "application/pdf"))) {
+    if (
+      !promptOptions?.userPromptOverride &&
+      !hasVisionImages &&
+      files.some((file) => file.visionAssets?.some((asset) => asset.mediaType === "application/pdf"))
+    ) {
       warnings.push(
         "ChatGPT(OpenAI)는 PDF 원본 비전 입력을 지원하지 않아 PDF 본문 텍스트 위주로 분석합니다. 도면·스캔 PDF는 Gemini 또는 Claude 사용을 권장합니다.",
       );
@@ -127,7 +164,7 @@ async function analyzeWithOpenAi(
             },
             {
               role: "user",
-              content: buildOpenAiUserContent(files, buildAnalysisPrompt(files, evaluationContext, items)),
+              content: buildOpenAiUserContent(files, prompt),
             },
           ],
           temperature: 0.2,

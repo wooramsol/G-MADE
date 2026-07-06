@@ -28,6 +28,7 @@ import type { EvaluationItem, EvaluationRound, HumanEvaluationItemScore, Project
 import { isAiAnalysisError } from "@/lib/ai/analysis-error";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import { analyzeUploadedFiles } from "@/lib/upload-analysis";
+import { analyzeWithMultiProviderEnsemble } from "@/lib/ai/multi-provider-evaluation";
 import { applyFilesTextBudget } from "@/lib/ai/document-text-budget";
 import type { SavedUploadFile } from "@/lib/save-uploaded-files";
 
@@ -187,8 +188,30 @@ export async function runEvaluationRound(
     emitStep(emit, "ai-analysis");
 
     const needsSharedAnalysis = needsAiMaterials || needsExpertMaterials;
-    const sharedAnalysis = needsSharedAnalysis
-      ? await analyzeUploadedFiles({
+    const useEnsemble = providerPreference === "ensemble" || providerPreference === "auto";
+
+    let ensembleMeta: Awaited<ReturnType<typeof analyzeWithMultiProviderEnsemble>> | null = null;
+    let sharedAnalysis: Awaited<ReturnType<typeof analyzeUploadedFiles>> | null = null;
+
+    if (needsSharedAnalysis) {
+      if (useEnsemble) {
+        ensembleMeta = await analyzeWithMultiProviderEnsemble({
+          files: textBudget.files,
+          evaluationContext,
+          evaluationItems,
+          onAnalysisProgress: (label) => {
+            emit?.({
+              type: "progress",
+              step: "ai-analysis",
+              label,
+              stepIndex: 5,
+              stepCount: EVALUATION_ANALYSIS_STEPS.length,
+            });
+          },
+        });
+        sharedAnalysis = ensembleMeta.consensus;
+      } else {
+        sharedAnalysis = await analyzeUploadedFiles({
           providerPreference,
           files: textBudget.files,
           evaluationContext,
@@ -202,8 +225,9 @@ export async function runEvaluationRound(
               stepCount: EVALUATION_ANALYSIS_STEPS.length,
             });
           },
-        })
-      : null;
+        });
+      }
+    }
 
     const aiAnalysis = needsAiMaterials
       ? sharedAnalysis!
@@ -254,6 +278,13 @@ export async function runEvaluationRound(
           expertAnalysis.warnings ?? [],
         ),
       },
+      ...(ensembleMeta
+        ? {
+            aiAnalysesByProvider: ensembleMeta.initialByProvider,
+            crossFeedbackByProvider: ensembleMeta.crossFeedbackByProvider,
+            ensembleProvidersUsed: ensembleMeta.providersUsed,
+          }
+        : {}),
       expertItemScores,
     };
 

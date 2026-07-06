@@ -387,6 +387,10 @@ export default function ProjectEvaluationWorkspace({
             </div>
           </div>
 
+          {selectedRound.ensembleProvidersUsed && selectedRound.ensembleProvidersUsed.length > 1 ? (
+            <EnsembleProviderPanel round={selectedRound} />
+          ) : null}
+
           <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
             <div className="mb-5">
               <SubsectionTitle>종합 평가 결과</SubsectionTitle>
@@ -437,6 +441,65 @@ export default function ProjectEvaluationWorkspace({
           </p>
         </div>
       </section>
+    </div>
+  );
+}
+
+function EnsembleProviderPanel({ round }: { round: EvaluationRound }) {
+  const providers = round.ensembleProvidersUsed ?? [];
+  const [activeProvider, setActiveProvider] = useState(providers[0] ?? null);
+
+  if (providers.length === 0 || !activeProvider) return null;
+
+  const activeAnalysis =
+    round.crossFeedbackByProvider?.[activeProvider] ??
+    round.aiAnalysesByProvider?.[activeProvider] ??
+    null;
+
+  return (
+    <div className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+      <SubsectionTitle>AI 엔진별 분석</SubsectionTitle>
+      <SectionDescription className="mt-1">
+        각 엔진의 초기 분석과 상호 피드백 결과입니다. 종합 점수는 상호 검토 후 합의(중앙값)입니다.
+      </SectionDescription>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {providers.map((provider) => (
+          <button
+            key={provider}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+              provider === activeProvider
+                ? `${getProviderBadgeClass(provider)} ring-1 ring-violet-300`
+                : "bg-white text-[#64748b] hover:bg-violet-50"
+            }`}
+            onClick={() => setActiveProvider(provider)}
+            type="button"
+          >
+            {formatProviderBadgeLabel(provider)}
+          </button>
+        ))}
+      </div>
+
+      {activeAnalysis ? (
+        <div className="mt-4 space-y-3 rounded-xl border border-violet-100 bg-white p-4">
+          <p className="text-sm leading-6 text-[#475569]">{activeAnalysis.summary}</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {activeAnalysis.evaluationPreview.slice(0, 4).map((row) => (
+              <div key={row.itemId ?? row.itemName} className="rounded-lg bg-[#f8fafc] px-3 py-2 text-xs">
+                <p className="font-bold text-[#15345b]">
+                  {row.itemName} · {row.score}점
+                </p>
+                <p className="mt-1 line-clamp-3 text-[#64748b]">{row.rationale}</p>
+              </div>
+            ))}
+          </div>
+          {activeAnalysis.evaluationPreview.length > 4 ? (
+            <p className="text-xs text-[#64748b]">
+              외 {activeAnalysis.evaluationPreview.length - 4}개 항목 — 종합 결과에서 전체 확인
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
