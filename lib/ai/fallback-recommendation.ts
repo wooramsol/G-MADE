@@ -290,25 +290,25 @@ export function buildFallbackRationale(
   const parts: string[] = [];
 
   if (evidenceSnippet) {
-    parts.push(`${sourceWithPage}에서 "${evidenceSnippet}" 등 관련 기재는 있으나,`);
+    parts.push(`${sourceWithPage} — "${evidenceSnippet}" 등 확인.`);
   } else {
-    parts.push(`${sourceWithPage} 및 ${item.detailItem} 관련 기재를 검토한 결과,`);
+    parts.push(`${sourceWithPage} 검토.`);
   }
 
   const gapIssues = [
-    `${sourceWithPage} — 평가기준「${item.criteria}」대비 ${measures[0]} 등 세부 수치·재료·시공 기준이 도면·계획서에 명시되지 않음`,
-    `${sourceWithPage} — ${measures[1] ?? "동선·공간 관계"}가 도면·본문에서 상호 연계되어 확인되지 않음`,
-    `${sourceWithPage} — ${measures[2] ?? "유지관리·관리 계획"}이 누락되었거나 불명확함`,
+    `p.2 배치도 — 평가기준「${item.criteria}」대비 ${measures[0]} 등 세부 수치·재료·시공 기준 미기재`,
+    `배치도 — ${measures[1] ?? "동선·공간 관계"} 상호 연계 확인 불가`,
+    `${measures[2] ?? "유지관리·관리 계획"} 누락·불명확`,
   ];
 
   const lawRef = evaluationContext.referenceLaws[0];
   if (lawRef) {
     gapIssues.push(
-      `${sourceWithPage} 관련 내용 — ${lawRef.title} ${lawRef.article}(${lawRef.summary.slice(0, 60)}…) 기준 적용·저촉 여부 검토 필요`,
+      `관련 내용 — ${lawRef.title} ${lawRef.article} 적용·저촉 검토 필요`,
     );
   }
 
-  parts.push(`다음 평가 근거가 확인됨:\n${formatNumberedIssues(gapIssues)}`);
+  parts.push(formatNumberedIssues(gapIssues));
 
   const spatial = evaluationContext.spatial;
   if (spatial?.matchedZones[0]) {

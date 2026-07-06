@@ -15,7 +15,9 @@ import {
 import { formatProviderBadgeLabel, getProviderBadgeClass } from "@/lib/ai/provider-labels";
 import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
 import { resolveDocumentSectionsForDisplay } from "@/lib/ai/document-section-summary";
-import { combineAiEvaluationText, formatEvaluationText } from "@/lib/format-evaluation-text";
+import { EvaluationTextBlock } from "@/components/evaluation-text-block";
+import { prepareEvaluationDisplay } from "@/lib/evaluation-display";
+import { formatEvaluationText } from "@/lib/format-evaluation-text";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
@@ -567,17 +569,23 @@ function EvaluationRationaleCell({
   guidelineLinks: Array<{ title: string; section: string; href: string | null }>;
   roundId: string;
 }) {
-  const aiText = formatEvaluationText(
-    combineAiEvaluationText(result.aiEvaluation.rationale, result.aiEvaluation.recommendation),
+  const aiDisplay = prepareEvaluationDisplay(
+    result.aiEvaluation.rationale,
+    result.aiEvaluation.recommendation,
   );
   const expertText = formatEvaluationText(result.humanEvaluation.comment ?? "");
 
   return (
     <div className="space-y-2 text-xs leading-5 text-[#64748b]">
-      {aiText ? (
+      {aiDisplay.grounds.length > 0 ||
+      aiDisplay.actions.length > 0 ||
+      aiDisplay.summary ||
+      aiDisplay.sources ? (
         <div>
           <p className="font-semibold text-[#2463b3]">AI</p>
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[#475569]">{aiText}</p>
+          <div className="mt-1">
+            <EvaluationTextBlock display={aiDisplay} />
+          </div>
         </div>
       ) : null}
       {expertText ? (
