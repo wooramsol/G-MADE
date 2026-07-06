@@ -1,17 +1,29 @@
-/** Vercel 환경 변수를 읽지 못할 때 사용하는 fallback PR 번호. */
-export const RELEASE_PR_NUMBER = 71;
+/** PR마다 갱신하는 fallback PR 번호. fast-forward 배포 시 헤더 배지에 사용된다. */
+export const RELEASE_PR_NUMBER = 77;
+
+function extractPrNumber(text: string): number | null {
+  const match = text.match(/#(\d+)/);
+  if (!match?.[1]) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function resolveReleasePrNumber(): number {
+  const fromCommit = extractPrNumber(process.env.VERCEL_GIT_COMMIT_MESSAGE ?? "");
+  if (fromCommit) return fromCommit;
+
+  const fromBuild = Number(process.env.NEXT_PUBLIC_RELEASE_PR);
+  if (Number.isFinite(fromBuild) && fromBuild > 0) return fromBuild;
+
+  return RELEASE_PR_NUMBER;
+}
 
 /**
- * 배포 버전 라벨. Vercel 배포 커밋 메시지("Merge pull request #N ...")에서
- * PR 번호를 자동 추출하므로 배포마다 수동 갱신이 필요 없다.
+ * 배포 버전 라벨. 우선순위:
+ * 1. Vercel 커밋 메시지의 PR 번호 (Merge pull request #N)
+ * 2. 빌드 시 주입된 NEXT_PUBLIC_RELEASE_PR
+ * 3. RELEASE_PR_NUMBER 상수
  */
 export function getReleaseVersionLabel(): string {
-  const message = process.env.VERCEL_GIT_COMMIT_MESSAGE ?? "";
-  const prMatch = message.match(/#(\d+)/);
-  if (prMatch) return `PR #${prMatch[1]}`;
-
-  const sha = process.env.VERCEL_GIT_COMMIT_SHA;
-  if (sha) return sha.slice(0, 7);
-
-  return `PR #${RELEASE_PR_NUMBER}`;
+  return `PR #${resolveReleasePrNumber()}`;
 }
