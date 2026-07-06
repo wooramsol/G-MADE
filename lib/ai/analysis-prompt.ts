@@ -11,6 +11,10 @@ export function buildAnalysisPrompt(
   items: EvaluationItem[] = defaultEvaluationItems,
   options?: AnalysisPromptOptions,
 ): string {
+  if (options?.userPromptOverride?.trim()) {
+    return options.userPromptOverride.trim();
+  }
+
   const projectBlock = context.project
     ? `프로젝트 정보:
 - 사업명: ${context.project.name}

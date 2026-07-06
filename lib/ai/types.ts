@@ -1,3 +1,3 @@
 export type AiProviderId = "openai" | "gemini" | "claude";
 
-export type AiProviderPreference = "auto" | AiProviderId;
+export type AiProviderPreference = "auto" | "ensemble" | AiProviderId;

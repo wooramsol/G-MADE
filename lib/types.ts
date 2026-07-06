@@ -92,7 +92,7 @@ export type UploadAnalysisSession = {
     sizeBytes: number;
   }>;
   analysis: {
-    provider: "openai" | "gemini" | "claude" | "none" | "demo";
+    provider: "openai" | "gemini" | "claude" | "ensemble" | "none" | "demo";
     mode: "live" | "skipped" | "demo";
     summary: string;
     documentSections: Array<{ itemId?: string; label: string; confidence: number; summary: string }>;
@@ -159,6 +159,16 @@ export type EvaluationRound = {
   aiFiles: EvaluationSessionFile[];
   expertFiles: EvaluationSessionFile[];
   aiAnalysis: UploadAnalysisSession["analysis"];
+  /** 종합 평가 시 각 AI 엔진의 초기 분석 */
+  aiAnalysesByProvider?: Partial<
+    Record<"openai" | "gemini" | "claude", UploadAnalysisSession["analysis"]>
+  >;
+  /** 종합 평가 시 상호 피드백 후 분석 */
+  crossFeedbackByProvider?: Partial<
+    Record<"openai" | "gemini" | "claude", UploadAnalysisSession["analysis"]>
+  >;
+  /** 종합 평가에 참여한 AI 엔진 목록 */
+  ensembleProvidersUsed?: Array<"openai" | "gemini" | "claude">;
   expertItemScores: HumanEvaluationItemScore[];
 };
 

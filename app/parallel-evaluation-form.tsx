@@ -80,15 +80,15 @@ export default function ParallelEvaluationForm({
       try {
         const response = await clientFetchWithTimeout("/api/ai-status");
         if (!response.ok) {
-          if (!cancelled) setProvider("gemini");
+          if (!cancelled) setProvider("ensemble");
           return;
         }
         const payload = (await response.json()) as { defaultProvider?: string };
         if (!cancelled) {
-          setProvider(toClientAiProviderPreference(payload.defaultProvider ?? "gemini"));
+          setProvider(toClientAiProviderPreference(payload.defaultProvider ?? "ensemble"));
         }
       } catch {
-        if (!cancelled) setProvider("gemini");
+        if (!cancelled) setProvider("ensemble");
       }
     }
 
@@ -152,7 +152,7 @@ export default function ParallelEvaluationForm({
     const formData = new FormData();
     formData.append("projectId", project.id);
     formData.append("projectSnapshot", JSON.stringify(project));
-    formData.append("provider", provider ?? "gemini");
+    formData.append("provider", provider ?? "ensemble");
     formData.append("aiWeight", String(aiWeight));
     formData.append("expertWeight", String(100 - aiWeight));
     formData.append("reviewerName", reviewerName.trim());
@@ -254,19 +254,15 @@ export default function ParallelEvaluationForm({
       >
         <div className={`grid gap-4 ${needsAiMaterials && needsExpertMaterials ? "sm:grid-cols-2" : ""}`}>
           {needsAiMaterials ? (
-            <label className="block text-sm">
+            <div className="block text-sm">
               <FieldLabel className="mb-2 block">AI 엔진</FieldLabel>
-              <select
-                className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-2 font-semibold text-[#15345b] outline-none focus:border-[#2463b3] focus:bg-white disabled:opacity-60"
-                disabled={!provider}
-                value={provider ?? "gemini"}
-                onChange={(event) => setProvider(event.target.value as AiProviderPreference)}
-              >
-                <option value="gemini">Gemini</option>
-                <option value="openai">ChatGPT</option>
-                <option value="claude">Claude</option>
-              </select>
-            </label>
+              <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3">
+                <p className="font-semibold text-[#15345b]">Gemini · ChatGPT · Claude 종합</p>
+                <MutedText className="mt-1">
+                  세 AI가 자료를 각각 분석한 뒤 서로의 결과를 검토·피드백하고, 합의 점수로 종합 평가합니다.
+                </MutedText>
+              </div>
+            </div>
           ) : null}
           {needsExpertMaterials ? (
             <label className="block text-sm">
@@ -288,8 +284,9 @@ export default function ParallelEvaluationForm({
         <div className="text-center">
           <StepTitle>4. 하이브리드 평가 분석</StepTitle>
           <MutedText className="mx-auto mt-2 max-w-lg">
-            공통 평가 자료와 평가항목을 바탕으로 AI·전문가 점수를 한 번에 산출합니다. 이전 평가에 올린
-            자료는 다시 업로드하지 않고 불러올 수 있습니다.
+            공통 평가 자료와 평가항목을 바탕으로 Gemini·ChatGPT·Claude 3개 AI가 상호 검토한 종합 점수와
+            전문가 점수를 한 번에 산출합니다. 이전 평가에 올린 자료는 다시 업로드하지 않고 불러올 수
+            있습니다.
           </MutedText>
           <button
             className="primary-action mt-5 rounded-xl px-8 py-3.5 text-base font-bold disabled:cursor-not-allowed disabled:bg-slate-400"

@@ -7,4 +7,6 @@ export type AnalysisPromptOptions = {
   includeVision?: boolean;
   /** 분할 분석 시 전체 회차 수 (타임아웃 예산 분배용) */
   batchCount?: number;
+  /** 기본 분석 프롬프트 대신 사용할 사용자 프롬프트(상호 피드백 등) */
+  userPromptOverride?: string;
 };

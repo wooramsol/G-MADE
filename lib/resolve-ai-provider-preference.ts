@@ -1,13 +1,13 @@
 import type { AiProviderPreference } from "./ai/types";
 
-const LIVE_PROVIDERS = new Set(["gemini", "openai", "claude"]);
+const LIVE_PROVIDERS = new Set(["gemini", "openai", "claude", "ensemble"]);
 
 /** 폼/API에서 받은 provider 값을 서버 기본값(AI_PROVIDER_DEFAULT)과 맞춥니다. */
 export function resolveAiProviderPreference(raw?: string | null): AiProviderPreference {
   const value = raw?.trim().toLowerCase();
 
-  if (value === "auto") {
-    return "auto";
+  if (value === "auto" || value === "ensemble") {
+    return value;
   }
 
   if (value && LIVE_PROVIDERS.has(value)) {
@@ -19,15 +19,12 @@ export function resolveAiProviderPreference(raw?: string | null): AiProviderPref
     return defaultProvider;
   }
 
-  return "auto";
+  return "ensemble";
 }
 
-/** 클라이언트 AI 엔진 선택 초기값 */
+/** 클라이언트 AI 엔진 선택 초기값 — 종합(3엔진) 모드 */
 export function toClientAiProviderPreference(
-  defaultProvider: string,
-): "gemini" | "openai" | "claude" {
-  if (defaultProvider === "openai" || defaultProvider === "claude") {
-    return defaultProvider;
-  }
-  return "gemini";
+  _defaultProvider: string,
+): "ensemble" {
+  return "ensemble";
 }

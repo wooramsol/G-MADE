@@ -14,6 +14,10 @@ export function getDefaultAiProvider(): AiProviderId | null {
 }
 
 export function selectProvider(preference: AiProviderPreference): AiProviderId | null {
+  if (preference === "ensemble") {
+    return null;
+  }
+
   if (preference !== "auto") {
     return isProviderConfigured(preference) ? preference : null;
   }
@@ -37,6 +41,10 @@ export function isProviderConfigured(provider: AiProviderId): boolean {
   if (provider === "gemini") return Boolean(getGeminiApiKey());
   if (provider === "claude") return Boolean(getClaudeApiKey());
   return false;
+}
+
+export function getConfiguredLiveProviders(): AiProviderId[] {
+  return providerOrder.filter((provider) => isProviderConfigured(provider));
 }
 
 export function getActiveProviderLabel(preference: AiProviderPreference = "auto"): string {

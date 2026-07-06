@@ -32,7 +32,7 @@ export type UploadAnalysisReferenceGuideline = {
 };
 
 export type UploadAnalysisResult = {
-  provider: "openai" | "gemini" | "claude" | "none" | "demo";
+  provider: "openai" | "gemini" | "claude" | "ensemble" | "none" | "demo";
   mode: "live" | "skipped" | "demo";
   summary: string;
   documentSections: Array<{
