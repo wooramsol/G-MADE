@@ -15,7 +15,7 @@ function resolveBuildReleasePr(): string {
     // ignore
   }
 
-  return "84";
+  return "85";
 }
 
 const nextConfig: NextConfig = {

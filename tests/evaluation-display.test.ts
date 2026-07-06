@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { UploadedFileSummary } from "../lib/ai/analysis-types";
+import { evaluationItems } from "../lib/demo-data";
 import { prepareEvaluationDisplay, structureEvaluationDisplay } from "../lib/evaluation-display";
 
 const longFile = "심의도서(금곡2리 경로당(마을회관) 증축공사).pdf";
@@ -90,6 +91,47 @@ test("structureEvaluationDisplay filters broken quote placeholders", () => {
 
   assert.equal(display.points.length, 1);
   assert.match(display.points[0]!.content, /스카이라인/);
+});
+
+test("structureEvaluationDisplay resolves evidence per evaluation item topic", () => {
+  const corpus = [
+    "--- 「심의도서.pdf」 p.14 ---",
+    "배치도",
+    "주차장 배치",
+    "보행 동선 및 진입로",
+    "",
+    "--- 「심의도서.pdf」 p.18 ---",
+    "야간경관",
+    "조도 25lux",
+    "",
+    "--- 「심의도서.pdf」 p.20 ---",
+    "색채계획",
+    "주조색",
+  ].join("\n");
+
+  const files: UploadedFileSummary[] = [
+    {
+      id: "file-1",
+      originalName: "심의도서.pdf",
+      fileType: "application/pdf",
+      sizeBytes: corpus.length,
+      storagePath: "",
+      extractedTextPreview: corpus,
+      totalPages: 25,
+    },
+  ];
+
+  const walkItem = evaluationItems.find((item) => item.id === "item-walk")!;
+  const nightItem = evaluationItems.find((item) => item.id === "item-nightscape")!;
+  const colorItem = evaluationItems.find((item) => item.id === "item-color")!;
+
+  const walkDisplay = structureEvaluationDisplay("1. p.14 배치도 — 보행 동선 미기재", files, walkItem);
+  const nightDisplay = structureEvaluationDisplay("1. p.14 — 야간 조명 기준 불명확", files, nightItem);
+  const colorDisplay = structureEvaluationDisplay("1. p.14 — 주조색 팔레트 누락", files, colorItem);
+
+  assert.match(walkDisplay.points[0]!.evidence, /p\.14.*배치도/);
+  assert.match(nightDisplay.points[0]!.evidence, /p\.18.*야간/);
+  assert.match(colorDisplay.points[0]!.evidence, /p\.20.*색채/);
 });
 
 test("prepareEvaluationDisplay merges rationale and recommendation into one list", () => {

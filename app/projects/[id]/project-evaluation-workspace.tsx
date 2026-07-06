@@ -5,7 +5,6 @@ import ConfirmDialog from "@/components/confirm-dialog";
 import {
   Badge,
   FieldLabel,
-  ScoreValue,
   SectionDescription,
   SectionTitle,
   SubsectionTitle,
@@ -28,7 +27,7 @@ import {
 } from "@/lib/related-reference-guidelines";
 import { buildAdmrulReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
 import { collectUniqueRoundFiles } from "@/lib/evaluation-round-files";
-import { buildHybridViewFromRound, buildStoredFileSummaries } from "@/lib/upload-to-hybrid";
+import { buildHybridViewFromRound, buildPageCitationSummaries, buildStoredFileSummaries } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
 import { showToast } from "../../toast";
 
@@ -317,7 +316,8 @@ export default function ProjectEvaluationWorkspace({
             <UnifiedEvaluationList
               documentSections={resolveDocumentSectionsForDisplay(selectedRound)}
               evaluationPreview={selectedRound.aiAnalysis.evaluationPreview}
-              fileSummaries={buildStoredFileSummaries(selectedRound)}
+              expertWeight={selectedRound.expertWeight}
+              fileSummaries={buildPageCitationSummaries(selectedRound)}
               referenceGuidelines={referenceGuidelines}
               referenceLaws={referenceLaws}
               results={hybridView.results}
@@ -382,6 +382,7 @@ function UnifiedEvaluationList({
   referenceGuidelines,
   roundId,
   fileSummaries,
+  expertWeight,
 }: {
   results: HybridResult[];
   documentSections: EvaluationRound["aiAnalysis"]["documentSections"];
@@ -389,7 +390,8 @@ function UnifiedEvaluationList({
   referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>;
   referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>;
   roundId: string;
-  fileSummaries: ReturnType<typeof buildStoredFileSummaries>;
+  fileSummaries: ReturnType<typeof buildPageCitationSummaries>;
+  expertWeight: number;
 }) {
   const sectionByItemId = new Map(
     documentSections
@@ -429,12 +431,11 @@ function UnifiedEvaluationList({
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2 text-center">
                 <ScorePill label="AI" score={result.aiEvaluation.score} tone="ai" />
-                <ScorePill label="전문가" score={result.humanEvaluation.score} tone="expert" />
-                <div className="rounded-lg border border-[#d7dee8] bg-white px-3 py-1.5">
-                  <p className="text-[10px] font-semibold text-[#64748b]">최종</p>
-                  <ScoreValue className="text-base">{result.finalScore}</ScoreValue>
-                  <p className="text-[10px] leading-4 text-[#64748b]">{result.finalGrade}</p>
-                </div>
+                <ScorePill
+                  label="전문가"
+                  score={expertWeight > 0 ? result.humanEvaluation.score : null}
+                  tone="expert"
+                />
               </div>
             </div>
 
@@ -476,14 +477,14 @@ function ScorePill({
   tone,
 }: {
   label: string;
-  score: number;
+  score: number | null;
   tone: "ai" | "expert";
 }) {
   return (
-    <div className="rounded-lg border border-[#d7dee8] bg-white px-3 py-1.5 min-w-[64px]">
+    <div className="min-w-[64px] rounded-lg border border-[#d7dee8] bg-white px-3 py-1.5">
       <p className="text-[10px] font-semibold text-[#64748b]">{label}</p>
       <p className={`text-base font-bold ${tone === "ai" ? "text-[#2463b3]" : "text-[#15345b]"}`}>
-        {score}
+        {score === null ? "-" : score}
       </p>
     </div>
   );
@@ -566,6 +567,7 @@ function EvaluationRationaleCell({
     result.aiEvaluation.rationale,
     result.aiEvaluation.recommendation,
     fileSummaries,
+    result.item,
   );
   const expertText = formatEvaluationText(result.humanEvaluation.comment ?? "");
 
