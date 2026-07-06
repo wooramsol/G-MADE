@@ -311,11 +311,6 @@ export function buildFallbackRationale(
     `${measures[2] ?? "유지관리·관리 계획"} 누락·불명확`,
   ];
 
-  const lawRef = evaluationContext.referenceLaws[0];
-  if (lawRef) {
-    gapIssues.push(`관련 내용 — ${lawRef.title} ${lawRef.article} 적용·저촉 검토 필요`);
-  }
-
   const parts: string[] = [formatNumberedIssues(gapIssues)];
 
   const spatial = evaluationContext.spatial;

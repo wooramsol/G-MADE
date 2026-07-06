@@ -20,8 +20,12 @@ export type StructuredEvaluationDisplay = {
 
 const FILE_QUOTE_PATTERN = /「([^」]+)」/g;
 const PAGE_PATTERN = /\bp\.(\d+)\b/gi;
-const LAW_IN_TEXT_PATTERN =
-  /((?:경관(?:의)?\s*법률|경관\s*법|경관법|장애인|녹지|건축|공공디자인|빛공해|행정절차)[^—\n]{0,48}제\s*\d+\s*조[^—\n]{0,32}|[^—\n]{0,24}지침[^—\n]{0,48})/g;
+
+const LAW_CLAUSE_PATTERN =
+  /관련\s*내용\s*—\s*[^—\n]+?(?:적용·저촉\s*검토\s*필요)?\.?/g;
+
+const INCOMPLETE_SENTENCE_PATTERN =
+  /(?:에\s*의한|에\s*대한|및\s*그|관련\s*내용)\s*$/;
 
 const BOILERPLATE_LINES =
   /^(?:다음\s*(?:평가\s*근거|검토|사항).*(?:확인됨|필요)|관련\s*도면·계획서에\s*위치|실시설계\s*단계에서\s*구체화|심사위원\s*검토가\s*필요)/;
@@ -34,6 +38,8 @@ function isInvalidPointContent(content: string): boolean {
   if (!trimmed) return true;
   if (isBoilerplateLine(trimmed)) return true;
   if (BOILERPLATE_CONTENT.test(trimmed)) return true;
+  if (/^관련\s*내용\s*—/.test(trimmed)) return true;
+  if (INCOMPLETE_SENTENCE_PATTERN.test(trimmed)) return true;
   if (/^["「]?\s*\.{2,}\s*["」]?\s*등\s*확인/.test(trimmed)) return true;
   if (/^["「]?\s*\.{2,}/.test(trimmed)) return true;
   if (!isUsableQuoteSnippet(trimmed) && /^["「].*["」]?\s*등/.test(trimmed)) return true;
@@ -160,13 +166,12 @@ function looksLikeLocation(part: string): boolean {
   return /\bp\.\d+/i.test(part) || /배치도|입면도|조감|동선|체크리스트|계획서|색채|야간/.test(part);
 }
 
-function extractLawTexts(text: string): string[] {
-  const laws = new Set<string>();
-  for (const match of text.matchAll(LAW_IN_TEXT_PATTERN)) {
-    const value = match[1]?.trim();
-    if (value) laws.add(value);
-  }
-  return [...laws];
+function stripLawClauses(text: string): string {
+  return text.replace(LAW_CLAUSE_PATTERN, "").replace(/\s*—\s*$/g, "").replace(/\s{2,}/g, " ").trim();
+}
+
+function isLawCitationOnlyLine(text: string): boolean {
+  return /^관련\s*내용\s*—/.test(text.trim());
 }
 
 function extractPageLocation(text: string): string {
@@ -181,12 +186,15 @@ function splitPointItem(
   text: string,
   fallbackEvidence: string,
 ): { content: string; evidence: string } {
-  const lawTexts = extractLawTexts(text);
-  let working = text.trim();
-  for (const law of lawTexts) {
-    working = working.replace(law, "").replace(/\s*[—\-]\s*/g, " — ").trim();
+  const trimmed = text.trim();
+  if (isLawCitationOnlyLine(trimmed)) {
+    return { content: "", evidence: "" };
   }
-  working = working.replace(/\s*—\s*$/g, "").replace(/\s*—\s*—/g, " — ").trim();
+
+  let working = stripLawClauses(trimmed);
+  if (!working) {
+    return { content: "", evidence: "" };
+  }
 
   const parts = working.split(/\s*—\s*/).map((part) => part.trim()).filter(Boolean);
   let evidence = "";
@@ -206,7 +214,7 @@ function splitPointItem(
   content = sanitizePointContent(content.replace(/^\s*[—\-]\s*/, "").trim());
 
   return {
-    content: content || sanitizePointContent(text.trim()),
+    content: content || sanitizePointContent(trimmed),
     evidence,
   };
 }
