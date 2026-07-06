@@ -29,6 +29,8 @@ import { isAiAnalysisError } from "@/lib/ai/analysis-error";
 import type { AiProviderPreference } from "@/lib/ai/types";
 import { analyzeUploadedFiles } from "@/lib/upload-analysis";
 import { analyzeWithMultiProviderEnsemble } from "@/lib/ai/multi-provider-evaluation";
+import { ENSEMBLE_DEADLINE_BUFFER_MS } from "@/lib/ai/ensemble-time-budget";
+import { EVALUATION_SERVER_DEADLINE_MS } from "@/lib/evaluation-stream-messages";
 import { applyFilesTextBudget } from "@/lib/ai/document-text-budget";
 import type { SavedUploadFile } from "@/lib/save-uploaded-files";
 
@@ -72,6 +74,7 @@ export async function runEvaluationRound(
   emit?: ProgressEmitter,
 ): Promise<RunEvaluationRoundResult> {
   let newlySavedFiles: SavedUploadFile[] = [];
+  const evaluationStartedAt = Date.now();
 
   try {
     emitStep(emit, "validate");
@@ -189,6 +192,13 @@ export async function runEvaluationRound(
 
     const needsSharedAnalysis = needsAiMaterials || needsExpertMaterials;
     const useEnsemble = providerPreference === "ensemble" || providerPreference === "auto";
+    const getRemainingBudgetMs = () =>
+      Math.max(
+        0,
+        EVALUATION_SERVER_DEADLINE_MS -
+          ENSEMBLE_DEADLINE_BUFFER_MS -
+          (Date.now() - evaluationStartedAt),
+      );
 
     let ensembleMeta: Awaited<ReturnType<typeof analyzeWithMultiProviderEnsemble>> | null = null;
     let sharedAnalysis: Awaited<ReturnType<typeof analyzeUploadedFiles>> | null = null;
@@ -199,6 +209,7 @@ export async function runEvaluationRound(
           files: textBudget.files,
           evaluationContext,
           evaluationItems,
+          getRemainingBudgetMs,
           onAnalysisProgress: (label) => {
             emit?.({
               type: "progress",

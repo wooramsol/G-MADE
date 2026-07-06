@@ -47,6 +47,15 @@ export function getConfiguredLiveProviders(): AiProviderId[] {
   return providerOrder.filter((provider) => isProviderConfigured(provider));
 }
 
+/** 종합 평가 중재(상호 검토 합성)에 사용할 엔진 — 성공한 후보 중 우선순위 적용 */
+export function resolveArbiterProvider(candidates: AiProviderId[]): AiProviderId | null {
+  const arbiterOrder: AiProviderId[] = ["gemini", "claude", "openai"];
+  for (const provider of arbiterOrder) {
+    if (candidates.includes(provider)) return provider;
+  }
+  return candidates[0] ?? null;
+}
+
 export function getActiveProviderLabel(preference: AiProviderPreference = "auto"): string {
   const provider = selectProvider(preference);
   if (!provider) return "미설정";
