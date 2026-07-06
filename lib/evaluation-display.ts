@@ -200,7 +200,9 @@ function splitPointItem(
     content = working;
   }
 
-  if (!evidence) evidence = fallbackEvidence;
+  if (!evidence) {
+    evidence = /^\s*p\.\d+(?:\s*,\s*p\.\d+)*\s*$/.test(fallbackEvidence) ? "" : fallbackEvidence;
+  }
   content = sanitizePointContent(content.replace(/^\s*[—\-]\s*/, "").trim());
 
   return {

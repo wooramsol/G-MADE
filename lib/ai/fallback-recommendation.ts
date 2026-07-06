@@ -276,6 +276,16 @@ function formatFallbackPageEvidence(
   return drawingLabel;
 }
 
+function topicPageKeywords(item: EvaluationItem, topicKey: keyof typeof MEASURE_BY_TOPIC): string[] {
+  const measures = MEASURE_BY_TOPIC[topicKey] ?? MEASURE_BY_TOPIC.document;
+  return [
+    item.detailItem,
+    item.middleCategory,
+    item.majorCategory,
+    ...measures.slice(0, 2),
+  ].filter(Boolean);
+}
+
 export function buildFallbackRationale(
   item: EvaluationItem,
   files: UploadedFileSummary[],
@@ -284,16 +294,20 @@ export function buildFallbackRationale(
   const corpus = files.map((file) => file.extractedTextPreview ?? "").join("\n");
   const topicKey = inferTopicKey(item);
   const measures = MEASURE_BY_TOPIC[topicKey] ?? MEASURE_BY_TOPIC.document;
+  const topicKeywords = topicPageKeywords(item, topicKey);
   const pageEvidence = formatFallbackPageEvidence(files, corpus, [
-    "배치도",
-    item.detailItem,
-    item.middleCategory,
+    ...topicKeywords,
     ...collectMatches(corpus, DOCUMENT_DRAWING_PATTERNS),
+  ]);
+  const secondaryEvidence = formatFallbackPageEvidence(files, corpus, [
+    measures[1] ?? "동선",
+    "보행동선",
+    "배치도",
   ]);
 
   const gapIssues = [
     `${pageEvidence} — 평가기준「${item.criteria}」대비 ${measures[0]} 등 세부 수치·재료·시공 기준 미기재`,
-    `${pageEvidence.includes("p.") ? pageEvidence.split(" ").slice(1).join(" ") || "배치도" : pageEvidence} — ${measures[1] ?? "동선·공간 관계"} 상호 연계 확인 불가`,
+    `${secondaryEvidence} — ${measures[1] ?? "동선·공간 관계"} 상호 연계 확인 불가`,
     `${measures[2] ?? "유지관리·관리 계획"} 누락·불명확`,
   ];
 
