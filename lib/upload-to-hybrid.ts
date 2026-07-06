@@ -172,7 +172,6 @@ export function buildPageCitationSummaries(round: EvaluationRound): UploadedFile
     sizeBytes: file.sizeBytes,
     storagePath: file.storageKey ?? "",
     extractedTextPreview: index === 0 ? pageCorpus : "",
-    totalPages: file.totalPages,
   }));
 }
 
