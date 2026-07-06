@@ -142,13 +142,14 @@ function clamp(value: number): number {
 export function buildStoredFileSummaries(round: EvaluationRound): UploadedFileSummary[] {
   const files = collectUniqueRoundFiles(round);
   const primaryFileName = files[0]?.originalName ?? "제출 자료";
-  const pageHintCorpus = buildPageHintCorpusFromDocumentSections(
-    round.aiAnalysis.documentSections,
-    primaryFileName,
-  );
+  const pageCorpusPreview = round.aiAnalysis.pageCorpusPreview?.trim() ?? "";
+  const pageHintCorpus = pageCorpusPreview
+    ? ""
+    : buildPageHintCorpusFromDocumentSections(round.aiAnalysis.documentSections, primaryFileName);
   const corpus = [
     round.aiAnalysis.summary,
     ...round.aiAnalysis.documentSections.map((section) => `${section.label}: ${section.summary}`),
+    pageCorpusPreview,
     pageHintCorpus,
   ]
     .filter((part) => part?.trim())
