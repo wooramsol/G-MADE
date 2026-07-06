@@ -2,12 +2,25 @@ import { formatUploadDateTime } from "@/lib/format-datetime";
 import { DEFAULT_AI_WEIGHT, DEFAULT_EXPERT_WEIGHT } from "./evaluation-weight-requirements";
 import type { EvaluationItem, EvaluationRound } from "./types";
 
-const DEMO_SECTIONS = [
-  { label: "건축개요", confidence: 92, summary: "용도, 규모, 시행자 정보가 확인되었습니다." },
-  { label: "배치도", confidence: 88, summary: "주 출입구와 공개공지 위치가 확인되었습니다." },
-  { label: "입면도", confidence: 84, summary: "입면 분절과 마감재 계획이 확인되었습니다." },
-  { label: "조감도", confidence: 80, summary: "주요 조망축에서의 매스 영향이 확인되었습니다." },
-];
+function buildDemoDocumentSections(items: EvaluationItem[]) {
+  const demoSummaries: Record<string, string> = {
+    "item-urban-scale": "1. 「사업계획서.pdf」 p.12 조감도 — 주변 건물 높이·매스 배치 확인",
+    "item-facade": "1. 「사업계획서.pdf」 p.14 입면도 — 입면 분절·마감재 계획 확인",
+    "item-color": "1. 「사업계획서.pdf」 p.16 색채계획 — 주조색·강조색 팔레트 확인",
+    "item-nightscape": "1. 「사업계획서.pdf」 p.18 야간경관 — 조명 배치·휘도 계획 확인",
+    "item-walk": "1. 「사업계획서.pdf」 p.11 배치도 — 보행 동선·주차장 배치 확인",
+    "item-green": "1. 「사업계획서.pdf」 p.20 녹지계획 — 식재·조경 계획 확인",
+    "item-public-space": "1. 「사업계획서.pdf」 p.11 배치도 — 공개공지·휴게 공간 위치 확인",
+    "item-context-document": "1. 「사업계획서.pdf」 p.2 건축개요 — 사업명·규모·제출 도면 목록 확인",
+  };
+
+  return items.map((item, index) => ({
+    itemId: item.id,
+    label: item.detailItem,
+    confidence: 92 - index * 2,
+    summary: demoSummaries[item.id] ?? `1. 「사업계획서.pdf」 — ${item.detailItem} 관련 제출 자료 확인`,
+  }));
+}
 
 export function createDemoEvaluationRounds(
   projectId: string,
@@ -52,7 +65,7 @@ export function createDemoEvaluationRounds(
         provider: "demo",
         mode: "demo",
         summary: `${formatUploadDateTime(evaluatedAt.toISOString())} AI·전문가 하이브리드 평가 분석이 완료되었습니다.`,
-        documentSections: DEMO_SECTIONS,
+        documentSections: buildDemoDocumentSections(previewItems),
         evaluationPreview: previewItems.map((item, itemIndex) => ({
           itemId: item.id,
           itemName: item.detailItem,

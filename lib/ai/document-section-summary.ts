@@ -1,6 +1,6 @@
 import type { EvaluationContext } from "../evaluation-context";
 import { collectUniqueRoundFiles } from "../evaluation-round-files";
-import type { EvaluationRound } from "../types";
+import type { EvaluationItem, EvaluationRound } from "../types";
 import {
   hasBrokenHangulLead,
   normalizeDocumentText,
@@ -9,6 +9,12 @@ import {
   truncateGraphemes,
 } from "../document-text-utils";
 import type { UploadedFileSummary } from "./analysis-types";
+import {
+  getDocumentKeywordsForItem,
+  matchItemBySectionLabel,
+  matchItemBySectionRecord,
+  type DocumentSectionRecord,
+} from "./evaluation-item-document-hints";
 import { buildAnalysisCorpus, checkEvaluationTextGrounding } from "./grounding-guard";
 import { extractEvidenceWithPage, formatPageReference } from "./page-citation";
 
@@ -19,19 +25,6 @@ const EVALUATIVE_SECTION_MARKERS =
   /미기재|불명확|보완\s*(?:필요|검토)|심사위원\s*재확인|미흡|저촉|누락|모순|기준\s*미달|검토\s*필요|재검토|부족(?:함|하여)|제시되지\s*않|확인(?:되지|불가)/i;
 
 const LOCATION_REFERENCE_PATTERN = /「[^」]+」\s*p\.\d+|p\.\d+|슬라이드\s*\d+|---\s*「[^」]+」/i;
-
-const SECTION_KEYWORDS: Record<string, string[]> = {
-  건축개요: ["건축개요", "연면적", "층수", "용도", "규모", "구조", "사업개요"],
-  배치도: ["배치", "배치도", "주차", "진입", "동선"],
-  입면도: ["입면", "입면도", "마감", "재료", "개구부"],
-  조감도: ["조감", "조감도", "투시", "매스", "스카이라인"],
-  색채계획: ["색채", "주조색", "강조색", "마감재", "반사"],
-  야간경관: ["야간", "조명", "휘도", "눈부심", "조도"],
-  보행동선: ["보행", "동선", "접근", "계단", "경사", "난간"],
-  녹지계획: ["녹지", "조경", "식재", "수목", "관수"],
-  공공공간: ["공공", "휴게", "옥외", "옥상", "공개공지", "체류"],
-  주변현황: ["주변", "현황", "인접", "경관", "조망"],
-};
 
 function extractSectionSnippet(corpus: string, keywords: string[]): string {
   const normalizedCorpus = corpus.normalize("NFC");
@@ -70,8 +63,7 @@ function findRelevantFile(files: UploadedFileSummary[], keywords: string[]): Upl
   return files.find((file) => (file.extractedTextPreview ?? "").trim().length > 0);
 }
 
-function mentionsSectionLabel(text: string, label: string): boolean {
-  const keywords = SECTION_KEYWORDS[label] ?? [label];
+function mentionsSectionKeywords(text: string, keywords: string[]): boolean {
   const normalized = text.replace(/\s+/g, "").toLowerCase();
   return keywords.some((keyword) => normalized.includes(keyword.replace(/\s+/g, "").toLowerCase()));
 }
@@ -110,7 +102,7 @@ function collectPageMarkersFromCorpus(corpus: string, fileName: string, keywords
       const evidence = extractEvidenceWithPage(normalizedCorpus, [trimmed], 60);
       const pageRef = evidence.pageRef ?? formatPageReference(fileName, 1);
       const snippet = evidence.snippet ? truncateGraphemes(evidence.snippet, 80) : trimmed;
-      const line = `${pageRef} ${labelSectionName(trimmed)} — ${snippet}`;
+      const line = `${pageRef} ${trimmed} — ${snippet}`;
       const key = line.slice(0, 48);
       if (!seen.has(key)) {
         seen.add(key);
@@ -122,16 +114,13 @@ function collectPageMarkersFromCorpus(corpus: string, fileName: string, keywords
   return locations;
 }
 
-function labelSectionName(keyword: string): string {
-  return keyword;
-}
-
 export function buildFallbackDocumentSectionSummary(
-  label: string,
+  item: EvaluationItem,
   files: UploadedFileSummary[],
 ): string {
+  const label = item.detailItem;
   const corpus = buildAnalysisCorpus(files);
-  const keywords = SECTION_KEYWORDS[label] ?? [label];
+  const keywords = getDocumentKeywordsForItem(item);
   const relevantFile = findRelevantFile(files, keywords);
   const sourceLabel = relevantFile ? `「${relevantFile.originalName}」` : "제출 자료";
   const snippet = extractSectionSnippet(corpus, keywords);
@@ -152,24 +141,26 @@ export function buildFallbackDocumentSectionSummary(
   }
 
   if (corpus.trim().length > 60) {
-    return `1. ${sourceLabel} — ${label} 관련 도면·본문 검색 (텍스트에서 ${label} 키워드 일부 확인)`;
+    return `1. ${sourceLabel} — ${label} 관련 도면·본문 검색 (텍스트에서 관련 키워드 일부 확인)`;
   }
 
   return `1. ${sourceLabel} — ${label} 관련 제출 자료 (텍스트 추출 제한)`;
 }
 
 export function sanitizeDocumentSectionSummary(
-  label: string,
+  item: EvaluationItem,
   rawSummary: string,
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
 ): { text: string; warning?: string } {
+  const label = item.detailItem;
+  const keywords = getDocumentKeywordsForItem(item);
   const text = rawSummary.trim();
 
   if (
     !isGenericSectionSummary(text) &&
     !isEvaluativeDocumentSummary(text) &&
-    mentionsSectionLabel(text, label) &&
+    mentionsSectionKeywords(text, keywords) &&
     hasLocationReference(text)
   ) {
     const grounding = checkEvaluationTextGrounding(text, files, evaluationContext);
@@ -182,19 +173,86 @@ export function sanitizeDocumentSectionSummary(
     !isGenericSectionSummary(text) &&
     !isEvaluativeDocumentSummary(text) &&
     text.length >= 32 &&
-    mentionsSectionLabel(text, label) &&
+    mentionsSectionKeywords(text, keywords) &&
     (hasLocationReference(text) || text.includes("—"))
   ) {
     return { text: sanitizeBrokenHangulQuotes(text) };
   }
 
-  const fallback = sanitizeBrokenHangulQuotes(buildFallbackDocumentSectionSummary(label, files));
+  const fallback = sanitizeBrokenHangulQuotes(buildFallbackDocumentSectionSummary(item, files));
   const warning =
     text && text !== fallback
       ? `${label} 요약: 평가 문구가 포함되어 읽은 위치 목록으로 보정했습니다.`
       : undefined;
 
   return { text: fallback, warning };
+}
+
+function clampConfidence(value: number): number {
+  if (Number.isNaN(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function pickSectionForItem(
+  item: EvaluationItem,
+  sections: DocumentSectionRecord[],
+  usedIndexes: Set<number>,
+): DocumentSectionRecord | undefined {
+  const byIdIndex = sections.findIndex(
+    (section, index) => !usedIndexes.has(index) && section.itemId === item.id,
+  );
+  if (byIdIndex >= 0) {
+    usedIndexes.add(byIdIndex);
+    return sections[byIdIndex];
+  }
+
+  const byLabelIndex = sections.findIndex((section, index) => {
+    if (usedIndexes.has(index)) return false;
+    return matchItemBySectionLabel(section.label, [item]) !== undefined;
+  });
+  if (byLabelIndex >= 0) {
+    usedIndexes.add(byLabelIndex);
+    return sections[byLabelIndex];
+  }
+
+  const legacyIndex = sections.findIndex((section, index) => {
+    if (usedIndexes.has(index)) return false;
+    return matchItemBySectionRecord(section, [item]) !== undefined;
+  });
+  if (legacyIndex >= 0) {
+    usedIndexes.add(legacyIndex);
+    return sections[legacyIndex];
+  }
+
+  return undefined;
+}
+
+/** AI·저장 데이터의 documentSections를 평가항목 목록과 1:1로 맞춥니다. */
+export function alignDocumentSectionsToEvaluationItems(
+  items: EvaluationItem[],
+  sections: DocumentSectionRecord[],
+  files: UploadedFileSummary[],
+  evaluationContext: EvaluationContext,
+  groundingWarnings: string[] = [],
+): DocumentSectionRecord[] {
+  if (items.length === 0) return [];
+
+  const usedIndexes = new Set<number>();
+  return items.map((item) => {
+    const matched = pickSectionForItem(item, sections, usedIndexes);
+    const rawSummary = matched?.summary ?? "";
+    const summaryResult = sanitizeDocumentSectionSummary(item, rawSummary, files, evaluationContext);
+    if (summaryResult.warning) {
+      groundingWarnings.push(summaryResult.warning);
+    }
+
+    return {
+      itemId: item.id,
+      label: item.detailItem,
+      confidence: clampConfidence(Number(matched?.confidence ?? 75)),
+      summary: summaryResult.text,
+    };
+  });
 }
 
 function buildFileSummariesFromRound(round: EvaluationRound): UploadedFileSummary[] {
@@ -263,15 +321,21 @@ function buildStoredEvaluationContextFromRound(round: EvaluationRound): Evaluati
   };
 }
 
-/** 저장된 평가 차수도 화면에서 항목별 고유 요약으로 보이도록 보정합니다. */
+/** 저장된 평가 차수도 화면에서 평가항목과 일치하는 문서 이해 카드로 보이도록 보정합니다. */
 export function resolveDocumentSectionsForDisplay(
   round: EvaluationRound,
 ): EvaluationRound["aiAnalysis"]["documentSections"] {
+  const items = round.evaluationItems;
+  if (items.length === 0) return round.aiAnalysis.documentSections;
+
   const files = buildFileSummariesFromRound(round);
   const evaluationContext = buildStoredEvaluationContextFromRound(round);
-
-  return round.aiAnalysis.documentSections.map((section) => ({
-    ...section,
-    summary: sanitizeDocumentSectionSummary(section.label, section.summary, files, evaluationContext).text,
+  const storedSections: DocumentSectionRecord[] = round.aiAnalysis.documentSections.map((section) => ({
+    itemId: "itemId" in section ? (section as DocumentSectionRecord).itemId : undefined,
+    label: section.label,
+    confidence: section.confidence,
+    summary: section.summary,
   }));
+
+  return alignDocumentSectionsToEvaluationItems(items, storedSections, files, evaluationContext);
 }

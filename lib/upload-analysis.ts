@@ -10,7 +10,8 @@ import { AI_EVALUATOR_SYSTEM_PROMPT } from "./ai/evaluator-system-prompt";
 import { GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS, OPENAI_ANALYSIS_MAX_COMPLETION_TOKENS } from "./ai/output-token-limits";
 import { chunkEvaluationItems, getProviderItemBatchSize, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
-import { sanitizeDocumentSectionSummary } from "./ai/document-section-summary";
+import { alignDocumentSectionsToEvaluationItems } from "./ai/document-section-summary";
+import { normalizeEvaluationItemLabel } from "./ai/evaluation-item-document-hints";
 import { buildCompactPageCorpus } from "./ai/page-citation";
 import { filterVerifiedGuidelineRefs, filterVerifiedLawRefs, resolveGroundedRationale, resolveGroundedRecommendation, sanitizeGroundedSummary } from "./ai/grounding-guard";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
@@ -30,19 +31,6 @@ import { gradeScore } from "./hybrid-evaluation";
 import type { EvaluationItem } from "./types";
 
 export type { UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
-
-const sectionLabels = [
-  "건축개요",
-  "배치도",
-  "입면도",
-  "조감도",
-  "색채계획",
-  "야간경관",
-  "보행동선",
-  "녹지계획",
-  "공공공간",
-  "주변현황",
-];
 
 export async function analyzeUploadedFiles(input: AnalyzeUploadedFilesInput): Promise<UploadAnalysisResult> {
   const { providerPreference, files, evaluationContext, onAnalysisProgress } = input;
@@ -247,7 +235,12 @@ function mergeBatchAnalysisResults(
       provider,
       mode: "live",
       summary: first.summary,
-      documentSections: first.documentSections,
+      documentSections: alignDocumentSectionsToEvaluationItems(
+        items,
+        partials.flatMap((partial) => partial.documentSections),
+        files,
+        evaluationContext,
+      ),
       evaluationPreview: partials.flatMap((partial) => partial.evaluationPreview),
       warnings,
     },
@@ -440,7 +433,13 @@ function normalizeAiJson(
       provider,
       mode: "live",
       summary: summaryResult.text,
-      documentSections: normalizeSections(parsed.documentSections, files, evaluationContext, groundingWarnings),
+      documentSections: normalizeSections(
+        parsed.documentSections,
+        files,
+        evaluationContext,
+        items,
+        groundingWarnings,
+      ),
       evaluationPreview,
       warnings: [...baseWarnings, ...groundingWarnings],
     },
@@ -458,24 +457,43 @@ function normalizeSections(
   value: unknown,
   files: UploadedFileSummary[],
   evaluationContext: EvaluationContext,
+  items: EvaluationItem[],
   groundingWarnings: string[],
 ): UploadAnalysisResult["documentSections"] {
-  if (!Array.isArray(value) || value.length === 0) return [];
+  const rawSections = Array.isArray(value)
+    ? value.map((section) => ({
+        itemId: section?.itemId ? String(section.itemId) : undefined,
+        label: String(section?.label ?? ""),
+        confidence: clampNumber(Number(section?.confidence ?? 75)),
+        summary: String(section?.summary ?? ""),
+      }))
+    : [];
 
-  return value.slice(0, 10).map((section, index) => {
-    const label = String(section?.label ?? sectionLabels[index] ?? "분석항목");
-    const rawSummary = String(section?.summary ?? "");
-    const summaryResult = sanitizeDocumentSectionSummary(label, rawSummary, files, evaluationContext);
-    if (summaryResult.warning) {
-      groundingWarnings.push(`${label} 요약: ${summaryResult.warning}`);
-    }
+  return alignDocumentSectionsToEvaluationItems(items, rawSections, files, evaluationContext, groundingWarnings);
+}
 
-    return {
-      label,
-      confidence: clampNumber(Number(section?.confidence ?? 75)),
-      summary: summaryResult.text,
-    };
-  });
+function resolveEvaluationItem(
+  row: Record<string, unknown> | null | undefined,
+  items: EvaluationItem[],
+  index: number,
+): EvaluationItem {
+  const itemName = String(row?.itemName ?? "").trim();
+  if (itemName) {
+    const matched = items.find(
+      (item) =>
+        item.detailItem === itemName ||
+        normalizeEvaluationItemLabel(item.detailItem) === normalizeEvaluationItemLabel(itemName),
+    );
+    if (matched) return matched;
+  }
+
+  const itemId = String(row?.itemId ?? "").trim();
+  if (itemId) {
+    const matched = items.find((item) => item.id === itemId);
+    if (matched) return matched;
+  }
+
+  return items[index % items.length]!;
 }
 
 function normalizeEvaluations(
@@ -490,7 +508,7 @@ function normalizeEvaluations(
   const defaultGuidelineRefs = evaluationContext.guidelines.slice(0, 2).map((guide) => `${guide.title} ${guide.section}`);
 
   return value.slice(0, Math.max(items.length, 8)).map((row, index) => {
-    const item = items[index % items.length];
+    const item = resolveEvaluationItem(row as Record<string, unknown>, items, index);
     const score = clampNumber(Number(row?.score ?? 80 - index * 2));
     const aiLawRefs = filterVerifiedLawRefs(
       Array.isArray(row?.lawRefs) ? row.lawRefs.map((law: unknown) => String(law)).filter(Boolean) : [],

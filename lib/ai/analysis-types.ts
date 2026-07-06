@@ -36,6 +36,7 @@ export type UploadAnalysisResult = {
   mode: "live" | "skipped" | "demo";
   summary: string;
   documentSections: Array<{
+    itemId?: string;
     label: string;
     confidence: number;
     summary: string;
