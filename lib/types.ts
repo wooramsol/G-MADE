@@ -131,6 +131,7 @@ export type UploadAnalysisSession = {
     lawSource?: "law.go.kr" | "demo-fallback";
     contextFetchedAt?: string;
     warnings: string[];
+    pageCorpusPreview?: string;
   };
 };
 

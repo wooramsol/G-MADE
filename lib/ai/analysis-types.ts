@@ -57,6 +57,8 @@ export type UploadAnalysisResult = {
   guidelineSource: EvaluationContext["guidelineSource"];
   contextFetchedAt: string;
   warnings: string[];
+  /** PDF 페이지별 추출 텍스트 색인(재분석 없이 페이지 근거 보정용) */
+  pageCorpusPreview?: string;
 };
 
 export type AnalyzeUploadedFilesInput = {

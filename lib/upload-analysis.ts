@@ -11,6 +11,7 @@ import { GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS, OPENAI_ANALYSIS_MAX_COMPLETION_TOKEN
 import { chunkEvaluationItems, getProviderItemBatchSize, shouldBatchProviderAnalysis } from "./ai/item-batches";
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
 import { sanitizeDocumentSectionSummary } from "./ai/document-section-summary";
+import { buildCompactPageCorpus } from "./ai/page-citation";
 import { filterVerifiedGuidelineRefs, filterVerifiedLawRefs, resolveGroundedRationale, resolveGroundedRecommendation, sanitizeGroundedSummary } from "./ai/grounding-guard";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
 import { extractJsonContent } from "./ai/extract-json";
@@ -225,7 +226,7 @@ async function analyzeProviderInBatches(
     partials.push(partial);
   }
 
-  return mergeBatchAnalysisResults(provider, partials, evaluationContext, items, mergedWarnings);
+  return mergeBatchAnalysisResults(provider, partials, evaluationContext, items, mergedWarnings, files);
 }
 
 function mergeBatchAnalysisResults(
@@ -234,6 +235,7 @@ function mergeBatchAnalysisResults(
   evaluationContext: EvaluationContext,
   items: EvaluationItem[],
   warnings: string[],
+  files: UploadedFileSummary[],
 ): UploadAnalysisResult {
   const first = partials[0];
   if (!first) {
@@ -251,6 +253,7 @@ function mergeBatchAnalysisResults(
     },
     evaluationContext,
     items,
+    files,
   );
 }
 
@@ -443,6 +446,7 @@ function normalizeAiJson(
     },
     evaluationContext,
     items,
+    files,
   );
 }
 
@@ -526,10 +530,17 @@ function normalizeEvaluations(
 function attachContextMetadata(
   result: Omit<
     UploadAnalysisResult,
-    "referenceLaws" | "referenceGuidelines" | "spatialContext" | "lawSource" | "guidelineSource" | "contextFetchedAt"
+    | "referenceLaws"
+    | "referenceGuidelines"
+    | "spatialContext"
+    | "lawSource"
+    | "guidelineSource"
+    | "contextFetchedAt"
+    | "pageCorpusPreview"
   >,
   evaluationContext: EvaluationContext,
   evaluationItems?: EvaluationItem[],
+  files: UploadedFileSummary[] = [],
 ): UploadAnalysisResult {
   const relatedLaws = pickRelatedReferenceLaws({
     pool: evaluationContext.referenceLaws,
@@ -550,6 +561,7 @@ function attachContextMetadata(
     lawSource: evaluationContext.lawSource,
     guidelineSource: evaluationContext.guidelineSource,
     contextFetchedAt: evaluationContext.fetchedAt,
+    pageCorpusPreview: buildCompactPageCorpus(files) || undefined,
   };
 }
 
