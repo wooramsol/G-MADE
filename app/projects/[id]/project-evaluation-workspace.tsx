@@ -19,7 +19,6 @@ import { EvaluationTextBlock } from "@/components/evaluation-text-block";
 import { prepareEvaluationDisplay } from "@/lib/evaluation-display";
 import { formatEvaluationText } from "@/lib/format-evaluation-text";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
-import ReferenceLinkTitle from "@/components/reference-link-title";
 import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
 import { pickRelatedReferenceLaws, lawMatchesCitation } from "@/lib/related-reference-laws";
@@ -546,7 +545,6 @@ function EvaluationTable({
                     guidelineLinks={itemGuidelineLinks}
                     lawLinks={itemLawLinks}
                     result={result}
-                    roundId={roundId}
                   />
                 </td>
               </tr>
@@ -562,25 +560,32 @@ function EvaluationRationaleCell({
   result,
   lawLinks,
   guidelineLinks,
-  roundId,
 }: {
   result: HybridResult;
   lawLinks: Array<{ title: string; article: string; href: string | null }>;
   guidelineLinks: Array<{ title: string; section: string; href: string | null }>;
-  roundId: string;
 }) {
   const aiDisplay = prepareEvaluationDisplay(
     result.aiEvaluation.rationale,
     result.aiEvaluation.recommendation,
+    {
+      lawLinks: lawLinks.map((law) => ({
+        title: law.title,
+        subtitle: law.article,
+        href: law.href,
+      })),
+      guidelineLinks: guidelineLinks.map((guide) => ({
+        title: guide.title,
+        subtitle: guide.section,
+        href: guide.href,
+      })),
+    },
   );
   const expertText = formatEvaluationText(result.humanEvaluation.comment ?? "");
 
   return (
     <div className="space-y-2 text-xs leading-5 text-[#64748b]">
-      {aiDisplay.grounds.length > 0 ||
-      aiDisplay.actions.length > 0 ||
-      aiDisplay.summary ||
-      aiDisplay.sources ? (
+      {aiDisplay.points.length > 0 ? (
         <div>
           <p className="font-semibold text-[#2463b3]">AI</p>
           <div className="mt-1">
@@ -592,32 +597,6 @@ function EvaluationRationaleCell({
         <div>
           <p className="font-semibold text-[#15345b]">전문가</p>
           <p className="mt-0.5 whitespace-pre-wrap break-words text-[#475569]">{expertText}</p>
-        </div>
-      ) : null}
-      {lawLinks.length > 0 || guidelineLinks.length > 0 ? (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-[#e2e8f0] pt-2">
-          {lawLinks.map((law) => (
-            <span key={`${roundId}-${law.title}-${law.article}`}>
-              {law.href ? (
-                <ReferenceLinkTitle title={`${law.title} ${law.article}`} href={law.href} />
-              ) : (
-                <span className="text-[#2463b3]">
-                  {law.title} {law.article}
-                </span>
-              )}
-            </span>
-          ))}
-          {guidelineLinks.map((guide) => (
-            <span key={`${roundId}-${guide.title}-${guide.section}`}>
-              {guide.href ? (
-                <ReferenceLinkTitle title={`${guide.title} ${guide.section}`} href={guide.href} />
-              ) : (
-                <span className="text-[#2463b3]">
-                  {guide.title} {guide.section}
-                </span>
-              )}
-            </span>
-          ))}
         </div>
       ) : null}
     </div>

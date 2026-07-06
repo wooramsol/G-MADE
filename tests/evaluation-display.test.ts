@@ -4,9 +4,8 @@ import { prepareEvaluationDisplay, structureEvaluationDisplay } from "../lib/eva
 
 const longFile = "심의도서(금곡2리 경로당(마을회관) 증축공사).pdf";
 
-test("structureEvaluationDisplay hoists file name and compacts list items", () => {
+test("structureEvaluationDisplay builds point list with evidence under content", () => {
   const input = [
-    `「${longFile}」 p.12 배치도·경관체크리스트 검토.`,
     `「${longFile}」 p.12 배치도·경관체크리스트 검토.`,
     "다음 평가 근거가 확인됨:",
     `1. 「${longFile}」 p.2 — 옥외 관련 수정·재확인 필요`,
@@ -18,15 +17,14 @@ test("structureEvaluationDisplay hoists file name and compacts list items", () =
 
   const display = structureEvaluationDisplay(input);
 
-  assert.match(display.sources, /심의도서/);
-  assert.match(display.sources, /p\.2/);
-  assert.match(display.sources, /p\.12/);
-  assert.equal(display.grounds.length, 4);
-  assert.doesNotMatch(display.grounds.join("\n"), /「/);
-  assert.match(display.grounds[0]!, /^p\.2 —/);
+  assert.equal(display.points.length, 4);
+  assert.equal(display.points[0]!.content, "옥외 관련 수정·재확인 필요");
+  assert.equal(display.points[0]!.evidence, "p.2");
+  assert.match(display.points[1]!.content, /수치·재료 미기재/);
+  assert.equal(display.points[1]!.evidence, "p.12 배치도");
 });
 
-test("prepareEvaluationDisplay separates actions from grounds", () => {
+test("prepareEvaluationDisplay merges rationale and recommendation into one list", () => {
   const rationale = [
     "「심의도서.pdf」 p.25 주차·보행 동선도 검토.",
     "1. p.25 — 장애인 주차 위치 미표기",
@@ -40,7 +38,28 @@ test("prepareEvaluationDisplay separates actions from grounds", () => {
 
   const display = prepareEvaluationDisplay(rationale, recommendation);
 
-  assert.equal(display.grounds.length, 2);
-  assert.equal(display.actions.length, 2);
-  assert.match(display.actions[0]!, /하시기 바랍니다/);
+  assert.equal(display.points.length, 4);
+  assert.match(display.points[2]!.content, /하시기 바랍니다/);
+  assert.equal(display.points[2]!.evidence, "p.25 동선도");
+});
+
+test("prepareEvaluationDisplay attaches law links to points", () => {
+  const display = prepareEvaluationDisplay(
+    "1. p.12 배치도 — 수치 미기재 — 경관의 법률 제28조 관련 저촉",
+    "",
+    {
+      lawLinks: [
+        {
+          title: "경관의 법률",
+          subtitle: "제28조",
+          href: "https://example.com/law",
+        },
+      ],
+      guidelineLinks: [],
+    },
+  );
+
+  assert.equal(display.points.length, 1);
+  assert.equal(display.points[0]!.references.length, 1);
+  assert.equal(display.points[0]!.references[0]!.href, "https://example.com/law");
 });
