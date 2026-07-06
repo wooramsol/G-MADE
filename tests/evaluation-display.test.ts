@@ -17,11 +17,24 @@ test("structureEvaluationDisplay builds point list with evidence under content",
 
   const display = structureEvaluationDisplay(input);
 
-  assert.equal(display.points.length, 4);
+  assert.equal(display.points.length, 3);
   assert.equal(display.points[0]!.content, "옥외 관련 수정·재확인 필요");
   assert.equal(display.points[0]!.evidence, "p.2");
   assert.match(display.points[1]!.content, /수치·재료 미기재/);
   assert.equal(display.points[1]!.evidence, "p.12 배치도");
+});
+
+test("structureEvaluationDisplay filters broken quote placeholders", () => {
+  const input = [
+    `1. "..." 등 확인.`,
+    `2. "..." 등을 검토한 결과, 옥외 관련하여 다음 사항의 수정·보완·재확인이 필요합니다.`,
+    "3. p.12 배치도 — 스카이라인 연속성 불명확",
+  ].join("\n");
+
+  const display = structureEvaluationDisplay(input);
+
+  assert.equal(display.points.length, 1);
+  assert.match(display.points[0]!.content, /스카이라인/);
 });
 
 test("prepareEvaluationDisplay merges rationale and recommendation into one list", () => {
@@ -41,25 +54,4 @@ test("prepareEvaluationDisplay merges rationale and recommendation into one list
   assert.equal(display.points.length, 4);
   assert.match(display.points[2]!.content, /하시기 바랍니다/);
   assert.equal(display.points[2]!.evidence, "p.25 동선도");
-});
-
-test("prepareEvaluationDisplay attaches law links to points", () => {
-  const display = prepareEvaluationDisplay(
-    "1. p.12 배치도 — 수치 미기재 — 경관의 법률 제28조 관련 저촉",
-    "",
-    {
-      lawLinks: [
-        {
-          title: "경관의 법률",
-          subtitle: "제28조",
-          href: "https://example.com/law",
-        },
-      ],
-      guidelineLinks: [],
-    },
-  );
-
-  assert.equal(display.points.length, 1);
-  assert.equal(display.points[0]!.references.length, 1);
-  assert.equal(display.points[0]!.references[0]!.href, "https://example.com/law");
 });

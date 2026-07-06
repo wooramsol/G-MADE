@@ -236,10 +236,6 @@ export function buildFallbackRecommendation(
     : users[0] ?? "이용자";
   const measureList = measures.slice(0, 4);
 
-  const evidenceLead = evidenceSnippet
-    ? `${sourceWithPage} 및 본문 "${evidenceSnippet}" 등을 검토한 결과,`
-    : `${sourceWithPage} 및 ${item.detailItem} 관련 제출 자료를 검토한 결과,`;
-
   const reviewIssues: string[] = [
     `${spacePhrase}에 대한 ${measureList[0] ?? "시공·안전 기준"}이 도면·계획서에 수치·재료·시공 상세로 제시되지 않음`,
     `${measureList[1] ?? "동선·접근"} 관련 배치·표기가 도면에서 확인되지 않거나 불명확함`,
@@ -262,10 +258,7 @@ export function buildFallbackRecommendation(
     reviewIssues.push("제출 자료 본문·도면에서 해당 항목을 뒷받침할 구체 기재·수치가 부족하여 추가 설명·도면 보완이 필요함");
   }
 
-  const numbered = formatNumberedIssues(reviewIssues.slice(0, 5));
-  const measurePhrase = joinPhrases(measureList);
-
-  return `${evidenceLead} ${spacePhrase} 관련하여 다음 사항의 수정·보완·재확인이 필요합니다.\n${numbered}\n\n관련 도면·계획서에 위치·동선을 표기하고 ${measurePhrase} 등을 수치·재료·시공 상세와 함께 실시설계 단계에서 구체화·재검토 하시기 바랍니다.`;
+  return formatNumberedIssues(reviewIssues.slice(0, 5));
 }
 
 export function buildFallbackRationale(
@@ -274,26 +267,8 @@ export function buildFallbackRationale(
   evaluationContext: EvaluationContext,
 ): string {
   const corpus = files.map((file) => file.extractedTextPreview ?? "").join("\n");
-  const relevantFile = findRelevantFile(files, item);
-  const sourceLabel = relevantFile ? `「${relevantFile.originalName}」` : "제출 자료";
-  const drawingLabel = inferDrawingLabel(corpus);
-  const evidence = extractEvidenceWithPage(corpus, [
-    item.detailItem,
-    item.middleCategory,
-    item.majorCategory,
-    ...collectMatches(corpus, SPACE_PATTERNS),
-  ]);
-  const evidenceSnippet = evidence.snippet;
-  const sourceWithPage = formatSourceWithPage(sourceLabel, drawingLabel, evidence.pageRef);
   const topicKey = inferTopicKey(item);
   const measures = MEASURE_BY_TOPIC[topicKey] ?? MEASURE_BY_TOPIC.document;
-  const parts: string[] = [];
-
-  if (evidenceSnippet) {
-    parts.push(`${sourceWithPage} — "${evidenceSnippet}" 등 확인.`);
-  } else {
-    parts.push(`${sourceWithPage} 검토.`);
-  }
 
   const gapIssues = [
     `p.2 배치도 — 평가기준「${item.criteria}」대비 ${measures[0]} 등 세부 수치·재료·시공 기준 미기재`,
@@ -303,12 +278,10 @@ export function buildFallbackRationale(
 
   const lawRef = evaluationContext.referenceLaws[0];
   if (lawRef) {
-    gapIssues.push(
-      `관련 내용 — ${lawRef.title} ${lawRef.article} 적용·저촉 검토 필요`,
-    );
+    gapIssues.push(`관련 내용 — ${lawRef.title} ${lawRef.article} 적용·저촉 검토 필요`);
   }
 
-  parts.push(formatNumberedIssues(gapIssues));
+  const parts: string[] = [formatNumberedIssues(gapIssues)];
 
   const spatial = evaluationContext.spatial;
   if (spatial?.matchedZones[0]) {
