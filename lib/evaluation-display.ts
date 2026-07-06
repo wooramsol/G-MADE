@@ -1,4 +1,6 @@
 import { isUsableQuoteSnippet } from "./document-text-utils";
+import type { UploadedFileSummary } from "./ai/analysis-types";
+import { resolvePageEvidence } from "./ai/page-citation";
 import {
   combineAiEvaluationText,
   extractNumberedItems,
@@ -215,17 +217,20 @@ function buildFallbackEvidence(files: string[], pages: number[]): string {
 }
 
 /** 평가 근거·의견을 화면용 평가 포인트 목록으로 변환합니다. */
-export function structureEvaluationDisplay(text: string): StructuredEvaluationDisplay {
+export function structureEvaluationDisplay(
+  text: string,
+  fileSummaries: UploadedFileSummary[] = [],
+): StructuredEvaluationDisplay {
   const normalized = formatEvaluationText(text);
   const { items } = extractNumberedItems(normalized);
 
   const corpus = items.join("\n");
-  const files = extractQuotedFiles(corpus);
+  const quotedFiles = extractQuotedFiles(corpus);
   const pages = extractPageNumbers(corpus);
-  const fallbackEvidence = buildFallbackEvidence(files, pages);
+  const fallbackEvidence = buildFallbackEvidence(quotedFiles, pages);
 
   const compactItems = dedupeItems(
-    items.map((item) => compactItemText(item, files)).filter(Boolean),
+    items.map((item) => compactItemText(item, quotedFiles)).filter(Boolean),
   );
 
   const points: EvaluationPoint[] = [];
@@ -235,9 +240,13 @@ export function structureEvaluationDisplay(text: string): StructuredEvaluationDi
     const split = splitPointItem(item, fallbackEvidence);
     if (isInvalidPointContent(split.content)) continue;
 
+    const resolvedEvidence = fileSummaries.length > 0
+      ? resolvePageEvidence(fileSummaries, split.evidence, split.content)
+      : split.evidence;
+
     points.push({
       content: split.content,
-      evidence: split.evidence,
+      evidence: resolvedEvidence,
     });
   }
 
@@ -248,9 +257,10 @@ export function structureEvaluationDisplay(text: string): StructuredEvaluationDi
 export function prepareEvaluationDisplay(
   rationale: string,
   recommendation: string,
+  fileSummaries: UploadedFileSummary[] = [],
 ): StructuredEvaluationDisplay {
   const combined = combineAiEvaluationText(rationale, recommendation);
-  return structureEvaluationDisplay(combined);
+  return structureEvaluationDisplay(combined, fileSummaries);
 }
 
 export { combineAiEvaluationText, formatEvaluationText, normalizeListNumbering, renumberEvaluationText };

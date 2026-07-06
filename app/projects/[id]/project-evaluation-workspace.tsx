@@ -29,7 +29,7 @@ import {
 } from "@/lib/related-reference-guidelines";
 import { buildAdmrulReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
 import { collectUniqueRoundFiles } from "@/lib/evaluation-round-files";
-import { buildHybridViewFromRound } from "@/lib/upload-to-hybrid";
+import { buildHybridViewFromRound, buildStoredFileSummaries } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
 import { showToast } from "../../toast";
 
@@ -321,6 +321,7 @@ export default function ProjectEvaluationWorkspace({
             </FieldLabel>
             <EvaluationTable
               evaluationPreview={selectedRound.aiAnalysis.evaluationPreview}
+              fileSummaries={buildStoredFileSummaries(selectedRound)}
               referenceGuidelines={referenceGuidelines}
               referenceLaws={referenceLaws}
               results={hybridView.results}
@@ -477,12 +478,14 @@ function EvaluationTable({
   referenceLaws,
   referenceGuidelines,
   roundId,
+  fileSummaries,
 }: {
   results: HybridResult[];
   evaluationPreview: EvaluationRound["aiAnalysis"]["evaluationPreview"];
   referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>;
   referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>;
   roundId: string;
+  fileSummaries: ReturnType<typeof buildStoredFileSummaries>;
 }) {
   return (
     <div className="rounded-xl border border-[#d7dee8]">
@@ -543,6 +546,7 @@ function EvaluationTable({
                 </td>
                 <td className="px-3 py-3 align-top">
                   <EvaluationRationaleCell
+                    fileSummaries={fileSummaries}
                     guidelineLinks={itemGuidelineLinks}
                     lawLinks={itemLawLinks}
                     result={result}
@@ -563,15 +567,18 @@ function EvaluationRationaleCell({
   lawLinks,
   guidelineLinks,
   roundId,
+  fileSummaries,
 }: {
   result: HybridResult;
   lawLinks: Array<{ title: string; article: string; href: string | null }>;
   guidelineLinks: Array<{ title: string; section: string; href: string | null }>;
   roundId: string;
+  fileSummaries: ReturnType<typeof buildStoredFileSummaries>;
 }) {
   const aiDisplay = prepareEvaluationDisplay(
     result.aiEvaluation.rationale,
     result.aiEvaluation.recommendation,
+    fileSummaries,
   );
   const expertText = formatEvaluationText(result.humanEvaluation.comment ?? "");
 

@@ -3,6 +3,7 @@ import {
   resolveGroundedRecommendation,
 } from "./ai/grounding-guard";
 import type { UploadedFileSummary } from "./ai/analysis-types";
+import { buildPageHintCorpusFromDocumentSections } from "./ai/page-citation";
 import type { EvaluationContext } from "./evaluation-context";
 import { collectUniqueRoundFiles } from "./evaluation-round-files";
 import { gradeScore, calculateHybridResults, calculateProjectScore } from "./hybrid-evaluation";
@@ -138,15 +139,21 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function buildStoredFileSummaries(round: EvaluationRound): UploadedFileSummary[] {
+export function buildStoredFileSummaries(round: EvaluationRound): UploadedFileSummary[] {
+  const files = collectUniqueRoundFiles(round);
+  const primaryFileName = files[0]?.originalName ?? "제출 자료";
+  const pageHintCorpus = buildPageHintCorpusFromDocumentSections(
+    round.aiAnalysis.documentSections,
+    primaryFileName,
+  );
   const corpus = [
     round.aiAnalysis.summary,
     ...round.aiAnalysis.documentSections.map((section) => `${section.label}: ${section.summary}`),
+    pageHintCorpus,
   ]
     .filter((part) => part?.trim())
     .join("\n");
 
-  const files = collectUniqueRoundFiles(round);
   if (files.length === 0) {
     if (!corpus.trim()) return [];
 

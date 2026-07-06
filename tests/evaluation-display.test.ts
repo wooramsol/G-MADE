@@ -1,8 +1,50 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { UploadedFileSummary } from "../lib/ai/analysis-types";
 import { prepareEvaluationDisplay, structureEvaluationDisplay } from "../lib/evaluation-display";
 
 const longFile = "심의도서(금곡2리 경로당(마을회관) 증축공사).pdf";
+
+function makeStoredFiles(): UploadedFileSummary[] {
+  const corpus = [
+    "--- 「심의도서.pdf」 p.2 ---",
+    "목차",
+    "1. 사업개요",
+    "2. 배치도",
+    "3. 입면도",
+    "4. 조감도",
+    "5. 색채계획",
+    "",
+    "--- 「심의도서.pdf」 p.12 ---",
+    "배치도",
+    "주차장 배치 및 보행 동선",
+  ].join("\n");
+
+  return [
+    {
+      id: "file-1",
+      originalName: "심의도서.pdf",
+      fileType: "application/pdf",
+      sizeBytes: corpus.length,
+      storagePath: "",
+      extractedTextPreview: corpus,
+      totalPages: 20,
+    },
+  ];
+}
+
+test("structureEvaluationDisplay corrects bogus p.2 배치도 evidence when files provided", () => {
+  const fullInput = [
+    `1. p.2 배치도 — 평가기준 대비 수치·재료 미기재`,
+    `2. p.2 — 주변 스카이라인과 과도한 단절 없...`,
+    `3. p.2 — 스케일 조정 근거 불명확`,
+  ].join("\n");
+
+  const display = structureEvaluationDisplay(fullInput, makeStoredFiles());
+
+  assert.equal(display.points[0]!.evidence, "p.12 배치도");
+  assert.equal(display.points[1]!.evidence, "p.12 배치도");
+});
 
 test("structureEvaluationDisplay builds point list with evidence under content", () => {
   const input = [

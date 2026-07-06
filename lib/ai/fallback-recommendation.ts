@@ -1,7 +1,7 @@
 import type { EvaluationContext } from "../evaluation-context";
 import type { EvaluationItem } from "../types";
 import type { UploadedFileSummary } from "./analysis-types";
-import { extractEvidenceWithPage } from "./page-citation";
+import { extractEvidenceWithPage, findPageForSection } from "./page-citation";
 
 const SPACE_PATTERNS = [
   /(?:\d+층\s*)?옥외(?:\s*공간)?/g,
@@ -261,6 +261,21 @@ export function buildFallbackRecommendation(
   return formatNumberedIssues(reviewIssues.slice(0, 5));
 }
 
+function formatFallbackPageEvidence(
+  files: UploadedFileSummary[],
+  corpus: string,
+  preferredLabels: string[],
+): string {
+  const located = findPageForSection(files, preferredLabels);
+  if (located) return `p.${located.page} ${located.sectionLabel}`;
+
+  const drawingLabel = inferDrawingLabel(corpus);
+  const drawingLocated = findPageForSection(files, [drawingLabel]);
+  if (drawingLocated) return `p.${drawingLocated.page} ${drawingLocated.sectionLabel}`;
+
+  return drawingLabel;
+}
+
 export function buildFallbackRationale(
   item: EvaluationItem,
   files: UploadedFileSummary[],
@@ -269,10 +284,16 @@ export function buildFallbackRationale(
   const corpus = files.map((file) => file.extractedTextPreview ?? "").join("\n");
   const topicKey = inferTopicKey(item);
   const measures = MEASURE_BY_TOPIC[topicKey] ?? MEASURE_BY_TOPIC.document;
+  const pageEvidence = formatFallbackPageEvidence(files, corpus, [
+    "배치도",
+    item.detailItem,
+    item.middleCategory,
+    ...collectMatches(corpus, DOCUMENT_DRAWING_PATTERNS),
+  ]);
 
   const gapIssues = [
-    `p.2 배치도 — 평가기준「${item.criteria}」대비 ${measures[0]} 등 세부 수치·재료·시공 기준 미기재`,
-    `배치도 — ${measures[1] ?? "동선·공간 관계"} 상호 연계 확인 불가`,
+    `${pageEvidence} — 평가기준「${item.criteria}」대비 ${measures[0]} 등 세부 수치·재료·시공 기준 미기재`,
+    `${pageEvidence.includes("p.") ? pageEvidence.split(" ").slice(1).join(" ") || "배치도" : pageEvidence} — ${measures[1] ?? "동선·공간 관계"} 상호 연계 확인 불가`,
     `${measures[2] ?? "유지관리·관리 계획"} 누락·불명확`,
   ];
 
