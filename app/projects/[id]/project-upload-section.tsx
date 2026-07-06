@@ -93,6 +93,7 @@ export default function ProjectUploadSection({
           project={project}
           rounds={rounds}
           showHeader={false}
+          trashedRoundCount={trashedRounds.length}
           onFocusRoundHandled={() => setFocusRoundId(null)}
           onRoundsChange={(next, nextTrashedRounds) =>
             handleRoundsChange(next, files, { trashedEvaluationRounds: nextTrashedRounds })

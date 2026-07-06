@@ -34,6 +34,7 @@ import { showToast } from "../../toast";
 type Props = {
   project: Project;
   rounds: EvaluationRound[];
+  trashedRoundCount?: number;
   focusRoundId?: string | null;
   showHeader?: boolean;
   onFocusRoundHandled?: () => void;
@@ -43,6 +44,7 @@ type Props = {
 export default function ProjectEvaluationWorkspace({
   project,
   rounds,
+  trashedRoundCount = 0,
   focusRoundId,
   showHeader = true,
   onFocusRoundHandled,
@@ -58,6 +60,10 @@ export default function ProjectEvaluationWorkspace({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingRoundId, setDeletingRoundId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
+
+  const totalRoundCount = sorted.length + trashedRoundCount;
 
   // 새 평가가 추가되면 최신 평가를 선택한다 (렌더 중 상태 보정 패턴).
   const [prevRoundCount, setPrevRoundCount] = useState(rounds.length);
@@ -168,7 +174,87 @@ export default function ProjectEvaluationWorkspace({
     }
   }
 
+  async function clearAllRounds() {
+    setClearingAll(true);
+
+    try {
+      const response = await fetch(`/api/projects/${project.id}/evaluation-rounds`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        deletedCount?: number;
+        project?: { evaluationRounds?: EvaluationRound[]; trashedEvaluationRounds?: EvaluationRound[] };
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "평가 기록을 삭제하지 못했습니다.");
+      }
+
+      onRoundsChange?.([], []);
+      setSelectedId(null);
+      setClearAllConfirmOpen(false);
+      showToast({
+        message: `통합 평가 ${payload.deletedCount ?? totalRoundCount}건을 삭제했습니다.`,
+        tone: "success",
+      });
+    } catch (error) {
+      showToast({
+        message: error instanceof Error ? error.message : "평가 기록을 삭제하지 못했습니다.",
+        tone: "error",
+      });
+    } finally {
+      setClearingAll(false);
+    }
+  }
+
+  const clearAllButton = totalRoundCount > 0 ? (
+    <button
+      className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={clearingAll || deleting}
+      onClick={() => setClearAllConfirmOpen(true)}
+      type="button"
+    >
+      통합 평가 전체 삭제
+    </button>
+  ) : null;
+
+  const clearAllConfirmDialog = (
+    <ConfirmDialog
+      cancelLabel="취소"
+      confirmLabel="전체 삭제"
+      confirmTone="danger"
+      description={
+        trashedRoundCount > 0
+          ? `활성 평가 ${sorted.length}건과 휴지통 ${trashedRoundCount}건을 영구 삭제합니다. 되돌릴 수 없습니다.`
+          : `활성 평가 ${sorted.length}건을 영구 삭제합니다. 되돌릴 수 없습니다.`
+      }
+      loading={clearingAll}
+      loadingLabel="삭제 중..."
+      onCancel={() => {
+        if (!clearingAll) setClearAllConfirmOpen(false);
+      }}
+      onConfirm={clearAllRounds}
+      open={clearAllConfirmOpen}
+      title="통합 평가를 모두 삭제하시겠습니까?"
+    />
+  );
+
   if (!selectedRound || !hybridView) {
+    if (totalRoundCount > 0) {
+      return (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-[#64748b]">
+              활성 평가가 없습니다. 휴지통에 {trashedRoundCount}건이 있습니다.
+            </p>
+            {clearAllButton}
+          </div>
+          {clearAllConfirmDialog}
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-[#f8fafc] p-8 text-center text-sm text-[#64748b]">
         AI·전문가 자료를 업로드하고 하이브리드 평가 분석을 실행하면 통합 평가 결과가 이 영역에 표시됩니다.
@@ -188,6 +274,7 @@ export default function ProjectEvaluationWorkspace({
 
         <div className={`flex flex-wrap items-center gap-3 ${showHeader ? "mt-5" : ""}`}>
           <Badge className="bg-[#e8f1ff] text-[#2463b3]">평가 {sorted.length}건</Badge>
+          {clearAllButton}
         </div>
 
         <ConfirmDialog
@@ -206,6 +293,8 @@ export default function ProjectEvaluationWorkspace({
           }}
           onConfirm={deleteRound}
         />
+
+        {clearAllConfirmDialog}
 
         <div className="mt-4 overflow-x-auto rounded-xl border border-[#d7dee8] bg-white p-1">
           <div className="flex min-w-max gap-1">

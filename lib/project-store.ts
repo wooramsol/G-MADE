@@ -265,6 +265,21 @@ export async function purgeProjectEvaluationRound(
   });
 }
 
+/** 프로젝트의 활성·휴지통 평가 차수를 모두 영구 삭제합니다. */
+export async function clearProjectEvaluationRounds(id: string): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    if ((project.evaluationRounds ?? []).length === 0 && (project.trashedEvaluationRounds ?? []).length === 0) {
+      return project;
+    }
+
+    return {
+      ...project,
+      evaluationRounds: [],
+      trashedEvaluationRounds: [],
+    };
+  });
+}
+
 /**
  * 모든 프로젝트의 평가 데이터를 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다.
  * excludeProjectIds에 지정한 프로젝트의 평가는 유지합니다.
