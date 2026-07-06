@@ -296,16 +296,18 @@ export function buildFallbackRationale(
   }
 
   const gapIssues = [
-    `평가기준「${item.criteria}」대비 ${measures[0]} 등 세부 수치·재료·시공 기준이 도면·계획서에 명시되지 않음`,
-    `${measures[1] ?? "동선·공간 관계"}가 도면·본문에서 상호 연계되어 확인되지 않음`,
-    `${measures[2] ?? "유지관리·관리 계획"}이 누락되었거나 불명확하여 심사위원 재검토 필요`,
+    `${sourceWithPage} — 평가기준「${item.criteria}」대비 ${measures[0]} 등 세부 수치·재료·시공 기준이 도면·계획서에 명시되지 않음`,
+    `${sourceWithPage} — ${measures[1] ?? "동선·공간 관계"}가 도면·본문에서 상호 연계되어 확인되지 않음`,
+    `${sourceWithPage} — ${measures[2] ?? "유지관리·관리 계획"}이 누락되었거나 불명확함`,
   ];
 
-  parts.push(`다음 검토·보완 필요 사항이 확인됨:\n${formatNumberedIssues(gapIssues)}`);
+  parts.push(`다음 평가 근거가 확인됨:\n${formatNumberedIssues(gapIssues)}`);
 
   const lawRef = evaluationContext.referenceLaws[0];
   if (lawRef) {
-    parts.push(`${lawRef.title} ${lawRef.article} 관련 세부 적용 여부도 추가 확인 필요.`);
+    parts.push(
+      `4. ${sourceWithPage} 관련 내용 — ${lawRef.title} ${lawRef.article}(${lawRef.summary.slice(0, 60)}…) 기준 적용·저촉 여부 검토 필요.`,
+    );
   }
 
   const spatial = evaluationContext.spatial;

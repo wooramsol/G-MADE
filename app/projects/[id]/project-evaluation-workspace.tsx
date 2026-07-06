@@ -393,8 +393,8 @@ function DocumentSectionsBlock({
     <div className="mb-5 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
       <FieldLabel as="p">업로드 자료 문서 이해</FieldLabel>
       <MutedText className="mt-1">
-        AI가 심의 자료 전체(텍스트·PDF·도면·이미지)를 읽어 확인한 항목별 요약입니다. 스캔 품질이 낮거나 도면이
-        매우 복잡한 경우 일부 세부는 심사위원 확인이 필요할 수 있습니다.
+        평가항목별로 AI가 심의 자료에서 읽은 파일·페이지·도면·섹션 위치입니다. 평가·판단은 아래 평가표에서
+        확인하세요.
       </MutedText>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {sections.map((section) => (

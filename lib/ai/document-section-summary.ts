@@ -10,13 +10,18 @@ import {
 } from "../document-text-utils";
 import type { UploadedFileSummary } from "./analysis-types";
 import { buildAnalysisCorpus, checkEvaluationTextGrounding } from "./grounding-guard";
-import { lacksIssueFocus } from "./fallback-recommendation";
+import { extractEvidenceWithPage, formatPageReference } from "./page-citation";
 
 const GENERIC_SECTION_BOILERPLATE =
   /제출\s*자료\s*전반에서\s*심사위원이\s*우선\s*재확인|항목별\s*검토·보완\s*의견을\s*확인하세요|AI가\s*해당\s*자료를\s*분석했습니다/;
 
+const EVALUATIVE_SECTION_MARKERS =
+  /미기재|불명확|보완\s*(?:필요|검토)|심사위원\s*재확인|미흡|저촉|누락|모순|기준\s*미달|검토\s*필요|재검토|부족(?:함|하여)|제시되지\s*않|확인(?:되지|불가)/i;
+
+const LOCATION_REFERENCE_PATTERN = /「[^」]+」\s*p\.\d+|p\.\d+|슬라이드\s*\d+|---\s*「[^」]+」/i;
+
 const SECTION_KEYWORDS: Record<string, string[]> = {
-  건축개요: ["건축개요", "연면적", "층수", "용도", "규모", "구조"],
+  건축개요: ["건축개요", "연면적", "층수", "용도", "규모", "구조", "사업개요"],
   배치도: ["배치", "배치도", "주차", "진입", "동선"],
   입면도: ["입면", "입면도", "마감", "재료", "개구부"],
   조감도: ["조감", "조감도", "투시", "매스", "스카이라인"],
@@ -26,19 +31,6 @@ const SECTION_KEYWORDS: Record<string, string[]> = {
   녹지계획: ["녹지", "조경", "식재", "수목", "관수"],
   공공공간: ["공공", "휴게", "옥외", "옥상", "공개공지", "체류"],
   주변현황: ["주변", "현황", "인접", "경관", "조망"],
-};
-
-const SECTION_REVIEW_GAPS: Record<string, string[]> = {
-  건축개요: ["층수·연면적·용도", "주요 구조·마감 개요", "증축·리모델링 범위"],
-  배치도: ["보행·차량 동선", "공개공지·조경과의 관계", "장애인·보행약자 접근"],
-  입면도: ["입면 재료·색채 상세", "저층부·상층부 차별", "창호·개구부 계획"],
-  조감도: ["주변 건축물과의 스케일", "매스 분절·조망 관계", "옥상·외부 공간 표현"],
-  색채계획: ["주조색·강조색 팔레트", "재료 질감·반사율", "주변 색채와의 조화"],
-  야간경관: ["조도·휘도 기준", "눈부심·빛공해 저감", "보행 안전 조명"],
-  보행동선: ["주출입·보행 연결", "계단·경사·엘리베이터 연계", "난간·미끄럼 방지"],
-  녹지계획: ["식재 수종·배치", "관수·배수·유지관리", "기존 수목 보전"],
-  공공공간: ["휴게·체류 가구", "이용자 유형·동선", "차양·쾌적성"],
-  주변현황: ["인접 건축물·도로", "경관지구·조망", "소음·일조 영향"],
 };
 
 function extractSectionSnippet(corpus: string, keywords: string[]): string {
@@ -88,7 +80,50 @@ function isGenericSectionSummary(text: string): boolean {
   const normalized = text.trim();
   if (!normalized) return true;
   if (GENERIC_SECTION_BOILERPLATE.test(normalized)) return true;
-  return normalized.length < 28;
+  return normalized.length < 20;
+}
+
+function isEvaluativeDocumentSummary(text: string): boolean {
+  return EVALUATIVE_SECTION_MARKERS.test(text.trim());
+}
+
+function hasLocationReference(text: string): boolean {
+  return LOCATION_REFERENCE_PATTERN.test(text);
+}
+
+function collectPageMarkersFromCorpus(corpus: string, fileName: string, keywords: string[]): string[] {
+  const normalizedCorpus = corpus.normalize("NFC");
+  const lowerCorpus = normalizedCorpus.toLowerCase();
+  const locations: string[] = [];
+  const seen = new Set<string>();
+
+  for (const keyword of keywords) {
+    const trimmed = keyword.trim();
+    if (trimmed.length < 2) continue;
+
+    let searchFrom = 0;
+    while (searchFrom < lowerCorpus.length && locations.length < 4) {
+      const idx = lowerCorpus.indexOf(trimmed.toLowerCase(), searchFrom);
+      if (idx < 0) break;
+      searchFrom = idx + trimmed.length;
+
+      const evidence = extractEvidenceWithPage(normalizedCorpus, [trimmed], 60);
+      const pageRef = evidence.pageRef ?? formatPageReference(fileName, 1);
+      const snippet = evidence.snippet ? truncateGraphemes(evidence.snippet, 80) : trimmed;
+      const line = `${pageRef} ${labelSectionName(trimmed)} — ${snippet}`;
+      const key = line.slice(0, 48);
+      if (!seen.has(key)) {
+        seen.add(key);
+        locations.push(line);
+      }
+    }
+  }
+
+  return locations;
+}
+
+function labelSectionName(keyword: string): string {
+  return keyword;
 }
 
 export function buildFallbackDocumentSectionSummary(
@@ -97,35 +132,30 @@ export function buildFallbackDocumentSectionSummary(
 ): string {
   const corpus = buildAnalysisCorpus(files);
   const keywords = SECTION_KEYWORDS[label] ?? [label];
-  const gaps = SECTION_REVIEW_GAPS[label] ?? [`${label} 관련 세부 계획`, "수치·재료·시공 상세"];
   const relevantFile = findRelevantFile(files, keywords);
   const sourceLabel = relevantFile ? `「${relevantFile.originalName}」` : "제출 자료";
   const snippet = extractSectionSnippet(corpus, keywords);
 
+  if (relevantFile) {
+    const locations = collectPageMarkersFromCorpus(
+      relevantFile.extractedTextPreview ?? corpus,
+      relevantFile.originalName,
+      keywords,
+    );
+    if (locations.length > 0) {
+      return locations.map((line, index) => `${index + 1}. ${line}`).join("\n");
+    }
+  }
+
   if (snippet && !hasBrokenHangulLead(snippet)) {
-    return [
-      `${sourceLabel}에서 ${label} 관련 "${snippet}" 등을 확인함.`,
-      `다만 ${gaps[0]}, ${gaps[1]} 등이 도면·본문에 미기재·불명확하여 심사위원 재확인 필요.`,
-      gaps[2] ? `추가로 ${gaps[2]}도 실시설계 단계에서 보완 검토 필요.` : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    return `1. ${sourceLabel} — ${label} 관련 "${snippet}" 확인`;
   }
 
   if (corpus.trim().length > 60) {
-    return [
-      `${sourceLabel}에서 ${label}에 직접 대응하는 도면·본문 기재가 부족함.`,
-      `${gaps[0]}, ${gaps[1]} 등 ${label} 항목별 검토·보완이 필요함.`,
-      gaps[2] ? `${gaps[2]} 관련 자료·수치 제출을 검토하시기 바랍니다.` : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    return `1. ${sourceLabel} — ${label} 관련 도면·본문 검색 (텍스트에서 ${label} 키워드 일부 확인)`;
   }
 
-  return [
-    `${label} 관련 제출 자료가 확인되지 않거나 텍스트 추출이 제한됨.`,
-    `${gaps[0]}, ${gaps[1]} 등이 포함된 ${label}·관련 도면·계획서 보완 제출이 필요함.`,
-  ].join("\n");
+  return `1. ${sourceLabel} — ${label} 관련 제출 자료 (텍스트 추출 제한)`;
 }
 
 export function sanitizeDocumentSectionSummary(
@@ -136,7 +166,12 @@ export function sanitizeDocumentSectionSummary(
 ): { text: string; warning?: string } {
   const text = rawSummary.trim();
 
-  if (!isGenericSectionSummary(text) && !lacksIssueFocus(text) && mentionsSectionLabel(text, label)) {
+  if (
+    !isGenericSectionSummary(text) &&
+    !isEvaluativeDocumentSummary(text) &&
+    mentionsSectionLabel(text, label) &&
+    hasLocationReference(text)
+  ) {
     const grounding = checkEvaluationTextGrounding(text, files, evaluationContext);
     if (grounding.grounded) {
       return { text: sanitizeBrokenHangulQuotes(text) };
@@ -145,9 +180,10 @@ export function sanitizeDocumentSectionSummary(
 
   if (
     !isGenericSectionSummary(text) &&
-    !lacksIssueFocus(text) &&
-    text.length >= 48 &&
-    mentionsSectionLabel(text, label)
+    !isEvaluativeDocumentSummary(text) &&
+    text.length >= 32 &&
+    mentionsSectionLabel(text, label) &&
+    (hasLocationReference(text) || text.includes("—"))
   ) {
     return { text: sanitizeBrokenHangulQuotes(text) };
   }
@@ -155,7 +191,7 @@ export function sanitizeDocumentSectionSummary(
   const fallback = sanitizeBrokenHangulQuotes(buildFallbackDocumentSectionSummary(label, files));
   const warning =
     text && text !== fallback
-      ? `${label} 요약: 항목별 고유 내용이 부족해 도면·본문 기반 요약으로 보정했습니다.`
+      ? `${label} 요약: 평가 문구가 포함되어 읽은 위치 목록으로 보정했습니다.`
       : undefined;
 
   return { text: fallback, warning };
