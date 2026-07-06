@@ -318,13 +318,17 @@ function extractSectionLabel(text: string): string | null {
 export function findPageForSection(
   files: UploadedFileSummary[],
   keywords: string[],
+  excludePages: number[] = [],
 ): { fileName: string; page: number; sectionLabel: string } | null {
   const slices = parsePageSlices(files);
   const normalizedKeywords = keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length >= 2);
+  const excluded = new Set(excludePages);
 
   let best: { fileName: string; page: number; sectionLabel: string; score: number } | null = null;
 
   for (const slice of slices) {
+    if (excluded.has(slice.page)) continue;
+
     for (const keyword of normalizedKeywords) {
       if (!slice.text.toLowerCase().includes(keyword.toLowerCase())) continue;
 
@@ -353,15 +357,16 @@ function locateEvidencePage(
   files: UploadedFileSummary[],
   keywords: string[],
   afterPage?: number,
+  excludePages: number[] = [],
 ): { fileName: string; page: number; sectionLabel: string } | null {
-  const located = findPageForSection(files, keywords);
+  const located = findPageForSection(files, keywords, excludePages);
   if (located) return located;
 
   if (afterPage == null) return null;
 
   const slices = parsePageSlices(files);
   const next = findNextSubstantivePage(slices, afterPage, keywords[0] ?? "도면");
-  if (!next) return null;
+  if (!next || excludePages.includes(next.page)) return null;
 
   return {
     fileName: next.fileName,
@@ -375,9 +380,13 @@ export function resolvePageEvidence(
   files: UploadedFileSummary[],
   evidence: string,
   contentHint = "",
+  itemKeywords: string[] = [],
 ): string {
   const trimmed = evidence.trim();
-  const hintKeywords = extractKeywordsFromContentHint(contentHint);
+  const hintKeywords = [
+    ...itemKeywords,
+    ...extractKeywordsFromContentHint(contentHint),
+  ].filter((keyword, index, array) => array.indexOf(keyword) === index);
 
   if (!trimmed) {
     if (hintKeywords.length === 0) return "";
@@ -389,59 +398,80 @@ export function resolvePageEvidence(
     const hint = `${contentHint} ${trimmed}`;
     const sectionLabel = extractSectionLabel(hint);
     const combinedKeywords = extractKeywordsFromContentHint(hint);
-    const keywords = sectionLabel
-      ? [sectionLabel, ...combinedKeywords]
-      : combinedKeywords.length > 0
-        ? combinedKeywords
-        : DRAWING_SECTION_KEYWORDS as unknown as string[];
-    const located = locateEvidencePage(files, keywords);
+    const keywords = [
+      ...itemKeywords,
+      ...(sectionLabel ? [sectionLabel] : []),
+      ...combinedKeywords,
+    ].filter((keyword, index, array) => array.indexOf(keyword) === index);
+    const located = locateEvidencePage(files, keywords.length > 0 ? keywords : [...DRAWING_SECTION_KEYWORDS]);
     return located ? formatCompactEvidence(located.page, located.sectionLabel) : sectionLabel ?? "";
   }
 
   const pageMatch = trimmed.match(/\bp\.(\d+)\b/i);
   const page = pageMatch ? Number(pageMatch[1]) : null;
-  const sectionLabel = extractSectionLabel(trimmed) ?? extractSectionLabel(contentHint);
+  const evidenceSectionLabel = extractSectionLabel(trimmed) ?? extractSectionLabel(contentHint);
 
   if (!page) {
-    const keywords = sectionLabel ? [sectionLabel, ...hintKeywords] : hintKeywords;
+    const keywords = evidenceSectionLabel
+      ? [evidenceSectionLabel, ...hintKeywords]
+      : hintKeywords;
     if (keywords.length === 0) return trimmed;
     const located = locateEvidencePage(files, keywords);
-    return located ? formatCompactEvidence(located.page, located.sectionLabel) : sectionLabel ?? trimmed;
+    return located ? formatCompactEvidence(located.page, located.sectionLabel) : evidenceSectionLabel ?? trimmed;
   }
 
   const slices = parsePageSlices(files);
   const slice = slices.find((entry) => entry.page === page);
 
-  if (!slice || isNonDrawablePageText(slice.text, sectionLabel ?? undefined)) {
-    const keywords = sectionLabel
-      ? [sectionLabel, ...hintKeywords]
-      : hintKeywords.length > 0
+  const relocationKeywords = evidenceSectionLabel
+    ? [evidenceSectionLabel, ...hintKeywords]
+    : hintKeywords.length > 0
+      ? hintKeywords
+      : [...DRAWING_SECTION_KEYWORDS];
+
+  const pageMatchesHint =
+    slice &&
+    (hintKeywords.length === 0 ||
+      hintKeywords.some(
+        (keyword) =>
+          slice.text.includes(keyword) && scoreDrawingPageText(slice.text, keyword) >= MIN_DRAWING_PAGE_SCORE,
+      ));
+
+  if (!slice || isNonDrawablePageText(slice.text, evidenceSectionLabel ?? undefined) || !pageMatchesHint) {
+    const contentKeywords =
+      hintKeywords.length > 0
         ? hintKeywords
-        : DRAWING_SECTION_KEYWORDS as unknown as string[];
-    const located = locateEvidencePage(files, keywords, page);
+        : relocationKeywords;
+    const located = locateEvidencePage(files, contentKeywords, page, page != null ? [page] : []);
     if (located) return formatCompactEvidence(located.page, located.sectionLabel);
-    return sectionLabel ?? "";
+    if (hintKeywords.length > 0) {
+      const hintLocated = locateEvidencePage(files, hintKeywords, page, page != null ? [page] : []);
+      if (hintLocated) return formatCompactEvidence(hintLocated.page, hintLocated.sectionLabel);
+    }
+    return evidenceSectionLabel ?? "";
   }
 
-  if (sectionLabel && !slice.text.includes(sectionLabel)) {
-    const located = locateEvidencePage(files, [sectionLabel, ...hintKeywords], page);
+  if (evidenceSectionLabel && !slice.text.includes(evidenceSectionLabel)) {
+    const located = locateEvidencePage(files, relocationKeywords, page);
     if (located) return formatCompactEvidence(located.page, located.sectionLabel);
-    if (isTitleOnlyPageText(slice.text, sectionLabel)) return sectionLabel;
+    if (isTitleOnlyPageText(slice.text, evidenceSectionLabel)) return evidenceSectionLabel;
   }
 
-  if (sectionLabel && scoreDrawingPageText(slice.text, sectionLabel) < MIN_DRAWING_PAGE_SCORE) {
-    const located = locateEvidencePage(files, [sectionLabel, ...hintKeywords], page);
+  if (evidenceSectionLabel && scoreDrawingPageText(slice.text, evidenceSectionLabel) < MIN_DRAWING_PAGE_SCORE) {
+    const located = locateEvidencePage(files, relocationKeywords, page);
     if (located) return formatCompactEvidence(located.page, located.sectionLabel);
-    return sectionLabel;
+    return evidenceSectionLabel;
   }
 
-  if (scoreDrawingPageText(slice.text, sectionLabel ?? hintKeywords[0] ?? "도면") < MIN_DRAWING_PAGE_SCORE) {
-    const located = locateEvidencePage(files, hintKeywords.length > 0 ? hintKeywords : [sectionLabel ?? "도면"], page);
+  const primaryKeyword = hintKeywords[0] ?? evidenceSectionLabel ?? "도면";
+  if (scoreDrawingPageText(slice.text, primaryKeyword) < MIN_DRAWING_PAGE_SCORE) {
+    const located = locateEvidencePage(files, relocationKeywords, page);
     if (located) return formatCompactEvidence(located.page, located.sectionLabel);
-    return sectionLabel ?? "";
+    return evidenceSectionLabel ?? "";
   }
 
-  return sectionLabel ? formatCompactEvidence(page, sectionLabel) : `p.${page}`;
+  const resolvedLabel = evidenceSectionLabel ?? extractSectionLabel(slice.text);
+  return resolvedLabel ? formatCompactEvidence(page, resolvedLabel) : `p.${page}`;
 }
 
 export function pageCitationIsKnown(

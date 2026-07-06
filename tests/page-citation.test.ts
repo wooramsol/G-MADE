@@ -223,6 +223,31 @@ test("pageCitationIsKnown rejects TOC page for drawing citations", () => {
   assert.equal(known, false);
 });
 
+
+test("resolvePageEvidence relocates mismatched p.14 배치도 using item content keywords", () => {
+  const corpus = [
+    "--- 「심의도서.pdf」 p.14 ---",
+    "배치도",
+    "주차장 12면",
+    "보행 동선",
+    "",
+    "--- 「심의도서.pdf」 p.20 ---",
+    "색채계획",
+    "주조색 N7",
+    "강조색 팔레트",
+  ].join("\n");
+
+  const files = [makeFile(corpus)];
+  const resolved = resolvePageEvidence(
+    files,
+    "p.14 배치도",
+    "주조색·강조색 팔레트 미기재",
+    ["색채", "주조색", "색채계획"],
+  );
+
+  assert.equal(resolved, "p.20 색채계획");
+});
+
 test("buildPageHintCorpusFromDocumentSections creates page markers from summaries", () => {
   const corpus = buildPageHintCorpusFromDocumentSections(
     [

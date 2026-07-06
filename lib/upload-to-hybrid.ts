@@ -139,6 +139,43 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+export function buildPageCitationSummaries(round: EvaluationRound): UploadedFileSummary[] {
+  const files = collectUniqueRoundFiles(round);
+  const primaryFileName = files[0]?.originalName ?? "제출 자료";
+  const pageCorpusPreview = round.aiAnalysis.pageCorpusPreview?.trim() ?? "";
+  const pageCorpus = pageCorpusPreview
+    ? pageCorpusPreview
+    : buildPageHintCorpusFromDocumentSections(round.aiAnalysis.documentSections, primaryFileName);
+
+  if (!pageCorpus.trim()) {
+    return buildStoredFileSummaries(round);
+  }
+
+  if (files.length === 0) {
+    return [
+      {
+        id: "page-corpus",
+        originalName: primaryFileName,
+        fileType: "text/plain",
+        sizeBytes: pageCorpus.length,
+        storagePath: "",
+        extractedTextPreview: pageCorpus,
+        totalPages: round.aiAnalysis.documentSections.length > 0 ? 99 : undefined,
+      },
+    ];
+  }
+
+  return files.map((file, index) => ({
+    id: file.id,
+    originalName: file.originalName,
+    fileType: file.fileType,
+    sizeBytes: file.sizeBytes,
+    storagePath: file.storageKey ?? "",
+    extractedTextPreview: index === 0 ? pageCorpus : "",
+    totalPages: file.totalPages,
+  }));
+}
+
 export function buildStoredFileSummaries(round: EvaluationRound): UploadedFileSummary[] {
   const files = collectUniqueRoundFiles(round);
   const primaryFileName = files[0]?.originalName ?? "제출 자료";

@@ -1,6 +1,8 @@
 import { isUsableQuoteSnippet } from "./document-text-utils";
 import type { UploadedFileSummary } from "./ai/analysis-types";
+import { getDocumentKeywordsForItem } from "./ai/evaluation-item-document-hints";
 import { resolvePageEvidence } from "./ai/page-citation";
+import type { EvaluationItem } from "./types";
 import {
   combineAiEvaluationText,
   extractNumberedItems,
@@ -184,7 +186,6 @@ function extractPageLocation(text: string): string {
 
 function splitPointItem(
   text: string,
-  fallbackEvidence: string,
 ): { content: string; evidence: string } {
   const trimmed = text.trim();
   if (isLawCitationOnlyLine(trimmed)) {
@@ -209,7 +210,7 @@ function splitPointItem(
   }
 
   if (!evidence) {
-    evidence = /^\s*p\.\d+(?:\s*,\s*p\.\d+)*\s*$/.test(fallbackEvidence) ? "" : fallbackEvidence;
+    evidence = "";
   }
   content = sanitizePointContent(content.replace(/^\s*[—\-]\s*/, "").trim());
 
@@ -219,39 +220,36 @@ function splitPointItem(
   };
 }
 
-function buildFallbackEvidence(files: string[], pages: number[]): string {
-  const parts: string[] = [];
-  if (pages.length > 0) parts.push(`p.${pages.join(", p.")}`);
-  if (files.length === 1) parts.unshift(files[0]!.length > 36 ? `${files[0]!.slice(0, 18)}…` : files[0]!);
-  return parts.join(" ");
+function buildItemKeywords(item?: EvaluationItem): string[] {
+  if (!item) return [];
+  return getDocumentKeywordsForItem(item);
 }
 
 /** 평가 근거·의견을 화면용 평가 포인트 목록으로 변환합니다. */
 export function structureEvaluationDisplay(
   text: string,
   fileSummaries: UploadedFileSummary[] = [],
+  item?: EvaluationItem,
 ): StructuredEvaluationDisplay {
   const normalized = formatEvaluationText(text);
   const { items } = extractNumberedItems(normalized);
+  const itemKeywords = buildItemKeywords(item);
 
-  const corpus = items.join("\n");
-  const quotedFiles = extractQuotedFiles(corpus);
-  const pages = extractPageNumbers(corpus);
-  const fallbackEvidence = buildFallbackEvidence(quotedFiles, pages);
+  const quotedFiles = extractQuotedFiles(items.join("\n"));
 
   const compactItems = dedupeItems(
-    items.map((item) => compactItemText(item, quotedFiles)).filter(Boolean),
+    items.map((entry) => compactItemText(entry, quotedFiles)).filter(Boolean),
   );
 
   const points: EvaluationPoint[] = [];
-  for (const item of compactItems) {
-    if (isBoilerplateLine(item)) continue;
+  for (const entry of compactItems) {
+    if (isBoilerplateLine(entry)) continue;
 
-    const split = splitPointItem(item, fallbackEvidence);
+    const split = splitPointItem(entry);
     if (isInvalidPointContent(split.content)) continue;
 
     const resolvedEvidence = fileSummaries.length > 0
-      ? resolvePageEvidence(fileSummaries, split.evidence, split.content)
+      ? resolvePageEvidence(fileSummaries, split.evidence, split.content, itemKeywords)
       : split.evidence;
 
     points.push({
@@ -268,9 +266,10 @@ export function prepareEvaluationDisplay(
   rationale: string,
   recommendation: string,
   fileSummaries: UploadedFileSummary[] = [],
+  item?: EvaluationItem,
 ): StructuredEvaluationDisplay {
   const combined = combineAiEvaluationText(rationale, recommendation);
-  return structureEvaluationDisplay(combined, fileSummaries);
+  return structureEvaluationDisplay(combined, fileSummaries, item);
 }
 
 export { combineAiEvaluationText, formatEvaluationText, normalizeListNumbering, renumberEvaluationText };
