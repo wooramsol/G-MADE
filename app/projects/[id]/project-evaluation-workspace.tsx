@@ -5,7 +5,6 @@ import ConfirmDialog from "@/components/confirm-dialog";
 import {
   Badge,
   FieldLabel,
-  MutedText,
   ScoreValue,
   SectionDescription,
   SectionTitle,
@@ -312,17 +311,11 @@ export default function ProjectEvaluationWorkspace({
               <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
             </div>
 
-            {selectedRound.evaluationItems.length > 0 ? (
-              <DocumentSectionsBlock
-                evaluationItems={selectedRound.evaluationItems}
-                sections={resolveDocumentSectionsForDisplay(selectedRound)}
-              />
-            ) : null}
-
             <FieldLabel as="p" className="mb-3">
               평가항목 총 {hybridView.results.length}개
             </FieldLabel>
-            <EvaluationTable
+            <UnifiedEvaluationList
+              documentSections={resolveDocumentSectionsForDisplay(selectedRound)}
               evaluationPreview={selectedRound.aiAnalysis.evaluationPreview}
               fileSummaries={buildStoredFileSummaries(selectedRound)}
               referenceGuidelines={referenceGuidelines}
@@ -381,51 +374,117 @@ function WorkspaceSectionHeading({ title, description }: { title: string; descri
   );
 }
 
-function DocumentSectionsBlock({
-  sections,
-  evaluationItems,
+function UnifiedEvaluationList({
+  results,
+  documentSections,
+  evaluationPreview,
+  referenceLaws,
+  referenceGuidelines,
+  roundId,
+  fileSummaries,
 }: {
-  sections: EvaluationRound["aiAnalysis"]["documentSections"];
-  evaluationItems: EvaluationRound["evaluationItems"];
+  results: HybridResult[];
+  documentSections: EvaluationRound["aiAnalysis"]["documentSections"];
+  evaluationPreview: EvaluationRound["aiAnalysis"]["evaluationPreview"];
+  referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>;
+  referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>;
+  roundId: string;
+  fileSummaries: ReturnType<typeof buildStoredFileSummaries>;
 }) {
-  const itemById = new Map(evaluationItems.map((item) => [item.id, item]));
+  const sectionByItemId = new Map(
+    documentSections
+      .filter((section) => section.itemId)
+      .map((section) => [section.itemId!, section]),
+  );
 
   return (
-    <div className="mb-5 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <FieldLabel as="p">업로드 자료 문서 이해</FieldLabel>
-      <MutedText className="mt-1">
-        평가항목 {evaluationItems.length}개와 동일한 항목별로, AI가 심의 자료에서 읽은 파일·페이지·도면·섹션
-        위치입니다. 평가·판단은 아래 평가표에서 확인하세요.
-      </MutedText>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {sections.map((section) => {
-          const item = section.itemId ? itemById.get(section.itemId) : undefined;
+    <div className="space-y-3">
+      {results.map((result, index) => {
+        const preview =
+          evaluationPreview.find((row) => row.itemId === result.item.id) ??
+          evaluationPreview.find((row) => row.itemName === result.item.detailItem);
+        const documentSection =
+          sectionByItemId.get(result.item.id) ??
+          documentSections.find((section) => section.label === result.item.detailItem);
+        const itemLawLinks = matchItemReferenceLaws(preview, referenceLaws);
+        const itemGuidelineLinks = matchItemReferenceGuidelines(preview, referenceGuidelines);
 
-          return (
-          <div
-            className="rounded-xl border border-[#d7dee8] bg-white p-3"
-            key={section.itemId ?? section.label}
+        return (
+          <article
+            className="overflow-hidden rounded-xl border border-[#d7dee8] bg-white"
+            key={result.item.id}
           >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="text-sm font-bold text-[#15345b]">{section.label}</p>
-                {item ? (
-                  <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-                    {item.majorCategory} · {item.middleCategory}
-                  </p>
-                ) : null}
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e8eef5] bg-[#f8fafc] px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-[#64748b]">#{index + 1}</span>
+                  <p className="text-sm font-bold text-[#15345b]">{result.item.detailItem}</p>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-[#64748b]">
+                    배점 {result.item.points}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
+                  {result.item.majorCategory} · {result.item.middleCategory}
+                </p>
               </div>
-              <span className="shrink-0 rounded-full bg-[#e8f1ff] px-2 py-0.5 text-[11px] font-bold text-[#2463b3]">
-                문서이해도 {section.confidence}%
-              </span>
+              <div className="flex shrink-0 flex-wrap items-center gap-2 text-center">
+                <ScorePill label="AI" score={result.aiEvaluation.score} tone="ai" />
+                <ScorePill label="전문가" score={result.humanEvaluation.score} tone="expert" />
+                <div className="rounded-lg border border-[#d7dee8] bg-white px-3 py-1.5">
+                  <p className="text-[10px] font-semibold text-[#64748b]">최종</p>
+                  <ScoreValue className="text-base">{result.finalScore}</ScoreValue>
+                  <p className="text-[10px] leading-4 text-[#64748b]">{result.finalGrade}</p>
+                </div>
+              </div>
             </div>
-            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#64748b]">
-              {formatEvaluationText(section.summary)}
-            </p>
-          </div>
-          );
-        })}
-      </div>
+
+            <div className="grid gap-0 lg:grid-cols-2 lg:divide-x lg:divide-[#e8eef5]">
+              {documentSection ? (
+                <section className="border-b border-[#e8eef5] px-4 py-3 lg:border-b-0">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-[#15345b]">읽은 자료</p>
+                    <span className="rounded-full bg-[#e8f1ff] px-2 py-0.5 text-[10px] font-bold text-[#2463b3]">
+                      문서이해도 {documentSection.confidence}%
+                    </span>
+                  </div>
+                  <p className="whitespace-pre-wrap text-xs leading-5 text-[#64748b]">
+                    {formatEvaluationText(documentSection.summary)}
+                  </p>
+                </section>
+              ) : null}
+
+              <section className={`px-4 py-3 ${documentSection ? "" : "lg:col-span-2"}`}>
+                <EvaluationRationaleCell
+                  fileSummaries={fileSummaries}
+                  guidelineLinks={itemGuidelineLinks}
+                  lawLinks={itemLawLinks}
+                  result={result}
+                  roundId={roundId}
+                />
+              </section>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function ScorePill({
+  label,
+  score,
+  tone,
+}: {
+  label: string;
+  score: number;
+  tone: "ai" | "expert";
+}) {
+  return (
+    <div className="rounded-lg border border-[#d7dee8] bg-white px-3 py-1.5 min-w-[64px]">
+      <p className="text-[10px] font-semibold text-[#64748b]">{label}</p>
+      <p className={`text-base font-bold ${tone === "ai" ? "text-[#2463b3]" : "text-[#15345b]"}`}>
+        {score}
+      </p>
     </div>
   );
 }
@@ -490,96 +549,6 @@ function FileList({
   );
 }
 
-function EvaluationTable({
-  results,
-  evaluationPreview,
-  referenceLaws,
-  referenceGuidelines,
-  roundId,
-  fileSummaries,
-}: {
-  results: HybridResult[];
-  evaluationPreview: EvaluationRound["aiAnalysis"]["evaluationPreview"];
-  referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>;
-  referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>;
-  roundId: string;
-  fileSummaries: ReturnType<typeof buildStoredFileSummaries>;
-}) {
-  return (
-    <div className="rounded-xl border border-[#d7dee8]">
-      <table className="w-full table-fixed border-collapse text-left text-sm">
-        <colgroup>
-          <col className="w-[36px]" />
-          <col className="w-[14%]" />
-          <col className="w-[52px]" />
-          <col className="w-[56px]" />
-          <col className="w-[72px]" />
-          <col className="w-[64px]" />
-          <col />
-        </colgroup>
-        <thead className="bg-[#eef4fb] text-[#15345b]">
-          <tr>
-            <th className="px-2 py-2.5 text-center">#</th>
-            <th className="px-3 py-2.5">평가항목</th>
-            <th className="px-2 py-2.5 text-center">배점</th>
-            <th className="px-2 py-2.5 text-center">AI</th>
-            <th className="px-2 py-2.5 text-center">전문가</th>
-            <th className="px-2 py-2.5 text-center">최종</th>
-            <th className="px-3 py-2.5">평가 근거 / 의견</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#d7dee8] bg-white">
-          {results.map((result, index) => {
-            const preview =
-              evaluationPreview.find((row) => row.itemId === result.item.id) ??
-              evaluationPreview.find((row) => row.itemName === result.item.detailItem);
-            const itemLawLinks = matchItemReferenceLaws(preview, referenceLaws);
-            const itemGuidelineLinks = matchItemReferenceGuidelines(preview, referenceGuidelines);
-
-            return (
-              <tr key={result.item.id}>
-                <td className="px-2 py-3 align-top text-center text-xs font-bold text-[#64748b]">
-                  {index + 1}
-                </td>
-                <td className="px-3 py-3 align-top">
-                  <p className="text-sm font-bold leading-5 text-[#15345b]">{result.item.detailItem}</p>
-                  <p className="mt-0.5 text-[10px] leading-4 text-[#64748b]">
-                    {result.item.majorCategory} · {result.item.middleCategory}
-                  </p>
-                </td>
-                <td className="px-2 py-3 align-top text-center font-semibold text-[#15345b]">
-                  {result.item.points}
-                </td>
-                <td className="px-2 py-3 align-top text-center font-bold text-[#2463b3]">
-                  {result.aiEvaluation.score}
-                </td>
-                <td className="px-2 py-3 align-top text-center font-bold text-[#15345b]">
-                  {result.humanEvaluation.score}
-                </td>
-                <td className="px-2 py-3 align-top text-center">
-                  <ScoreValue>{result.finalScore}</ScoreValue>
-                  <p className="text-[10px] leading-4 text-[#64748b]">
-                    {result.finalGrade}
-                  </p>
-                </td>
-                <td className="px-3 py-3 align-top">
-                  <EvaluationRationaleCell
-                    fileSummaries={fileSummaries}
-                    guidelineLinks={itemGuidelineLinks}
-                    lawLinks={itemLawLinks}
-                    result={result}
-                    roundId={roundId}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function EvaluationRationaleCell({
   result,
   lawLinks,
@@ -604,8 +573,9 @@ function EvaluationRationaleCell({
     <div className="space-y-2 text-xs leading-5 text-[#64748b]">
       {aiDisplay.points.length > 0 ? (
         <div>
-          <p className="font-semibold text-[#2463b3]">AI</p>
-          <div className="mt-0.5">
+          <p className="font-bold text-[#15345b]">평가 근거 / 의견</p>
+          <div className="mt-1">
+            <p className="mb-1 font-semibold text-[#2463b3]">AI</p>
             <EvaluationTextBlock display={aiDisplay} />
           </div>
         </div>
