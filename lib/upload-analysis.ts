@@ -97,6 +97,19 @@ export async function analyzeUploadedFilesWithProvider(
     return analyzeWithClaudeOnce(files, evaluationContext, items, baseWarnings, promptOptions);
   }
 
+  if (promptOptions?.ensembleFast) {
+    onAnalysisProgress?.("Claude AI 평가 분석(종합)");
+    const warnings = [...baseWarnings];
+    warnings.push(
+      "Claude 종합 평가: 5분 한도 내 완료를 위해 추출 텍스트 위주(비전 생략)로 분석했습니다. 스캔 PDF는 Gemini 결과를 우선 참고하세요.",
+    );
+    return analyzeWithClaudeOnce(files, evaluationContext, items, warnings, {
+      compact: true,
+      includeVision: false,
+      ensembleFast: true,
+    });
+  }
+
   return analyzeWithClaudeBatched(files, evaluationContext, items, baseWarnings, onAnalysisProgress);
 }
 
