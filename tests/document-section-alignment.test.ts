@@ -65,7 +65,6 @@ test("alignDocumentSectionsToEvaluationItems maps legacy drawing labels to evalu
   assert.equal(aligned[0]!.label, "건축물 스케일 적정성");
   assert.equal(aligned[0]!.itemId, "item-urban-scale");
   assert.match(aligned[0]!.summary, /스카이라인|조감도/);
-  assert.equal(aligned.find((section) => section.itemId === "item-context-document")!.label, "심의자료 완결성");
 });
 
 test("alignDocumentSectionsToEvaluationItems fills missing items with fallbacks", () => {

@@ -104,17 +104,6 @@ export const evaluationItems: EvaluationItem[] = [
     lawIds: ["law-public-design"],
     guidelineIds: ["guide-public-space"],
   },
-  {
-    id: "item-context-document",
-    majorCategory: "자료충실도",
-    middleCategory: "제출자료 분석",
-    detailItem: "심의자료 완결성",
-    points: 10,
-    description: "건축개요, 배치도, 입면도, 조감도, 주변현황 자료의 충실도 검토",
-    criteria: "AI와 심사위원이 동일한 근거를 확인할 수 있도록 핵심 자료가 누락 없이 제출되어야 한다.",
-    lawIds: ["law-admin"],
-    guidelineIds: ["guide-document"],
-  },
 ];
 
 export const projects: Project[] = [
@@ -309,7 +298,7 @@ export const aiEvaluations = createExplainableAiEvaluations({
 export const humanEvaluations: HumanEvaluation[] = evaluationItems.map((item, index) => ({
   itemId: item.id,
   reviewerName: index % 2 === 0 ? "김민정 위원" : "박준호 위원",
-  score: [90, 86, 92, 78, 88, 91, 82, 85][index] ?? 84,
+  score: [90, 86, 92, 78, 88, 91, 82][index] ?? 84,
   comment:
     index % 3 === 0
       ? "계획 방향은 적정하나 실시설계에서 보완 조건을 명확히 제시해야 함."
