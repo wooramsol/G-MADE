@@ -3,12 +3,11 @@ import type { EvaluationItem } from "../types";
 import type { UploadedFileSummary, UploadAnalysisResult } from "./analysis-types";
 import type { AnalysisPromptOptions } from "./analysis-prompt-options";
 import { prepareFilesForClaudeAnalysis } from "./claude-analysis-prep";
-import { CLAUDE_FAST_MODEL } from "./claude-models";
+import { CLAUDE_FAST_MODEL, getClaudeModelsToTry } from "./claude-models";
 import { AiAnalysisError } from "./analysis-error";
 import { buildAnalysisPrompt } from "./analysis-prompt";
 import { buildClaudeUserBlocks } from "./multimodal-payload";
 import { AI_EVALUATOR_SYSTEM_PROMPT } from "./evaluator-system-prompt";
-import { getClaudeModelsToTry } from "./claude-models";
 import { getClaudeApiKey, getClaudeModel } from "./env-keys";
 import { extractJsonContent } from "./extract-json";
 import { fetchWithTimeout } from "../fetch-with-timeout";
@@ -96,11 +95,18 @@ export async function analyzeWithClaude(
           stop_reason?: string;
         };
         if (payload.stop_reason === "max_tokens") {
+          lastStatus = 413;
+          lastBody = "max_tokens";
           break;
         }
 
         const textBlock = payload.content?.find((block) => block.type === "text") ?? payload.content?.[0];
         const content = extractJsonContent(textBlock?.text);
+        if (!content?.trim()) {
+          lastStatus = 422;
+          lastBody = "empty_content";
+          break;
+        }
         return deps.normalizeAiJson(content, items);
       }
 
@@ -135,6 +141,10 @@ export async function analyzeWithClaude(
       continue;
     }
 
+    if (lastBody === "max_tokens" || lastBody === "empty_content") {
+      continue;
+    }
+
     if (lastStatus !== 404) {
       break;
     }
@@ -143,6 +153,20 @@ export async function analyzeWithClaude(
   if (lastTimeoutSeconds > 0) {
     throw new AiAnalysisError(
       `Claude 응답이 ${lastTimeoutSeconds}초 안에 오지 않았습니다. 자료가 크거나 항목이 많으면 Gemini 사용을 권장합니다.`,
+      "claude",
+    );
+  }
+
+  if (lastBody === "max_tokens") {
+    throw new AiAnalysisError(
+      "Claude 응답이 출력 토큰 한도에 걸렸습니다. 평가 항목을 줄이거나 잠시 후 다시 시도해 주세요.",
+      "claude",
+    );
+  }
+
+  if (lastBody === "empty_content") {
+    throw new AiAnalysisError(
+      "Claude 응답 본문이 비어 있습니다. 잠시 후 다시 시도해 주세요.",
       "claude",
     );
   }
@@ -161,16 +185,24 @@ function buildClaudeRequestProfiles(
   itemCount: number,
 ): ClaudeRequestProfile[] {
   if (promptOptions?.ensembleFast) {
-    return [
-      {
-        model: CLAUDE_FAST_MODEL,
-        files: prepareFilesForClaudeAnalysis(files, 14_000).files,
-        promptOptions: { compact: true, includeVision: false, ensembleFast: true },
-        visionMode: "text-only",
-        maxTokens: CLAUDE_FAST_RETRY_MAX_OUTPUT_TOKENS,
-        timeoutMs: 90_000,
+    const fastModels = Array.from(
+      new Set([CLAUDE_FAST_MODEL, "claude-haiku-4-5-20251001", "claude-sonnet-4-6"]),
+    );
+    const prepared = prepareFilesForClaudeAnalysis(files, 8_000);
+
+    return fastModels.map((model, index) => ({
+      model,
+      files: prepared.files,
+      promptOptions: {
+        ...promptOptions,
+        compact: true,
+        includeVision: false,
+        ensembleFast: true,
       },
-    ];
+      visionMode: "text-only" as const,
+      maxTokens: index === 0 ? CLAUDE_FAST_RETRY_MAX_OUTPUT_TOKENS : CLAUDE_ANALYSIS_MAX_OUTPUT_TOKENS,
+      timeoutMs: 90_000,
+    }));
   }
 
   const profiles: ClaudeRequestProfile[] = [];

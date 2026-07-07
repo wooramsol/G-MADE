@@ -105,5 +105,5 @@ export function formatProviderApiError(
     return `${providerLabel} 입력 분량이 너무 큽니다. 대용량 PDF는 일부만 분석에 사용됩니다. 같은 오류가 반복되면 파일을 나누거나 압축한 뒤 다시 시도해 주세요.`;
   }
 
-  return `${providerLabel} API 호출 실패: ${message.slice(0, 220)}`;
+  return `${providerLabel} API 호출 실패${status ? ` (HTTP ${status})` : ""}: ${message.trim() || "응답 본문 없음"}`;
 }
