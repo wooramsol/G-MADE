@@ -6,6 +6,7 @@ import { buildArbiterSynthesisPrompt } from "./cross-feedback-prompt";
 import { mergeConsensusAnalysis } from "./consensus-merge";
 import {
   ENSEMBLE_ARBITER_TIMEOUT_MS,
+  ENSEMBLE_CLAUDE_INITIAL_TIMEOUT_MS,
   ENSEMBLE_INITIAL_PROVIDER_TIMEOUT_MS,
   ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS,
   withOperationTimeout,
@@ -75,10 +76,12 @@ export async function analyzeWithMultiProviderEnsemble(input: {
   );
 
   const remainingForInitial = getRemainingBudgetMs?.() ?? ENSEMBLE_INITIAL_PROVIDER_TIMEOUT_MS + ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS;
-  const initialTimeout = Math.min(
-    ENSEMBLE_INITIAL_PROVIDER_TIMEOUT_MS,
-    Math.max(60_000, remainingForInitial - ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS - 5_000),
-  );
+
+  function resolveInitialProviderTimeout(provider: AiProviderId): number {
+    const providerCap =
+      provider === "claude" ? ENSEMBLE_CLAUDE_INITIAL_TIMEOUT_MS : ENSEMBLE_INITIAL_PROVIDER_TIMEOUT_MS;
+    return Math.min(providerCap, Math.max(60_000, remainingForInitial - ENSEMBLE_MIN_BUDGET_FOR_ARBITER_MS - 5_000));
+  }
 
   onAnalysisProgress?.(`1단계: ${providers.length}개 AI 엔진 병렬 분석`);
   const initialResults = await Promise.allSettled(
@@ -91,7 +94,7 @@ export async function analyzeWithMultiProviderEnsemble(input: {
           evaluationContext,
           evaluationItems,
         }),
-        initialTimeout,
+        resolveInitialProviderTimeout(provider),
         `${label} 초기 분석`,
       );
       return { provider, analysis } satisfies ProviderAnalysisEntry;
@@ -101,7 +104,10 @@ export async function analyzeWithMultiProviderEnsemble(input: {
   const initialSuccesses: ProviderAnalysisEntry[] = [];
   const initialByProvider: Partial<Record<AiProviderId, UploadAnalysisResult>> = {};
 
-  for (const result of initialResults) {
+  for (let index = 0; index < initialResults.length; index += 1) {
+    const result = initialResults[index]!;
+    const provider = providers[index]!;
+
     if (result.status === "fulfilled") {
       initialSuccesses.push(result.value);
       initialByProvider[result.value.provider] = result.value.analysis;
@@ -109,7 +115,18 @@ export async function analyzeWithMultiProviderEnsemble(input: {
     }
 
     const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
-    warnings.push(`초기 분석 실패: ${message}`);
+    warnings.push(
+      `${formatProviderBadgeLabel(provider)} 초기 분석 실패: ${message} (종합 평가에서 제외됨)`,
+    );
+  }
+
+  const missingProviders = providers.filter(
+    (provider) => !initialSuccesses.some((entry) => entry.provider === provider),
+  );
+  if (missingProviders.length > 0) {
+    warnings.push(
+      `${missingProviders.map((provider) => formatProviderBadgeLabel(provider)).join(", ")} 엔진은 초기 분석에 참여하지 못했습니다. 아래 분석 참고 사항을 확인해 주세요.`,
+    );
   }
 
   if (initialSuccesses.length === 0) {
