@@ -11,7 +11,6 @@ function buildDemoDocumentSections(items: EvaluationItem[]) {
     "item-walk": "1. 「사업계획서.pdf」 p.11 배치도 — 보행 동선·주차장 배치 확인",
     "item-green": "1. 「사업계획서.pdf」 p.20 녹지계획 — 식재·조경 계획 확인",
     "item-public-space": "1. 「사업계획서.pdf」 p.11 배치도 — 공개공지·휴게 공간 위치 확인",
-    "item-context-document": "1. 「사업계획서.pdf」 p.2 건축개요 — 사업명·규모·제출 도면 목록 확인",
   };
 
   return items.map((item, index) => ({

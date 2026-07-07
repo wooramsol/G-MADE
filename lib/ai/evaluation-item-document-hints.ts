@@ -16,22 +16,11 @@ export const EVALUATION_ITEM_DOCUMENT_KEYWORDS: Record<string, string[]> = {
   "item-walk": ["보행", "동선", "접근", "계단", "경사", "난간", "주차", "보행동선"],
   "item-green": ["녹지", "조경", "식재", "수목", "관수", "생태", "녹지계획"],
   "item-public-space": ["공공", "휴게", "옥외", "옥상", "공개공지", "체류", "공공공간"],
-  "item-context-document": [
-    "건축개요",
-    "사업개요",
-    "제출",
-    "도면",
-    "배치도",
-    "입면도",
-    "조감도",
-    "체크리스트",
-    "주변현황",
-  ],
 };
 
 /** 구버전 도면·계획 유형 라벨 → 평가항목 id */
 export const LEGACY_DOCUMENT_SECTION_LABEL_TO_ITEM_ID: Record<string, string> = {
-  건축개요: "item-context-document",
+  건축개요: "item-urban-scale",
   배치도: "item-walk",
   입면도: "item-facade",
   조감도: "item-urban-scale",
