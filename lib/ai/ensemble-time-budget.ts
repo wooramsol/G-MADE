@@ -1,8 +1,8 @@
 /** 종합 평가 1단계: 엔진별 초기 분석 상한(병렬이므로 전체 구간 ≈ 이 값) */
 export const ENSEMBLE_INITIAL_PROVIDER_TIMEOUT_MS = 105_000;
 
-/** Claude는 PDF·비전 처리로 더 오래 걸릴 수 있어 별도 상한을 둡니다. */
-export const ENSEMBLE_CLAUDE_INITIAL_TIMEOUT_MS = 130_000;
+/** Claude 종합 평가: Haiku 텍스트 전용 경로 상한 */
+export const ENSEMBLE_CLAUDE_INITIAL_TIMEOUT_MS = 110_000;
 
 /** 종합 평가 2단계: 중재 합성(텍스트 전용) 상한 */
 export const ENSEMBLE_ARBITER_TIMEOUT_MS = 75_000;

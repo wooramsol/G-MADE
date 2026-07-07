@@ -12,6 +12,7 @@ import {
   withOperationTimeout,
 } from "./ensemble-time-budget";
 import { formatProviderBadgeLabel } from "./provider-labels";
+import { resolveEnsembleInitialOptions } from "./ensemble-initial-options";
 import { getConfiguredLiveProviders, resolveArbiterProvider } from "./select-provider";
 import type { AiProviderId } from "./types";
 import { analyzeUploadedFilesWithProvider } from "../upload-analysis";
@@ -93,6 +94,7 @@ export async function analyzeWithMultiProviderEnsemble(input: {
           files,
           evaluationContext,
           evaluationItems,
+          promptOptions: resolveEnsembleInitialOptions(provider),
         }),
         resolveInitialProviderTimeout(provider),
         `${label} 초기 분석`,

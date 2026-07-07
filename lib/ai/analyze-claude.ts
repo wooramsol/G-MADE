@@ -160,6 +160,19 @@ function buildClaudeRequestProfiles(
   visionModes: ClaudeVisionMode[],
   itemCount: number,
 ): ClaudeRequestProfile[] {
+  if (promptOptions?.ensembleFast) {
+    return [
+      {
+        model: CLAUDE_FAST_MODEL,
+        files: prepareFilesForClaudeAnalysis(files, 14_000).files,
+        promptOptions: { compact: true, includeVision: false, ensembleFast: true },
+        visionMode: "text-only",
+        maxTokens: CLAUDE_FAST_RETRY_MAX_OUTPUT_TOKENS,
+        timeoutMs: 90_000,
+      },
+    ];
+  }
+
   const profiles: ClaudeRequestProfile[] = [];
   const compact = promptOptions?.compact === true || itemCount > 4;
   const mergedPromptOptions: AnalysisPromptOptions = {

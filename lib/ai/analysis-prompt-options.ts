@@ -9,4 +9,6 @@ export type AnalysisPromptOptions = {
   batchCount?: number;
   /** 기본 분석 프롬프트 대신 사용할 사용자 프롬프트(상호 피드백 등) */
   userPromptOverride?: string;
+  /** 종합 평가 초기 분석: 비전 생략·경량 모델 우선 */
+  ensembleFast?: boolean;
 };
