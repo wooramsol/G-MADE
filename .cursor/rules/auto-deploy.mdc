@@ -1,0 +1,22 @@
+---
+description: 작업 완료 후 main 머지 및 Vercel 프로덕션 배포를 항상 수행
+alwaysApply: true
+---
+
+# 자동 배포
+
+코드 변경 작업을 마치면 사용자가 별도로 요청하지 않아도 **항상** 프로덕션 배포까지 완료한다.
+
+## 배포 절차
+
+1. feature 브랜치에서 PR 생성
+2. 테스트·빌드 통과 확인
+3. PR을 `main`에 머지 (`gh pr ready` → `gh pr merge --merge`)
+4. Vercel 배포 완료 확인 (`gh pr checks` 또는 `npm run build` on `main`)
+5. 사용자에게 배포 완료를 보고
+
+## 참고
+
+- Production branch: `main` (Vercel 자동 배포)
+- PR이 draft면 먼저 ready로 전환한 뒤 머지
+- fast-forward 배포가 필요하면 `npm run deploy:production <pr-number>` 사용
