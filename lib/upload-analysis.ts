@@ -12,6 +12,7 @@ import { chunkEvaluationItems, getProviderItemBatchSize, shouldBatchProviderAnal
 import { isRetryableProviderError, retryDelayMs } from "./ai/retryable-api-error";
 import { alignDocumentSectionsToEvaluationItems } from "./ai/document-section-summary";
 import { normalizeEvaluationItemLabel } from "./ai/evaluation-item-document-hints";
+import { buildEnsembleClaudeInitialPrompt } from "./ai/ensemble-claude-prompt";
 import { buildCompactPageCorpus } from "./ai/page-citation";
 import { filterVerifiedGuidelineRefs, filterVerifiedLawRefs, resolveGroundedRationale, resolveGroundedRecommendation, sanitizeGroundedSummary } from "./ai/grounding-guard";
 import type { AnalyzeUploadedFilesInput, UploadedFileSummary, UploadAnalysisResult } from "./ai/analysis-types";
@@ -101,12 +102,13 @@ export async function analyzeUploadedFilesWithProvider(
     onAnalysisProgress?.("Claude AI 평가 분석(종합)");
     const warnings = [...baseWarnings];
     warnings.push(
-      "Claude 종합 평가: 5분 한도 내 완료를 위해 추출 텍스트 위주(비전 생략)로 분석했습니다. 스캔 PDF는 Gemini 결과를 우선 참고하세요.",
+      "Claude 종합 평가: 페이지 색인·추출 텍스트 위주(비전 생략)로 분석했습니다. 도면·스캔 PDF는 Gemini 결과를 우선 참고하세요.",
     );
     return analyzeWithClaudeOnce(files, evaluationContext, items, warnings, {
       compact: true,
       includeVision: false,
       ensembleFast: true,
+      userPromptOverride: buildEnsembleClaudeInitialPrompt(files, evaluationContext, items),
     });
   }
 
