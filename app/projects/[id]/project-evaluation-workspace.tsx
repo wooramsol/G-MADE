@@ -15,6 +15,7 @@ import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
 import { resolveDocumentSectionsForDisplay } from "@/lib/ai/document-section-summary";
 import { EvaluationTextBlock } from "@/components/evaluation-text-block";
 import { prepareEvaluationDisplay } from "@/lib/evaluation-display";
+import { formatDocumentSectionText } from "@/lib/format-document-section-text";
 import { formatEvaluationText } from "@/lib/format-evaluation-text";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
 import ReferenceLinkTitle from "@/components/reference-link-title";
@@ -542,7 +543,7 @@ function UnifiedEvaluationList({
                     </span>
                   </div>
                   <p className="whitespace-pre-wrap text-xs leading-5 text-[#64748b]">
-                    {formatEvaluationText(documentSection.summary)}
+                    {formatDocumentSectionText(documentSection.summary)}
                   </p>
                 </section>
               ) : null}

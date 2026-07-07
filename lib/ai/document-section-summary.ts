@@ -17,6 +17,7 @@ import {
 } from "./evaluation-item-document-hints";
 import { buildAnalysisCorpus, checkEvaluationTextGrounding } from "./grounding-guard";
 import { extractEvidenceWithPage, formatPageReference } from "./page-citation";
+import { formatDocumentSectionText, hasDocumentSectionOcrArtifacts } from "../format-document-section-text";
 
 const GENERIC_SECTION_BOILERPLATE =
   /제출\s*자료\s*전반에서\s*심사위원이\s*우선\s*재확인|항목별\s*검토·보완\s*의견을\s*확인하세요|AI가\s*해당\s*자료를\s*분석했습니다/;
@@ -147,6 +148,13 @@ export function buildFallbackDocumentSectionSummary(
   return `1. ${sourceLabel} — ${label} 관련 제출 자료 (텍스트 추출 제한)`;
 }
 
+function finalizeDocumentSectionSummary(text: string): string {
+  const formatted = formatDocumentSectionText(text);
+  if (!formatted.trim()) return "";
+  if (hasDocumentSectionOcrArtifacts(formatted)) return "";
+  return formatted;
+}
+
 export function sanitizeDocumentSectionSummary(
   item: EvaluationItem,
   rawSummary: string,
@@ -164,7 +172,8 @@ export function sanitizeDocumentSectionSummary(
   ) {
     const grounding = checkEvaluationTextGrounding(text, files, evaluationContext);
     if (grounding.grounded) {
-      return { text: sanitizeBrokenHangulQuotes(text) };
+      const formatted = finalizeDocumentSectionSummary(text);
+      if (formatted) return { text: formatted };
     }
   }
 
@@ -175,11 +184,12 @@ export function sanitizeDocumentSectionSummary(
     mentionsSectionKeywords(text, keywords) &&
     (hasLocationReference(text) || text.includes("—"))
   ) {
-    return { text: sanitizeBrokenHangulQuotes(text) };
+    const formatted = finalizeDocumentSectionSummary(text);
+    if (formatted) return { text: formatted };
   }
 
   const fallback = sanitizeBrokenHangulQuotes(buildFallbackDocumentSectionSummary(item, files));
-  return { text: fallback };
+  return { text: formatDocumentSectionText(fallback) };
 }
 
 function clampConfidence(value: number): number {
