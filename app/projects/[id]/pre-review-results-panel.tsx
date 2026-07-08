@@ -35,7 +35,7 @@ export default function PreReviewResultsPanel({
   );
 
   const issueCount = results.designIssues.length;
-  const checklistIssueCount = results.checklistRows.filter((row) => row.status !== "양호").length;
+  const checklistIssueCount = results.checklistRows.filter((row) => row.displayStatus === "미반영").length;
   const lawReviewCount = results.lawReviewEntries.filter((entry) => entry.status === "검토필요").length;
 
   return (
@@ -78,7 +78,10 @@ export default function PreReviewResultsPanel({
       </div>
 
       {activeTab === "issues" ? (
-        <DesignIssuesTab issues={results.designIssues} missingDocuments={results.missingDocuments} />
+        <DesignIssuesTab
+          issues={results.designIssues}
+          missingDocuments={results.missingDocuments}
+        />
       ) : null}
       {activeTab === "checklist" ? (
         <ChecklistEvaluationList {...checklistProps} checklistRows={results.checklistRows} />
@@ -96,49 +99,71 @@ function DesignIssuesTab({
   missingDocuments: Array<{ id: string; label: string; found: boolean; matchedIn?: string }>;
 }) {
   const missing = missingDocuments.filter((doc) => !doc.found);
-
-  if (issues.length === 0) {
-    return (
-      <p className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#64748b]">
-        자동 탐지된 오류·누락 항목이 없습니다. 담당자 확인은 계속 필요합니다.
-      </p>
-    );
-  }
+  const foundCount = missingDocuments.filter((doc) => doc.found).length;
 
   return (
     <div className="space-y-4">
-      {missing.length > 0 ? (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-bold text-amber-950">필수 제출 자료 누락 의심</p>
-          <ul className="mt-2 space-y-1 text-sm text-amber-900">
-            {missing.map((doc) => (
-              <li key={doc.id}>· {doc.label}</li>
+      {missingDocuments.length > 0 ? (
+        <section className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-bold text-[#15345b]">필수 도면·서류 점검</p>
+            <p className="text-sm font-bold text-[#2463b3]">
+              {foundCount} / {missingDocuments.length}
+            </p>
+          </div>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {missingDocuments.map((doc) => (
+              <li
+                className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
+                  doc.found
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                    : "border-red-200 bg-red-50 text-red-900"
+                }`}
+                key={doc.id}
+              >
+                <span className="font-semibold">{doc.label}</span>
+                <span className="rounded-md px-2 py-0.5 text-[11px] font-bold text-white bg-inherit">
+                  <span
+                    className={`rounded-md px-2 py-0.5 ${doc.found ? "bg-emerald-600" : "bg-red-600"}`}
+                  >
+                    {doc.found ? "확인" : "누락"}
+                  </span>
+                </span>
+              </li>
             ))}
           </ul>
         </section>
       ) : null}
 
-      <div className="space-y-2">
-        {issues.map((issue) => (
-          <article className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={issue.id}>
-            <div className="flex flex-wrap items-center gap-2">
-              <IssueBadge label={issue.type} tone="type" />
-              <IssueBadge label={issue.severity} tone={issue.severity === "높음" ? "high" : "normal"} />
-              <IssueBadge label={issue.source === "rule" ? "규칙 검사" : "AI 분석"} tone="source" />
-              {issue.file ? (
-                <span className="text-[11px] font-semibold text-[#64748b]">
-                  {issue.file}
-                  {issue.page ? ` ${issue.page}` : ""}
-                </span>
+      {issues.length === 0 ? (
+        missing.length === 0 ? (
+          <p className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#64748b]">
+            자동 탐지된 오류·누락 항목이 없습니다. 담당자 확인은 계속 필요합니다.
+          </p>
+        ) : null
+      ) : (
+        <div className="space-y-2">
+          {issues.map((issue) => (
+            <article className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={issue.id}>
+              <div className="flex flex-wrap items-center gap-2">
+                <IssueBadge label={issue.type} tone="type" />
+                <IssueBadge label={issue.severity} tone={issue.severity === "높음" ? "high" : "normal"} />
+                <IssueBadge label={issue.source === "rule" ? "규칙 검사" : "AI 분석"} tone="source" />
+                {issue.file ? (
+                  <span className="text-[11px] font-semibold text-[#64748b]">
+                    {issue.file}
+                    {issue.page ? ` ${issue.page}` : ""}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-[#172033]">{issue.description}</p>
+              {issue.itemName ? (
+                <p className="mt-1 text-[11px] font-semibold text-[#64748b]">관련 항목: {issue.itemName}</p>
               ) : null}
-            </div>
-            <p className="mt-2 text-sm leading-6 text-[#172033]">{issue.description}</p>
-            {issue.itemName ? (
-              <p className="mt-1 text-[11px] font-semibold text-[#64748b]">관련 항목: {issue.itemName}</p>
-            ) : null}
-          </article>
-        ))}
-      </div>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPreReviewResults } from "@/lib/pre-review/build-pre-review-results";
-import { deriveChecklistRows } from "@/lib/pre-review/derive-checklist-status";
+import { deriveChecklistRows, summarizeChecklistRows } from "@/lib/pre-review/derive-checklist-status";
 import { deriveDesignIssues } from "@/lib/pre-review/derive-design-issues";
 import { checkRequiredDocuments } from "@/lib/pre-review/required-documents";
 import type { EvaluationRound } from "@/lib/types";
@@ -87,10 +87,20 @@ test("deriveDesignIssues includes rule-based and AI issues", () => {
   assert.ok(issues.some((issue) => issue.source === "ai" && /Steel N7/.test(issue.description)));
 });
 
-test("deriveChecklistRows marks issue-heavy item as 미흡", () => {
+test("deriveChecklistRows marks issue-heavy item as 미반영 display", () => {
   const rows = deriveChecklistRows(makeRound());
   assert.equal(rows[0]?.status, "미흡");
+  assert.equal(rows[0]?.displayStatus, "미반영");
   assert.ok((rows[0]?.issueCount ?? 0) > 0);
+  assert.equal(rows[0]?.hasDocumentSection, true);
+});
+
+test("summarizeChecklistRows counts display statuses", () => {
+  const rows = deriveChecklistRows(makeRound());
+  const summary = summarizeChecklistRows(rows);
+  assert.equal(summary.total, 1);
+  assert.equal(summary.notReflected, 1);
+  assert.equal(summary.reflected, 0);
 });
 
 test("buildPreReviewResults aggregates law review entries", () => {

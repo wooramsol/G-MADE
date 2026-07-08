@@ -30,6 +30,9 @@ export type RequiredDocumentStatus = {
 
 export type ChecklistItemStatus = "미흡" | "확인필요" | "양호";
 
+/** 세종 자가점검·설문조사 UI에 맞춘 표시용 상태 (AI 도출) */
+export type ChecklistDisplayStatus = "반영" | "미반영" | "검토필요" | "해당없음";
+
 export type ChecklistReviewRow = {
   itemId: string;
   itemName: string;
@@ -37,7 +40,19 @@ export type ChecklistReviewRow = {
   middleCategory: string;
   points: number;
   status: ChecklistItemStatus;
+  displayStatus: ChecklistDisplayStatus;
   issueCount: number;
+  hasDocumentSection: boolean;
+  rationalePreview?: string;
+};
+
+export type ChecklistSummary = {
+  total: number;
+  reflected: number;
+  notReflected: number;
+  reviewNeeded: number;
+  notApplicable: number;
+  progressPercent: number;
 };
 
 export type LawReviewEntry = {
