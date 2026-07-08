@@ -39,7 +39,7 @@ function makeRound(overrides: Partial<EvaluationRound> = {}): EvaluationRound {
           itemId: "item-color",
           label: "색채계획",
           confidence: 80,
-          summary: "p.31 색채계획",
+          summary: "「심의도서.pdf」 p.31 색채계획",
         },
       ],
       evaluationPreview: [
@@ -70,15 +70,58 @@ function makeRound(overrides: Partial<EvaluationRound> = {}): EvaluationRound {
   };
 }
 
-test("checkRequiredDocuments detects missing elevation plan", () => {
+test("checkRequiredDocuments confirms drawing titles in page corpus", () => {
   const result = checkRequiredDocuments({
     fileNames: ["심의도서.pdf"],
-    pageCorpus: "p.12 배치도\np.31 색채계획",
-    documentSummaries: [],
+    pageCorpus: [
+      "--- 「심의도서.pdf」 p.12 ---",
+      "배치도",
+      "대지 배치 계획",
+      "",
+      "--- 「심의도서.pdf」 p.31 ---",
+      "색채계획",
+      "마감재 계획",
+    ].join("\n"),
+    documentSections: [],
   });
 
-  assert.equal(result.find((row) => row.id === "layout")?.found, true);
-  assert.equal(result.find((row) => row.id === "elevation")?.found, false);
+  assert.equal(result.find((row) => row.id === "layout")?.matchLevel, "confirmed");
+  assert.equal(result.find((row) => row.id === "elevation")?.matchLevel, "missing");
+});
+
+test("checkRequiredDocuments treats body-only mentions as 언급만", () => {
+  const result = checkRequiredDocuments({
+    fileNames: ["심의도서.pdf"],
+    pageCorpus: [
+      "--- 「심의도서.pdf」 p.45 ---",
+      "현황 분석",
+      "주변 건물 입면 디자인과의 조화를 검토하였다.",
+    ].join("\n"),
+    documentSections: [],
+  });
+
+  assert.equal(result.find((row) => row.id === "elevation")?.matchLevel, "missing");
+});
+
+test("checkRequiredDocuments does not confirm from vague section labels alone", () => {
+  const result = checkRequiredDocuments({
+    fileNames: ["심의도서.pdf"],
+    pageCorpus: "",
+    documentSections: [{ label: "색채계획", summary: "관련 내용을 검토함" }],
+  });
+
+  assert.equal(result.find((row) => row.id === "color")?.matchLevel, "mentioned");
+  assert.equal(result.find((row) => row.id === "color")?.found, false);
+});
+
+test("checkRequiredDocuments confirms section with page citation", () => {
+  const result = checkRequiredDocuments({
+    fileNames: ["심의도서.pdf"],
+    pageCorpus: "",
+    documentSections: [{ label: "색채", summary: "「심의도서.pdf」 p.31 색채계획" }],
+  });
+
+  assert.equal(result.find((row) => row.id === "color")?.matchLevel, "confirmed");
 });
 
 test("deriveDesignIssues includes rule-based and AI issues", () => {

@@ -96,10 +96,19 @@ function DesignIssuesTab({
   missingDocuments,
 }: {
   issues: DesignIssue[];
-  missingDocuments: Array<{ id: string; label: string; found: boolean; matchedIn?: string }>;
+  missingDocuments: Array<{
+    id: string;
+    label: string;
+    found: boolean;
+    matchLevel?: "confirmed" | "mentioned" | "missing";
+    matchedIn?: string;
+  }>;
 }) {
-  const missing = missingDocuments.filter((doc) => !doc.found);
-  const foundCount = missingDocuments.filter((doc) => doc.found).length;
+  const confirmedCount = missingDocuments.filter((doc) => doc.matchLevel === "confirmed" || doc.found).length;
+  const mentionedCount = missingDocuments.filter((doc) => doc.matchLevel === "mentioned").length;
+  const missingCount = missingDocuments.filter(
+    (doc) => doc.matchLevel === "missing" || (!doc.found && doc.matchLevel !== "mentioned"),
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -108,35 +117,57 @@ function DesignIssuesTab({
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-bold text-[#15345b]">필수 도면·서류 점검</p>
             <p className="text-sm font-bold text-[#2463b3]">
-              {foundCount} / {missingDocuments.length}
+              도면 확인 {confirmedCount} / {missingDocuments.length}
             </p>
           </div>
+          <p className="mb-3 text-[11px] leading-5 text-[#64748b]">
+            PDF 페이지 색인·파일명·AI가 읽은 도면 위치에서{" "}
+            <span className="font-bold">도면 제목·페이지 인용</span>이 있을 때만 「도면 확인」으로 표시합니다.
+            본문에 단어만 나온 경우는 「언급만」이며, 실제 도면 유무는 담당자가 확인해야 합니다.
+          </p>
           <ul className="grid gap-2 sm:grid-cols-2">
-            {missingDocuments.map((doc) => (
-              <li
-                className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
-                  doc.found
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                    : "border-red-200 bg-red-50 text-red-900"
-                }`}
-                key={doc.id}
-              >
-                <span className="font-semibold">{doc.label}</span>
-                <span className="rounded-md px-2 py-0.5 text-[11px] font-bold text-white bg-inherit">
-                  <span
-                    className={`rounded-md px-2 py-0.5 ${doc.found ? "bg-emerald-600" : "bg-red-600"}`}
-                  >
-                    {doc.found ? "확인" : "누락"}
-                  </span>
-                </span>
-              </li>
-            ))}
+            {missingDocuments.map((doc) => {
+              const level = doc.matchLevel ?? (doc.found ? "confirmed" : "missing");
+              const toneClass =
+                level === "confirmed"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  : level === "mentioned"
+                    ? "border-amber-200 bg-amber-50 text-amber-950"
+                    : "border-red-200 bg-red-50 text-red-900";
+              const badgeClass =
+                level === "confirmed"
+                  ? "bg-emerald-600"
+                  : level === "mentioned"
+                    ? "bg-amber-600"
+                    : "bg-red-600";
+              const badgeLabel =
+                level === "confirmed" ? "도면 확인" : level === "mentioned" ? "언급만" : "누락";
+
+              return (
+                <li className={`rounded-lg border px-3 py-2 text-sm ${toneClass}`} key={doc.id}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold">{doc.label}</span>
+                    <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold text-white ${badgeClass}`}>
+                      {badgeLabel}
+                    </span>
+                  </div>
+                  {doc.matchedIn ? (
+                    <p className="mt-1 text-[10px] leading-4 opacity-80">근거: {doc.matchedIn}</p>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
+          {mentionedCount > 0 || missingCount > 0 ? (
+            <p className="mt-3 text-[11px] text-[#64748b]">
+              언급만 {mentionedCount}건 · 누락 {missingCount}건
+            </p>
+          ) : null}
         </section>
       ) : null}
 
       {issues.length === 0 ? (
-        missing.length === 0 ? (
+        missingCount === 0 && mentionedCount === 0 ? (
           <p className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#64748b]">
             자동 탐지된 오류·누락 항목이 없습니다. 담당자 확인은 계속 필요합니다.
           </p>

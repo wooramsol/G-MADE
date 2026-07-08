@@ -24,7 +24,9 @@ export type DesignIssue = {
 export type RequiredDocumentStatus = {
   id: string;
   label: string;
+  /** 도면·서류가 실제로 확인된 경우만 true (matchLevel === confirmed) */
   found: boolean;
+  matchLevel: "confirmed" | "mentioned" | "missing";
   matchedIn?: string;
 };
 
