@@ -5,38 +5,59 @@ import { Badge, SubsectionTitle } from "@/components/typography";
 import ReferenceLinkTitle from "@/components/reference-link-title";
 import { buildAdmrulReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
 import { buildPreReviewResults } from "@/lib/pre-review/build-pre-review-results";
+import { buildPreReviewSummaryReport } from "@/lib/pre-review/build-summary-report";
 import type { DesignIssue, LawReviewEntry } from "@/lib/pre-review/types";
 import type { EvaluationRound } from "@/lib/types";
 import ChecklistEvaluationList from "./checklist-evaluation-list";
+import PreReviewSummaryTab from "./pre-review-summary-tab";
 
-type TabId = "issues" | "checklist" | "laws";
+type TabId = "issues" | "checklist" | "laws" | "summary";
 
 type Props = {
   round: EvaluationRound;
   referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>;
   checklistProps: Omit<React.ComponentProps<typeof ChecklistEvaluationList>, "checklistRows">;
+  projectName?: string;
+  projectLocation?: string;
+  projectReviewType?: string;
 };
 
 const TAB_LABELS: Record<TabId, string> = {
   issues: "① 오류·누락",
   checklist: "② 체크리스트",
   laws: "③ 법령·지침",
+  summary: "④ 종합결과",
 };
 
 export default function PreReviewResultsPanel({
   round,
   referenceLaws,
   checklistProps,
+  projectName = "",
+  projectLocation,
+  projectReviewType,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<TabId>("issues");
+  const [activeTab, setActiveTab] = useState<TabId>("summary");
   const results = useMemo(
     () => buildPreReviewResults(round, referenceLaws),
     [round, referenceLaws],
+  );
+  const summaryReport = useMemo(
+    () =>
+      buildPreReviewSummaryReport({
+        results,
+        projectName,
+        evaluatedAt: round.evaluatedAt,
+        reviewType: projectReviewType,
+        location: projectLocation,
+      }),
+    [results, projectName, round.evaluatedAt, projectReviewType, projectLocation],
   );
 
   const issueCount = results.designIssues.length;
   const checklistIssueCount = results.checklistRows.filter((row) => row.displayStatus === "미반영").length;
   const lawReviewCount = results.lawReviewEntries.filter((entry) => entry.status === "검토필요").length;
+  const summaryActionCount = summaryReport.actionItemCount;
 
   return (
     <div
@@ -53,7 +74,13 @@ export default function PreReviewResultsPanel({
       <div className="mb-4 flex flex-wrap gap-2">
         {(Object.keys(TAB_LABELS) as TabId[]).map((tab) => {
           const count =
-            tab === "issues" ? issueCount : tab === "checklist" ? checklistIssueCount : lawReviewCount;
+            tab === "issues"
+              ? issueCount
+              : tab === "checklist"
+                ? checklistIssueCount
+                : tab === "laws"
+                  ? lawReviewCount
+                  : summaryActionCount;
           const active = activeTab === tab;
           return (
             <button
@@ -87,6 +114,7 @@ export default function PreReviewResultsPanel({
         <ChecklistEvaluationList {...checklistProps} checklistRows={results.checklistRows} />
       ) : null}
       {activeTab === "laws" ? <LawReviewTab entries={results.lawReviewEntries} /> : null}
+      {activeTab === "summary" ? <PreReviewSummaryTab report={summaryReport} /> : null}
     </div>
   );
 }

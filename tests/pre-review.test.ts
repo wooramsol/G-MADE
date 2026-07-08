@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPreReviewResults } from "@/lib/pre-review/build-pre-review-results";
+import { buildPreReviewSummaryReport } from "@/lib/pre-review/build-summary-report";
 import { deriveChecklistRows, summarizeChecklistRows } from "@/lib/pre-review/derive-checklist-status";
 import { deriveDesignIssues } from "@/lib/pre-review/derive-design-issues";
 import { checkRequiredDocuments } from "@/lib/pre-review/required-documents";
@@ -144,6 +145,24 @@ test("summarizeChecklistRows counts display statuses", () => {
   assert.equal(summary.total, 1);
   assert.equal(summary.notReflected, 1);
   assert.equal(summary.reflected, 0);
+});
+
+test("buildPreReviewSummaryReport aggregates action items and chapter rates", () => {
+  const round = makeRound();
+  const results = buildPreReviewResults(round, round.aiAnalysis.referenceLaws ?? []);
+  const report = buildPreReviewSummaryReport({
+    results,
+    projectName: "테스트 사업",
+    evaluatedAt: round.evaluatedAt,
+    reviewType: "경관심의",
+  });
+
+  assert.equal(report.projectName, "테스트 사업");
+  assert.equal(report.completionStatus, "보완필요");
+  assert.equal(report.checklist.notReflected, 1);
+  assert.ok(report.chapters.length >= 1);
+  assert.ok(report.actionItemCount > 0);
+  assert.equal(report.notReflectedItems.length, 1);
 });
 
 test("buildPreReviewResults aggregates law review entries", () => {
