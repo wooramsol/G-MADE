@@ -10,13 +10,16 @@ export function buildPreReviewResults(
   referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>,
 ): PreReviewResults {
   const fileNames = [...round.aiFiles, ...round.expertFiles].map((file) => file.originalName);
-  const documentSummaries = round.aiAnalysis.documentSections.map((section) => section.summary);
+  const documentSections = round.aiAnalysis.documentSections.map((section) => ({
+    label: section.label,
+    summary: section.summary,
+  }));
 
   return {
     missingDocuments: checkRequiredDocuments({
       fileNames,
       pageCorpus: round.aiAnalysis.pageCorpusPreview,
-      documentSummaries,
+      documentSections,
     }),
     designIssues: deriveDesignIssues(round),
     checklistRows: deriveChecklistRows(round),

@@ -42,12 +42,15 @@ export function deriveDesignIssues(round: EvaluationRound): DesignIssue[] {
   const seen = new Set<string>();
 
   const fileNames = [...round.aiFiles, ...round.expertFiles].map((file) => file.originalName);
-  const documentSummaries = round.aiAnalysis.documentSections.map((section) => section.summary);
+  const documentSections = round.aiAnalysis.documentSections.map((section) => ({
+    label: section.label,
+    summary: section.summary,
+  }));
   const missingDocs = checkRequiredDocuments({
     fileNames,
     pageCorpus: round.aiAnalysis.pageCorpusPreview,
-    documentSummaries,
-  }).filter((doc) => !doc.found);
+    documentSections,
+  }).filter((doc) => doc.matchLevel === "missing");
 
   for (const doc of missingDocs) {
     const description = `필수 제출 자료 "${doc.label}" 관련 도면·계획이 확인되지 않습니다.`;
