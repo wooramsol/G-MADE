@@ -22,7 +22,7 @@ export type PreReviewSummaryReport = {
   evaluatedAt: string;
   reviewType?: string;
   location?: string;
-  completionStatus: "완료" | "보완필요" | "점검중";
+  completionStatus: "자동 점검 통과" | "보완 권고" | "추가 확인 필요";
   checklist: ReturnType<typeof summarizeChecklistRows>;
   documents: {
     confirmed: number;
@@ -68,12 +68,12 @@ function resolveCompletionStatus(input: {
   highPriorityIssues: number;
 }): PreReviewSummaryReport["completionStatus"] {
   if (input.notReflected > 0 || input.missingDocuments > 0 || input.highPriorityIssues > 0) {
-    return "보완필요";
+    return "보완 권고";
   }
   if (input.reviewNeeded > 0) {
-    return "점검중";
+    return "추가 확인 필요";
   }
-  return "완료";
+  return "자동 점검 통과";
 }
 
 function dedupeHighPriorityIssues(

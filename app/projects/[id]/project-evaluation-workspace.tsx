@@ -349,12 +349,6 @@ export default function ProjectEvaluationWorkspace({
             </Badge>
             <Badge className="bg-slate-100 text-slate-700">{selectedRound.reviewerName}</Badge>
             <Badge className="bg-slate-100 text-slate-700">총 배점 {selectedRound.totalPoints}점</Badge>
-            {aiAvg !== null ? (
-              <Badge className="bg-[#e8f1ff] text-[#2463b3]">AI 평균 {aiAvg}점</Badge>
-            ) : null}
-            {expertAvg !== null ? (
-              <Badge className="bg-slate-100 text-slate-700">전문가 평균 {expertAvg}점</Badge>
-            ) : null}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -419,7 +413,7 @@ export default function ProjectEvaluationWorkspace({
               </div>
             ) : (
               <p className="mt-3 text-xs text-[#64748b]">
-                항목별 검토·보완 의견은 위 「② 체크리스트」 탭에서 확인하세요.
+                점수·항목별 배점은 펼친 뒤 확인하세요. 검토 의견은 「사전검토 AI 보조 결과」에서 확인합니다.
               </p>
             )}
           </div>

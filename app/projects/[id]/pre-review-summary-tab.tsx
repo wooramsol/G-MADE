@@ -9,9 +9,9 @@ type Props = {
 
 export default function PreReviewSummaryTab({ report }: Props) {
   const statusClass =
-    report.completionStatus === "완료"
+    report.completionStatus === "자동 점검 통과"
       ? "bg-emerald-600"
-      : report.completionStatus === "보완필요"
+      : report.completionStatus === "보완 권고"
         ? "bg-red-600"
         : "bg-amber-500";
 
@@ -40,11 +40,8 @@ export default function PreReviewSummaryTab({ report }: Props) {
       </div>
 
       <div className={`rounded-xl px-4 py-3 text-white ${statusClass}`}>
-        <p className="text-xs font-semibold opacity-90">사전검토 종합 상태</p>
+        <p className="text-xs font-semibold opacity-90">AI 자동 점검 결과</p>
         <p className="text-2xl font-bold">{report.completionStatus}</p>
-        <p className="mt-1 text-[11px] opacity-90">
-          AI 보조 결과입니다. 최종 판단은 담당 공무원·심의위원회 확인이 필요합니다.
-        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -96,7 +93,10 @@ export default function PreReviewSummaryTab({ report }: Props) {
 
       {report.actionItemCount > 0 ? (
         <section className="rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="text-sm font-bold text-red-900">보완·확인 필요 {report.actionItemCount}건</p>
+          <p className="text-sm font-bold text-red-900">담당자 확인 권장 {report.actionItemCount}건</p>
+          <p className="mt-1 text-[11px] text-red-900/80">
+            아래 목록을 검토한 뒤, 필요 시 「체크리스트」「오류·누락」 탭에서 상세를 확인하세요.
+          </p>
         </section>
       ) : null}
 

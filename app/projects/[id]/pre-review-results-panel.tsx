@@ -11,7 +11,7 @@ import type { EvaluationRound } from "@/lib/types";
 import ChecklistEvaluationList from "./checklist-evaluation-list";
 import PreReviewSummaryTab from "./pre-review-summary-tab";
 
-type TabId = "issues" | "checklist" | "laws" | "summary";
+type TabId = "summary" | "checklist" | "issues" | "laws";
 
 type Props = {
   round: EvaluationRound;
@@ -22,12 +22,12 @@ type Props = {
   projectReviewType?: string;
 };
 
-const TAB_LABELS: Record<TabId, string> = {
-  issues: "① 오류·누락",
-  checklist: "② 체크리스트",
-  laws: "③ 법령·지침",
-  summary: "④ 종합결과",
-};
+const TABS: Array<{ id: TabId; label: string }> = [
+  { id: "summary", label: "종합결과" },
+  { id: "checklist", label: "체크리스트" },
+  { id: "issues", label: "오류·누락" },
+  { id: "laws", label: "법령·지침" },
+];
 
 export default function PreReviewResultsPanel({
   round,
@@ -54,10 +54,10 @@ export default function PreReviewResultsPanel({
     [results, projectName, round.evaluatedAt, projectReviewType, projectLocation],
   );
 
-  const issueCount = results.designIssues.length;
-  const checklistIssueCount = results.checklistRows.filter((row) => row.displayStatus === "미반영").length;
-  const lawReviewCount = results.lawReviewEntries.filter((entry) => entry.status === "검토필요").length;
-  const summaryActionCount = summaryReport.actionItemCount;
+  const highPriorityIssues = summaryReport.highPriorityIssues;
+  const missingDocCount = results.missingDocuments.filter((doc) => doc.matchLevel === "missing").length;
+  const issuesTabCount = highPriorityIssues.length + missingDocCount;
+  const otherIssueCount = results.designIssues.filter((issue) => issue.severity !== "높음").length;
 
   return (
     <div
@@ -67,21 +67,21 @@ export default function PreReviewResultsPanel({
       <div className="mb-4">
         <SubsectionTitle>사전검토 AI 보조 결과</SubsectionTitle>
         <p className="mt-1 text-sm leading-6 text-[#64748b]">
-          AI 보조 초안입니다. 최종 판단은 담당 공무원·심의위원회 확인이 필요합니다.
+          AI 보조 초안입니다. <span className="font-semibold text-[#15345b]">종합결과</span>를 먼저
+          확인하고, 필요할 때만 상세 탭을 열어 주세요. 최종 판단은 담당 공무원 확인이 필요합니다.
         </p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {(Object.keys(TAB_LABELS) as TabId[]).map((tab) => {
-          const count =
-            tab === "issues"
-              ? issueCount
-              : tab === "checklist"
-                ? checklistIssueCount
-                : tab === "laws"
-                  ? lawReviewCount
-                  : summaryActionCount;
-          const active = activeTab === tab;
+        {TABS.map(({ id, label }) => {
+          const active = activeTab === id;
+          const badgeCount =
+            id === "summary"
+              ? summaryReport.actionItemCount
+              : id === "issues" && issuesTabCount > 0
+                ? issuesTabCount
+                : 0;
+
           return (
             <button
               className={`rounded-lg px-3 py-2 text-sm font-bold transition ${
@@ -89,14 +89,18 @@ export default function PreReviewResultsPanel({
                   ? "bg-[#15345b] text-white"
                   : "border border-[#d7dee8] bg-[#f8fafc] text-[#475569] hover:bg-white"
               }`}
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={id}
+              onClick={() => setActiveTab(id)}
               type="button"
             >
-              {TAB_LABELS[tab]}
-              {count > 0 ? (
-                <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] ${active ? "bg-white/20" : "bg-[#e8f1ff] text-[#2463b3]"}`}>
-                  {count}
+              {label}
+              {badgeCount > 0 ? (
+                <span
+                  className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] ${
+                    active ? "bg-white/20" : "bg-[#e8f1ff] text-[#2463b3]"
+                  }`}
+                >
+                  {badgeCount}
                 </span>
               ) : null}
             </button>
@@ -104,26 +108,28 @@ export default function PreReviewResultsPanel({
         })}
       </div>
 
-      {activeTab === "issues" ? (
-        <DesignIssuesTab
-          issues={results.designIssues}
-          missingDocuments={results.missingDocuments}
-        />
-      ) : null}
+      {activeTab === "summary" ? <PreReviewSummaryTab report={summaryReport} /> : null}
       {activeTab === "checklist" ? (
         <ChecklistEvaluationList {...checklistProps} checklistRows={results.checklistRows} />
       ) : null}
+      {activeTab === "issues" ? (
+        <DesignIssuesTab
+          highPriorityIssues={highPriorityIssues}
+          missingDocuments={results.missingDocuments}
+          otherIssueCount={otherIssueCount}
+        />
+      ) : null}
       {activeTab === "laws" ? <LawReviewTab entries={results.lawReviewEntries} /> : null}
-      {activeTab === "summary" ? <PreReviewSummaryTab report={summaryReport} /> : null}
     </div>
   );
 }
 
 function DesignIssuesTab({
-  issues,
+  highPriorityIssues,
   missingDocuments,
+  otherIssueCount,
 }: {
-  issues: DesignIssue[];
+  highPriorityIssues: DesignIssue[];
   missingDocuments: Array<{
     id: string;
     label: string;
@@ -131,6 +137,7 @@ function DesignIssuesTab({
     matchLevel?: "confirmed" | "mentioned" | "missing";
     matchedIn?: string;
   }>;
+  otherIssueCount: number;
 }) {
   const confirmedCount = missingDocuments.filter((doc) => doc.matchLevel === "confirmed" || doc.found).length;
   const mentionedCount = missingDocuments.filter((doc) => doc.matchLevel === "mentioned").length;
@@ -143,16 +150,11 @@ function DesignIssuesTab({
       {missingDocuments.length > 0 ? (
         <section className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-bold text-[#15345b]">필수 도면·서류 점검</p>
+            <p className="text-sm font-bold text-[#15345b]">필수 도면·서류</p>
             <p className="text-sm font-bold text-[#2463b3]">
               도면 확인 {confirmedCount} / {missingDocuments.length}
             </p>
           </div>
-          <p className="mb-3 text-[11px] leading-5 text-[#64748b]">
-            PDF 페이지 색인·파일명·AI가 읽은 도면 위치에서{" "}
-            <span className="font-bold">도면 제목·페이지 인용</span>이 있을 때만 「도면 확인」으로 표시합니다.
-            본문에 단어만 나온 경우는 「언급만」이며, 실제 도면 유무는 담당자가 확인해야 합니다.
-          </p>
           <ul className="grid gap-2 sm:grid-cols-2">
             {missingDocuments.map((doc) => {
               const level = doc.matchLevel ?? (doc.found ? "confirmed" : "missing");
@@ -194,19 +196,13 @@ function DesignIssuesTab({
         </section>
       ) : null}
 
-      {issues.length === 0 ? (
-        missingCount === 0 && mentionedCount === 0 ? (
-          <p className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#64748b]">
-            자동 탐지된 오류·누락 항목이 없습니다. 담당자 확인은 계속 필요합니다.
-          </p>
-        ) : null
-      ) : (
+      {highPriorityIssues.length > 0 ? (
         <div className="space-y-2">
-          {issues.map((issue) => (
+          <p className="text-sm font-bold text-[#15345b]">중요 AI 지적사항</p>
+          {highPriorityIssues.map((issue) => (
             <article className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={issue.id}>
               <div className="flex flex-wrap items-center gap-2">
                 <IssueBadge label={issue.type} tone="type" />
-                <IssueBadge label={issue.severity} tone={issue.severity === "높음" ? "high" : "normal"} />
                 <IssueBadge label={issue.source === "rule" ? "규칙 검사" : "AI 분석"} tone="source" />
                 {issue.file ? (
                   <span className="text-[11px] font-semibold text-[#64748b]">
@@ -222,12 +218,26 @@ function DesignIssuesTab({
             </article>
           ))}
         </div>
-      )}
+      ) : null}
+
+      {highPriorityIssues.length === 0 && missingCount === 0 && mentionedCount === 0 ? (
+        <p className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#64748b]">
+          중요 오류·누락 항목이 없습니다. 세부 검토는 체크리스트 탭을 참고하세요.
+        </p>
+      ) : null}
+
+      {otherIssueCount > 0 ? (
+        <p className="text-[11px] text-[#64748b]">
+          그 외 AI 지적 {otherIssueCount}건은 「체크리스트」 탭 항목별 상세에 포함되어 있습니다.
+        </p>
+      ) : null}
     </div>
   );
 }
 
 function LawReviewTab({ entries }: { entries: LawReviewEntry[] }) {
+  const reviewNeeded = entries.filter((entry) => entry.status === "검토필요");
+
   if (entries.length === 0) {
     return (
       <p className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm text-[#64748b]">
@@ -237,36 +247,41 @@ function LawReviewTab({ entries }: { entries: LawReviewEntry[] }) {
   }
 
   return (
-    <div className="space-y-2">
-      {entries.map((entry) => (
-        <article className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={entry.id}>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className={entry.status === "검토필요" ? "bg-amber-100 text-amber-900" : "bg-slate-100 text-slate-700"}>
-              {entry.status}
-            </Badge>
-            {entry.sourceUrl ? (
-              <ReferenceLinkTitle
-                href={
-                  entry.id.startsWith("guide::")
-                    ? buildAdmrulReferenceUrl(entry.title, entry.sourceUrl) ?? entry.sourceUrl
-                    : buildLawReferenceUrl(entry.title, entry.sourceUrl) ?? entry.sourceUrl
-                }
-                title={`${entry.title} ${entry.article}`.trim()}
-              />
-            ) : (
-              <span className="text-sm font-bold text-[#15345b]">
-                {entry.title} {entry.article}
-              </span>
-            )}
-          </div>
-          <p className="mt-2 text-sm leading-6 text-[#475569]">{entry.summary}</p>
-          {entry.relatedItems.length > 0 ? (
-            <p className="mt-2 text-[11px] font-semibold text-[#64748b]">
-              관련 체크리스트: {entry.relatedItems.join(", ")}
-            </p>
-          ) : null}
-        </article>
-      ))}
+    <div className="space-y-4">
+      {reviewNeeded.length > 0 ? (
+        <p className="text-sm font-bold text-[#15345b]">검토 필요 {reviewNeeded.length}건</p>
+      ) : null}
+      <div className="space-y-2">
+        {entries.map((entry) => (
+          <article className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={entry.id}>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className={entry.status === "검토필요" ? "bg-amber-100 text-amber-900" : "bg-slate-100 text-slate-700"}>
+                {entry.status}
+              </Badge>
+              {entry.sourceUrl ? (
+                <ReferenceLinkTitle
+                  href={
+                    entry.id.startsWith("guide::")
+                      ? buildAdmrulReferenceUrl(entry.title, entry.sourceUrl) ?? entry.sourceUrl
+                      : buildLawReferenceUrl(entry.title, entry.sourceUrl) ?? entry.sourceUrl
+                  }
+                  title={`${entry.title} ${entry.article}`.trim()}
+                />
+              ) : (
+                <span className="text-sm font-bold text-[#15345b]">
+                  {entry.title} {entry.article}
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-sm leading-6 text-[#475569]">{entry.summary}</p>
+            {entry.relatedItems.length > 0 ? (
+              <p className="mt-2 text-[11px] font-semibold text-[#64748b]">
+                관련 체크리스트: {entry.relatedItems.join(", ")}
+              </p>
+            ) : null}
+          </article>
+        ))}
+      </div>
     </div>
   );
 }
@@ -276,16 +291,12 @@ function IssueBadge({
   tone,
 }: {
   label: string;
-  tone: "type" | "high" | "normal" | "source";
+  tone: "type" | "source";
 }) {
   const className =
-    tone === "high"
-      ? "bg-red-100 text-red-800"
-      : tone === "type"
-        ? "bg-[#e8f1ff] text-[#2463b3]"
-        : tone === "source"
-          ? "bg-slate-100 text-slate-700"
-          : "bg-amber-100 text-amber-900";
+    tone === "type"
+      ? "bg-[#e8f1ff] text-[#2463b3]"
+      : "bg-slate-100 text-slate-700";
 
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${className}`}>{label}</span>;
 }
