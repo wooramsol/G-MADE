@@ -165,58 +165,22 @@ function ChecklistProgressHeader({
   const checked = summary.reflected + summary.notReflected + summary.notApplicable;
 
   return (
-    <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-bold text-[#15345b]">체크리스트 진행률</p>
+    <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-bold text-[#15345b]">
+          미반영 {summary.notReflected}건 · 검토필요 {summary.reviewNeeded}건
+        </p>
         <p className="text-sm font-bold text-[#2463b3]">
-          {checked} / {summary.total} ({summary.progressPercent}%)
+          {checked} / {summary.total}
         </p>
       </div>
-
-      <div className="mb-4 h-2 overflow-hidden rounded-full bg-[#e2e8f0]">
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e2e8f0]">
         <div
           className="h-full rounded-full bg-[#2463b3] transition-all"
           style={{ width: `${summary.progressPercent}%` }}
         />
       </div>
-
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatCard label="반영" tone="green" value={summary.reflected} />
-        <StatCard label="미반영" tone="red" value={summary.notReflected} />
-        <StatCard label="검토필요" tone="amber" value={summary.reviewNeeded} />
-        <StatCard label="해당없음" tone="gray" value={summary.notApplicable} />
-      </div>
-
-      <p className="mt-3 text-[11px] leading-5 text-[#64748b]">
-        AI가 도서·평가항목을 분석해 반영 여부를 자동 표시합니다. 세종시 자가점검(반영/미반영/해당없음) 형식이며,
-        담당자 최종 확인이 필요합니다.
-      </p>
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "green" | "red" | "amber" | "gray";
-}) {
-  const toneClass =
-    tone === "green"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : tone === "red"
-        ? "border-red-200 bg-red-50 text-red-800"
-        : tone === "amber"
-          ? "border-amber-200 bg-amber-50 text-amber-900"
-          : "border-slate-200 bg-white text-[#64748b]";
-
-  return (
-    <div className={`rounded-lg border px-3 py-2 text-center ${toneClass}`}>
-      <p className="text-[10px] font-semibold opacity-80">{label}</p>
-      <p className="text-lg font-bold">{value}</p>
+      <p className="mt-2 text-[11px] text-[#64748b]">항목을 눌러 AI 검토 상세·근거 자료를 확인하세요.</p>
     </div>
   );
 }

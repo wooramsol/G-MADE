@@ -158,7 +158,7 @@ test("buildPreReviewSummaryReport aggregates action items and chapter rates", ()
   });
 
   assert.equal(report.projectName, "테스트 사업");
-  assert.equal(report.completionStatus, "보완필요");
+  assert.equal(report.completionStatus, "보완 권고");
   assert.equal(report.checklist.notReflected, 1);
   assert.ok(report.chapters.length >= 1);
   assert.ok(report.actionItemCount > 0);
