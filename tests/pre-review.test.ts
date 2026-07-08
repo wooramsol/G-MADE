@@ -125,9 +125,9 @@ test("checkRequiredDocuments confirms section with page citation", () => {
   assert.equal(result.find((row) => row.id === "color")?.matchLevel, "confirmed");
 });
 
-test("deriveDesignIssues includes rule-based and AI issues", () => {
+test("deriveDesignIssues extracts AI issues only; missing docs stay in document grid", () => {
   const issues = deriveDesignIssues(makeRound());
-  assert.ok(issues.some((issue) => issue.source === "rule" && issue.type === "누락"));
+  assert.equal(issues.some((issue) => issue.source === "rule"), false);
   assert.ok(issues.some((issue) => issue.source === "ai" && /Steel N7/.test(issue.description)));
 });
 
@@ -163,6 +163,23 @@ test("buildPreReviewSummaryReport aggregates action items and chapter rates", ()
   assert.ok(report.chapters.length >= 1);
   assert.ok(report.actionItemCount > 0);
   assert.equal(report.notReflectedItems.length, 1);
+});
+
+test("buildPreReviewSummaryReport excludes high-priority issues already listed as 미반영", () => {
+  const round = makeRound();
+  const results = buildPreReviewResults(round, round.aiAnalysis.referenceLaws ?? []);
+  const report = buildPreReviewSummaryReport({
+    results,
+    projectName: "테스트 사업",
+    evaluatedAt: round.evaluatedAt,
+  });
+
+  assert.equal(report.notReflectedItems.length, 1);
+  assert.equal(
+    report.highPriorityIssues.some((issue) => issue.itemId === "item-color"),
+    false,
+  );
+  assert.ok(report.actionItemCount >= report.notReflectedItems.length);
 });
 
 test("buildPreReviewResults aggregates law review entries", () => {

@@ -76,6 +76,14 @@ function resolveCompletionStatus(input: {
   return "완료";
 }
 
+function dedupeHighPriorityIssues(
+  issues: DesignIssue[],
+  notReflectedItems: ChecklistReviewRow[],
+): DesignIssue[] {
+  const notReflectedIds = new Set(notReflectedItems.map((row) => row.itemId));
+  return issues.filter((issue) => !issue.itemId || !notReflectedIds.has(issue.itemId));
+}
+
 export function buildPreReviewSummaryReport(input: {
   results: PreReviewResults;
   projectName: string;
@@ -89,7 +97,10 @@ export function buildPreReviewSummaryReport(input: {
   const confirmedDocs = input.results.missingDocuments.filter((doc) => doc.matchLevel === "confirmed").length;
   const notReflectedItems = input.results.checklistRows.filter((row) => row.displayStatus === "미반영");
   const reviewNeededItems = input.results.checklistRows.filter((row) => row.displayStatus === "검토필요");
-  const highPriorityIssues = input.results.designIssues.filter((issue) => issue.severity === "높음");
+  const highPriorityIssues = dedupeHighPriorityIssues(
+    input.results.designIssues.filter((issue) => issue.severity === "높음"),
+    notReflectedItems,
+  );
   const lawReviewNeeded = input.results.lawReviewEntries.filter((entry) => entry.status === "검토필요");
 
   const actionItemCount =
