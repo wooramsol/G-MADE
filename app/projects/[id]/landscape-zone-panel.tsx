@@ -34,6 +34,7 @@ type LayerFeature = {
 
 type LandscapeZoneResponse = {
   address: string;
+  adminRegion?: string;
   point: { x: number; y: number };
   inLandscapeZone: boolean;
   matchedZones: LandscapeZoneFeature[];
@@ -155,7 +156,8 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
       {!loading && result ? (
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Info label="조회 주소" value={result.address} />
+            <Info label="행정구역" value={result.adminRegion || "확인 중"} />
+            <Info label="전체 주소" value={result.address} />
             <Info label="좌표" value={`${result.point.y.toFixed(6)}, ${result.point.x.toFixed(6)}`} />
             <Info
               label="경관지구 해당"

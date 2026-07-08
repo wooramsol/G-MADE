@@ -3,10 +3,12 @@
 import dynamic from "next/dynamic";
 import { Caption, FormLabel, MutedText, SubsectionTitle } from "@/components/typography";
 import { useCallback, useEffect, useState } from "react";
+import { mergeAddressWithAdminRegion } from "@/lib/address/resolve-location-label";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 export type LocationSelection = {
   address: string;
+  adminRegion?: string;
   x: number;
   y: number;
   source: "address" | "place" | "map";
@@ -17,6 +19,7 @@ type SearchItem = {
   id: string;
   title: string;
   address: string;
+  adminRegion?: string;
   x: number;
   y: number;
 };
@@ -71,6 +74,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
             y: number;
             roadAddress?: string;
             parcelAddress?: string;
+            adminRegion?: string;
           }>;
           error?: string;
         };
@@ -81,6 +85,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
           id: item.id,
           title: item.label,
           address: item.roadAddress ?? item.parcelAddress ?? item.label,
+          adminRegion: item.adminRegion,
           x: item.x,
           y: item.y,
         }));
@@ -98,14 +103,49 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
     [query],
   );
 
-  const selectItem = (item: SearchItem, source: "address" | "place") => {
-    onChange({
+  const enrichSelection = async (
+    base: Omit<LocationSelection, "address" | "adminRegion"> & {
+      address: string;
+      adminRegion?: string;
+    },
+  ): Promise<LocationSelection> => {
+    try {
+      const res = await clientFetchWithTimeout(
+        `/api/spatial/reverse-geocode?x=${base.x}&y=${base.y}`,
+      );
+      const data = (await res.json()) as {
+        address?: string;
+        adminRegion?: string;
+        error?: string;
+      };
+      if (res.ok && data.address) {
+        return {
+          ...base,
+          address: data.address,
+          adminRegion: data.adminRegion ?? base.adminRegion,
+        };
+      }
+    } catch {
+      // 역지오코딩 실패 시 검색 결과 그대로 사용
+    }
+
+    return {
+      ...base,
+      address: mergeAddressWithAdminRegion(base.adminRegion, base.address),
+      adminRegion: base.adminRegion,
+    };
+  };
+
+  const selectItem = async (item: SearchItem, source: "address" | "place") => {
+    const enriched = await enrichSelection({
       address: item.address || item.title,
+      adminRegion: item.adminRegion,
       x: item.x,
       y: item.y,
       source,
       note: plannedNote.trim() || undefined,
     });
+    onChange(enriched);
     setResults([]);
     setSearchError(null);
   };
@@ -113,13 +153,18 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
   const handleMapSelect = async (x: number, y: number) => {
     try {
       const res = await clientFetchWithTimeout(`/api/spatial/reverse-geocode?x=${x}&y=${y}`);
-      const data = (await res.json()) as { address?: string; error?: string };
+      const data = (await res.json()) as {
+        address?: string;
+        adminRegion?: string;
+        error?: string;
+      };
       const label =
         res.ok && data.address
           ? data.address
           : `좌표 (${x.toFixed(5)}, ${y.toFixed(5)})`;
       onChange({
         address: label,
+        adminRegion: data.adminRegion,
         x,
         y,
         source: "map",
@@ -267,6 +312,9 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <SubsectionTitle className="text-base">선택된 위치</SubsectionTitle>
+              {value.adminRegion ? (
+                <p className="mt-1 text-sm font-semibold text-[#15345b]">{value.adminRegion}</p>
+              ) : null}
               <MutedText className="mt-1 break-words">{value.address}</MutedText>
               <Caption className="mt-1">
                 좌표: {value.x.toFixed(5)}, {value.y.toFixed(5)}

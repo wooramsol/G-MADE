@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LocationPicker, type LocationSelection } from "@/components/location-picker";
+import {
+  buildLocationPointFromSelection,
+  formatLocationLabel,
+} from "@/lib/address/resolve-location-label";
 import { ErrorText, FormLabel, MutedText } from "@/components/typography";
 import { showToast } from "../../toast";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
@@ -20,13 +24,6 @@ const initialState = {
   receivedAt: new Date().toISOString().slice(0, 10),
   summary: "",
 };
-
-function formatLocationLabel(selection: LocationSelection): string {
-  if (selection.note?.trim()) {
-    return `${selection.address} (${selection.note.trim()})`;
-  }
-  return selection.address;
-}
 
 function validateForm(form: typeof initialState, location: LocationSelection | null): string {
   if (!form.name.trim()) return "사업명을 입력해 주세요.";
@@ -71,12 +68,7 @@ export default function ProjectCreateForm() {
         body: JSON.stringify({
           ...form,
           location: formatLocationLabel(location!),
-          locationPoint: {
-            x: location!.x,
-            y: location!.y,
-            source: location!.source,
-            note: location!.note,
-          },
+          locationPoint: buildLocationPointFromSelection(location!),
         }),
       });
       const payload = await response.json();

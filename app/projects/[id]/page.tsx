@@ -53,7 +53,12 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <Info label="사업명" value={project.name} />
               <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
                 <Eyebrow>사업위치</Eyebrow>
-                <p className="mt-2 font-semibold leading-6 text-[#172033]">{project.location}</p>
+                {project.locationPoint?.adminRegion ? (
+                  <p className="mt-2 font-semibold leading-6 text-[#15345b]">{project.locationPoint.adminRegion}</p>
+                ) : null}
+                <p className={`font-semibold leading-6 text-[#172033] ${project.locationPoint?.adminRegion ? "mt-1 text-sm" : "mt-2"}`}>
+                  {project.location}
+                </p>
                 <ProjectLocationEditor project={project} />
               </div>
               <Info label="시행자" value={project.client} />

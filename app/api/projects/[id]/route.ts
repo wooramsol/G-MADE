@@ -76,6 +76,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         y?: unknown;
         source?: unknown;
         note?: unknown;
+        adminRegion?: unknown;
       };
       const x = Number(locationPoint.x);
       const y = Number(locationPoint.y);
@@ -91,6 +92,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         y,
         source,
         note: String(locationPoint.note ?? "").trim() || undefined,
+        adminRegion: String(locationPoint.adminRegion ?? "").trim() || undefined,
       };
     }
 

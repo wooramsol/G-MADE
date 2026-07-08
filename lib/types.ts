@@ -177,6 +177,8 @@ export type ProjectLocationPoint = {
   y: number;
   source: "address" | "place" | "map";
   note?: string;
+  /** 시·도 ~ 읍·면·동 행정구역 (도로명·지번 제외) */
+  adminRegion?: string;
 };
 
 export type Project = {

@@ -1,4 +1,5 @@
 import type { GeoPoint } from "./geocode";
+import { reverseGeocodeDetailed } from "./reverse-geocode";
 import { querySpatialLayersNearPoint, type SpatialLayerFeature } from "./wfs";
 
 export type LandscapeZoneFeature = {
@@ -12,6 +13,7 @@ export type LandscapeZoneFeature = {
 
 export type LandscapeZoneLookupResult = {
   address: string;
+  adminRegion: string;
   point: GeoPoint;
   inLandscapeZone: boolean;
   matchedZones: LandscapeZoneFeature[];
@@ -43,8 +45,13 @@ export async function lookupLandscapeZoneByAddress(address: string, point: GeoPo
     .filter((feature) => feature.layerId === "landscape-zone")
     .map((feature) => mapLayerToLandscapeZone(feature));
 
+  const resolved = await reverseGeocodeDetailed(point);
+  const fullAddress = resolved?.fullAddress ?? address;
+  const adminRegion = resolved?.adminRegion ?? "";
+
   return {
-    address,
+    address: fullAddress,
+    adminRegion,
     point,
     inLandscapeZone: matchedZones.length > 0,
     matchedZones,
