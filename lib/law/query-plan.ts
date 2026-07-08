@@ -1,4 +1,5 @@
 import type { EvaluationItem, Project } from "../types";
+import { resolveOrdinanceLocation } from "../address/resolve-location-label";
 import { parseJurisdiction } from "./jurisdiction";
 
 const ITEM_LAW_QUERIES: Record<string, string[]> = {
@@ -57,7 +58,8 @@ export function buildLawQueries(project?: Project, evaluationItems?: EvaluationI
 
 /** 사업 위치의 시·군·구·도 단위별 자치법규 검색 계획을 생성합니다. */
 export function buildOrdinSearchPlans(project?: Project, evaluationItems?: EvaluationItem[]): OrdinSearchPlan[] {
-  const parsed = parseJurisdiction(project?.location ?? "");
+  const locationText = project ? resolveOrdinanceLocation(project) : "";
+  const parsed = parseJurisdiction(locationText);
   const topics = new Set<string>(["경관"]);
 
   if (project?.reviewType.includes("공공디자인")) {

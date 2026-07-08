@@ -1,4 +1,5 @@
 import { toStoredReferenceLaws } from "./dedupe-reference-laws";
+import { resolveOrdinanceLocation } from "./address/resolve-location-label";
 import { guidelines as demoGuidelines, laws as demoLaws } from "./demo-data";
 import { buildAdmbylReferenceUrl, buildAdmrulReferenceUrl, buildGuidelineReferenceUrl, buildLawReferenceUrl, buildOrdinReferenceUrl } from "./reference-links";
 import { fetchAdmbylReferences } from "./law/admbyl-articles";
@@ -212,7 +213,9 @@ async function loadOrdinanceReferences(
   const uniqueHits = dedupeOrdinHits(hits);
   if (uniqueHits.length === 0) {
     if (project?.location) {
-      warnings.push(`사업 위치(${project.location})에 해당하는 경관 조례 검색 결과가 없습니다.`);
+      warnings.push(
+        `사업 위치(${resolveOrdinanceLocation(project)})에 해당하는 경관 조례 검색 결과가 없습니다.`,
+      );
     }
     return [];
   }

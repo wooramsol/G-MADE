@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { isVWorldConfigured } from "@/lib/vworld/config";
-import { reverseGeocodePoint } from "@/lib/vworld/reverse-geocode";
+import { reverseGeocodeDetailed } from "@/lib/vworld/reverse-geocode";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,11 +26,24 @@ export async function GET(request: Request) {
   }
 
   try {
-    const address = await reverseGeocodePoint({ x, y, crs: "EPSG:4326" });
+    const detail = await reverseGeocodeDetailed({ x, y, crs: "EPSG:4326" });
+    if (!detail) {
+      return NextResponse.json({
+        x,
+        y,
+        address: `좌표 ${y.toFixed(6)}, ${x.toFixed(6)}`,
+        adminRegion: "",
+      });
+    }
+
     return NextResponse.json({
       x,
       y,
-      address: address ?? `좌표 ${y.toFixed(6)}, ${x.toFixed(6)}`,
+      address: detail.fullAddress,
+      adminRegion: detail.adminRegion,
+      roadAddress: detail.roadAddress,
+      parcelAddress: detail.parcelAddress,
+      structure: detail.structure,
     });
   } catch (error) {
     return NextResponse.json(

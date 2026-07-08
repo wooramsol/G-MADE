@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const locationPoint = payload.locationPoint as
-      | { x?: unknown; y?: unknown; source?: unknown; note?: unknown }
+      | { x?: unknown; y?: unknown; source?: unknown; note?: unknown; adminRegion?: unknown }
       | undefined;
     const x = Number(locationPoint?.x);
     const y = Number(locationPoint?.y);
@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
         y,
         source,
         note: String(locationPoint?.note ?? "").trim() || undefined,
+        adminRegion: String(locationPoint?.adminRegion ?? "").trim() || undefined,
       },
       client: String(payload.client).trim(),
       designer: String(payload.designer).trim(),

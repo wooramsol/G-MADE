@@ -3,26 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LocationPicker, type LocationSelection } from "@/components/location-picker";
+import {
+  buildLocationPointFromSelection,
+  formatLocationLabel,
+} from "@/lib/address/resolve-location-label";
 import type { Project } from "@/lib/types";
 import { showToast } from "../../toast";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
-function formatLocationLabel(selection: LocationSelection): string {
-  if (selection.note?.trim()) {
-    return `${selection.address} (${selection.note.trim()})`;
-  }
-  return selection.address;
-}
-
 function buildLocationPatch(location: LocationSelection) {
   return {
     location: formatLocationLabel(location),
-    locationPoint: {
-      x: location.x,
-      y: location.y,
-      source: location.source,
-      note: location.note,
-    },
+    locationPoint: buildLocationPointFromSelection(location),
   };
 }
 
@@ -40,6 +32,7 @@ export default function ProjectLocationEditor({
     project.locationPoint
       ? {
           address: project.location.split(" (")[0],
+          adminRegion: project.locationPoint.adminRegion,
           x: project.locationPoint.x,
           y: project.locationPoint.y,
           source: project.locationPoint.source,

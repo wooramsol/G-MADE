@@ -8,6 +8,7 @@ export type AddressSearchResult = {
   y: number;
   roadAddress?: string;
   parcelAddress?: string;
+  adminRegion?: string;
 };
 
 type VWorldSearchResponse = {
@@ -82,13 +83,14 @@ function mapSearchItem(
   const address = item.address as Record<string, unknown> | undefined;
   const roadAddress = pickAddressText(address, ["road", "roadAddress", "text"]);
   const parcelAddress = pickAddressText(address, ["parcel", "parcelAddress"]);
+  const adminRegion = buildSearchAdminRegion(address);
   const title = typeof item.title === "string" ? item.title.trim() : "";
 
   const label =
     category === "place"
       ? title || roadAddress || parcelAddress || "선택한 장소"
       : category === "road"
-        ? roadAddress || title || parcelAddress || "도로명 주소"
+        ? roadAddress || mergeAdminAndRoad(adminRegion, title) || parcelAddress || "도로명 주소"
         : parcelAddress || roadAddress || title || "지번 주소";
 
   return {
@@ -99,7 +101,28 @@ function mapSearchItem(
     y,
     roadAddress: roadAddress ?? undefined,
     parcelAddress: parcelAddress ?? undefined,
+    adminRegion: adminRegion ?? undefined,
   };
+}
+
+function buildSearchAdminRegion(address: Record<string, unknown> | undefined): string | null {
+  if (!address) return null;
+
+  const parts = [
+    pickAddressText(address, ["sido", "sidoName", "level1"]),
+    pickAddressText(address, ["sigugun", "sigungu", "sgg", "level2"]),
+    pickAddressText(address, ["eupmyeondong", "emd", "level3", "level4A"]),
+  ].filter(Boolean) as string[];
+
+  if (parts.length === 0) return null;
+  return parts.join(" ").trim();
+}
+
+function mergeAdminAndRoad(adminRegion: string | null, roadOnly: string): string | null {
+  if (!roadOnly.trim()) return null;
+  if (!adminRegion) return roadOnly.trim();
+  if (roadOnly.includes(adminRegion)) return roadOnly.trim();
+  return `${adminRegion} ${roadOnly.trim()}`.trim();
 }
 
 function pickAddressText(address: Record<string, unknown> | undefined, keys: string[]): string | null {
