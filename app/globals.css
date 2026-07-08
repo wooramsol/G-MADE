@@ -145,3 +145,30 @@ textarea {
     @apply text-sm font-bold;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #pre-review-summary-print,
+  #pre-review-summary-print * {
+    visibility: visible;
+  }
+
+  #pre-review-summary-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+}

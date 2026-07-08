@@ -383,6 +383,9 @@ export default function ProjectEvaluationWorkspace({
               fileSummaries: buildPageCitationSummaries(selectedRound),
               results: hybridView.results,
             }}
+            projectLocation={project.location}
+            projectName={project.name}
+            projectReviewType={project.reviewType}
             referenceLaws={referenceLaws}
             round={selectedRound}
           />
