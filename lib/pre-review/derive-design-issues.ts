@@ -1,6 +1,5 @@
 import { extractNumberedItems } from "../format-evaluation-text";
 import type { EvaluationRound } from "../types";
-import { checkRequiredDocuments } from "./required-documents";
 import type { DesignIssue, DesignIssueSeverity, DesignIssueType } from "./types";
 
 const ISSUE_KEYWORDS: Array<{ type: DesignIssueType; pattern: RegExp; severity: DesignIssueSeverity }> = [
@@ -36,35 +35,10 @@ function issueId(parts: string[]): string {
   return parts.filter(Boolean).join("::");
 }
 
-/** 규칙 검사 + AI rationale에서 설계안 오류·누락 이슈를 추출합니다. */
+/** AI rationale·recommendation에서 설계안 오류·누락 이슈를 추출합니다. (누락 도면은 ①탭 그리드에서만 표시) */
 export function deriveDesignIssues(round: EvaluationRound): DesignIssue[] {
   const issues: DesignIssue[] = [];
   const seen = new Set<string>();
-
-  const fileNames = [...round.aiFiles, ...round.expertFiles].map((file) => file.originalName);
-  const documentSections = round.aiAnalysis.documentSections.map((section) => ({
-    label: section.label,
-    summary: section.summary,
-  }));
-  const missingDocs = checkRequiredDocuments({
-    fileNames,
-    pageCorpus: round.aiAnalysis.pageCorpusPreview,
-    documentSections,
-  }).filter((doc) => doc.matchLevel === "missing");
-
-  for (const doc of missingDocs) {
-    const description = `필수 제출 자료 "${doc.label}" 관련 도면·계획이 확인되지 않습니다.`;
-    const id = issueId(["rule", doc.id, description]);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    issues.push({
-      id,
-      type: "누락",
-      severity: "높음",
-      description,
-      source: "rule",
-    });
-  }
 
   for (const preview of round.aiAnalysis.evaluationPreview) {
     const lines = [
