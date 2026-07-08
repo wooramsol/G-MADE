@@ -72,8 +72,8 @@ export default function ProjectUploadSection({
     <div className="space-y-8">
       <WorkspaceSectionCard
         id="hybrid-evaluation-form"
-        title="AI · 전문가 병행 평가 준비"
-        description="공통 평가항목·배점을 설정한 뒤, AI·전문가 자료를 대칭 구조로 업로드하고 한 번에 하이브리드 평가 분석을 실행합니다."
+        title="사전검토 자료 업로드 및 AI 분석"
+        description="심의도서를 업로드하고 AI 사전검토(오류·체크리스트·법령 대조)를 실행합니다."
       >
         <ParallelEvaluationForm
           project={project}
@@ -86,7 +86,7 @@ export default function ProjectUploadSection({
       <WorkspaceSectionCard
         id="hybrid-evaluation-results"
         title="통합 평가 결과"
-        description="AI·전문가 자료를 함께 분석한 평가별 통합 결과와 종합 점수입니다."
+        description="AI 사전검토 보조 결과(오류·체크리스트·법령)와 종합 점수를 확인합니다."
       >
         <ProjectEvaluationWorkspace
           focusRoundId={focusRoundId}
