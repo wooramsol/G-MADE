@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import {
   Badge,
-  FieldLabel,
   SectionDescription,
   SectionTitle,
   SubsectionTitle,
@@ -13,23 +12,15 @@ import {
 import { formatProviderBadgeLabel, getProviderBadgeClass } from "@/lib/ai/provider-labels";
 import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
 import { resolveDocumentSectionsForDisplay } from "@/lib/ai/document-section-summary";
-import { EvaluationTextBlock } from "@/components/evaluation-text-block";
-import { prepareEvaluationDisplay } from "@/lib/evaluation-display";
-import { formatDocumentSectionText } from "@/lib/format-document-section-text";
-import { formatEvaluationText } from "@/lib/format-evaluation-text";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
-import ReferenceLinkTitle from "@/components/reference-link-title";
 import { filterUserFacingAnalysisWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
-import { pickRelatedReferenceLaws, lawMatchesCitation } from "@/lib/related-reference-laws";
-import {
-  guidelineMatchesCitation,
-  pickRelatedReferenceGuidelines,
-} from "@/lib/related-reference-guidelines";
-import { buildAdmrulReferenceUrl, buildLawReferenceUrl } from "@/lib/reference-links";
+import { pickRelatedReferenceLaws } from "@/lib/related-reference-laws";
+import { buildLawReferenceUrl } from "@/lib/reference-links";
 import { collectUniqueRoundFiles } from "@/lib/evaluation-round-files";
-import { buildHybridViewFromRound, buildPageCitationSummaries, buildStoredFileSummaries } from "@/lib/upload-to-hybrid";
+import { buildHybridViewFromRound, buildPageCitationSummaries } from "@/lib/upload-to-hybrid";
 import type { EvaluationRound, HybridResult, Project } from "@/lib/types";
+import PreReviewResultsPanel from "./pre-review-results-panel";
 import { showToast } from "../../toast";
 
 type Props = {
@@ -63,6 +54,7 @@ export default function ProjectEvaluationWorkspace({
   const [deleting, setDeleting] = useState(false);
   const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
+  const [scoresExpanded, setScoresExpanded] = useState(false);
 
   const totalRoundCount = sorted.length + trashedRoundCount;
 
@@ -111,11 +103,6 @@ export default function ProjectEvaluationWorkspace({
       evaluationItems: selectedRound?.evaluationItems,
     }),
   ).filter((law) => buildLawReferenceUrl(law.title, law.sourceUrl) !== null);
-  const referenceGuidelines = pickRelatedReferenceGuidelines({
-    pool: selectedRound?.aiAnalysis.referenceGuidelines ?? [],
-    evaluationPreview: selectedRound?.aiAnalysis.evaluationPreview,
-    evaluationItems: selectedRound?.evaluationItems,
-  }).filter((guide) => buildAdmrulReferenceUrl(guide.title, guide.sourceUrl) !== null);
   const analysisWarnings = filterUserFacingAnalysisWarnings(selectedRound?.aiAnalysis.warnings ?? []);
 
   useEffect(() => {
@@ -388,31 +375,50 @@ export default function ProjectEvaluationWorkspace({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
-            <div className="mb-5">
-              <SubsectionTitle>종합 평가 결과</SubsectionTitle>
-              <p className="mt-1 text-sm font-semibold text-[#2463b3]">
-                종합 점수 {hybridView.projectScore} / {selectedRound.totalPoints}점
-              </p>
-            </div>
-            <div className="mb-5 grid gap-4 sm:grid-cols-2">
-              <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
-              <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
-            </div>
+          <PreReviewResultsPanel
+            checklistProps={{
+              documentSections: resolveDocumentSectionsForDisplay(selectedRound),
+              evaluationPreview: selectedRound.aiAnalysis.evaluationPreview,
+              expertWeight: selectedRound.expertWeight,
+              fileSummaries: buildPageCitationSummaries(selectedRound),
+              results: hybridView.results,
+            }}
+            referenceLaws={referenceLaws}
+            round={selectedRound}
+          />
 
-            <FieldLabel as="p" className="mb-3">
-              평가항목 총 {hybridView.results.length}개
-            </FieldLabel>
-            <UnifiedEvaluationList
-              documentSections={resolveDocumentSectionsForDisplay(selectedRound)}
-              evaluationPreview={selectedRound.aiAnalysis.evaluationPreview}
-              expertWeight={selectedRound.expertWeight}
-              fileSummaries={buildPageCitationSummaries(selectedRound)}
-              referenceGuidelines={referenceGuidelines}
-              referenceLaws={referenceLaws}
-              results={hybridView.results}
-              roundId={selectedRound.id}
-            />
+          <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
+            <button
+              className="flex w-full items-center justify-between gap-3 text-left"
+              onClick={() => setScoresExpanded((value) => !value)}
+              type="button"
+            >
+              <div>
+                <SubsectionTitle>종합 평가·점수</SubsectionTitle>
+                <p className="mt-1 text-sm font-semibold text-[#2463b3]">
+                  종합 {hybridView.projectScore} / {selectedRound.totalPoints}점
+                  {aiAvg !== null ? ` · AI 평균 ${aiAvg}` : ""}
+                  {expertAvg !== null && selectedRound.expertWeight > 0 ? ` · 전문가 평균 ${expertAvg}` : ""}
+                </p>
+              </div>
+              <span className="shrink-0 text-sm font-bold text-[#64748b]">
+                {scoresExpanded ? "접기" : "펼치기"}
+              </span>
+            </button>
+
+            {scoresExpanded ? (
+              <div className="mt-5 space-y-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <WeightBar label="AI 평가" value={hybridView.settings.aiWeight} color="#2463b3" />
+                  <WeightBar label="전문가 평가" value={hybridView.settings.humanWeight} color="#15345b" />
+                </div>
+                <CompactScoreTable expertWeight={selectedRound.expertWeight} results={hybridView.results} />
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-[#64748b]">
+                항목별 검토·보완 의견은 위 「② 체크리스트」 탭에서 확인하세요.
+              </p>
+            )}
           </div>
 
           {analysisWarnings.length > 0 ? (
@@ -468,118 +474,37 @@ function WorkspaceSectionHeading({ title, description }: { title: string; descri
   );
 }
 
-function UnifiedEvaluationList({
+function CompactScoreTable({
   results,
-  documentSections,
-  evaluationPreview,
-  referenceLaws,
-  referenceGuidelines,
-  roundId,
-  fileSummaries,
   expertWeight,
 }: {
   results: HybridResult[];
-  documentSections: EvaluationRound["aiAnalysis"]["documentSections"];
-  evaluationPreview: EvaluationRound["aiAnalysis"]["evaluationPreview"];
-  referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>;
-  referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>;
-  roundId: string;
-  fileSummaries: ReturnType<typeof buildPageCitationSummaries>;
   expertWeight: number;
 }) {
-  const sectionByItemId = new Map(
-    documentSections
-      .filter((section) => section.itemId)
-      .map((section) => [section.itemId!, section]),
-  );
-
   return (
-    <div className="space-y-3">
-      {results.map((result, index) => {
-        const preview =
-          evaluationPreview.find((row) => row.itemId === result.item.id) ??
-          evaluationPreview.find((row) => row.itemName === result.item.detailItem);
-        const documentSection =
-          sectionByItemId.get(result.item.id) ??
-          documentSections.find((section) => section.label === result.item.detailItem);
-        const itemLawLinks = matchItemReferenceLaws(preview, referenceLaws);
-        const itemGuidelineLinks = matchItemReferenceGuidelines(preview, referenceGuidelines);
-
-        return (
-          <article
-            className="overflow-hidden rounded-xl border border-[#d7dee8] bg-white"
-            key={result.item.id}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e8eef5] bg-[#f8fafc] px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-[#64748b]">#{index + 1}</span>
-                  <p className="text-sm font-bold text-[#15345b]">{result.item.detailItem}</p>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-[#64748b]">
-                    배점 {result.item.points}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-                  {result.item.majorCategory} · {result.item.middleCategory}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2 text-center">
-                <ScorePill label="AI" score={result.aiEvaluation.score} tone="ai" />
-                <ScorePill
-                  label="전문가"
-                  score={expertWeight > 0 ? result.humanEvaluation.score : null}
-                  tone="expert"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-0 lg:grid-cols-2 lg:divide-x lg:divide-[#e8eef5]">
-              {documentSection ? (
-                <section className="border-b border-[#e8eef5] px-4 py-3 lg:border-b-0">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-bold text-[#15345b]">읽은 자료</p>
-                    <span className="rounded-full bg-[#e8f1ff] px-2 py-0.5 text-[10px] font-bold text-[#2463b3]">
-                      문서이해도 {documentSection.confidence}%
-                    </span>
-                  </div>
-                  <p className="whitespace-pre-wrap text-xs leading-5 text-[#64748b]">
-                    {formatDocumentSectionText(documentSection.summary)}
-                  </p>
-                </section>
-              ) : null}
-
-              <section className={`px-4 py-3 ${documentSection ? "" : "lg:col-span-2"}`}>
-                <EvaluationRationaleCell
-                  fileSummaries={fileSummaries}
-                  guidelineLinks={itemGuidelineLinks}
-                  lawLinks={itemLawLinks}
-                  result={result}
-                  roundId={roundId}
-                />
-              </section>
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  );
-}
-
-function ScorePill({
-  label,
-  score,
-  tone,
-}: {
-  label: string;
-  score: number | null;
-  tone: "ai" | "expert";
-}) {
-  return (
-    <div className="min-w-[64px] rounded-lg border border-[#d7dee8] bg-white px-3 py-1.5">
-      <p className="text-[10px] font-semibold text-[#64748b]">{label}</p>
-      <p className={`text-base font-bold ${tone === "ai" ? "text-[#2463b3]" : "text-[#15345b]"}`}>
-        {score === null ? "-" : score}
-      </p>
+    <div className="overflow-x-auto rounded-xl border border-[#d7dee8]">
+      <table className="min-w-full text-left text-sm">
+        <thead className="bg-[#f8fafc] text-xs font-bold text-[#64748b]">
+          <tr>
+            <th className="px-4 py-3">체크리스트 항목</th>
+            <th className="px-4 py-3">AI</th>
+            <th className="px-4 py-3">전문가</th>
+            <th className="px-4 py-3">종합</th>
+          </tr>
+        </thead>
+        <tbody>
+          {results.map((result) => (
+            <tr className="border-t border-[#e8eef5]" key={result.item.id}>
+              <td className="px-4 py-3 font-semibold text-[#15345b]">{result.item.detailItem}</td>
+              <td className="px-4 py-3 text-[#2463b3]">{result.aiEvaluation.score}</td>
+              <td className="px-4 py-3 text-[#15345b]">
+                {expertWeight > 0 ? result.humanEvaluation.score : "-"}
+              </td>
+              <td className="px-4 py-3 font-bold text-[#172033]">{result.finalScore}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -642,120 +567,4 @@ function FileList({
       </ul>
     </div>
   );
-}
-
-function EvaluationRationaleCell({
-  result,
-  lawLinks,
-  guidelineLinks,
-  roundId,
-  fileSummaries,
-}: {
-  result: HybridResult;
-  lawLinks: Array<{ title: string; article: string; href: string | null }>;
-  guidelineLinks: Array<{ title: string; section: string; href: string | null }>;
-  roundId: string;
-  fileSummaries: ReturnType<typeof buildStoredFileSummaries>;
-}) {
-  const aiDisplay = prepareEvaluationDisplay(
-    result.aiEvaluation.rationale,
-    result.aiEvaluation.recommendation,
-    fileSummaries,
-    result.item,
-  );
-  const expertText = formatEvaluationText(result.humanEvaluation.comment ?? "");
-
-  return (
-    <div className="space-y-2 text-xs leading-5 text-[#64748b]">
-      {aiDisplay.points.length > 0 ? (
-        <div>
-          <p className="font-bold text-[#15345b]">평가 근거 / 의견</p>
-          <div className="mt-1">
-            <p className="mb-1 font-semibold text-[#2463b3]">AI</p>
-            <EvaluationTextBlock display={aiDisplay} />
-          </div>
-        </div>
-      ) : null}
-      {expertText ? (
-        <div>
-          <p className="font-semibold text-[#15345b]">전문가</p>
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[#475569]">{expertText}</p>
-        </div>
-      ) : null}
-      {lawLinks.length > 0 || guidelineLinks.length > 0 ? (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-[#e2e8f0] pt-1.5">
-          {lawLinks.map((law) => (
-            <span key={`${roundId}-${law.title}-${law.article}`}>
-              {law.href ? (
-                <ReferenceLinkTitle title={`${law.title} ${law.article}`} href={law.href} />
-              ) : (
-                <span className="text-[#2463b3]">
-                  {law.title} {law.article}
-                </span>
-              )}
-            </span>
-          ))}
-          {guidelineLinks.map((guide) => (
-            <span key={`${roundId}-${guide.title}-${guide.section}`}>
-              {guide.href ? (
-                <ReferenceLinkTitle title={`${guide.title} ${guide.section}`} href={guide.href} />
-              ) : (
-                <span className="text-[#2463b3]">
-                  {guide.title} {guide.section}
-                </span>
-              )}
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function matchItemReferenceLaws(
-  preview: EvaluationRound["aiAnalysis"]["evaluationPreview"][number] | undefined,
-  referenceLaws: NonNullable<EvaluationRound["aiAnalysis"]["referenceLaws"]>,
-) {
-  const citations = preview?.laws ?? [];
-  const matched = referenceLaws.filter((law) =>
-    citations.some((citation) => lawMatchesCitation(law, citation)),
-  );
-
-  if (matched.length > 0) {
-    return matched.map((law) => ({
-      title: law.title,
-      article: law.article,
-      href: buildLawReferenceUrl(law.title, law.sourceUrl),
-    }));
-  }
-
-  return citations.map((citation) => ({
-    title: citation,
-    article: "",
-    href: null,
-  }));
-}
-
-function matchItemReferenceGuidelines(
-  preview: EvaluationRound["aiAnalysis"]["evaluationPreview"][number] | undefined,
-  referenceGuidelines: NonNullable<EvaluationRound["aiAnalysis"]["referenceGuidelines"]>,
-) {
-  const citations = preview?.guidelines ?? [];
-  const matched = referenceGuidelines.filter((guide) =>
-    citations.some((citation) => guidelineMatchesCitation(guide, citation)),
-  );
-
-  if (matched.length > 0) {
-    return matched.map((guide) => ({
-      title: guide.title,
-      section: guide.section,
-      href: buildAdmrulReferenceUrl(guide.title, guide.sourceUrl),
-    }));
-  }
-
-  return citations.map((citation) => ({
-    title: citation,
-    section: "",
-    href: null,
-  }));
 }

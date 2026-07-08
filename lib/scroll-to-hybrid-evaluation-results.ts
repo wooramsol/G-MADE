@@ -1,4 +1,4 @@
-const RESULTS_SECTION_ID = "hybrid-evaluation-results";
+const RESULTS_SECTION_ID = "pre-review-results";
 const SCROLL_OFFSET = 120;
 const RETRY_MS = 100;
 const MAX_ATTEMPTS = 30;
