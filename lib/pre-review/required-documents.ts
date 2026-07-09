@@ -1,3 +1,4 @@
+import { isTocPageText, scoreDrawingPageText } from "@/lib/ai/page-citation";
 import type { RequiredDocumentStatus } from "./types";
 
 export type RequiredDocumentDefinition = {
@@ -5,6 +6,8 @@ export type RequiredDocumentDefinition = {
   label: string;
   keywords: string[];
 };
+
+const MIN_DRAWING_PAGE_SCORE = 3;
 
 /** 단어 일부(개요·배치·입면 등)만으로 오탐하지 않도록 구체 키워드만 사용 */
 export const REQUIRED_DOCUMENTS: RequiredDocumentDefinition[] = [
@@ -16,13 +19,26 @@ export const REQUIRED_DOCUMENTS: RequiredDocumentDefinition[] = [
   { id: "layout", label: "배치도", keywords: ["배치도", "배치계획", "배치도면", "siteplan"] },
   { id: "plan", label: "평면도", keywords: ["평면도", "평면계획", "각층평면", "floorplan"] },
   { id: "section", label: "단면도", keywords: ["단면도", "종단면", "횡단면", "종·횡단면"] },
-  { id: "elevation", label: "입면도", keywords: ["입면도", "입면계획", "elevation"] },
+  {
+    id: "elevation",
+    label: "입면도",
+    keywords: [
+      "입면도",
+      "입면계획",
+      "정면도",
+      "측면도",
+      "좌측면도",
+      "우측면도",
+      "배면도",
+      "elevation",
+    ],
+  },
   { id: "perspective", label: "조감도·투시도", keywords: ["조감도", "투시도", "birdseye", "aerial"] },
   { id: "color", label: "색채계획", keywords: ["색채계획", "색채 계획", "마감재계획", "마감재 계획"] },
   {
     id: "landscape",
     label: "조경·외부공간",
-    keywords: ["조경계획", "조경도", "외부공간계획", "대지조경", "landscapeplan"],
+    keywords: ["조경계획", "조경도", "외부공간계획", "대지조경", "landscapeplan", "조경"],
   },
   { id: "nightscape", label: "야간경관", keywords: ["야간경관", "야간조명", "조명계획", "야간투시"] },
   { id: "signage", label: "옥외광고물", keywords: ["옥외광고", "옥외광고물", "간판계획", "사인계획"] },
@@ -36,6 +52,12 @@ export const REQUIRED_DOCUMENTS: RequiredDocumentDefinition[] = [
 type DocumentSectionRef = {
   label: string;
   summary: string;
+};
+
+type PageBlock = {
+  fileName: string;
+  page: string;
+  text: string;
 };
 
 function normalizeText(value: string): string {
@@ -52,35 +74,63 @@ function findMatch(text: string, keywords: string[]): string | null {
   return null;
 }
 
-function parsePageBlocks(corpus: string): Array<{ fileName: string; page: string; text: string }> {
-  const blocks: Array<{ fileName: string; page: string; text: string }> = [];
-  const pattern = /^--- 「([^」]+)」 p\.(\d+) ---\n([\s\S]*?)(?=\n--- 「|$)/gm;
-  let match: RegExpExecArray | null;
+function parsePageBlocks(corpus: string): PageBlock[] {
+  const blocks: PageBlock[] = [];
+  const parts = corpus.split(/(?=--- 「[^」]+」 p\.\d+ ---)/g);
 
-  while ((match = pattern.exec(corpus)) !== null) {
+  for (const part of parts) {
+    const header = part.match(/^--- 「([^」]+)」 p\.(\d+) ---\n?/);
+    if (!header?.[1] || !header[2]) continue;
+
+    const text = part.slice(header[0].length).trim();
+    if (!text) continue;
+
     blocks.push({
-      fileName: match[1],
-      page: match[2],
-      text: match[3].trim(),
+      fileName: header[1],
+      page: header[2],
+      text,
     });
   }
 
   return blocks;
 }
 
-function isDrawingTitleLine(line: string, keywords: string[]): boolean {
-  const matched = findMatch(line, keywords);
-  if (!matched) return false;
+function isSubstantiveDrawingPage(text: string, keyword: string): boolean {
+  if (isTocPageText(text)) return false;
+  return scoreDrawingPageText(text, keyword) >= MIN_DRAWING_PAGE_SCORE;
+}
 
-  if (/(?:도면|plan|drawing|fig|그림|조감|투시|체크리스트)/i.test(line)) {
-    return true;
+function findBestDrawingPage(
+  blocks: PageBlock[],
+  keywords: string[],
+): { fileName: string; page: string; keyword: string; score: number } | null {
+  let best: { fileName: string; page: string; keyword: string; score: number } | null = null;
+
+  for (const block of blocks) {
+    for (const keyword of keywords) {
+      if (!findMatch(block.text, [keyword])) continue;
+
+      const score = scoreDrawingPageText(block.text, keyword);
+      if (score < MIN_DRAWING_PAGE_SCORE) continue;
+
+      if (!best || score > best.score) {
+        best = { fileName: block.fileName, page: block.page, keyword, score };
+      }
+    }
   }
 
-  if (/(?:도|도면|계획|조경|조명|광고|개요)$/i.test(matched)) {
-    return true;
-  }
+  return best;
+}
 
-  return normalizeText(matched).length >= 5;
+function findPageBlock(blocks: PageBlock[], fileName: string, page: string): PageBlock | undefined {
+  return blocks.find(
+    (block) =>
+      block.page === page &&
+      (!fileName ||
+        block.fileName === fileName ||
+        block.fileName.includes(fileName) ||
+        fileName.includes(block.fileName)),
+  );
 }
 
 function matchInFileNames(fileNames: string[], keywords: string[]): string | null {
@@ -99,52 +149,74 @@ function matchInPageCorpus(
   const blocks = parsePageBlocks(corpus);
 
   if (blocks.length === 0) {
-    const lines = corpus.split("\n").map((line) => line.trim()).filter(Boolean);
-    let mentionedLine: string | null = null;
-
-    for (const line of lines) {
-      if (!findMatch(line, keywords)) continue;
-      if (/^p\.\d+/.test(line) && isDrawingTitleLine(line, keywords)) {
-        return { level: "confirmed", matchedIn: line.slice(0, 80) };
-      }
-      mentionedLine = line.slice(0, 80);
-    }
-
-    return mentionedLine ? { level: "mentioned", matchedIn: `${mentionedLine} (본문·색인 언급)` } : null;
+    return null;
   }
 
-  let mentioned: { matchedIn: string } | null = null;
+  const best = findBestDrawingPage(blocks, keywords);
+  if (best) {
+    return {
+      level: "confirmed",
+      matchedIn: `「${best.fileName}」 p.${best.page} ${best.keyword}`,
+    };
+  }
 
   for (const block of blocks) {
-    const lines = block.text.split("\n").map((line) => line.trim()).filter(Boolean);
-    const titleArea = lines.slice(0, 2).join(" ");
+    if (!findMatch(block.text, keywords)) continue;
+
     const source = `「${block.fileName}」 p.${block.page}`;
-
-    if (isDrawingTitleLine(titleArea, keywords)) {
-      return { level: "confirmed", matchedIn: source };
+    if (isTocPageText(block.text)) {
+      return { level: "mentioned", matchedIn: `${source} (목차·색인)` };
     }
 
-    if (findMatch(block.text, keywords)) {
-      mentioned = { matchedIn: `${source} (본문 언급)` };
-    }
+    return { level: "mentioned", matchedIn: `${source} (제목·본문 언급)` };
   }
 
-  return mentioned ? { level: "mentioned", matchedIn: mentioned.matchedIn } : null;
+  return null;
 }
 
 function matchInDocumentSections(
   sections: DocumentSectionRef[],
   keywords: string[],
+  pageCorpus?: string,
 ): { level: "confirmed" | "mentioned"; matchedIn: string } | null {
+  const blocks = pageCorpus ? parsePageBlocks(pageCorpus) : [];
   let mentioned: { matchedIn: string } | null = null;
 
   for (const section of sections) {
-    const combined = `${section.label}\n${section.summary}`;
-    if (!findMatch(combined, keywords)) continue;
+    if (/목차|차례/.test(section.label)) continue;
 
-    const hasPageRef = /p\.\d+/.test(combined);
-    if (hasPageRef) {
-      return { level: "confirmed", matchedIn: `${section.label} (${section.summary.split("\n")[0]?.slice(0, 60) ?? ""})` };
+    const combined = `${section.label}\n${section.summary}`;
+    const matchedKeyword = findMatch(combined, keywords);
+    if (!matchedKeyword) continue;
+
+    const pageMatch = section.summary.match(/p\.(\d{1,3})/i);
+    if (pageMatch && blocks.length > 0) {
+      const page = pageMatch[1];
+      const fileMatch = section.summary.match(/「([^」]+)」/);
+      const fileName = fileMatch?.[1]?.trim() ?? "";
+      const block = findPageBlock(blocks, fileName, page);
+
+      if (block) {
+        const keyword = findMatch(block.text, keywords) ?? matchedKeyword;
+        if (isSubstantiveDrawingPage(block.text, keyword)) {
+          return {
+            level: "confirmed",
+            matchedIn: `「${block.fileName}」 p.${block.page} ${keyword}`,
+          };
+        }
+
+        mentioned = {
+          matchedIn: `「${block.fileName}」 p.${block.page} (목차·제목 페이지 — 실제 도면 아님)`,
+        };
+        continue;
+      }
+    }
+
+    if (/p\.\d+/.test(combined) && blocks.length === 0) {
+      mentioned = {
+        matchedIn: `${section.label} (페이지 인용 — 본문 색인 미확인)`,
+      };
+      continue;
     }
 
     mentioned = { matchedIn: `${section.label} (항목명·요약 언급)` };
@@ -191,7 +263,7 @@ export function checkRequiredDocuments(input: {
       };
     }
 
-    const sectionHit = matchInDocumentSections(sections, doc.keywords);
+    const sectionHit = matchInDocumentSections(sections, doc.keywords, input.pageCorpus);
     if (sectionHit?.level === "confirmed") {
       return {
         id: doc.id,

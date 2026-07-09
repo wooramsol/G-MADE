@@ -71,23 +71,72 @@ function makeRound(overrides: Partial<EvaluationRound> = {}): EvaluationRound {
   };
 }
 
-test("checkRequiredDocuments confirms drawing titles in page corpus", () => {
+test("checkRequiredDocuments confirms substantive drawing pages only", () => {
   const result = checkRequiredDocuments({
     fileNames: ["심의도서.pdf"],
     pageCorpus: [
       "--- 「심의도서.pdf」 p.12 ---",
       "배치도",
       "대지 배치 계획",
+      "연면적 850㎡ 주차 12면 보행자 동선",
       "",
       "--- 「심의도서.pdf」 p.31 ---",
       "색채계획",
-      "마감재 계획",
+      "마감재 계획 Steel N7",
+      "외벽 마감재 ㎡",
     ].join("\n"),
     documentSections: [],
   });
 
   assert.equal(result.find((row) => row.id === "layout")?.matchLevel, "confirmed");
+  assert.equal(result.find((row) => row.id === "layout")?.matchedIn, "「심의도서.pdf」 p.12 배치도");
   assert.equal(result.find((row) => row.id === "elevation")?.matchLevel, "missing");
+});
+
+test("checkRequiredDocuments rejects TOC page matches for all drawing types", () => {
+  const tocCorpus = [
+    "--- 「심의도서.pdf」 p.2 ---",
+    "목차",
+    "01. 사업개요",
+    "02. 경관자원 및 특성",
+    "03. 건축계획",
+    "3.4 배치도",
+    "3.5 1층 평면도",
+    "3.8 정면도, 우측면도",
+    "3.10 단면도1",
+    "3.2 조감도",
+    "05. 색채계획",
+    "06. 옥외광고물계획",
+    "07. 야간경관 계획",
+  ].join("\n");
+
+  const result = checkRequiredDocuments({
+    fileNames: ["심의도서.pdf"],
+    pageCorpus: tocCorpus,
+    documentSections: [],
+  });
+
+  for (const id of ["layout", "plan", "elevation", "section", "perspective", "color", "signage", "nightscape"]) {
+    assert.notEqual(result.find((row) => row.id === id)?.matchLevel, "confirmed", id);
+  }
+
+  assert.equal(result.find((row) => row.id === "layout")?.matchLevel, "mentioned");
+  assert.match(result.find((row) => row.id === "layout")?.matchedIn ?? "", /목차·색인/);
+});
+
+test("checkRequiredDocuments finds elevation on 정면도 page", () => {
+  const result = checkRequiredDocuments({
+    fileNames: ["심의도서.pdf"],
+    pageCorpus: [
+      "--- 「심의도서.pdf」 p.18 ---",
+      "정면도, 우측면도",
+      "층고 3.6m 마감재 계획",
+      "건축 외벽 ㎡",
+    ].join("\n"),
+    documentSections: [],
+  });
+
+  assert.equal(result.find((row) => row.id === "elevation")?.matchLevel, "confirmed");
 });
 
 test("checkRequiredDocuments treats body-only mentions as 언급만", () => {
@@ -115,14 +164,35 @@ test("checkRequiredDocuments does not confirm from vague section labels alone", 
   assert.equal(result.find((row) => row.id === "color")?.found, false);
 });
 
-test("checkRequiredDocuments confirms section with page citation", () => {
+test("checkRequiredDocuments confirms section when cited page is substantive", () => {
   const result = checkRequiredDocuments({
     fileNames: ["심의도서.pdf"],
-    pageCorpus: "",
+    pageCorpus: [
+      "--- 「심의도서.pdf」 p.31 ---",
+      "색채계획",
+      "마감재 계획",
+      "외벽 마감 ㎡",
+    ].join("\n"),
     documentSections: [{ label: "색채", summary: "「심의도서.pdf」 p.31 색채계획" }],
   });
 
   assert.equal(result.find((row) => row.id === "color")?.matchLevel, "confirmed");
+});
+
+test("checkRequiredDocuments downgrades section citing TOC page", () => {
+  const result = checkRequiredDocuments({
+    fileNames: ["심의도서.pdf"],
+    pageCorpus: [
+      "--- 「심의도서.pdf」 p.2 ---",
+      "목차",
+      "3.4 배치도",
+      "3.5 평면도",
+    ].join("\n"),
+    documentSections: [{ label: "배치도", summary: "「심의도서.pdf」 p.2 배치도" }],
+  });
+
+  assert.equal(result.find((row) => row.id === "layout")?.matchLevel, "mentioned");
+  assert.match(result.find((row) => row.id === "layout")?.matchedIn ?? "", /목차/);
 });
 
 test("deriveDesignIssues extracts AI issues only; missing docs stay in document grid", () => {

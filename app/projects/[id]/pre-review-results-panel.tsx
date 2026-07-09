@@ -155,6 +155,9 @@ function DesignIssuesTab({
               도면 확인 {confirmedCount} / {missingDocuments.length}
             </p>
           </div>
+          <p className="mb-3 text-[11px] leading-5 text-[#64748b]">
+            「도면 확인」은 목차·제목 페이지가 아닌, 실제 도면 본문이 있는 페이지에서만 표시됩니다.
+          </p>
           <ul className="grid gap-2 sm:grid-cols-2">
             {missingDocuments.map((doc) => {
               const level = doc.matchLevel ?? (doc.found ? "confirmed" : "missing");
