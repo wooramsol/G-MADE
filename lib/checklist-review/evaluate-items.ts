@@ -19,6 +19,13 @@ import {
 
 const EVALUATE_MAX_OUTPUT_TOKENS = 16_384;
 const ITEMS_PER_BATCH = 30;
+/** 항목당 예상 출력 토큰 (간결 출력 기준) — max_tokens 산정용 */
+const OUTPUT_TOKENS_PER_ITEM = 220;
+const OUTPUT_TOKENS_BASE = 800;
+
+function resolveMaxOutputTokens(itemCount: number): number {
+  return Math.min(EVALUATE_MAX_OUTPUT_TOKENS, OUTPUT_TOKENS_BASE + itemCount * OUTPUT_TOKENS_PER_ITEM);
+}
 
 const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의를 보조하는 검토관입니다.
 제출 문서(도면·조감도·이미지·본문 포함)를 근거로 체크리스트 항목별 충족 여부를 판정합니다.
@@ -35,6 +42,7 @@ const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의�
 - lawRefs는 아래 '조회된 법령·지침' 목록에 있는 것만 인용합니다. 목록에 없는 법령은 절대 언급하지 않습니다.
 - 사업지가 경관지구 등 공간정보에 해당하면 관련 항목의 spatialNote에 반영합니다.
 - "미충족"·"부분충족" 항목에는 구체적인 보완 방향(recommendation)을 제시합니다.
+- 간결하게 씁니다: rationale은 2문장 이내, evidence는 항목당 최대 2개(note는 60자 이내), recommendation은 1~2문장.
 - 반드시 JSON만 출력합니다.`;
 
 export type EvaluateItemsResult = {
@@ -281,10 +289,12 @@ export function sanitizeFindings(
 }
 
 function chunkItems(items: ChecklistItem[]): ChecklistItem[][] {
-  if (items.length <= ITEMS_PER_BATCH + 10) return [items];
+  if (items.length <= ITEMS_PER_BATCH + 6) return [items];
+  const chunkCount = Math.ceil(items.length / ITEMS_PER_BATCH);
+  const size = Math.ceil(items.length / chunkCount);
   const chunks: ChecklistItem[][] = [];
-  for (let index = 0; index < items.length; index += ITEMS_PER_BATCH) {
-    chunks.push(items.slice(index, index + ITEMS_PER_BATCH));
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
   }
   return chunks;
 }
@@ -298,12 +308,18 @@ export async function evaluateChecklistItems(options: {
   items: ChecklistItem[];
   checklistPages: ChecklistSourcePage[];
   context: EvaluationContext;
+  /** 서버 마감까지 남은 시간(ms) — API 호출 타임아웃 산정 */
+  getRemainingBudgetMs?: () => number;
   onProgress?: (label: string) => void;
 }): Promise<EvaluateItemsResult> {
   const { files, context, onProgress } = options;
+  const resolveTimeoutMs = () => {
+    const remaining = options.getRemainingBudgetMs?.() ?? 280_000;
+    return Math.max(30_000, Math.min(remaining - 8_000, 240_000));
+  };
   const warnings: string[] = [];
 
-  let useVision = shouldIncludeClaudeVision(files);
+  const useVision = shouldIncludeClaudeVision(files);
   if (!useVision && files.some((file) => (file.visionAssets ?? []).length > 0)) {
     warnings.push(
       `제출 자료 용량이 커서(${Math.round(estimateClaudeVisionPayloadBytes(files) / 1024 / 1024)}MB > ${Math.round(CLAUDE_PDF_VISION_MAX_BYTES / 1024 / 1024)}MB) 도면·이미지 비전 분석 없이 텍스트만으로 평가했습니다.`,
@@ -317,7 +333,7 @@ export async function evaluateChecklistItems(options: {
 
   const visionExtractMode = options.items.length === 0;
 
-  const runCall = async (prompt: string, vision: boolean) => {
+  const runCall = async (prompt: string, vision: boolean, itemCount: number) => {
     const blocks: ClaudeContentBlock[] = [
       ...buildDocumentBlocks(files, vision),
       { type: "text", text: prompt },
@@ -325,9 +341,9 @@ export async function evaluateChecklistItems(options: {
     return callClaude({
       system: EVALUATE_SYSTEM_PROMPT,
       userBlocks: blocks,
-      maxOutputTokens: EVALUATE_MAX_OUTPUT_TOKENS,
+      maxOutputTokens: resolveMaxOutputTokens(itemCount),
       includesPdf: vision,
-      timeoutMs: 280_000,
+      timeoutMs: resolveTimeoutMs(),
     });
   };
 
@@ -349,7 +365,7 @@ export async function evaluateChecklistItems(options: {
     }
 
     onProgress?.("문서에서 체크리스트를 찾아 추출·평가 중입니다 (비전 분석)");
-    const result = await runCall(buildVisionExtractAndEvaluatePrompt(projectLabel, contextText), true);
+    const result = await runCall(buildVisionExtractAndEvaluatePrompt(projectLabel, contextText), true, 60);
     const payload = parsePayload(result.text);
     if (!payload) {
       throw new Error("AI 평가 응답(JSON)을 해석하지 못했습니다. 다시 시도해 주세요.");
@@ -382,28 +398,22 @@ export async function evaluateChecklistItems(options: {
     };
   }
 
-  // ── 사전 추출된 항목 평가 모드 (필요 시 배치) ──
+  // ── 사전 추출된 항목 평가 모드 (배치는 병렬 실행으로 서버 한도 내 처리) ──
   const chunks = chunkItems(options.items);
-  const allFindings: ChecklistFinding[] = [];
-  const summaries: string[] = [];
-  let model = "";
+  onProgress?.(
+    chunks.length > 1
+      ? `체크리스트 ${options.items.length}개 항목 평가 중 (${chunks.length}개 배치 병렬 처리)`
+      : `체크리스트 ${options.items.length}개 항목 평가 중`,
+  );
 
-  for (let index = 0; index < chunks.length; index += 1) {
-    const chunk = chunks[index];
-    onProgress?.(
-      chunks.length > 1
-        ? `체크리스트 ${options.items.length}개 항목 평가 중 (${index + 1}/${chunks.length} 배치)`
-        : `체크리스트 ${options.items.length}개 항목 평가 중`,
-    );
-
+  const evaluateChunk = async (chunk: ChecklistItem[]) => {
     let result;
     try {
-      result = await runCall(buildItemsPrompt(chunk, projectLabel, contextText), useVision);
+      result = await runCall(buildItemsPrompt(chunk, projectLabel, contextText), useVision, chunk.length);
     } catch (error) {
       if (error instanceof ClaudePayloadTooLargeError && useVision) {
         warnings.push("도면·이미지 포함 요청이 용량을 초과해 텍스트 전용으로 재시도했습니다.");
-        useVision = false;
-        result = await runCall(buildItemsPrompt(chunk, projectLabel, contextText), false);
+        result = await runCall(buildItemsPrompt(chunk, projectLabel, contextText), false, chunk.length);
       } else {
         throw error;
       }
@@ -414,10 +424,17 @@ export async function evaluateChecklistItems(options: {
       throw new Error("AI 평가 응답(JSON)을 해석하지 못했습니다. 다시 시도해 주세요.");
     }
 
-    model = result.model;
-    if (payload.summary) summaries.push(payload.summary.trim());
-    allFindings.push(...sanitizeFindings(payload.findings ?? [], chunk, context, files));
-  }
+    return {
+      model: result.model,
+      summary: payload.summary?.trim() ?? "",
+      findings: sanitizeFindings(payload.findings ?? [], chunk, context, files),
+    };
+  };
+
+  const results = await Promise.all(chunks.map((chunk) => evaluateChunk(chunk)));
+  const allFindings = results.flatMap((entry) => entry.findings);
+  const summaries = results.map((entry) => entry.summary).filter(Boolean);
+  const model = results[results.length - 1]?.model ?? "";
 
   return {
     findings: allFindings,

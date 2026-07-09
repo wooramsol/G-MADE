@@ -61,6 +61,7 @@ export async function runChecklistReview(
   emit?: StreamEmitter,
 ): Promise<RunChecklistReviewResult> {
   let newlySavedFiles: SavedUploadFile[] = [];
+  const startedAt = Date.now();
 
   try {
     emitStep(emit, "validate");
@@ -153,6 +154,7 @@ export async function runChecklistReview(
       items,
       checklistPages: checklistSlices.map((slice) => ({ fileName: slice.fileName, page: slice.page })),
       context,
+      getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
       onProgress: (label) => emitStep(emit, "evaluate", label),
     });
 
