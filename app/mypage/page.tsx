@@ -1,6 +1,5 @@
 import { auth } from "@/auth";
 import IntegrationStatusPanel from "@/components/integration-status-panel";
-import AiProviderProbePanel from "@/components/ai-provider-probe-panel";
 import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/typography";
 import LoginHistoryPanel from "@/components/login-history-panel";
 import { getIntegrationStatuses } from "@/lib/integrations/status";
@@ -88,10 +87,7 @@ export default async function MyPage() {
             {integrations.groups
               .filter((group) => group.id === "ai")
               .map((group) => (
-                <div className="flex flex-col gap-4" key={group.id}>
-                  <IntegrationStatusPanel checkedAt={integrations.checkedAt} group={group} />
-                  <AiProviderProbePanel />
-                </div>
+                <IntegrationStatusPanel checkedAt={integrations.checkedAt} group={group} key={group.id} />
               ))}
           </div>
 

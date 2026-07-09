@@ -3,7 +3,7 @@ import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/compone
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { getProjectById } from "@/lib/project-store";
 import DeleteProjectButton from "../delete-project-button";
-import ProjectUploadSection from "./project-upload-section";
+import ChecklistReviewSection from "./checklist-review-section";
 import LandscapeZonePanel from "./landscape-zone-panel";
 import ProjectLocationEditor from "./project-location-editor";
 import ProjectMetadataEditor from "./project-metadata-editor";
@@ -77,7 +77,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
             </div>
           </Panel>
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
-          <ProjectUploadSection project={project} />
+          <ChecklistReviewSection project={project} />
         </section>
       </div>
     </main>

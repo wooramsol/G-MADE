@@ -17,7 +17,7 @@ import {
 } from "./law/warnings";
 import { searchAdmbylsBatch, searchAdmrulsBatch, searchLawsBatch, searchOrdinsBatch } from "./law/search-batch";
 import { getProjectById } from "./project-store";
-import type { EvaluationItem, Project, ProjectLocationPoint } from "./types";
+import type { Project, ProjectLocationPoint } from "./types";
 import { geocodeAddress } from "./vworld/geocode";
 import { isVWorldConfigured } from "./vworld/config";
 import { lookupLandscapeZoneByAddress, type LandscapeZoneLookupResult } from "./vworld/landscape-zone";
@@ -47,18 +47,15 @@ export type EvaluationContext = {
   warnings: string[];
 };
 
-export async function buildEvaluationContext(
-  projectId?: string,
-  evaluationItems?: EvaluationItem[],
-): Promise<EvaluationContext> {
+export async function buildEvaluationContext(projectId?: string): Promise<EvaluationContext> {
   const fetchedAt = new Date().toISOString();
   const warnings: string[] = [];
   const project = projectId ? await getProjectById(projectId) : undefined;
 
   const [spatial, referenceLaws, referenceGuidelines] = await Promise.all([
     project ? loadSpatialContext(project, warnings) : Promise.resolve(null),
-    loadReferenceLaws(project, warnings, evaluationItems),
-    loadReferenceGuidelines(project, warnings, evaluationItems),
+    loadReferenceLaws(project, warnings),
+    loadReferenceGuidelines(project, warnings),
   ]);
 
   const guidelinesForPrompt =
@@ -153,7 +150,6 @@ async function loadSpatialContext(
 async function loadReferenceLaws(
   project: Project | undefined,
   warnings: string[],
-  evaluationItems?: EvaluationItem[],
 ): Promise<FetchedLawReference[]> {
   if (!isLawApiConfigured()) {
     warnings.push(LAW_OC_MISSING_WARNING);
@@ -161,8 +157,8 @@ async function loadReferenceLaws(
   }
 
   const [nationalReferences, ordinanceReferences] = await Promise.all([
-    loadNationalLawReferences(project, warnings, evaluationItems),
-    loadOrdinanceReferences(project, warnings, evaluationItems),
+    loadNationalLawReferences(project, warnings),
+    loadOrdinanceReferences(project, warnings),
   ]);
 
   const merged = [...nationalReferences, ...ordinanceReferences];
@@ -177,9 +173,8 @@ async function loadReferenceLaws(
 async function loadNationalLawReferences(
   project: Project | undefined,
   warnings: string[],
-  evaluationItems?: EvaluationItem[],
 ): Promise<FetchedLawReference[]> {
-  const queries = buildLawQueries(project, evaluationItems);
+  const queries = buildLawQueries(project);
   const { hits, failures } = await searchLawsBatch(queries, 4);
   for (const failure of failures) {
     warnings.push(formatLawSearchFailure(failure.query, failure.error));
@@ -202,9 +197,8 @@ async function loadNationalLawReferences(
 async function loadOrdinanceReferences(
   project: Project | undefined,
   warnings: string[],
-  evaluationItems?: EvaluationItem[],
 ): Promise<FetchedLawReference[]> {
-  const plans = buildOrdinSearchPlans(project, evaluationItems);
+  const plans = buildOrdinSearchPlans(project);
   const { hits, failures } = await searchOrdinsBatch(plans, 4);
   for (const failure of failures) {
     warnings.push(formatOrdinSearchFailure(failure.query, failure.error));
@@ -234,15 +228,14 @@ async function loadOrdinanceReferences(
 async function loadReferenceGuidelines(
   project: Project | undefined,
   warnings: string[],
-  evaluationItems?: EvaluationItem[],
 ): Promise<FetchedAdmrulReference[]> {
   if (!isLawApiConfigured()) {
     return demoGuidelinesToReferences();
   }
 
   const [admrulReferences, admbylReferences] = await Promise.all([
-    loadAdmrulGuidelineReferences(project, warnings, evaluationItems),
-    loadAdmbylGuidelineReferences(project, warnings, evaluationItems),
+    loadAdmrulGuidelineReferences(project, warnings),
+    loadAdmbylGuidelineReferences(project, warnings),
   ]);
 
   const merged = [...admrulReferences, ...admbylReferences];
@@ -257,9 +250,8 @@ async function loadReferenceGuidelines(
 async function loadAdmrulGuidelineReferences(
   project: Project | undefined,
   warnings: string[],
-  evaluationItems?: EvaluationItem[],
 ): Promise<FetchedAdmrulReference[]> {
-  const queries = buildAdmrulQueries(project, evaluationItems);
+  const queries = buildAdmrulQueries(project);
   const { hits, failures } = await searchAdmrulsBatch(queries, 3);
   for (const failure of failures) {
     warnings.push(formatAdmrulSearchFailure(failure.query, failure.error));
@@ -282,9 +274,8 @@ async function loadAdmrulGuidelineReferences(
 async function loadAdmbylGuidelineReferences(
   project: Project | undefined,
   warnings: string[],
-  evaluationItems?: EvaluationItem[],
 ): Promise<FetchedAdmrulReference[]> {
-  const queries = buildAdmbylQueries(project, evaluationItems);
+  const queries = buildAdmbylQueries(project);
   const { hits, failures } = await searchAdmbylsBatch(queries, 3, { kind: "2" });
   for (const failure of failures) {
     warnings.push(formatAdmbylSearchFailure(failure.query, failure.error));

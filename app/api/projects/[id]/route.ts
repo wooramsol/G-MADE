@@ -14,7 +14,6 @@ import { deleteSavedUploadFiles, storedRefsToSavedFiles } from "@/lib/save-uploa
 import { isProjectTrashed } from "@/lib/trash";
 
 const PROJECT_STATUSES = new Set(["접수", "심사 진행중", "완료"]);
-import type { EvaluationItem } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -96,21 +95,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       };
     }
 
-    if (payload.savedEvaluationItems !== undefined) {
-      if (!Array.isArray(payload.savedEvaluationItems)) {
-        return NextResponse.json({ error: "평가항목 형식이 올바르지 않습니다." }, { status: 400 });
-      }
-
-      const savedEvaluationItems = (payload.savedEvaluationItems as unknown[])
-        .map((item, index) => normalizeSavedEvaluationItem(item, index))
-        .filter((item): item is EvaluationItem => item !== null);
-
-      if (savedEvaluationItems.length === 0) {
-        return NextResponse.json({ error: "평가항목을 1개 이상 저장해 주세요." }, { status: 400 });
-      }
-
-      patch.savedEvaluationItems = savedEvaluationItems;
-    }
 
     const project = await updateProject(id, patch);
     if (!project) {
@@ -124,31 +108,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 }
 
-function normalizeSavedEvaluationItem(item: unknown, index: number): EvaluationItem | null {
-  if (!item || typeof item !== "object") return null;
-
-  const row = item as Record<string, unknown>;
-  const detailItem = String(row.detailItem ?? "").trim();
-  const majorCategory = String(row.majorCategory ?? "").trim();
-  const middleCategory = String(row.middleCategory ?? "").trim();
-  const criteria = String(row.criteria ?? "").trim();
-
-  if (!detailItem && !majorCategory && !middleCategory && !criteria) {
-    return null;
-  }
-
-  return {
-    id: String(row.id ?? `item-custom-${Date.now()}-${index}`),
-    majorCategory,
-    middleCategory,
-    detailItem: detailItem || "세부 평가항목",
-    points: Math.max(0, Number(row.points) || 0),
-    description: String(row.description ?? ""),
-    criteria,
-    lawIds: Array.isArray(row.lawIds) ? row.lawIds.map(String) : [],
-    guidelineIds: Array.isArray(row.guidelineIds) ? row.guidelineIds.map(String) : [],
-  };
-}
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const authResult = await requireApiSession();

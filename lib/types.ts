@@ -1,25 +1,6 @@
+import type { ChecklistReview } from "./checklist-review/types";
+
 export type RoleCode = "ADMIN" | "REVIEWER" | "OFFICER";
-
-export type EvaluationGrade = "매우우수" | "우수" | "보통" | "미흡" | "매우미흡";
-
-export type ScoreTrace = {
-  label: string;
-  weight: number;
-  score: number;
-  evidence: string;
-};
-
-export type EvaluationItem = {
-  id: string;
-  majorCategory: string;
-  middleCategory: string;
-  detailItem: string;
-  points: number;
-  description: string;
-  criteria: string;
-  lawIds: string[];
-  guidelineIds: string[];
-};
 
 export type LawReference = {
   id: string;
@@ -37,16 +18,6 @@ export type Guideline = {
   sourceUrl?: string;
 };
 
-export type CaseStudy = {
-  id: string;
-  title: string;
-  location: string;
-  projectType: string;
-  similarityScore: number;
-  keyLearning: string;
-  sourceUrl?: string;
-};
-
 export type ProjectFile = {
   id: string;
   fileName: string;
@@ -57,120 +28,6 @@ export type ProjectFile = {
   /** Vercel Blob pathname */
   storageKey?: string;
   blobUrl?: string;
-};
-
-export type HumanEvaluationItemScore = {
-  itemId: string;
-  score: number;
-  comment?: string;
-};
-
-export type HumanEvaluationSession = {
-  id: string;
-  uploadedAt: string;
-  reviewerName: string;
-  summary?: string;
-  files: Array<{
-    id: string;
-    originalName: string;
-    fileType: string;
-    sizeBytes: number;
-  }>;
-  itemScores: HumanEvaluationItemScore[];
-};
-
-export type UploadAnalysisSession = {
-  id: string;
-  analyzedAt: string;
-  aiWeight: number;
-  expertWeight: number;
-  totalPoints: number;
-  files: Array<{
-    id: string;
-    originalName: string;
-    fileType: string;
-    sizeBytes: number;
-  }>;
-  analysis: {
-    provider: "openai" | "gemini" | "claude" | "ensemble" | "none" | "demo";
-    mode: "live" | "skipped" | "demo";
-    summary: string;
-    documentSections: Array<{ itemId?: string; label: string; confidence: number; summary: string }>;
-    evaluationPreview: Array<{
-      itemId?: string;
-      itemName: string;
-      score: number;
-      grade: string;
-      rationale: string;
-      recommendation: string;
-      laws: string[];
-      guidelines: string[];
-    }>;
-    referenceLaws?: Array<{
-      title: string;
-      article: string;
-      summary: string;
-      sourceUrl: string;
-    }>;
-    referenceGuidelines?: Array<{
-      title: string;
-      section: string;
-      summary: string;
-      sourceUrl: string;
-    }>;
-    spatialContext?: {
-      address: string;
-      inLandscapeZone: boolean;
-      matchedZones: Array<{
-        name: string;
-        code: string;
-        jurisdiction: string;
-        designationYear: string;
-      }>;
-    } | null;
-    lawSource?: "law.go.kr" | "demo-fallback";
-    contextFetchedAt?: string;
-    warnings: string[];
-    pageCorpusPreview?: string;
-    pageInventory?: import("./ai/page-inventory").FilePageInventory[];
-  };
-};
-
-export type EvaluationSessionFile = {
-  id: string;
-  originalName: string;
-  fileType: string;
-  sizeBytes: number;
-  /** Vercel Blob pathname */
-  storageKey?: string;
-  blobUrl?: string;
-};
-
-export type EvaluationRound = {
-  id: string;
-  /** 휴지통으로 이동한 시각 (ISO). trashedEvaluationRounds에 보관될 때 설정됩니다. */
-  deletedAt?: string;
-  evaluatedAt: string;
-  aiWeight: number;
-  expertWeight: number;
-  evaluationItems: EvaluationItem[];
-  totalPoints: number;
-  reviewerName: string;
-  expertSummary?: string;
-  aiFiles: EvaluationSessionFile[];
-  expertFiles: EvaluationSessionFile[];
-  aiAnalysis: UploadAnalysisSession["analysis"];
-  /** 종합 평가 시 각 AI 엔진의 초기 분석 */
-  aiAnalysesByProvider?: Partial<
-    Record<"openai" | "gemini" | "claude", UploadAnalysisSession["analysis"]>
-  >;
-  /** 종합 평가 시 상호 피드백 후 분석 */
-  crossFeedbackByProvider?: Partial<
-    Record<"openai" | "gemini" | "claude", UploadAnalysisSession["analysis"]>
-  >;
-  /** 종합 평가에 참여한 AI 엔진 목록 */
-  ensembleProvidersUsed?: Array<"openai" | "gemini" | "claude">;
-  expertItemScores: HumanEvaluationItemScore[];
 };
 
 export type ProjectLocationPoint = {
@@ -197,54 +54,10 @@ export type Project = {
   updatedAt?: string;
   status: "접수" | "심사 진행중" | "완료";
   files: ProjectFile[];
-  savedEvaluationItems?: EvaluationItem[];
-  uploadAnalyses?: UploadAnalysisSession[];
-  humanEvaluationSessions?: HumanEvaluationSession[];
-  evaluationRounds?: EvaluationRound[];
-  /** 휴지통에 보관된 평가 차수 */
-  trashedEvaluationRounds?: EvaluationRound[];
+  /** 체크리스트 기반 AI 사전검토 기록 */
+  checklistReviews?: ChecklistReview[];
   /** 휴지통으로 이동한 시각 (ISO). 설정되면 목록에서 숨깁니다. */
   deletedAt?: string;
   /** 데모 프로젝트 영구 삭제 표식 (ISO). 설정되면 데모 원본이 다시 병합되지 않습니다. */
   purgedAt?: string;
-};
-
-export type AiEvaluation = {
-  itemId: string;
-  score: number;
-  grade: EvaluationGrade;
-  rationale: string;
-  recommendation: string;
-  scoreTrace: ScoreTrace[];
-  lawIds: string[];
-  guidelineIds: string[];
-  caseStudyIds: string[];
-};
-
-export type HumanEvaluation = {
-  itemId: string;
-  reviewerName: string;
-  score: number;
-  comment: string;
-  attachmentName?: string;
-};
-
-export type HybridSettings = {
-  aiWeight: number;
-  humanWeight: number;
-};
-
-export type HybridResult = {
-  item: EvaluationItem;
-  aiEvaluation: AiEvaluation;
-  humanEvaluation: HumanEvaluation;
-  finalScore: number;
-  finalGrade: EvaluationGrade;
-  finalComment: string;
-};
-
-export type ExtractedDocumentSection = {
-  label: string;
-  confidence: number;
-  summary: string;
 };

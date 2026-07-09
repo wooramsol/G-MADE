@@ -44,7 +44,6 @@ test("buildOrdinSearchPlans includes town and county labels", () => {
       status: "접수",
       files: [],
     },
-    [],
   );
 
   assert.ok(plans.some((plan) => plan.query === "양평읍 경관 조례"));

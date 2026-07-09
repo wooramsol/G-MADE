@@ -34,7 +34,7 @@ export default function PurgeEvaluationsPanel({ projects }: { projects: ProjectO
     setPurging(true);
 
     try {
-      const response = await clientFetchWithTimeout("/api/evaluation-rounds/purge", {
+      const response = await clientFetchWithTimeout("/api/checklist-reviews/purge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ excludeProjectIds: Array.from(excludedIds) }),
@@ -45,18 +45,18 @@ export default function PurgeEvaluationsPanel({ projects }: { projects: ProjectO
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "평가 기록을 삭제하지 못했습니다.");
+        throw new Error(payload.error ?? "검토 기록을 삭제하지 못했습니다.");
       }
 
       setConfirmOpen(false);
       showToast({
-        message: `평가 기록을 ${payload.projectsUpdated ?? 0}개 프로젝트에서 삭제했습니다.`,
+        message: `검토 기록을 ${payload.projectsUpdated ?? 0}개 프로젝트에서 삭제했습니다.`,
         tone: "success",
       });
       router.refresh();
     } catch (error) {
       showToast({
-        message: error instanceof Error ? error.message : "평가 기록을 삭제하지 못했습니다.",
+        message: error instanceof Error ? error.message : "검토 기록을 삭제하지 못했습니다.",
         tone: "error",
       });
     } finally {

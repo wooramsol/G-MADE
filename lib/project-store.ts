@@ -10,20 +10,9 @@ import { isDatabaseAvailable } from "./prisma";
 import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
-import {
-  isProjectPurged,
-  isProjectTrashed,
-  purgeEvaluationRound,
-  restoreEvaluationRound,
-  trashEvaluationRound,
-} from "./trash";
-import type {
-  EvaluationRound,
-  HumanEvaluationSession,
-  Project,
-  ProjectFile,
-  UploadAnalysisSession,
-} from "./types";
+import { isProjectPurged, isProjectTrashed } from "./trash";
+import type { ChecklistReview } from "./checklist-review/types";
+import type { Project, ProjectFile } from "./types";
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
@@ -68,8 +57,7 @@ export async function createProject(input: ProjectInput): Promise<Project> {
       ...input,
       status: "접수",
       files: [],
-      evaluationRounds: [],
-      trashedEvaluationRounds: [],
+      checklistReviews: [],
       updatedAt: now,
     };
 
@@ -92,18 +80,6 @@ export async function removeProjectFile(id: string, fileId: string): Promise<Pro
   }));
 }
 
-export async function addProjectUploadAnalysis(
-  id: string,
-  session: UploadAnalysisSession,
-  files: ProjectFile[],
-): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    files: mergeProjectFiles(project.files, files),
-    uploadAnalyses: [...(project.uploadAnalyses ?? []), session],
-  }));
-}
-
 export async function updateProject(
   id: string,
   patch: Partial<
@@ -120,47 +96,12 @@ export async function updateProject(
       | "receivedAt"
       | "summary"
       | "status"
-      | "savedEvaluationItems"
     >
   >,
 ): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => ({
     ...project,
     ...patch,
-  }));
-}
-
-export async function removeProjectUploadAnalysis(
-  id: string,
-  sessionId: string,
-): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    uploadAnalyses: (project.uploadAnalyses ?? []).filter((session) => session.id !== sessionId),
-  }));
-}
-
-export async function addProjectHumanEvaluationSession(
-  id: string,
-  session: HumanEvaluationSession,
-  files: ProjectFile[],
-): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    files: mergeProjectFiles(project.files, files),
-    humanEvaluationSessions: [...(project.humanEvaluationSessions ?? []), session],
-  }));
-}
-
-export async function removeProjectHumanEvaluationSession(
-  id: string,
-  sessionId: string,
-): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    humanEvaluationSessions: (project.humanEvaluationSessions ?? []).filter(
-      (session) => session.id !== sessionId,
-    ),
   }));
 }
 
@@ -174,11 +115,7 @@ export async function upsertProjectRecord(project: Project): Promise<Project> {
       ...base,
       ...project,
       files: project.files ?? base.files ?? [],
-      uploadAnalyses: project.uploadAnalyses ?? base.uploadAnalyses ?? [],
-      humanEvaluationSessions: project.humanEvaluationSessions ?? base.humanEvaluationSessions ?? [],
-      evaluationRounds: project.evaluationRounds ?? base.evaluationRounds ?? [],
-      trashedEvaluationRounds: project.trashedEvaluationRounds ?? base.trashedEvaluationRounds ?? [],
-      savedEvaluationItems: project.savedEvaluationItems ?? base.savedEvaluationItems,
+      checklistReviews: project.checklistReviews ?? base.checklistReviews ?? [],
       updatedAt: new Date().toISOString(),
     };
 
@@ -187,104 +124,48 @@ export async function upsertProjectRecord(project: Project): Promise<Project> {
   });
 }
 
-export async function addProjectEvaluationRound(
+export async function addProjectChecklistReview(
   id: string,
-  round: EvaluationRound,
+  review: ChecklistReview,
   files: ProjectFile[],
 ): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => ({
     ...project,
     files: mergeProjectFiles(project.files, files),
-    evaluationRounds: [...(project.evaluationRounds ?? []), round],
+    checklistReviews: [...(project.checklistReviews ?? []), review],
   }));
 }
 
-/** 평가 차수를 휴지통으로 이동합니다. */
-export async function trashProjectEvaluationRound(
-  id: string,
-  roundId: string,
-): Promise<Project | undefined> {
+/** 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. */
+export async function clearProjectChecklistReviews(id: string): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => {
-    const result = trashEvaluationRound(
-      project.evaluationRounds ?? [],
-      project.trashedEvaluationRounds ?? [],
-      roundId,
-    );
-
-    if (!result) return project;
-
-    return {
-      ...project,
-      evaluationRounds: result.activeRounds,
-      trashedEvaluationRounds: result.trashedRounds,
-    };
-  });
-}
-
-/** @deprecated trashProjectEvaluationRound를 사용하세요. */
-export async function removeProjectEvaluationRound(
-  id: string,
-  roundId: string,
-): Promise<Project | undefined> {
-  return trashProjectEvaluationRound(id, roundId);
-}
-
-export async function restoreProjectEvaluationRound(
-  id: string,
-  roundId: string,
-): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => {
-    const result = restoreEvaluationRound(
-      project.evaluationRounds ?? [],
-      project.trashedEvaluationRounds ?? [],
-      roundId,
-    );
-
-    if (!result) return project;
-
-    return {
-      ...project,
-      evaluationRounds: result.activeRounds,
-      trashedEvaluationRounds: result.trashedRounds,
-    };
-  });
-}
-
-export async function purgeProjectEvaluationRound(
-  id: string,
-  roundId: string,
-): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => {
-    const nextTrashed = purgeEvaluationRound(project.trashedEvaluationRounds ?? [], roundId);
-    if (!nextTrashed) return project;
-
-    return {
-      ...project,
-      trashedEvaluationRounds: nextTrashed,
-    };
-  });
-}
-
-/** 프로젝트의 활성·휴지통 평가 차수를 모두 영구 삭제합니다. */
-export async function clearProjectEvaluationRounds(id: string): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => {
-    if ((project.evaluationRounds ?? []).length === 0 && (project.trashedEvaluationRounds ?? []).length === 0) {
+    if ((project.checklistReviews ?? []).length === 0) {
       return project;
     }
 
     return {
       ...project,
-      evaluationRounds: [],
-      trashedEvaluationRounds: [],
+      checklistReviews: [],
     };
   });
 }
 
+/** 개별 체크리스트 검토 기록을 삭제합니다. */
+export async function removeProjectChecklistReview(
+  id: string,
+  reviewId: string,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    checklistReviews: (project.checklistReviews ?? []).filter((review) => review.id !== reviewId),
+  }));
+}
+
 /**
- * 모든 프로젝트의 평가 데이터를 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다.
- * excludeProjectIds에 지정한 프로젝트의 평가는 유지합니다.
+ * 모든 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다.
+ * excludeProjectIds에 지정한 프로젝트의 기록은 유지합니다.
  */
-export async function purgeAllProjectEvaluationRounds(options?: {
+export async function purgeAllProjectChecklistReviews(options?: {
   excludeProjectIds?: string[];
 }): Promise<{ projectsUpdated: number }> {
   const excluded = new Set(options?.excludeProjectIds ?? []);
@@ -298,12 +179,11 @@ export async function purgeAllProjectEvaluationRounds(options?: {
       if (isProjectPurged(source)) continue;
       if (excluded.has(source.id)) continue;
 
+      if ((source.checklistReviews ?? []).length === 0) continue;
+
       const nextProject: Project = {
         ...source,
-        evaluationRounds: [],
-        trashedEvaluationRounds: [],
-        uploadAnalyses: [],
-        humanEvaluationSessions: [],
+        checklistReviews: [],
         updatedAt,
       };
 
@@ -330,10 +210,7 @@ async function updateStoredProject(
     const baseProject = storedIndex >= 0 ? storedProjects[storedIndex] : existingProject;
     const nextProject = updater({
       ...baseProject,
-      uploadAnalyses: baseProject.uploadAnalyses ?? [],
-      humanEvaluationSessions: baseProject.humanEvaluationSessions ?? [],
-      evaluationRounds: baseProject.evaluationRounds ?? [],
-      trashedEvaluationRounds: baseProject.trashedEvaluationRounds ?? [],
+      checklistReviews: baseProject.checklistReviews ?? [],
       updatedAt: new Date().toISOString(),
     });
 
@@ -407,10 +284,7 @@ async function purgeDemoProjectRecord(id: string): Promise<boolean> {
     ...(stored ?? {}),
     purgedAt,
     deletedAt: undefined,
-    evaluationRounds: [],
-    trashedEvaluationRounds: [],
-    uploadAnalyses: [],
-    humanEvaluationSessions: [],
+    checklistReviews: [],
     updatedAt: purgedAt,
   };
 
@@ -441,17 +315,7 @@ async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
             ...project,
             ...stored,
             files: stored.files ?? project.files,
-            uploadAnalyses: pickStoredArrayField<UploadAnalysisSession>(stored, "uploadAnalyses"),
-            humanEvaluationSessions: pickStoredArrayField<HumanEvaluationSession>(
-              stored,
-              "humanEvaluationSessions",
-            ),
-            evaluationRounds: pickStoredArrayField<EvaluationRound>(stored, "evaluationRounds"),
-            trashedEvaluationRounds: pickStoredArrayField<EvaluationRound>(
-              stored,
-              "trashedEvaluationRounds",
-            ),
-            savedEvaluationItems: stored.savedEvaluationItems ?? project.savedEvaluationItems,
+            checklistReviews: pickStoredArrayField<ChecklistReview>(stored, "checklistReviews"),
           }
         : project;
     });
@@ -466,16 +330,13 @@ async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
 function normalizeProjectEvaluationState(project: Project): Project {
   return {
     ...project,
-    evaluationRounds: project.evaluationRounds ?? [],
-    trashedEvaluationRounds: project.trashedEvaluationRounds ?? [],
-    uploadAnalyses: project.uploadAnalyses ?? [],
-    humanEvaluationSessions: project.humanEvaluationSessions ?? [],
+    checklistReviews: project.checklistReviews ?? [],
   };
 }
 
 function pickStoredArrayField<T>(
   stored: Project,
-  key: "uploadAnalyses" | "humanEvaluationSessions" | "evaluationRounds" | "trashedEvaluationRounds",
+  key: "checklistReviews",
 ): T[] {
   if (!(key in stored)) return [];
   const value = stored[key];

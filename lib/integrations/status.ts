@@ -1,5 +1,5 @@
-import { getConfiguredProviders } from "../ai/env-keys";
-import { getDefaultAiProvider, isProviderConfigured } from "../ai/select-provider";
+import { getClaudeStatus } from "../ai/env-keys";
+
 import { getLawReferer, isLawApiConfigured } from "../law/config";
 import { isPostgresConfigured } from "../postgres-env";
 import { isProjectStoragePersistent } from "../project-db-persistence";
@@ -39,8 +39,7 @@ function rowStatus(configured: boolean, fallback?: string): Pick<IntegrationRow,
 }
 
 export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapshot> {
-  const providers = getConfiguredProviders();
-  const defaultProvider = getDefaultAiProvider();
+  const claude = getClaudeStatus();
   const lawConfigured = isLawApiConfigured();
   const spatialConfigured = isVWorldConfigured();
   const databaseConfigured = await isDatabaseAvailable();
@@ -48,51 +47,14 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
 
   const aiRows: IntegrationRow[] = [
     {
-      id: "ai-gemini",
-      name: "Google Gemini",
-      provider: "Google AI",
-      configured: providers.gemini,
-      envKeys: providers.geminiEnvKey
-        ? [providers.geminiEnvKey]
-        : ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
-      detail: providers.gemini ? "키 설정됨" : undefined,
-      fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
-      ...rowStatus(providers.gemini),
-    },
-    {
-      id: "ai-openai",
-      name: "OpenAI ChatGPT",
-      provider: "OpenAI",
-      configured: providers.openai,
-      envKeys: ["OPENAI_API_KEY"],
-      detail: providers.openai ? "키 설정됨" : undefined,
-      fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
-      ...rowStatus(providers.openai),
-    },
-    {
       id: "ai-claude",
       name: "Anthropic Claude",
       provider: "Anthropic",
-      configured: providers.claude,
-      envKeys: providers.claudeEnvKey
-        ? [providers.claudeEnvKey]
-        : ["CLAUDE_API_KEY", "ANTHROPIC_API_KEY"],
-      detail: providers.claude ? "키 설정됨" : undefined,
-      fallback: "미설정 시 다른 AI 또는 데모 분석 사용",
-      ...rowStatus(providers.claude),
-    },
-    {
-      id: "ai-default",
-      name: "현재 자동 선택",
-      provider: "시스템",
-      configured: Boolean(defaultProvider && isProviderConfigured(defaultProvider)),
-      statusLabel:
-        defaultProvider && isProviderConfigured(defaultProvider)
-          ? `${defaultProvider} 사용`
-          : "미설정",
-      tone: defaultProvider && isProviderConfigured(defaultProvider) ? "active" : "inactive",
-      envKeys: ["AI_PROVIDER_DEFAULT"],
-      detail: `AI_PROVIDER_DEFAULT=${defaultProvider}`,
+      configured: claude.configured,
+      envKeys: claude.envKey ? [claude.envKey] : ["CLAUDE_API_KEY", "ANTHROPIC_API_KEY"],
+      detail: claude.configured ? "키 설정됨 · 체크리스트 추출·항목 평가에 사용" : undefined,
+      fallback: "미설정 시 AI 검토 비활성",
+      ...rowStatus(claude.configured),
     },
   ];
 
@@ -150,7 +112,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatusSnapsho
       {
         id: "ai",
         title: "AI 연동 상태",
-        description: "업로드 문서 분석에 사용하는 AI 제공자입니다.",
+        description: "체크리스트 추출과 항목별 평가에 사용하는 AI입니다.",
         rows: aiRows,
       },
       {

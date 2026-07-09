@@ -1,4 +1,4 @@
-import type { UploadedFileSummary } from "./analysis-types";
+import type { UploadedFileSummary } from "./uploaded-file";
 
 /** PDF document blocks may still require the beta header on some API paths. */
 export const ANTHROPIC_PDF_BETA = "pdfs-2024-09-25";

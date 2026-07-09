@@ -1,10 +1,7 @@
 export class AiAnalysisError extends Error {
-  readonly provider: "openai" | "gemini" | "claude" | "auto";
-
-  constructor(message: string, provider: AiAnalysisError["provider"] = "auto") {
+  constructor(message: string, _provider: "claude" = "claude") {
     super(message);
     this.name = "AiAnalysisError";
-    this.provider = provider;
   }
 }
 

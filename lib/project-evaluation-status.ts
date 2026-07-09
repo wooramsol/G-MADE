@@ -1,4 +1,3 @@
-import { getProjectEvaluationRounds } from "./evaluation-rounds";
 import type { Project } from "./types";
 
 export type ProjectEvaluationStatusTone = "waiting" | "active";
@@ -6,28 +5,28 @@ export type ProjectEvaluationStatusTone = "waiting" | "active";
 export type ProjectEvaluationStatus = {
   label: string;
   tone: ProjectEvaluationStatusTone;
-  roundCount: number;
+  reviewCount: number;
 };
 
-export function getProjectEvaluationRoundCount(project: Project): number {
-  return getProjectEvaluationRounds(project).length;
+export function getProjectChecklistReviewCount(project: Project): number {
+  return (project.checklistReviews ?? []).length;
 }
 
 export function getProjectEvaluationStatus(project: Project): ProjectEvaluationStatus {
-  const roundCount = getProjectEvaluationRoundCount(project);
+  const reviewCount = getProjectChecklistReviewCount(project);
 
-  if (roundCount === 0) {
+  if (reviewCount === 0) {
     return {
-      label: "평가대기",
+      label: "검토대기",
       tone: "waiting",
-      roundCount: 0,
+      reviewCount: 0,
     };
   }
 
   return {
-    label: `평가중(${roundCount})`,
+    label: `검토완료(${reviewCount})`,
     tone: "active",
-    roundCount,
+    reviewCount,
   };
 }
 

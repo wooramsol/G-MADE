@@ -7,10 +7,13 @@ export function extractJsonContent(content: string | undefined): string | undefi
     return fenceMatch[1].trim();
   }
 
-  // 모델이 JSON 앞뒤에 설명 문장을 붙이는 경우: 가장 바깥 중괄호 구간만 추출한다.
-  if (!trimmed.startsWith("{")) {
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
+  // 모델이 JSON 앞뒤에 설명 문장을 붙이는 경우: 가장 바깥 중괄호·대괄호 구간만 추출한다.
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    const objectStart = trimmed.indexOf("{");
+    const arrayStart = trimmed.indexOf("[");
+    const useArray = arrayStart !== -1 && (objectStart === -1 || arrayStart < objectStart);
+    const start = useArray ? arrayStart : objectStart;
+    const end = useArray ? trimmed.lastIndexOf("]") : trimmed.lastIndexOf("}");
     if (start !== -1 && end > start) {
       return trimmed.slice(start, end + 1);
     }

@@ -1,5 +1,5 @@
 import { truncateGraphemes } from "../document-text-utils";
-import type { UploadedFileSummary } from "./analysis-types";
+import type { UploadedFileSummary } from "./uploaded-file";
 
 /** Claude 요청당 파일 본문 상한 (초과 시 앞부분만 사용). */
 export const CLAUDE_MAX_CHARS_PER_FILE = 28_000;
@@ -17,7 +17,7 @@ export function prepareFilesForClaudeAnalysis(
     }
 
     warnings.push(
-      `Claude 분석: "${file.originalName}" 본문이 길어 앞 ${maxCharsPerFile.toLocaleString("ko-KR")}자만 사용합니다. 전체 분석은 Gemini를 권장합니다.`,
+      `Claude 분석: "${file.originalName}" 본문이 길어 앞 ${maxCharsPerFile.toLocaleString("ko-KR")}자만 사용합니다. 필요 시 파일을 나누어 업로드해 주세요.`,
     );
 
     return {

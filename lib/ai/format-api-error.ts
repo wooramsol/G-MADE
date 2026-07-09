@@ -3,7 +3,7 @@ type ParsedApiError = {
   message?: string;
 };
 
-export type ProviderErrorKind = "gemini" | "claude" | "openai";
+export type ProviderErrorKind = "claude";
 
 function parseApiErrorBody(body: string): ParsedApiError {
   try {
@@ -40,11 +40,7 @@ function formatNotFoundMessage(
     return `${providerLabel} 모델을 찾을 수 없습니다(404). Vercel의 CLAUDE_MODEL을 claude-sonnet-4-6으로 설정하거나 CLAUDE_MODEL 변수를 삭제한 뒤 재배포해 주세요.${tried}`;
   }
 
-  if (kind === "openai") {
-    return `${providerLabel} 모델을 찾을 수 없습니다(404). Vercel의 OPENAI_MODEL을 gpt-4o-mini로 설정하거나 OPENAI_MODEL 변수를 삭제한 뒤 재배포해 주세요.${tried}`;
-  }
-
-  return `${providerLabel} 모델을 찾을 수 없습니다(404). Vercel의 GEMINI_MODEL을 gemini-2.5-flash-lite로 설정하거나 GEMINI_MODEL 변수를 삭제한 뒤 재배포해 주세요. (gemini-2.0 계열은 2026년 6월부터 종료되었습니다.)${tried}`;
+  return `${providerLabel} 모델을 찾을 수 없습니다(404).${tried}`;
 }
 
 export function formatProviderApiError(
@@ -61,13 +57,13 @@ export function formatProviderApiError(
 
   if (code === 429 || status === 429 || lowerMessage.includes("quota") || lowerMessage.includes("rate")) {
     if (lowerMessage.includes("high demand")) {
-      return `${providerLabel} 서버 수요가 일시적으로 높습니다. 1~2분 후 다시 시도하거나 ChatGPT를 선택해 주세요.`;
+      return `${providerLabel} 서버 수요가 일시적으로 높습니다. 1~2분 후 다시 시도해 주세요.`;
     }
     return `${providerLabel} 분당 요청 제한(RPM)에 걸렸습니다(429). 무료/유료 티어 한도에 걸릴 수 있습니다. 1~2분 후 다시 시도해 주세요.`;
   }
 
   if (lowerMessage.includes("high demand") || lowerMessage.includes("try again later")) {
-    return `${providerLabel} 서버 수요가 일시적으로 높습니다. 잠시 후 다시 시도하거나 ChatGPT를 선택해 주세요.`;
+    return `${providerLabel} 서버 수요가 일시적으로 높습니다. 잠시 후 다시 시도해 주세요.`;
   }
 
   if (code === 404 || status === 404 || lowerMessage.includes("not found")) {
@@ -89,7 +85,7 @@ export function formatProviderApiError(
     lowerMessage.includes("billing") ||
     lowerMessage.includes("purchase credits")
   ) {
-    return `${providerLabel} 계정 크레딧/결제 설정이 필요합니다. Anthropic/Google AI 콘솔에서 사용 한도와 결제 상태를 확인해 주세요.`;
+    return `${providerLabel} 계정 크레딧/결제 설정이 필요합니다. Anthropic 콘솔에서 사용 한도와 결제 상태를 확인해 주세요.`;
   }
 
   if (

@@ -6,7 +6,7 @@ import {
 } from "./stored-file-ref";
 import type { Project } from "./types";
 
-/** 프로젝트·이전 평가 기록에서 재사용 가능한 Blob 자료를 모읍니다. */
+/** 프로젝트·이전 검토 기록에서 재사용 가능한 Blob 자료를 모읍니다. */
 export function collectProjectStoredFiles(project: Project): StoredFileRef[] {
   const byId = new Map<string, StoredFileRef>();
 
@@ -15,29 +15,25 @@ export function collectProjectStoredFiles(project: Project): StoredFileRef[] {
     if (ref) byId.set(ref.id, ref);
   }
 
-  const rounds = [
-    ...(project.evaluationRounds ?? []),
-    ...(project.trashedEvaluationRounds ?? []),
-  ];
-  const sortedRounds = [...rounds].sort(
-    (left, right) => new Date(right.evaluatedAt).getTime() - new Date(left.evaluatedAt).getTime(),
+  const reviews = [...(project.checklistReviews ?? [])].sort(
+    (left, right) => new Date(right.reviewedAt).getTime() - new Date(left.reviewedAt).getTime(),
   );
 
-  sortedRounds.forEach((round) => {
-    const roundLabel = formatEvaluationRoundLabel(round.evaluatedAt);
+  for (const review of reviews) {
+    const reviewLabel = formatEvaluationRoundLabel(review.reviewedAt);
 
-    for (const file of [...round.aiFiles, ...round.expertFiles]) {
+    for (const file of review.files) {
       const ref = sessionFileToStoredRef(file);
       if (!ref) continue;
 
       const existing = byId.get(ref.id);
       byId.set(ref.id, {
         ...ref,
-        lastUsedRoundLabel: roundLabel,
-        uploadedAt: existing?.uploadedAt ?? round.evaluatedAt,
+        lastUsedRoundLabel: reviewLabel,
+        uploadedAt: existing?.uploadedAt ?? review.reviewedAt,
       });
     }
-  });
+  }
 
   return Array.from(byId.values()).sort((left, right) => {
     const leftTime = left.uploadedAt ? new Date(left.uploadedAt).getTime() : 0;

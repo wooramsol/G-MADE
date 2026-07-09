@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { UploadedFileSummary } from "../lib/ai/analysis-types";
+import type { UploadedFileSummary } from "../lib/ai/uploaded-file";
 import {
   buildPageHintCorpusFromDocumentSections,
   findPageForSection,

@@ -1,4 +1,5 @@
-import type { EvaluationSessionFile, ProjectFile } from "./types";
+import type { ChecklistReviewFile } from "./checklist-review/types";
+import type { ProjectFile } from "./types";
 
 /** Blob에 저장된 프로젝트 자료 참조 (차수 간 재사용) */
 export type StoredFileRef = {
@@ -27,7 +28,7 @@ export function projectFileToStoredRef(file: ProjectFile): StoredFileRef | null 
   };
 }
 
-export function sessionFileToStoredRef(file: EvaluationSessionFile): StoredFileRef | null {
+export function sessionFileToStoredRef(file: ChecklistReviewFile): StoredFileRef | null {
   if (!file.storageKey) return null;
 
   return {
@@ -40,7 +41,7 @@ export function sessionFileToStoredRef(file: EvaluationSessionFile): StoredFileR
   };
 }
 
-export function storedRefToSessionFile(ref: StoredFileRef): EvaluationSessionFile {
+export function storedRefToSessionFile(ref: StoredFileRef): ChecklistReviewFile {
   return {
     id: ref.id,
     originalName: ref.originalName,

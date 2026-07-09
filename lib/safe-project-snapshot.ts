@@ -5,10 +5,7 @@ export function projectFromClientSnapshot(snapshot: Project): Project {
   return {
     ...snapshot,
     files: [],
-    uploadAnalyses: [],
-    humanEvaluationSessions: [],
-    evaluationRounds: [],
-    savedEvaluationItems: snapshot.savedEvaluationItems ?? [],
+    checklistReviews: [],
     updatedAt: snapshot.updatedAt ?? new Date().toISOString(),
   };
 }

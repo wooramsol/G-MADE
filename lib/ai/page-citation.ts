@@ -1,5 +1,5 @@
 import { normalizeDocumentText, sliceGraphemeRange, truncateGraphemes } from "../document-text-utils";
-import type { UploadedFileSummary } from "./analysis-types";
+import type { UploadedFileSummary } from "./uploaded-file";
 
 /** 추출 본문에 삽입하는 페이지 구분 마커 (`--- 「file.pdf」 p.3 ---`) */
 export const PAGE_MARKER_LINE_PATTERN = /^---\s*「([^」]+)」\s*p\.(\d+)\s*---$/m;

@@ -1,4 +1,4 @@
-import { getProjectEvaluationRoundCount } from "./project-evaluation-status";
+import { getProjectChecklistReviewCount } from "./project-evaluation-status";
 import type { Project } from "./types";
 
 export type DashboardStats = {
@@ -8,8 +8,8 @@ export type DashboardStats = {
 };
 
 export function buildDashboardStats(projects: Project[]): DashboardStats {
-  const waiting = projects.filter((project) => getProjectEvaluationRoundCount(project) === 0).length;
-  const inEvaluation = projects.filter((project) => getProjectEvaluationRoundCount(project) > 0).length;
+  const waiting = projects.filter((project) => getProjectChecklistReviewCount(project) === 0).length;
+  const inEvaluation = projects.filter((project) => getProjectChecklistReviewCount(project) > 0).length;
 
   return {
     total: projects.length,

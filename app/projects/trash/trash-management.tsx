@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import { CardTitle, Eyebrow, MutedText } from "@/components/typography";
-import { formatEvaluationRoundLabel, formatUploadDateTime } from "@/lib/format-datetime";
-import { getTrashedEvaluationRounds } from "@/lib/trash";
+import { formatUploadDateTime } from "@/lib/format-datetime";
 import type { Project } from "@/lib/types";
 import { showToast } from "../../toast";
 
@@ -87,7 +86,6 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
     <>
       <div className="grid gap-4">
         {trashedProjects.map((project) => {
-          const trashedRounds = getTrashedEvaluationRounds(project);
 
           return (
             <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow" key={project.id}>
@@ -116,17 +114,6 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
                   </button>
                 </div>
               </div>
-
-              {trashedRounds.length > 0 ? (
-                <div className="mt-4 rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] p-4">
-                  <p className="text-sm font-bold text-[#15345b]">휴지통 평가 {trashedRounds.length}건</p>
-                  <ul className="mt-2 space-y-1 text-xs text-[#64748b]">
-                    {trashedRounds.map((round) => (
-                      <li key={round.id}>{formatEvaluationRoundLabel(round.evaluatedAt)}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
             </div>
           );
         })}
