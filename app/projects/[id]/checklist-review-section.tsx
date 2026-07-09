@@ -7,8 +7,11 @@ import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { Caption, MutedText } from "@/components/typography";
 import type { ChecklistReviewProgressEvent } from "@/lib/checklist-review/progress";
 import type { ChecklistReview } from "@/lib/checklist-review/types";
+import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
+import { exceedsServerlessUploadLimit, SERVERLESS_UPLOAD_LIMIT_LABEL } from "@/lib/blob-config";
 import { submitChecklistReviewStream } from "@/lib/client-checklist-stream";
 import { ensureProjectOnServer } from "@/lib/client-ensure-project";
+import type { StoredFileRef } from "@/lib/stored-file-ref";
 import { formatBytes } from "@/lib/format-bytes";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
@@ -28,6 +31,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
   const [running, setRunning] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [progress, setProgress] = useState<ChecklistReviewProgressEvent | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [liveProject, setLiveProject] = useState<Project | null>(null);
 
   const effectiveProject = liveProject ?? project;
@@ -75,17 +79,29 @@ export default function ChecklistReviewSection({ project }: { project: Project }
     setRunning(true);
     setStartedAt(Date.now());
     setProgress(null);
+    setUploadMessage(null);
+
+    const newUploadBytes = newFiles.reduce((sum, file) => sum + file.size, 0);
 
     try {
       await ensureProjectOnServer(project);
 
+      // Vercel 요청 본문 한도(4.5MB)를 피하기 위해 새 파일은 Blob에 먼저 업로드하고 참조만 전달합니다.
+      let uploadedRefs: StoredFileRef[] = [];
+      if (newFiles.length > 0) {
+        setUploadMessage("자료를 저장소에 업로드하는 중...");
+        uploadedRefs = await uploadProjectFilesToBlob(project, newFiles, (fileIndex, ratio) => {
+          setUploadMessage(
+            `자료 업로드 중 (${fileIndex + 1}/${newFiles.length}) · ${Math.round(ratio * 100)}%`,
+          );
+        });
+        setUploadMessage(null);
+      }
+
       const formData = new FormData();
       formData.set("projectId", project.id);
       formData.set("projectSnapshot", JSON.stringify(project));
-      formData.set("fileRefs", JSON.stringify(refs));
-      for (const file of newFiles) {
-        formData.append("files", file);
-      }
+      formData.set("fileRefs", JSON.stringify([...refs, ...uploadedRefs]));
 
       const result = await submitChecklistReviewStream(formData, (event) => setProgress(event));
 
@@ -101,12 +117,17 @@ export default function ChecklistReviewSection({ project }: { project: Project }
       });
       router.refresh();
     } catch (error) {
+      const message = error instanceof Error ? error.message : "체크리스트 검토에 실패했습니다.";
       showToast({
-        message: error instanceof Error ? error.message : "체크리스트 검토에 실패했습니다.",
+        message:
+          exceedsServerlessUploadLimit(newUploadBytes) && message.includes("Request Entity Too Large")
+            ? `대용량 파일은 Blob 업로드가 필요합니다. Vercel Storage 연결을 확인해 주세요. (서버 직접 업로드 한도: ${SERVERLESS_UPLOAD_LIMIT_LABEL})`
+            : message,
         tone: "error",
       });
     } finally {
       setRunning(false);
+      setUploadMessage(null);
     }
   }
 
@@ -116,7 +137,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
       id="checklist-review"
       title="사전 검토자료 체크리스트 AI 검토"
     >
-      {running ? <AnalysisBlockingOverlay progress={progress} startedAt={startedAt} /> : null}
+      {running ? <AnalysisBlockingOverlay progress={progress} startedAt={startedAt} statusMessage={uploadMessage ?? undefined} /> : null}
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <div className="space-y-4">
