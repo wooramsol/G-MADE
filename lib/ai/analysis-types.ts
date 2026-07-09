@@ -60,6 +60,8 @@ export type UploadAnalysisResult = {
   warnings: string[];
   /** PDF 페이지별 추출 텍스트 색인(재분석 없이 페이지 근거 보정용) */
   pageCorpusPreview?: string;
+  /** PDF 추출 직후 페이지별 텍스트·도면·비전 인벤토리 */
+  pageInventory?: import("./page-inventory").FilePageInventory[];
 };
 
 export type AnalyzeUploadedFilesInput = {

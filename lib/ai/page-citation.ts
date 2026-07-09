@@ -307,7 +307,7 @@ function isCriteriaLikeText(text: string): boolean {
   return /평가기준|주변\s*스카이라인|과도한\s*단절|기준\s*미달|저촉\s*검토|미기재|불명확하여/.test(text);
 }
 
-function extractSectionLabel(text: string): string | null {
+export function extractSectionLabel(text: string): string | null {
   for (const keyword of DRAWING_SECTION_KEYWORDS) {
     if (text.includes(keyword)) return keyword;
   }

@@ -13,6 +13,7 @@ import { formatProviderBadgeLabel, getProviderBadgeClass } from "@/lib/ai/provid
 import { formatEvaluationRoundLabel } from "@/lib/format-datetime";
 import { resolveDocumentSectionsForDisplay } from "@/lib/ai/document-section-summary";
 import LegacyDemoAnalysisBanner from "@/components/legacy-demo-analysis-banner";
+import PageInventoryPanel from "@/components/page-inventory-panel";
 import { filterUserFacingAnalysisWarnings } from "@/lib/analysis-warnings";
 import { dedupeReferenceLaws } from "@/lib/dedupe-reference-laws";
 import { pickRelatedReferenceLaws } from "@/lib/related-reference-laws";
@@ -368,6 +369,10 @@ export default function ProjectEvaluationWorkspace({
               </p>
             </div>
           </div>
+
+          {selectedRound.aiAnalysis.pageInventory?.length ? (
+            <PageInventoryPanel inventory={selectedRound.aiAnalysis.pageInventory} />
+          ) : null}
 
           <PreReviewResultsPanel
             checklistProps={{

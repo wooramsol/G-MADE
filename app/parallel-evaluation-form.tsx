@@ -23,6 +23,7 @@ import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { EvaluationItem, EvaluationRound, Project, ProjectFile } from "@/lib/types";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import type { EvaluationAnalysisProgressEvent } from "@/lib/evaluation-analysis-progress";
+import type { FilePageInventory } from "@/lib/ai/page-inventory";
 import { submitEvaluationRoundStream } from "@/lib/client-evaluation-stream";
 import { buildOversizedUploadMessage } from "@/lib/upload-limits";
 import { ErrorText, FieldLabel, MutedText, StepTitle } from "@/components/typography";
@@ -63,6 +64,7 @@ export default function ParallelEvaluationForm({
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<EvaluationAnalysisProgressEvent | null>(null);
+  const [pageInventoryPreview, setPageInventoryPreview] = useState<FilePageInventory[] | null>(null);
   const [error, setError] = useState("");
 
   const expertWeight = getExpertWeight(aiWeight);
@@ -147,6 +149,7 @@ export default function ParallelEvaluationForm({
     setUploadProgress(null);
     setAnalysisStartedAt(Date.now());
     setAnalysisProgress(null);
+    setPageInventoryPreview(null);
     setError("");
 
     const formData = new FormData();
@@ -176,9 +179,15 @@ export default function ParallelEvaluationForm({
 
       setUploadProgress(null);
 
-      const payload = await submitEvaluationRoundStream(formData, (progress) => {
-        setAnalysisProgress(progress);
-      });
+      const payload = await submitEvaluationRoundStream(
+        formData,
+        (progress) => {
+          setAnalysisProgress(progress);
+        },
+        (event) => {
+          setPageInventoryPreview(event.inventory);
+        },
+      );
 
       const uploadedAt = payload.round.evaluatedAt;
       const projectFiles: ProjectFile[] = collectUniqueRoundFiles(payload.round).map((file) =>
@@ -211,6 +220,7 @@ export default function ParallelEvaluationForm({
       setUploadProgress(null);
       setAnalysisStartedAt(null);
       setAnalysisProgress(null);
+      setPageInventoryPreview(null);
     }
   }
 
@@ -218,6 +228,7 @@ export default function ParallelEvaluationForm({
     <div className="space-y-5">
       {loading && analysisStartedAt ? (
         <AnalysisBlockingOverlay
+          pageInventory={pageInventoryPreview}
           progress={analysisProgress}
           startedAt={analysisStartedAt}
           statusMessage={uploadProgress ?? undefined}

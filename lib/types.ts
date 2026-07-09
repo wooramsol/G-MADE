@@ -132,6 +132,7 @@ export type UploadAnalysisSession = {
     contextFetchedAt?: string;
     warnings: string[];
     pageCorpusPreview?: string;
+    pageInventory?: import("./ai/page-inventory").FilePageInventory[];
   };
 };
 

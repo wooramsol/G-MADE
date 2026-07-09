@@ -34,8 +34,16 @@ export type EvaluationAnalysisHeartbeatEvent = {
   at: number;
 };
 
+export type EvaluationAnalysisPageInventoryEvent = {
+  type: "page-inventory";
+  inventory: import("./ai/page-inventory").FilePageInventory[];
+  pageCount: number;
+  fileCount: number;
+};
+
 export type EvaluationAnalysisStreamEvent =
   | EvaluationAnalysisProgressEvent
+  | EvaluationAnalysisPageInventoryEvent
   | EvaluationAnalysisCompleteEvent
   | EvaluationAnalysisErrorEvent
   | EvaluationAnalysisHeartbeatEvent;
