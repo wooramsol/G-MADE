@@ -1,7 +1,7 @@
 import { getClaudeApiKey, getGeminiApiKey, getOpenAiApiKey } from "./env-keys";
 import type { AiProviderId, AiProviderPreference } from "./types";
 
-const providerOrder: AiProviderId[] = ["gemini", "openai", "claude"];
+const providerOrder: AiProviderId[] = ["claude", "gemini", "openai"];
 
 export function getDefaultAiProvider(): AiProviderId | null {
   const configured = process.env.AI_PROVIDER_DEFAULT?.trim().toLowerCase();
@@ -10,7 +10,9 @@ export function getDefaultAiProvider(): AiProviderId | null {
     return isProviderConfigured(configured) ? configured : null;
   }
 
-  return "gemini";
+  // Claude로 분석 엔진을 통일한다. PDF 문서를 네이티브로 받아 도면·스캔 자료까지 비전으로
+  // 함께 분석할 수 있어 경관·공공디자인 심의 자료에 가장 적합하다.
+  return "claude";
 }
 
 export function selectProvider(preference: AiProviderPreference): AiProviderId | null {

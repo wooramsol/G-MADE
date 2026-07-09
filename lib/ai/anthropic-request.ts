@@ -51,7 +51,11 @@ export function shouldIncludeClaudeVision(files: UploadedFileSummary[]): boolean
   return estimateClaudeVisionPayloadBytes(files) <= CLAUDE_PDF_VISION_MAX_BYTES;
 }
 
-/** 스캔 PDF·이미지 전용 등 텍스트 추출이 부족할 때만 비전 입력을 사용합니다. */
+/**
+ * @deprecated resolveClaudeVisionModes의 비전 게이팅 조건으로는 더 이상 사용하지 않습니다.
+ * 텍스트 레이어가 있어도 도면·그림은 이미지로만 존재하므로, 텍스트 유무만으로 비전 분석을
+ * 건너뛰면 안 됩니다. 스캔 문서 여부를 참고용으로 판단하고 싶을 때만 사용하세요.
+ */
 export function needsClaudePdfVision(files: UploadedFileSummary[]): boolean {
   for (const file of files) {
     const hasPdfVision = (file.visionAssets ?? []).some((asset) => asset.mediaType === "application/pdf");
@@ -83,7 +87,11 @@ export function resolveClaudeVisionModes(
     return ["text-only"];
   }
 
-  if (!shouldIncludeClaudeVision(files) || !needsClaudePdfVision(files)) {
+  // 경관·공공디자인 심의 자료는 제목·범례 등 텍스트가 있어도 실제 판단 대상(배치도·입면도·
+  // 조감도 등)은 이미지로만 존재한다. 텍스트 추출량이 충분하다는 이유로 비전 분석을 건너뛰면
+  // 도면·그림을 놓치게 되므로, 비전 자료가 있고 요청 용량 한도 내라면 항상 비전 모드를 우선
+  // 시도하고 실패 시에만 텍스트 전용으로 재시도한다.
+  if (!shouldIncludeClaudeVision(files)) {
     return ["text-only"];
   }
 
