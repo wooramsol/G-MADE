@@ -22,6 +22,7 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   env: {
     NEXT_PUBLIC_RELEASE_PR: resolveBuildReleasePr(),
+    NEXT_PUBLIC_RELEASE_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? "",
   },
 };
 

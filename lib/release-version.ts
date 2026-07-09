@@ -1,4 +1,4 @@
-/** PR마다 갱신하는 fallback PR 번호. fast-forward 배포 시 헤더 배지에 사용된다. */
+/** PR 머지 배포 시 갱신하는 fallback PR 번호. */
 export const RELEASE_PR_NUMBER = 104;
 
 function extractPrNumber(text: string): number | null {
@@ -18,12 +18,22 @@ function resolveReleasePrNumber(): number {
   return RELEASE_PR_NUMBER;
 }
 
+function resolveCommitShort(): string | null {
+  const sha = process.env.NEXT_PUBLIC_RELEASE_SHA || process.env.VERCEL_GIT_COMMIT_SHA || "";
+  return sha ? sha.slice(0, 7) : null;
+}
+
 /**
- * 배포 버전 라벨. 우선순위:
- * 1. Vercel 커밋 메시지의 PR 번호 (Merge pull request #N)
- * 2. 빌드 시 주입된 NEXT_PUBLIC_RELEASE_PR
- * 3. RELEASE_PR_NUMBER 상수
+ * 배포 버전 라벨. 배포마다 값이 바뀌어 반영 여부를 확인할 수 있다.
+ * - PR 머지 배포: "PR #N · abc1234"
+ * - 직접 푸시 배포: "abc1234" (커밋 short SHA)
+ * - 로컬/SHA 없음: "PR #N (fallback)"
  */
 export function getReleaseVersionLabel(): string {
+  const short = resolveCommitShort();
+  const fromCommit = extractPrNumber(process.env.VERCEL_GIT_COMMIT_MESSAGE ?? "");
+
+  if (fromCommit && short) return `PR #${fromCommit} · ${short}`;
+  if (short) return short;
   return `PR #${resolveReleasePrNumber()}`;
 }
