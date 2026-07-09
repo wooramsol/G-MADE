@@ -19,12 +19,12 @@ export function resolveAiProviderPreference(raw?: string | null): AiProviderPref
     return defaultProvider;
   }
 
-  return "ensemble";
+  return "claude";
 }
 
-/** 클라이언트 AI 엔진 선택 초기값 — 종합(3엔진) 모드 */
+/** 클라이언트 AI 엔진 선택 초기값 — Claude로 통일 (PDF·도면 비전 분석 안정성 우선) */
 export function toClientAiProviderPreference(
   _defaultProvider: string,
-): "ensemble" {
-  return "ensemble";
+): "claude" {
+  return "claude";
 }

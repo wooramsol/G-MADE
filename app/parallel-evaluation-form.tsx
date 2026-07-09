@@ -82,15 +82,15 @@ export default function ParallelEvaluationForm({
       try {
         const response = await clientFetchWithTimeout("/api/ai-status");
         if (!response.ok) {
-          if (!cancelled) setProvider("ensemble");
+          if (!cancelled) setProvider("claude");
           return;
         }
         const payload = (await response.json()) as { defaultProvider?: string };
         if (!cancelled) {
-          setProvider(toClientAiProviderPreference(payload.defaultProvider ?? "ensemble"));
+          setProvider(toClientAiProviderPreference(payload.defaultProvider ?? "claude"));
         }
       } catch {
-        if (!cancelled) setProvider("ensemble");
+        if (!cancelled) setProvider("claude");
       }
     }
 
