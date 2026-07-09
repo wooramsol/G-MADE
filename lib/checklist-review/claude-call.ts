@@ -38,6 +38,7 @@ export type ClaudeCallOptions = {
 export type ClaudeCallResult = {
   text: string;
   model: string;
+  stopReason?: string;
 };
 
 export function isClaudeConfigured(): boolean {
@@ -103,6 +104,7 @@ export async function callClaude(options: ClaudeCallOptions): Promise<ClaudeCall
 
         const payload = (await response.json()) as {
           content?: Array<{ type: string; text?: string }>;
+          stop_reason?: string;
         };
         const text = (payload.content ?? [])
           .filter((block) => block.type === "text" && block.text)
@@ -114,7 +116,7 @@ export async function callClaude(options: ClaudeCallOptions): Promise<ClaudeCall
           throw new AiAnalysisError("Claude 응답이 비어 있습니다.", "claude");
         }
 
-        return { text, model };
+        return { text, model, stopReason: payload.stop_reason };
       } catch (error) {
         if (error instanceof ClaudePayloadTooLargeError || error instanceof AiAnalysisError) {
           throw error;

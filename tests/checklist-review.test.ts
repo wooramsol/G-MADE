@@ -148,3 +148,17 @@ test("countFindingStatuses는 상태별 개수를 집계한다", () => {
   assert.equal(counts.부분충족, 0);
   assert.equal(counts.확인불가, 0);
 });
+
+test("salvageTruncatedPayload는 잘린 JSON에서 완성된 판정을 복구한다", async () => {
+  const { salvageTruncatedPayload } = await import("../lib/checklist-review/evaluate-items");
+  const truncated = `{"summary":"전반적으로 양호합니다.","findings":[
+    {"itemId":"c1","status":"충족","rationale":"근거 확인","evidence":[{"fileName":"a.pdf","page":2,"note":"배치도"}],"lawRefs":[]},
+    {"itemId":"c2","status":"미충족","rationale":"근거 없음","evidence":[],"lawRefs":[]},
+    {"itemId":"c3","status":"부분충족","rationale":"잘린 항`;
+
+  const payload = salvageTruncatedPayload(truncated);
+  assert.ok(payload);
+  assert.equal(payload?.findings?.length, 2);
+  assert.equal(payload?.findings?.[0]?.itemId, "c1");
+  assert.equal(payload?.summary, "전반적으로 양호합니다.");
+});

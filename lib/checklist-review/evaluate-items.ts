@@ -18,10 +18,10 @@ import {
 } from "./types";
 
 const EVALUATE_MAX_OUTPUT_TOKENS = 16_384;
-const ITEMS_PER_BATCH = 30;
+const ITEMS_PER_BATCH = 20;
 /** 항목당 예상 출력 토큰 (간결 출력 기준) — max_tokens 산정용 */
-const OUTPUT_TOKENS_PER_ITEM = 220;
-const OUTPUT_TOKENS_BASE = 800;
+const OUTPUT_TOKENS_PER_ITEM = 320;
+const OUTPUT_TOKENS_BASE = 1_200;
 
 function resolveMaxOutputTokens(itemCount: number): number {
   return Math.min(EVALUATE_MAX_OUTPUT_TOKENS, OUTPUT_TOKENS_BASE + itemCount * OUTPUT_TOKENS_PER_ITEM);
@@ -185,8 +185,65 @@ function parsePayload(raw: string): RawEvaluationPayload | null {
   try {
     return JSON.parse(json) as RawEvaluationPayload;
   } catch {
-    return null;
+    return salvageTruncatedPayload(json);
   }
+}
+
+/**
+ * max_tokens 등으로 잘린 JSON에서 완성된 finding 객체만 복구합니다.
+ * findings 배열 안의 균형 잡힌 {...} 블록을 순서대로 파싱합니다.
+ */
+export function salvageTruncatedPayload(json: string): RawEvaluationPayload | null {
+  const summaryMatch = json.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const findingsStart = json.indexOf('"findings"');
+  if (findingsStart === -1) return null;
+
+  const arrayStart = json.indexOf("[", findingsStart);
+  if (arrayStart === -1) return null;
+
+  const findings: RawFinding[] = [];
+  let depth = 0;
+  let objectStart = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = arrayStart + 1; index < json.length; index += 1) {
+    const char = json[index];
+
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+    } else if (char === "{") {
+      if (depth === 0) objectStart = index;
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && objectStart !== -1) {
+        try {
+          const parsed = JSON.parse(json.slice(objectStart, index + 1)) as RawFinding;
+          if (parsed?.itemId) findings.push(parsed);
+        } catch {
+          // 불완전한 객체는 건너뜀
+        }
+        objectStart = -1;
+      }
+    } else if (char === "]" && depth === 0) {
+      break;
+    }
+  }
+
+  if (findings.length === 0) return null;
+
+  return {
+    summary: summaryMatch ? summaryMatch[1] : undefined,
+    findings,
+  };
 }
 
 /** 페이지 인용 검증: 텍스트 레이어가 있으면 알려진 페이지만, 없으면 totalPages 범위만 확인. */
@@ -289,7 +346,7 @@ export function sanitizeFindings(
 }
 
 function chunkItems(items: ChecklistItem[]): ChecklistItem[][] {
-  if (items.length <= ITEMS_PER_BATCH + 6) return [items];
+  if (items.length <= ITEMS_PER_BATCH + 5) return [items];
   const chunkCount = Math.ceil(items.length / ITEMS_PER_BATCH);
   const size = Math.ceil(items.length / chunkCount);
   const chunks: ChecklistItem[][] = [];
@@ -421,7 +478,14 @@ export async function evaluateChecklistItems(options: {
 
     const payload = parsePayload(result.text);
     if (!payload) {
+      console.error(
+        `[checklist-review] JSON 해석 실패 stop=${result.stopReason} len=${result.text.length} tail=${result.text.slice(-200)}`,
+      );
       throw new Error("AI 평가 응답(JSON)을 해석하지 못했습니다. 다시 시도해 주세요.");
+    }
+    if (result.stopReason === "max_tokens") {
+      console.warn(`[checklist-review] 응답이 max_tokens로 잘림 — 복구된 findings=${payload.findings?.length ?? 0}`);
+      warnings.push("일부 배치의 AI 응답이 길이 제한으로 잘려, 판정이 누락된 항목은 확인불가로 처리했습니다.");
     }
 
     return {
