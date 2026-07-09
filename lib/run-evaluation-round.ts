@@ -3,7 +3,9 @@ import { buildEvaluationContext } from "@/lib/evaluation-context";
 import {
   EVALUATION_ANALYSIS_STEPS,
   type EvaluationAnalysisProgressEvent,
+  type EvaluationAnalysisStreamEvent,
 } from "@/lib/evaluation-analysis-progress";
+import { buildPageInventory, countPageInventoryEntries } from "@/lib/ai/page-inventory";
 import {
   DEFAULT_AI_WEIGHT,
   requiresAiUploadMaterials,
@@ -55,9 +57,9 @@ export type RunEvaluationRoundResult = {
   warnings: string[];
 };
 
-type ProgressEmitter = (event: EvaluationAnalysisProgressEvent) => void;
+type StreamEmitter = (event: EvaluationAnalysisStreamEvent) => void;
 
-function emitStep(emit: ProgressEmitter | undefined, step: EvaluationAnalysisProgressEvent["step"]) {
+function emitStep(emit: StreamEmitter | undefined, step: EvaluationAnalysisProgressEvent["step"]) {
   const stepIndex = EVALUATION_ANALYSIS_STEPS.findIndex((item) => item.id === step);
   const meta = EVALUATION_ANALYSIS_STEPS[stepIndex];
   emit?.({
@@ -71,7 +73,7 @@ function emitStep(emit: ProgressEmitter | undefined, step: EvaluationAnalysisPro
 
 export async function runEvaluationRound(
   input: RunEvaluationRoundInput,
-  emit?: ProgressEmitter,
+  emit?: StreamEmitter,
 ): Promise<RunEvaluationRoundResult> {
   let newlySavedFiles: SavedUploadFile[] = [];
   const evaluationStartedAt = Date.now();
@@ -180,6 +182,16 @@ export async function runEvaluationRound(
 
     const textBudget = applyFilesTextBudget(filesForAnalysis);
 
+    const pageInventory = needsMaterials ? buildPageInventory(filesForAnalysis) : [];
+    if (pageInventory.length > 0) {
+      emit?.({
+        type: "page-inventory",
+        inventory: pageInventory,
+        fileCount: pageInventory.length,
+        pageCount: countPageInventoryEntries(pageInventory),
+      });
+    }
+
     emitStep(emit, "law-context");
     const evaluationContext = await buildEvaluationContext(projectId, evaluationItems);
     evaluationContext.warnings = [
@@ -283,6 +295,7 @@ export async function runEvaluationRound(
       expertFiles: savedExpertFiles.map(toSessionFile),
       aiAnalysis: {
         ...aiAnalysis,
+        ...(pageInventory.length > 0 ? { pageInventory } : {}),
         warnings: mergeRoundAnalysisWarnings(
           evaluationContext.warnings,
           aiAnalysis.warnings ?? [],

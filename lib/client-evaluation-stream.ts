@@ -6,7 +6,11 @@ import {
   EVALUATION_STREAM_TIMEOUT_MS,
 } from "@/lib/client-fetch-with-timeout";
 import { formatInterruptedStreamMessage } from "@/lib/evaluation-stream-messages";
-import type { EvaluationAnalysisProgressEvent, EvaluationAnalysisStreamEvent } from "@/lib/evaluation-analysis-progress";
+import type {
+  EvaluationAnalysisPageInventoryEvent,
+  EvaluationAnalysisProgressEvent,
+  EvaluationAnalysisStreamEvent,
+} from "@/lib/evaluation-analysis-progress";
 
 export type EvaluationRoundStreamResult = {
   round: EvaluationRound;
@@ -42,6 +46,7 @@ function consumeStreamEvent(
 export async function submitEvaluationRoundStream(
   formData: FormData,
   onProgress: (event: EvaluationAnalysisProgressEvent) => void,
+  onPageInventory?: (event: EvaluationAnalysisPageInventoryEvent) => void,
 ): Promise<EvaluationRoundStreamResult> {
   formData.set("stream", "1");
   const providerPreference = String(formData.get("provider") ?? "");
@@ -97,6 +102,10 @@ export async function submitEvaluationRoundStream(
         onProgress(event);
         continue;
       }
+      if (event.type === "page-inventory") {
+        onPageInventory?.(event);
+        continue;
+      }
 
       const outcome = consumeStreamEvent(event);
       if (outcome) {
@@ -112,6 +121,8 @@ export async function submitEvaluationRoundStream(
       // ignore trailing heartbeat
     } else if (event.type === "progress") {
       onProgress(event);
+    } else if (event.type === "page-inventory") {
+      onPageInventory?.(event);
     } else {
       const outcome = consumeStreamEvent(event);
       if (outcome) {
