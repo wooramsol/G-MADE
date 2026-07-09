@@ -45,6 +45,7 @@ type StreamEmitter = (event: ChecklistReviewStreamEvent) => void;
 function emitStep(emit: StreamEmitter | undefined, step: ChecklistReviewProgressEvent["step"], label?: string) {
   const stepIndex = CHECKLIST_REVIEW_STEPS.findIndex((item) => item.id === step);
   const meta = CHECKLIST_REVIEW_STEPS[stepIndex];
+  console.log(`[checklist-review] step=${step}${label ? ` label=${label}` : ""}`);
   emit?.({
     type: "progress",
     step,
@@ -123,6 +124,12 @@ export async function runChecklistReview(
 
     emitStep(emit, "checklist");
     const checklistSlices = findChecklistPages(filesForAnalysis);
+    console.log(
+      `[checklist-review] files=${filesForAnalysis.length} checklistPages=${checklistSlices.length} ` +
+        filesForAnalysis
+          .map((file) => `${file.originalName}:${file.totalPages ?? "?"}p/text${(file.extractedTextPreview ?? "").length}자`)
+          .join(", "),
+    );
     let items: ChecklistReview["items"] = [];
     let itemSource: ChecklistReview["itemSource"] = "text";
 
@@ -149,6 +156,9 @@ export async function runChecklistReview(
       onProgress: (label) => emitStep(emit, "evaluate", label),
     });
 
+    console.log(
+      `[checklist-review] items=${evaluation.items.length} findings=${evaluation.findings.length} vision=${evaluation.usedVision} model=${evaluation.model}`,
+    );
     if (evaluation.items.length === 0) {
       throw new Error(
         dedupeWarnings([...evaluation.warnings]).join(" ") ||

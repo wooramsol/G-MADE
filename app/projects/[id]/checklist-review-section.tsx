@@ -32,6 +32,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
   const [startedAt, setStartedAt] = useState(0);
   const [progress, setProgress] = useState<ChecklistReviewProgressEvent | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
   const [liveProject, setLiveProject] = useState<Project | null>(null);
 
   const effectiveProject = liveProject ?? project;
@@ -80,6 +81,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
     setStartedAt(Date.now());
     setProgress(null);
     setUploadMessage(null);
+    setLastError(null);
 
     const newUploadBytes = newFiles.reduce((sum, file) => sum + file.size, 0);
 
@@ -118,13 +120,12 @@ export default function ChecklistReviewSection({ project }: { project: Project }
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "체크리스트 검토에 실패했습니다.";
-      showToast({
-        message:
-          exceedsServerlessUploadLimit(newUploadBytes) && message.includes("Request Entity Too Large")
-            ? `대용량 파일은 Blob 업로드가 필요합니다. Vercel Storage 연결을 확인해 주세요. (서버 직접 업로드 한도: ${SERVERLESS_UPLOAD_LIMIT_LABEL})`
-            : message,
-        tone: "error",
-      });
+      const displayMessage =
+        exceedsServerlessUploadLimit(newUploadBytes) && message.includes("Request Entity Too Large")
+          ? `대용량 파일은 Blob 업로드가 필요합니다. Vercel Storage 연결을 확인해 주세요. (서버 직접 업로드 한도: ${SERVERLESS_UPLOAD_LIMIT_LABEL})`
+          : message;
+      setLastError(displayMessage);
+      showToast({ message: displayMessage, tone: "error" });
     } finally {
       setRunning(false);
       setUploadMessage(null);
@@ -212,6 +213,11 @@ export default function ChecklistReviewSection({ project }: { project: Project }
               </div>
             ) : null}
 
+            {lastError ? (
+              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+                {lastError}
+              </p>
+            ) : null}
             <button
               className="primary-action-blue mt-4 w-full rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
               disabled={running}

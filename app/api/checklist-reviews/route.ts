@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
               // 완료 응답 이후 캐시 갱신 실패는 결과에 영향 없음
             }
           } catch (error) {
+            console.error("[checklist-review] failed:", error);
             write({
               type: "error",
               error: error instanceof Error ? error.message : "체크리스트 검토 중 오류가 발생했습니다.",
