@@ -162,3 +162,56 @@ test("salvageTruncatedPayload는 잘린 JSON에서 완성된 판정을 복구한
   assert.equal(payload?.findings?.[0]?.itemId, "c1");
   assert.equal(payload?.summary, "전반적으로 양호합니다.");
 });
+
+// ── selectClaudeVisionFiles: 파일 단위 비전 선별 ──
+test("selectClaudeVisionFiles는 한도 내 파일만 포함하고 초과 파일은 사유와 함께 제외한다", async () => {
+  const { selectClaudeVisionFiles, CLAUDE_PDF_VISION_MAX_BYTES } = await import("../lib/ai/anthropic-request");
+
+  const smallBase64 = "A".repeat(4 * 1024 * 1024); // ≈3MB
+  const hugeBase64 = "A".repeat(Math.ceil((CLAUDE_PDF_VISION_MAX_BYTES * 4) / 3) + 8); // 한도 초과
+
+  const files: UploadedFileSummary[] = [
+    {
+      id: "f1",
+      originalName: "도면.pdf",
+      totalPages: 30,
+      visionAssets: [{ label: "도면.pdf", mediaType: "application/pdf", base64: smallBase64 }],
+    },
+    {
+      id: "f2",
+      originalName: "대용량.pdf",
+      totalPages: 50,
+      visionAssets: [{ label: "대용량.pdf", mediaType: "application/pdf", base64: hugeBase64 }],
+    },
+    {
+      id: "f3",
+      originalName: "사진.png",
+      visionAssets: [{ label: "사진.png", mediaType: "image/png", base64: smallBase64 }],
+    },
+  ];
+
+  const selection = selectClaudeVisionFiles(files);
+  assert.equal(selection.includedKeys.has("f1"), true);
+  assert.equal(selection.includedKeys.has("f2"), false);
+  assert.equal(selection.includedKeys.has("f3"), true);
+  assert.equal(selection.excluded.length, 1);
+  assert.match(selection.excluded[0].fileName, /대용량/);
+});
+
+test("selectClaudeVisionFiles는 100페이지 초과 PDF를 제외한다", async () => {
+  const { selectClaudeVisionFiles } = await import("../lib/ai/anthropic-request");
+
+  const files: UploadedFileSummary[] = [
+    {
+      id: "long",
+      originalName: "긴문서.pdf",
+      totalPages: 140,
+      visionAssets: [{ label: "긴문서.pdf", mediaType: "application/pdf", base64: "AAAA" }],
+    },
+  ];
+
+  const selection = selectClaudeVisionFiles(files);
+  assert.equal(selection.includedKeys.size, 0);
+  assert.equal(selection.excluded.length, 1);
+  assert.match(selection.excluded[0].reason, /100페이지/);
+});

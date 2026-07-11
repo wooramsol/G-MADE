@@ -1,7 +1,7 @@
 import {
-  CLAUDE_PDF_VISION_MAX_BYTES,
-  estimateClaudeVisionPayloadBytes,
-  shouldIncludeClaudeVision,
+  selectClaudeVisionFiles,
+  visionFileKey,
+  type ClaudeVisionSelection,
 } from "@/lib/ai/anthropic-request";
 import { extractJsonContent } from "@/lib/ai/extract-json";
 import { parsePageSlices } from "@/lib/ai/page-citation";
@@ -41,6 +41,7 @@ const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의�
 - evidence의 fileName·page는 실제로 근거를 확인한 페이지만 기재합니다. 도면·이미지 속 글자도 근거로 인정합니다.
 - lawRefs는 아래 '조회된 법령·지침' 목록에 있는 것만 인용합니다. 목록에 없는 법령은 절대 언급하지 않습니다.
 - 사업지가 경관지구 등 공간정보에 해당하면 관련 항목의 spatialNote에 반영합니다.
+- 도면의 치수·수치·축척은 문서에서 숫자를 명확히 판독한 경우에만 근거로 사용합니다. 축소·저해상도로 숫자가 불명확하면 추정하지 말고 "확인불가"로 판정하고 rationale에 판독 불가 사실을 밝힙니다.
 - "미충족"·"부분충족" 항목에는 구체적인 보완 방향(recommendation)을 제시합니다.
 - 간결하게 씁니다: rationale은 2문장 이내, evidence는 항목당 최대 2개(note는 60자 이내), recommendation은 1~2문장.
 - 반드시 JSON만 출력합니다.`;
@@ -66,8 +67,12 @@ export function buildContextText(context: EvaluationContext): string {
             .map((zone) => `${zone.name}(${zone.jurisdiction}${zone.designationYear ? `, ${zone.designationYear}` : ""})`)
             .join(", ")
         : "해당 없음";
+    const nearby =
+      (context.spatial.nearbyFeatures ?? [])
+        .map((feature) => `${feature.layerLabel}: ${feature.name}`)
+        .join(", ") || "조회된 정보 없음";
     parts.push(
-      `[공간정보 (브이월드)]\n주소: ${context.spatial.address}\n경관지구 해당: ${context.spatial.inLandscapeZone ? "예" : "아니오"}\n관련 구역: ${zones}`,
+      `[공간정보 (브이월드)]\n주소: ${context.spatial.address}\n경관지구 해당: ${context.spatial.inLandscapeZone ? "예" : "아니오"}\n관련 구역: ${zones}\n인접 공간정보(용도지역·문화재 등): ${nearby}`,
     );
   }
 
@@ -92,11 +97,17 @@ export function buildContextText(context: EvaluationContext): string {
   return parts.join("\n\n");
 }
 
-function buildDocumentBlocks(files: UploadedFileSummary[], useVision: boolean): ClaudeContentBlock[] {
+/**
+ * 파일별 선별 결과에 따라 비전(문서·이미지)과 텍스트 블록을 섞어 구성합니다.
+ * selection이 null이면 텍스트 전용 모드입니다.
+ */
+function buildDocumentBlocks(files: UploadedFileSummary[], selection: ClaudeVisionSelection | null): ClaudeContentBlock[] {
   const blocks: ClaudeContentBlock[] = [];
 
-  if (useVision) {
-    for (const file of files) {
+  for (const file of files) {
+    const includeVision = selection?.includedKeys.has(visionFileKey(file)) ?? false;
+
+    if (includeVision) {
       for (const asset of file.visionAssets ?? []) {
         if (asset.mediaType === "application/pdf") {
           blocks.push({
@@ -111,13 +122,12 @@ function buildDocumentBlocks(files: UploadedFileSummary[], useVision: boolean): 
           });
         }
       }
+      continue;
     }
-  } else {
-    for (const file of files) {
-      const text = (file.extractedTextPreview ?? "").trim();
-      if (text) {
-        blocks.push({ type: "text", text: `=== 제출 문서: ${file.originalName} ===\n${text}` });
-      }
+
+    const text = (file.extractedTextPreview ?? "").trim();
+    if (text) {
+      blocks.push({ type: "text", text: `=== 제출 문서: ${file.originalName} ===\n${text}` });
     }
   }
 
@@ -376,10 +386,13 @@ export async function evaluateChecklistItems(options: {
   };
   const warnings: string[] = [];
 
-  const useVision = shouldIncludeClaudeVision(files);
-  if (!useVision && files.some((file) => (file.visionAssets ?? []).length > 0)) {
+  const visionSelection = selectClaudeVisionFiles(files);
+  const useVision = visionSelection.includedKeys.size > 0;
+  if (visionSelection.excluded.length > 0) {
     warnings.push(
-      `제출 자료 용량이 커서(${Math.round(estimateClaudeVisionPayloadBytes(files) / 1024 / 1024)}MB > ${Math.round(CLAUDE_PDF_VISION_MAX_BYTES / 1024 / 1024)}MB) 도면·이미지 비전 분석 없이 텍스트만으로 평가했습니다.`,
+      `일부 자료는 도면·이미지 비전 분석에서 제외하고 텍스트만으로 평가했습니다: ${visionSelection.excluded
+        .map((entry) => `"${entry.fileName}" (${entry.reason})`)
+        .join(", ")}. 해당 파일을 나누거나 압축하면 도면까지 분석할 수 있습니다.`,
     );
   }
 
@@ -392,7 +405,7 @@ export async function evaluateChecklistItems(options: {
 
   const runCall = async (prompt: string, vision: boolean, itemCount: number) => {
     const blocks: ClaudeContentBlock[] = [
-      ...buildDocumentBlocks(files, vision),
+      ...buildDocumentBlocks(files, vision ? visionSelection : null),
       { type: "text", text: prompt },
     ];
     return callClaude({

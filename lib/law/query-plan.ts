@@ -18,14 +18,15 @@ export function buildLawQueries(project?: Project ): string[] {
   }
 
   if (project?.reviewType.includes("경관")) {
-    queries.add("경관의 법률");
+    // 법령명 검색은 정식 명칭 기준 — "경관법"이 정식 명칭입니다 ("경관의 법률"은 0건).
+    queries.add("경관법");
     queries.add("경관법 시행령");
     queries.add("건축법");
     queries.add("국토계획법");
   }
 
   if (queries.size === 0) {
-    queries.add("경관의 법률");
+    queries.add("경관법");
     queries.add("경관법 시행령");
   }
 

@@ -22,7 +22,7 @@ export function prepareFilesForClaudeAnalysis(
 
     return {
       ...file,
-      extractedTextPreview: `${truncateGraphemes(source, maxCharsPerFile)}\n...[본문 일부 생략 — 전체 분석은 Gemini 권장]`,
+      extractedTextPreview: `${truncateGraphemes(source, maxCharsPerFile)}\n...[본문 일부 생략]`,
     };
   });
 

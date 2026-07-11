@@ -18,7 +18,7 @@ export type FetchedLawReference = {
 type LawServiceResponse = Record<string, unknown>;
 
 const KEY_ARTICLE_HINTS: Array<{ keyword: string; articles: string[] }> = [
-  { keyword: "경관의 법률", articles: ["28", "2", "14"] },
+  { keyword: "경관법", articles: ["28", "2", "14"] },
   { keyword: "경관법 시행령", articles: ["14", "15", "2"] },
   { keyword: "공공디자인의 진흥에 관한 법률 시행규칙", articles: ["2", "3"] },
   { keyword: "공공디자인의 진흥에 관한 법률 시행령", articles: ["10", "2"] },

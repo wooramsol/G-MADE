@@ -8,6 +8,62 @@ export const ANTHROPIC_API_VERSION = "2023-06-01";
 /** Stay under Anthropic's ~32MB request cap (base64 + prompt overhead). */
 export const CLAUDE_PDF_VISION_MAX_BYTES = 18 * 1024 * 1024;
 
+/** Anthropic PDF document block 한도 (요청당 최대 100페이지). */
+export const CLAUDE_PDF_MAX_PAGES = 100;
+
+export type ClaudeVisionSelection = {
+  /** 비전 자산을 포함할 파일 키 (visionFileKey 기준) */
+  includedKeys: Set<string>;
+  excluded: Array<{ fileName: string; reason: string }>;
+};
+
+export function visionFileKey(file: Pick<UploadedFileSummary, "id" | "originalName">): string {
+  return file.id ?? file.originalName;
+}
+
+function formatMb(bytes: number): string {
+  return `${Math.max(0, Math.round((bytes / 1024 / 1024) * 10) / 10)}MB`;
+}
+
+/**
+ * 전체 on/off 대신 파일 단위로 비전 포함 여부를 선별합니다.
+ * - PDF 100페이지 초과 파일은 API가 거부하므로 제외
+ * - 누적 용량이 한도를 넘는 파일은 제외 (해당 파일은 텍스트로만 평가)
+ */
+export function selectClaudeVisionFiles(files: UploadedFileSummary[]): ClaudeVisionSelection {
+  const includedKeys = new Set<string>();
+  const excluded: Array<{ fileName: string; reason: string }> = [];
+  let usedBytes = 0;
+
+  for (const file of files) {
+    const assets = file.visionAssets ?? [];
+    if (assets.length === 0) continue;
+
+    const hasPdf = assets.some((asset) => asset.mediaType === "application/pdf");
+    if (hasPdf && (file.totalPages ?? 0) > CLAUDE_PDF_MAX_PAGES) {
+      excluded.push({
+        fileName: file.originalName,
+        reason: `PDF ${file.totalPages}페이지 — 비전 한도(${CLAUDE_PDF_MAX_PAGES}페이지) 초과`,
+      });
+      continue;
+    }
+
+    const bytes = assets.reduce((sum, asset) => sum + Math.ceil((asset.base64.length * 3) / 4), 0);
+    if (usedBytes + bytes > CLAUDE_PDF_VISION_MAX_BYTES) {
+      excluded.push({
+        fileName: file.originalName,
+        reason: `용량 ${formatMb(bytes)} — 남은 비전 여유(${formatMb(CLAUDE_PDF_VISION_MAX_BYTES - usedBytes)}) 초과`,
+      });
+      continue;
+    }
+
+    usedBytes += bytes;
+    includedKeys.add(visionFileKey(file));
+  }
+
+  return { includedKeys, excluded };
+}
+
 export function buildAnthropicHeaders(options?: {
   includesPdf?: boolean;
   apiKey: string;

@@ -32,6 +32,8 @@ export type EvaluationSpatialContext = {
     jurisdiction: string;
     designationYear: string;
   }>;
+  /** 경관지구 외 조회된 인접 공간정보 (용도지역·문화재 등) */
+  nearbyFeatures?: Array<{ layerLabel: string; name: string }>;
   disclaimer: string;
 };
 
@@ -120,6 +122,18 @@ async function loadSpatialContext(
       );
     }
 
+    const nearbySeen = new Set<string>();
+    const nearbyFeatures = result.layerFeatures
+      .filter((feature) => feature.layerId !== "landscape-zone" && feature.name)
+      .filter((feature) => {
+        const key = `${feature.layerLabel}::${feature.name}`;
+        if (nearbySeen.has(key)) return false;
+        nearbySeen.add(key);
+        return true;
+      })
+      .slice(0, 8)
+      .map((feature) => ({ layerLabel: feature.layerLabel, name: feature.name }));
+
     return {
       address: result.address,
       point: {
@@ -135,6 +149,7 @@ async function loadSpatialContext(
         jurisdiction: zone.jurisdiction,
         designationYear: zone.designationYear,
       })),
+      nearbyFeatures,
       disclaimer: result.disclaimer,
     };
   } catch (error) {
