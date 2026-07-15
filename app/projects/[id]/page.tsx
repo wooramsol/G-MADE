@@ -47,6 +47,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
       </div>
       <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
         <section id="project-management" className="space-y-5">
+          <div className="grid items-start gap-5 lg:grid-cols-2">
           <Panel title="프로젝트 개요" action="프로젝트 정보">
             <ProjectMetadataEditor project={project} />
             <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
@@ -77,6 +78,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
             </div>
           </Panel>
           <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
+          </div>
           <ChecklistReviewSection project={project} />
         </section>
       </div>
