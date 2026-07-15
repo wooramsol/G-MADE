@@ -11,6 +11,7 @@ import {
   CHECKLIST_SERVER_DEADLINE_MS,
 } from "@/lib/checklist-review/progress";
 import { isFileLike } from "@/lib/save-uploaded-files";
+import { getProjectById, removeProjectChecklistReview } from "@/lib/project-store";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { Project } from "@/lib/types";
 
@@ -123,6 +124,31 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "체크리스트 검토 중 오류가 발생했습니다.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+/** 개별 검토 기록을 삭제합니다. (업로드된 파일은 다른 검토에서 재사용될 수 있어 유지) */
+export async function DELETE(request: NextRequest) {
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
+
+  const body = (await request.json().catch(() => ({}))) as { projectId?: unknown; reviewId?: unknown };
+  const projectId = String(body.projectId ?? "").trim();
+  const reviewId = String(body.reviewId ?? "").trim();
+  if (!projectId || !reviewId) {
+    return NextResponse.json({ error: "projectId와 reviewId가 필요합니다." }, { status: 400 });
+  }
+
+  const project = await getProjectById(projectId);
+  if (!project) {
+    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+  }
+  if (!(project.checklistReviews ?? []).some((review) => review.id === reviewId)) {
+    return NextResponse.json({ error: "해당 검토 기록을 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  const updated = await removeProjectChecklistReview(projectId, reviewId);
+  revalidateProjectViews(projectId);
+  return NextResponse.json({ project: updated ?? null });
 }
 
 function parseProjectSnapshot(value: FormDataEntryValue | null): Project | null {
