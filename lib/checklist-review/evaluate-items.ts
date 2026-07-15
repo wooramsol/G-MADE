@@ -6,6 +6,7 @@ import {
 import { extractJsonContent } from "@/lib/ai/extract-json";
 import { parsePageSlices } from "@/lib/ai/page-citation";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
+import { splitPdfIntoChunks } from "@/lib/pdf/split-pdf";
 import type { EvaluationContext } from "@/lib/evaluation-context";
 import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock } from "./claude-call";
 import {
@@ -22,6 +23,20 @@ const ITEMS_PER_BATCH = 20;
 /** 항목당 예상 출력 토큰 (간결 출력 기준) — max_tokens 산정용 */
 const OUTPUT_TOKENS_PER_ITEM = 320;
 const OUTPUT_TOKENS_BASE = 1_200;
+
+/** 대용량 PDF 분할 구간당 최대 용량 (구간마다 별도 요청이므로 요청 한도만 지키면 됨) */
+const CHUNK_MAX_BYTES = 15 * 1024 * 1024;
+/** 분할 구간당 최대 페이지 (Anthropic 요청당 100페이지 한도 내) */
+const CHUNK_MAX_PAGES = 90;
+/** 파일당 최대 분석 구간 수 (비용·시간 상한) */
+const MAX_CHUNKS_PER_FILE = 6;
+
+const STATUS_RANK: Record<ChecklistFinding["status"], number> = {
+  충족: 3,
+  부분충족: 2,
+  미충족: 1,
+  확인불가: 0,
+};
 
 function resolveMaxOutputTokens(itemCount: number): number {
   return Math.min(EVALUATE_MAX_OUTPUT_TOKENS, OUTPUT_TOKENS_BASE + itemCount * OUTPUT_TOKENS_PER_ITEM);
@@ -136,6 +151,191 @@ function buildDocumentBlocks(files: UploadedFileSummary[], selection: ClaudeVisi
   if (last) last.cache_control = { type: "ephemeral" };
 
   return blocks;
+}
+
+/** 요청 1건에 담기는 문서 페이로드 그룹. chunk가 있으면 대용량 PDF의 분할 구간입니다. */
+export type DocumentPayload = {
+  blocks: ClaudeContentBlock[];
+  chunk?: { fileName: string; startPage: number; endPage: number };
+};
+
+function payloadHasVision(payload: DocumentPayload): boolean {
+  return payload.blocks.some((block) => block.type !== "text");
+}
+
+function chunkNote(chunk: NonNullable<DocumentPayload["chunk"]>): string {
+  return `[주의] 첨부된 「${chunk.fileName}」 문서는 원본의 일부 구간(원본 p.${chunk.startPage}~p.${chunk.endPage})만 담고 있습니다.
+- 페이지 인용 시 첨부 문서에서 보이는 페이지 번호(1부터 시작)를 그대로 기재하세요. 원본 페이지 번호로는 시스템이 변환합니다.
+- 이 구간에서 근거를 찾지 못한 항목은 "확인불가"로 판정하세요. 다른 구간에서 별도로 평가됩니다.`;
+}
+
+/**
+ * 문서 페이로드 그룹들을 구성합니다: 한도 내 파일들의 기본 그룹 +
+ * 용량·페이지 한도 초과 PDF의 분할 구간 그룹들 (구간마다 별도 API 요청).
+ */
+async function buildDocumentPayloads(
+  files: UploadedFileSummary[],
+  selection: ClaudeVisionSelection,
+  warnings: string[],
+): Promise<DocumentPayload[]> {
+  const payloads: DocumentPayload[] = [];
+  const base: DocumentPayload = { blocks: buildDocumentBlocks(files, selection) };
+  const chunkPayloads: DocumentPayload[] = [];
+
+  for (const entry of selection.excluded) {
+    const file = files.find((candidate) => candidate.originalName === entry.fileName);
+    const pdfAsset = file?.visionAssets?.find((asset) => asset.mediaType === "application/pdf");
+    if (!file || !pdfAsset) {
+      warnings.push(`"${entry.fileName}"은(는) 비전 분석에서 제외하고 텍스트만 사용했습니다 (${entry.reason}).`);
+      continue;
+    }
+
+    try {
+      const chunks = await splitPdfIntoChunks(pdfAsset.base64, {
+        maxBytesPerChunk: CHUNK_MAX_BYTES,
+        maxPagesPerChunk: CHUNK_MAX_PAGES,
+      });
+      const limited = chunks.slice(0, MAX_CHUNKS_PER_FILE);
+      if (limited.length === 0) {
+        throw new Error("분할 결과가 비어 있습니다.");
+      }
+
+      for (const chunk of limited) {
+        chunkPayloads.push({
+          blocks: [
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: chunk.base64 },
+              title: file.originalName,
+              cache_control: { type: "ephemeral" },
+            },
+          ],
+          chunk: { fileName: file.originalName, startPage: chunk.startPage, endPage: chunk.endPage },
+        });
+      }
+
+      const dropped = chunks.length - limited.length;
+      warnings.push(
+        `"${file.originalName}"이(가) 요청 한도를 넘어(${entry.reason}) ${limited.length}개 구간으로 나눠 분석했습니다.` +
+          (dropped > 0
+            ? ` 뒷부분(원본 p.${limited[limited.length - 1].endPage + 1}~)은 구간 수 한도로 분석에서 제외됐습니다.`
+            : ""),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "알 수 없는 오류";
+      warnings.push(
+        `"${entry.fileName}"은(는) 비전 분석에서 제외하고 텍스트만 사용했습니다 (${entry.reason}; 구간 분할 실패: ${message}).`,
+      );
+    }
+  }
+
+  // 기본 그룹에 비전이 없으면 그 텍스트를 첫 구간에 합쳐 호출 수를 줄입니다.
+  if (!payloadHasVision(base) && chunkPayloads.length > 0) {
+    chunkPayloads[0] = { ...chunkPayloads[0], blocks: [...base.blocks, ...chunkPayloads[0].blocks] };
+  } else if (base.blocks.length > 0) {
+    payloads.push(base);
+  }
+
+  payloads.push(...chunkPayloads);
+  return payloads;
+}
+
+const VISION_EXTRACT_SYSTEM = `당신은 경관·공공디자인 심의 문서에서 체크리스트를 찾아 항목을 추출하는 도구입니다.
+규칙:
+- '체크리스트' 제목이 있는 페이지(표 형태의 점검 항목)를 찾습니다. 목차 페이지는 제외합니다.
+- 항목 원문을 최대한 그대로 보존합니다 (요약·의역 금지). 머리말·열 제목(반영여부·비고 등)·범례는 제외합니다.
+- 반드시 JSON만 출력합니다.`;
+
+function buildVisionExtractPrompt(projectLabel: string, note?: string): string {
+  return `${projectLabel}
+${note ? `\n${note}\n` : ""}
+첨부 문서에서 '체크리스트' 페이지를 찾아 표의 점검 항목을 추출하세요.
+출력 형식(JSON만):
+{"checklistPages":[{"fileName":"파일명","page":5}],"items":[{"category":"구분","text":"항목 원문","fileName":"파일명","page":5}]}
+체크리스트 페이지가 없으면 {"checklistPages":[],"items":[]}만 출력하세요.`;
+}
+
+/** 분할 구간 응답의 페이지 번호를 원본 기준으로 변환하고 파일명을 원본명으로 고정합니다. */
+function offsetChunkPages(payload: RawEvaluationPayload, chunk: DocumentPayload["chunk"]): RawEvaluationPayload {
+  if (!chunk) return payload;
+  const offset = chunk.startPage - 1;
+  const mapPage = (page?: number): number | undefined => {
+    const num = Number(page);
+    return Number.isFinite(num) && num >= 1 ? num + offset : undefined;
+  };
+
+  return {
+    ...payload,
+    checklistPages: payload.checklistPages?.map((entry) => ({ fileName: chunk.fileName, page: mapPage(entry?.page) })),
+    items: payload.items?.map((entry) => ({ ...entry, fileName: chunk.fileName, page: mapPage(entry?.page) })),
+    findings: payload.findings?.map((finding) => ({
+      ...finding,
+      evidence: finding.evidence?.map((entry) => ({ ...entry, fileName: chunk.fileName, page: mapPage(entry?.page) })),
+    })),
+  };
+}
+
+function toChecklistItems(entries: NonNullable<RawEvaluationPayload["items"]>): ChecklistItem[] {
+  return entries
+    .map((entry, index) => ({
+      id: String(entry?.id ?? `c${index + 1}`),
+      category: String(entry?.category ?? "").trim() || undefined,
+      text: String(entry?.text ?? "").trim(),
+      source:
+        entry?.fileName && entry?.page
+          ? { fileName: String(entry.fileName), page: Number(entry.page) }
+          : undefined,
+    }))
+    .filter((item) => item.text.length >= 4);
+}
+
+/** 여러 구간에서 추출된 항목을 본문 기준으로 중복 제거하고 id를 재부여합니다. */
+export function mergeExtractedItems(groups: ChecklistItem[][]): ChecklistItem[] {
+  const seen = new Set<string>();
+  const merged: ChecklistItem[] = [];
+  for (const group of groups) {
+    for (const item of group) {
+      const key = item.text.replace(/\s+/g, "");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push({ ...item, id: `c${merged.length + 1}` });
+    }
+  }
+  return merged;
+}
+
+/**
+ * 구간별 판정을 병합합니다: 충족 > 부분충족 > 미충족 > 확인불가 우선.
+ * (한 구간에서라도 근거를 확인하면 그 판정이 부분 문서의 '확인불가'보다 우선)
+ */
+export function mergeGroupFindings(groups: ChecklistFinding[][], items: ChecklistItem[]): ChecklistFinding[] {
+  const byItem = new Map<string, ChecklistFinding>();
+
+  for (const findings of groups) {
+    for (const finding of findings) {
+      const current = byItem.get(finding.itemId);
+      if (!current) {
+        byItem.set(finding.itemId, finding);
+        continue;
+      }
+
+      const winner = STATUS_RANK[finding.status] > STATUS_RANK[current.status] ? finding : current;
+      const loser = winner === finding ? current : finding;
+      const evidence = [...winner.evidence];
+      for (const entry of loser.evidence) {
+        if (evidence.length >= 6) break;
+        if (!evidence.some((known) => known.fileName === entry.fileName && known.page === entry.page)) {
+          evidence.push(entry);
+        }
+      }
+      byItem.set(finding.itemId, { ...winner, evidence });
+    }
+  }
+
+  return items.flatMap((item) => {
+    const finding = byItem.get(item.id);
+    return finding ? [finding] : [];
+  });
 }
 
 function buildItemsPrompt(items: ChecklistItem[], projectLabel: string, contextText: string): string {
@@ -387,14 +587,8 @@ export async function evaluateChecklistItems(options: {
   const warnings: string[] = [];
 
   const visionSelection = selectClaudeVisionFiles(files);
-  const useVision = visionSelection.includedKeys.size > 0;
-  if (visionSelection.excluded.length > 0) {
-    warnings.push(
-      `일부 자료는 도면·이미지 비전 분석에서 제외하고 텍스트만으로 평가했습니다: ${visionSelection.excluded
-        .map((entry) => `"${entry.fileName}" (${entry.reason})`)
-        .join(", ")}. 해당 파일을 나누거나 압축하면 도면까지 분석할 수 있습니다.`,
-    );
-  }
+  const payloads = await buildDocumentPayloads(files, visionSelection, warnings);
+  const hasVision = payloads.some(payloadHasVision);
 
   const projectLabel = context.project
     ? `[사업 개요] ${context.project.name} / ${context.project.projectType} / ${context.project.reviewType} / 위치: ${context.project.location}`
@@ -403,23 +597,30 @@ export async function evaluateChecklistItems(options: {
 
   const visionExtractMode = options.items.length === 0;
 
-  const runCall = async (prompt: string, vision: boolean, itemCount: number) => {
-    const blocks: ClaudeContentBlock[] = [
-      ...buildDocumentBlocks(files, vision ? visionSelection : null),
-      { type: "text", text: prompt },
-    ];
+  const runCall = async (
+    prompt: string,
+    payload: DocumentPayload | null,
+    itemCount: number,
+    system: string = EVALUATE_SYSTEM_PROMPT,
+  ) => {
+    const docBlocks = payload ? payload.blocks : buildDocumentBlocks(files, null);
+    const blocks: ClaudeContentBlock[] = [...docBlocks, { type: "text", text: prompt }];
     return callClaude({
-      system: EVALUATE_SYSTEM_PROMPT,
+      system,
       userBlocks: blocks,
       maxOutputTokens: resolveMaxOutputTokens(itemCount),
-      includesPdf: vision,
+      includesPdf: payload ? payloadHasVision(payload) : false,
       timeoutMs: resolveTimeoutMs(),
     });
   };
 
-  // ── 비전 추출+평가 단일 호출 모드 ──
+  // ── 텍스트에서 항목을 얻지 못한 경우: 비전으로 체크리스트 추출 ──
+  let items = options.items;
+  let checklistPages: ChecklistSourcePage[] = options.checklistPages;
+  let extractionModel = "";
+
   if (visionExtractMode) {
-    if (!useVision) {
+    if (!hasVision) {
       return {
         findings: [],
         items: [],
@@ -434,92 +635,161 @@ export async function evaluateChecklistItems(options: {
       };
     }
 
-    onProgress?.("문서에서 체크리스트를 찾아 추출·평가 중입니다 (비전 분석)");
-    const result = await runCall(buildVisionExtractAndEvaluatePrompt(projectLabel, contextText), true, 60);
-    const payload = parsePayload(result.text);
-    if (!payload) {
-      throw new Error("AI 평가 응답(JSON)을 해석하지 못했습니다. 다시 시도해 주세요.");
+    if (payloads.length === 1) {
+      // 단일 그룹: 추출+평가를 한 번에 (기존 동작)
+      onProgress?.("문서에서 체크리스트를 찾아 추출·평가 중입니다 (비전 분석)");
+      const result = await runCall(buildVisionExtractAndEvaluatePrompt(projectLabel, contextText), payloads[0], 60);
+      const payload = parsePayload(result.text);
+      if (!payload) {
+        throw new Error("AI 평가 응답(JSON)을 해석하지 못했습니다. 다시 시도해 주세요.");
+      }
+
+      const extractedItems = toChecklistItems(payload.items ?? []);
+      const pages: ChecklistSourcePage[] = (payload.checklistPages ?? [])
+        .map((entry) => ({ fileName: String(entry?.fileName ?? ""), page: Number(entry?.page) || 0 }))
+        .filter((entry) => entry.fileName && entry.page > 0);
+
+      return {
+        findings: sanitizeFindings(payload.findings ?? [], extractedItems, context, files),
+        items: extractedItems,
+        checklistPages: pages,
+        summary: String(payload.summary ?? "").trim(),
+        model: result.model,
+        usedVision: true,
+        warnings,
+      };
     }
 
-    const items: ChecklistItem[] = (payload.items ?? [])
-      .map((entry, index) => ({
-        id: String(entry?.id ?? `c${index + 1}`),
-        category: String(entry?.category ?? "").trim() || undefined,
-        text: String(entry?.text ?? "").trim(),
-        source:
-          entry?.fileName && entry?.page
-            ? { fileName: String(entry.fileName), page: Number(entry.page) }
-            : undefined,
-      }))
-      .filter((item) => item.text.length >= 4);
+    // 다중 그룹(대용량 분할): 1단계 — 구간별 병렬로 체크리스트 탐색·추출
+    onProgress?.(`대용량 문서를 ${payloads.length}개 구간으로 나눠 체크리스트를 찾는 중입니다`);
+    const extractionResults = await Promise.allSettled(
+      payloads.map(async (payload) => {
+        const result = await runCall(
+          buildVisionExtractPrompt(projectLabel, payload.chunk ? chunkNote(payload.chunk) : undefined),
+          payload,
+          25,
+          VISION_EXTRACT_SYSTEM,
+        );
+        const parsed = parsePayload(result.text);
+        return { payload, model: result.model, parsed: parsed ? offsetChunkPages(parsed, payload.chunk) : null };
+      }),
+    );
 
-    const checklistPages: ChecklistSourcePage[] = (payload.checklistPages ?? [])
-      .map((entry) => ({ fileName: String(entry?.fileName ?? ""), page: Number(entry?.page) || 0 }))
-      .filter((entry) => entry.fileName && entry.page > 0);
+    const extracted = extractionResults.flatMap((entry) => (entry.status === "fulfilled" ? [entry.value] : []));
+    if (extracted.length === 0) {
+      const firstRejection = extractionResults.find(
+        (entry): entry is PromiseRejectedResult => entry.status === "rejected",
+      );
+      throw firstRejection?.reason ?? new Error("체크리스트 탐색 호출이 모두 실패했습니다.");
+    }
+    if (extracted.length < payloads.length) {
+      warnings.push("일부 구간의 체크리스트 탐색 호출이 실패해 해당 구간은 결과에서 제외됐습니다.");
+    }
 
-    return {
-      findings: sanitizeFindings(payload.findings ?? [], items, context, files),
-      items,
-      checklistPages,
-      summary: String(payload.summary ?? "").trim(),
-      model: result.model,
-      usedVision: true,
-      warnings,
-    };
+    items = mergeExtractedItems(extracted.map((entry) => toChecklistItems(entry.parsed?.items ?? [])));
+    checklistPages = extracted.flatMap((entry) =>
+      (entry.parsed?.checklistPages ?? [])
+        .map((page) => ({
+          fileName: String(page?.fileName ?? entry.payload.chunk?.fileName ?? ""),
+          page: Number(page?.page) || 0,
+        }))
+        .filter((page) => page.fileName && page.page > 0),
+    );
+    extractionModel = extracted[extracted.length - 1]?.model ?? "";
+
+    if (items.length === 0) {
+      return {
+        findings: [],
+        items: [],
+        checklistPages: [],
+        summary: "",
+        model: extractionModel,
+        usedVision: true,
+        warnings: [
+          ...warnings,
+          "비전 분석으로도 문서에서 '체크리스트' 페이지를 찾지 못했습니다. 체크리스트가 포함된 자료인지 확인해 주세요.",
+        ],
+      };
+    }
   }
 
-  // ── 사전 추출된 항목 평가 모드 (배치는 병렬 실행으로 서버 한도 내 처리) ──
-  const chunks = chunkItems(options.items);
+  // ── 2단계: 항목 배치 × 문서 그룹 병렬 평가 ──
+  const batches = chunkItems(items);
+  const groupCount = Math.max(1, payloads.length);
   onProgress?.(
-    chunks.length > 1
-      ? `체크리스트 ${options.items.length}개 항목 평가 중 (${chunks.length}개 배치 병렬 처리)`
-      : `체크리스트 ${options.items.length}개 항목 평가 중`,
+    batches.length * groupCount > 1
+      ? `체크리스트 ${items.length}개 항목 평가 중 (배치 ${batches.length} × 문서 그룹 ${groupCount} 병렬 처리)`
+      : `체크리스트 ${items.length}개 항목 평가 중`,
   );
 
-  const evaluateChunk = async (chunk: ChecklistItem[]) => {
+  const evaluateBatchOnPayload = async (batch: ChecklistItem[], payload: DocumentPayload | null) => {
+    const basePrompt = buildItemsPrompt(batch, projectLabel, contextText);
+    const prompt = payload?.chunk ? `${chunkNote(payload.chunk)}\n\n${basePrompt}` : basePrompt;
+
     let result;
     try {
-      result = await runCall(buildItemsPrompt(chunk, projectLabel, contextText), useVision, chunk.length);
+      result = await runCall(prompt, payload, batch.length);
     } catch (error) {
-      if (error instanceof ClaudePayloadTooLargeError && useVision) {
+      if (error instanceof ClaudePayloadTooLargeError && payload && payloadHasVision(payload) && !payload.chunk) {
         warnings.push("도면·이미지 포함 요청이 용량을 초과해 텍스트 전용으로 재시도했습니다.");
-        result = await runCall(buildItemsPrompt(chunk, projectLabel, contextText), false, chunk.length);
+        result = await runCall(basePrompt, null, batch.length);
       } else {
         throw error;
       }
     }
 
-    const payload = parsePayload(result.text);
-    if (!payload) {
+    const parsed = parsePayload(result.text);
+    if (!parsed) {
       console.error(
         `[checklist-review] JSON 해석 실패 stop=${result.stopReason} len=${result.text.length} tail=${result.text.slice(-200)}`,
       );
       throw new Error("AI 평가 응답(JSON)을 해석하지 못했습니다. 다시 시도해 주세요.");
     }
     if (result.stopReason === "max_tokens") {
-      console.warn(`[checklist-review] 응답이 max_tokens로 잘림 — 복구된 findings=${payload.findings?.length ?? 0}`);
+      console.warn(`[checklist-review] 응답이 max_tokens로 잘림 — 복구된 findings=${parsed.findings?.length ?? 0}`);
       warnings.push("일부 배치의 AI 응답이 길이 제한으로 잘려, 판정이 누락된 항목은 확인불가로 처리했습니다.");
     }
 
+    const translated = offsetChunkPages(parsed, payload?.chunk);
     return {
       model: result.model,
-      summary: payload.summary?.trim() ?? "",
-      findings: sanitizeFindings(payload.findings ?? [], chunk, context, files),
+      summary: translated.summary?.trim() ?? "",
+      findings: sanitizeFindings(translated.findings ?? [], batch, context, files),
     };
   };
 
-  const results = await Promise.all(chunks.map((chunk) => evaluateChunk(chunk)));
+  const evaluateBatch = async (batch: ChecklistItem[]) => {
+    const targets: Array<DocumentPayload | null> = payloads.length > 0 ? payloads : [null];
+    const settled = await Promise.allSettled(targets.map((payload) => evaluateBatchOnPayload(batch, payload)));
+    const succeeded = settled.flatMap((entry) => (entry.status === "fulfilled" ? [entry.value] : []));
+
+    if (succeeded.length === 0) {
+      const firstRejection = settled.find((entry): entry is PromiseRejectedResult => entry.status === "rejected");
+      throw firstRejection?.reason ?? new Error("평가 호출이 모두 실패했습니다.");
+    }
+    if (succeeded.length < targets.length) {
+      warnings.push("일부 문서 구간의 평가 호출이 실패해 해당 구간의 근거는 반영되지 않았습니다.");
+    }
+
+    return {
+      model: succeeded[succeeded.length - 1].model,
+      summary: succeeded.map((entry) => entry.summary).find(Boolean) ?? "",
+      findings: mergeGroupFindings(succeeded.map((entry) => entry.findings), batch),
+    };
+  };
+
+  const results = await Promise.all(batches.map((batch) => evaluateBatch(batch)));
   const allFindings = results.flatMap((entry) => entry.findings);
   const summaries = results.map((entry) => entry.summary).filter(Boolean);
-  const model = results[results.length - 1]?.model ?? "";
+  const model = results[results.length - 1]?.model ?? extractionModel;
 
   return {
     findings: allFindings,
-    items: options.items,
-    checklistPages: options.checklistPages,
+    items,
+    checklistPages,
     summary: summaries.join(" "),
     model,
-    usedVision: useVision,
+    usedVision: hasVision,
     warnings,
   };
 }

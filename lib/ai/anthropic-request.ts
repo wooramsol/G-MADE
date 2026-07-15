@@ -11,10 +11,12 @@ export const CLAUDE_PDF_VISION_MAX_BYTES = 18 * 1024 * 1024;
 /** Anthropic PDF document block 한도 (요청당 최대 100페이지). */
 export const CLAUDE_PDF_MAX_PAGES = 100;
 
+export type ClaudeVisionExclusionKind = "bytes" | "pages";
+
 export type ClaudeVisionSelection = {
   /** 비전 자산을 포함할 파일 키 (visionFileKey 기준) */
   includedKeys: Set<string>;
-  excluded: Array<{ fileName: string; reason: string }>;
+  excluded: Array<{ fileName: string; reason: string; kind: ClaudeVisionExclusionKind }>;
 };
 
 export function visionFileKey(file: Pick<UploadedFileSummary, "id" | "originalName">): string {
@@ -32,7 +34,7 @@ function formatMb(bytes: number): string {
  */
 export function selectClaudeVisionFiles(files: UploadedFileSummary[]): ClaudeVisionSelection {
   const includedKeys = new Set<string>();
-  const excluded: Array<{ fileName: string; reason: string }> = [];
+  const excluded: ClaudeVisionSelection["excluded"] = [];
   let usedBytes = 0;
 
   for (const file of files) {
@@ -44,6 +46,7 @@ export function selectClaudeVisionFiles(files: UploadedFileSummary[]): ClaudeVis
       excluded.push({
         fileName: file.originalName,
         reason: `PDF ${file.totalPages}페이지 — 비전 한도(${CLAUDE_PDF_MAX_PAGES}페이지) 초과`,
+        kind: "pages",
       });
       continue;
     }
@@ -53,6 +56,7 @@ export function selectClaudeVisionFiles(files: UploadedFileSummary[]): ClaudeVis
       excluded.push({
         fileName: file.originalName,
         reason: `용량 ${formatMb(bytes)} — 남은 비전 여유(${formatMb(CLAUDE_PDF_VISION_MAX_BYTES - usedBytes)}) 초과`,
+        kind: "bytes",
       });
       continue;
     }

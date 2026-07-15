@@ -215,3 +215,94 @@ test("selectClaudeVisionFiles는 100페이지 초과 PDF를 제외한다", async
   assert.equal(selection.excluded.length, 1);
   assert.match(selection.excluded[0].reason, /100페이지/);
 });
+
+// ── 대용량 PDF 분할·병합 파이프라인 ──
+test("splitPdfIntoChunks는 페이지 한도로 연속 구간을 만들고 원본 페이지 번호를 보존한다", async () => {
+  const { splitPdfIntoChunks } = await import("../lib/pdf/split-pdf");
+  const { PDFDocument } = await import("pdf-lib");
+
+  const doc = await PDFDocument.create();
+  for (let index = 0; index < 7; index += 1) {
+    doc.addPage([200, 200]);
+  }
+  const base64 = Buffer.from(await doc.save()).toString("base64");
+
+  const chunks = await splitPdfIntoChunks(base64, { maxBytesPerChunk: 10 * 1024 * 1024, maxPagesPerChunk: 3 });
+
+  assert.equal(chunks.length, 3);
+  assert.deepEqual(
+    chunks.map((chunk) => [chunk.startPage, chunk.endPage]),
+    [
+      [1, 3],
+      [4, 6],
+      [7, 7],
+    ],
+  );
+
+  // 각 구간이 유효한 PDF인지 확인
+  const first = await PDFDocument.load(Buffer.from(chunks[0].base64, "base64"));
+  assert.equal(first.getPageCount(), 3);
+});
+
+test("mergeGroupFindings는 구간별 판정을 충족 우선으로 병합한다", async () => {
+  const { mergeGroupFindings } = await import("../lib/checklist-review/evaluate-items");
+
+  const items = [
+    { id: "c1", text: "가로변 차폐 조경 계획 반영" },
+    { id: "c2", text: "야간 경관 조명 계획 수립" },
+  ];
+
+  const groupA = [
+    { itemId: "c1", status: "확인불가" as const, rationale: "이 구간에서 근거 없음", evidence: [], lawRefs: [] },
+    {
+      itemId: "c2",
+      status: "미충족" as const,
+      rationale: "조명 계획 미확인",
+      evidence: [{ fileName: "심의도서.pdf", page: 3, note: "조명 언급 없음" }],
+      lawRefs: [],
+    },
+  ];
+  const groupB = [
+    {
+      itemId: "c1",
+      status: "충족" as const,
+      rationale: "배치도에서 차폐 조경 확인",
+      evidence: [{ fileName: "심의도서.pdf", page: 41, note: "차폐 조경 표기" }],
+      lawRefs: [],
+    },
+    { itemId: "c2", status: "확인불가" as const, rationale: "이 구간에서 근거 없음", evidence: [], lawRefs: [] },
+  ];
+
+  const merged = mergeGroupFindings([groupA, groupB], items);
+
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].itemId, "c1");
+  assert.equal(merged[0].status, "충족");
+  assert.equal(merged[0].evidence[0].page, 41);
+  assert.equal(merged[1].itemId, "c2");
+  assert.equal(merged[1].status, "미충족");
+});
+
+test("mergeExtractedItems는 구간 간 중복 항목을 제거하고 id를 재부여한다", async () => {
+  const { mergeExtractedItems } = await import("../lib/checklist-review/evaluate-items");
+
+  const merged = mergeExtractedItems([
+    [
+      { id: "c1", text: "스카이라인을 고려한 높이 계획" },
+      { id: "c2", text: "옥탑 구조물 차폐 계획" },
+    ],
+    [
+      { id: "c1", text: "스카이라인을  고려한 높이 계획" }, // 공백 차이만 있는 중복
+      { id: "c2", text: "저층부 입면 분절 계획" },
+    ],
+  ]);
+
+  assert.deepEqual(
+    merged.map((item) => [item.id, item.text.replace(/\s+/g, " ")]),
+    [
+      ["c1", "스카이라인을 고려한 높이 계획"],
+      ["c2", "옥탑 구조물 차폐 계획"],
+      ["c3", "저층부 입면 분절 계획"],
+    ],
+  );
+});
