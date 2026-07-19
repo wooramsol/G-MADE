@@ -1,130 +1,66 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-type CameraPreset = "조감" | "투시" | "수직";
+type CameraPreset = "birds" | "persp" | "top";
 
-/** 카메라 프리셋: [고도(m), tilt(도)] — 조감=사시도, 투시=낮은 시점, 수직=평면 */
-const PRESETS: Record<CameraPreset, { height: number; tilt: number }> = {
-  조감: { height: 600, tilt: -45 },
-  투시: { height: 200, tilt: -15 },
-  수직: { height: 800, tilt: -90 },
+const PRESET_LABELS: Record<CameraPreset, string> = {
+  birds: "조감 (사시도)",
+  persp: "투시 (낮은 시점)",
+  top: "수직 (평면)",
 };
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-let scriptPromise: Promise<void> | null = null;
-
-function loadVworldScript(apiKey: string, domain: string): Promise<void> {
-  if (typeof window === "undefined") return Promise.reject(new Error("클라이언트에서만 사용 가능합니다."));
-  if ((window as any).vw?.Map) return Promise.resolve();
-  if (scriptPromise) return scriptPromise;
-
-  scriptPromise = new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    // WebGL 3D API 3.0 (공식 샘플 기준). domain 파라미터는 선택 사항.
-    script.src = `https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=${encodeURIComponent(apiKey)}&domain=${encodeURIComponent(domain)}`;
-    script.async = true;
-    script.onload = () => {
-      // 엔진 초기화가 약간 지연될 수 있어 vw 전역이 준비될 때까지 대기
-      const startedAt = Date.now();
-      const wait = () => {
-        if ((window as any).vw?.Map) return resolve();
-        if (Date.now() - startedAt > 15_000) return reject(new Error("브이월드 3D 엔진 초기화 시간 초과"));
-        window.setTimeout(wait, 200);
-      };
-      wait();
-    };
-    script.onerror = () => {
-      scriptPromise = null;
-      reject(new Error("브이월드 3D 스크립트를 불러오지 못했습니다."));
-    };
-    document.head.appendChild(script);
-  });
-
-  return scriptPromise;
-}
 
 /**
  * 브이월드 WebGL 3D 지도 — 사업지 상공에서 조감(사시도)·투시·수직 카메라로
- * 주변 지형·건물 형태를 입체적으로 보여줍니다.
- * 키는 서버의 VWORLD_API_KEY를 로그인 사용자 전용 API로 전달받아 사용합니다.
+ * 주변 지형·건물을 입체적으로 보여줍니다.
+ * 브이월드 로더가 document.write를 사용하므로 iframe(일반 HTML 문서)으로 로드하고,
+ * 카메라 전환은 postMessage로 iframe에 전달합니다.
  */
 export default function Vworld3DView({ x, y }: { x: number; y: number }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
-  const [preset, setPreset] = useState<CameraPreset>("조감");
-  const reactId = useId();
-  const containerId = `vworld3d-${reactId.replace(/[^a-zA-Z0-9]/g, "")}`;
+  const [preset, setPreset] = useState<CameraPreset>("birds");
 
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const keyResponse = await fetch("/api/spatial/client-key", { credentials: "same-origin" });
-        const keyPayload = (await keyResponse.json().catch(() => ({}))) as {
-          key?: string;
-          domain?: string;
-          error?: string;
-        };
-        if (!keyResponse.ok || !keyPayload.key) {
-          throw new Error(keyPayload.error ?? "브이월드 키를 가져오지 못했습니다.");
-        }
-
-        await loadVworldScript(keyPayload.key, keyPayload.domain ?? window.location.hostname);
-        if (cancelled || !containerRef.current) return;
-
-        const vw = (window as any).vw;
-        const { height, tilt } = PRESETS["조감"];
-        const initPosition = new vw.CameraPosition(new vw.CoordZ(x, y, height), new vw.Direction(0, tilt, 0));
-
-        // WebGL 3D API 3.0 초기화 패턴 (공식 샘플 기준)
-        const map = new vw.Map();
-        map.setOption({
-          mapId: containerId,
-          initPosition,
-          logo: false,
-          navigation: true,
-        });
-        map.setMapId(containerId);
-        map.setInitPosition(initPosition);
-        map.start();
-        mapRef.current = map;
+    function handleMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      const data = (event.data ?? {}) as { type?: string; message?: string };
+      if (data.type === "vworld3d-ready") {
         setStatus("ready");
-      } catch (error) {
-        if (cancelled) return;
-        setErrorMessage(error instanceof Error ? error.message : "3D 지도를 불러오지 못했습니다.");
+      } else if (data.type === "vworld3d-error") {
+        setErrorMessage(data.message ?? "3D 지도를 불러오지 못했습니다.");
         setStatus("error");
       }
-    })();
+    }
+
+    window.addEventListener("message", handleMessage);
+    const timeout = window.setTimeout(() => {
+      setStatus((current) => {
+        if (current !== "loading") return current;
+        setErrorMessage("3D 엔진 초기화 시간 초과 — 브이월드 인증키의 서비스 URL 등록을 확인해 주세요.");
+        return "error";
+      });
+    }, 30_000);
 
     return () => {
-      cancelled = true;
-      mapRef.current = null;
+      window.removeEventListener("message", handleMessage);
+      window.clearTimeout(timeout);
     };
-  }, [containerId, x, y]);
+  }, []);
 
   function applyPreset(next: CameraPreset) {
     setPreset(next);
-    const vw = (window as any).vw;
-    const map = mapRef.current;
-    if (!vw || !map) return;
-
-    const { height, tilt } = PRESETS[next];
-    try {
-      map.moveTo(new vw.CameraPosition(new vw.CoordZ(x, y, height), new vw.Direction(0, tilt, 0)));
-    } catch {
-      // moveTo 미지원 버전 폴백: 카메라 이동 실패는 무시 (사용자가 직접 조작 가능)
-    }
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "vworld3d-preset", preset: next },
+      window.location.origin,
+    );
   }
 
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        {(Object.keys(PRESETS) as CameraPreset[]).map((name) => (
+        {(Object.keys(PRESET_LABELS) as CameraPreset[]).map((name) => (
           <button
             className={`rounded-full px-3 py-1 text-[11px] font-bold ${
               preset === name ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dcebfb]"
@@ -134,7 +70,7 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
             onClick={() => applyPreset(name)}
             type="button"
           >
-            {name === "조감" ? "조감 (사시도)" : name === "투시" ? "투시 (낮은 시점)" : "수직 (평면)"}
+            {PRESET_LABELS[name]}
           </button>
         ))}
         <span className="text-[11px] text-[#94a3b8]">마우스 드래그·휠로 회전·확대 가능</span>
@@ -155,8 +91,12 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
         </div>
       ) : (
         <div className="relative h-[320px] w-full overflow-hidden rounded-xl border border-[#d7dee8] bg-[#0b1220]">
-          {/* 엔진이 컨테이너 내부 DOM을 직접 제어하므로 React 자식을 두지 않습니다 */}
-          <div className="h-full w-full" id={containerId} ref={containerRef} />
+          <iframe
+            className="h-full w-full border-0"
+            ref={iframeRef}
+            src={`/api/spatial/vworld-3d-frame?x=${encodeURIComponent(x)}&y=${encodeURIComponent(y)}`}
+            title="브이월드 3D 지도"
+          />
           {status === "loading" ? (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-[#94a3b8]">
               3D 지형·건물 불러오는 중…
