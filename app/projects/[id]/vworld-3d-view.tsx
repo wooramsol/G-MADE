@@ -22,7 +22,8 @@ function loadVworldScript(apiKey: string, domain: string): Promise<void> {
 
   scriptPromise = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `https://map.vworld.kr/js/webglMapInit.js.do?version=2.0&apiKey=${encodeURIComponent(apiKey)}&domain=${encodeURIComponent(domain)}`;
+    // WebGL 3D API 3.0 (공식 샘플 기준). domain 파라미터는 선택 사항.
+    script.src = `https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=${encodeURIComponent(apiKey)}&domain=${encodeURIComponent(domain)}`;
     script.async = true;
     script.onload = () => {
       // 엔진 초기화가 약간 지연될 수 있어 vw 전역이 준비될 때까지 대기
@@ -78,17 +79,20 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
 
         const vw = (window as any).vw;
         const { height, tilt } = PRESETS["조감"];
-        const start = new vw.CameraPosition(new vw.CoordZ(x, y, height), new vw.Direction(0, tilt, 0));
-        const mapOptions = new vw.MapOptions(
-          vw.BasemapType.GRAPHIC,
-          "",
-          vw.DensityType.BASIC,
-          vw.DensityType.BASIC,
-          false,
-          start,
-          start,
-        );
-        mapRef.current = new vw.Map(containerId, mapOptions);
+        const initPosition = new vw.CameraPosition(new vw.CoordZ(x, y, height), new vw.Direction(0, tilt, 0));
+
+        // WebGL 3D API 3.0 초기화 패턴 (공식 샘플 기준)
+        const map = new vw.Map();
+        map.setOption({
+          mapId: containerId,
+          initPosition,
+          logo: false,
+          navigation: true,
+        });
+        map.setMapId(containerId);
+        map.setInitPosition(initPosition);
+        map.start();
+        mapRef.current = map;
         setStatus("ready");
       } catch (error) {
         if (cancelled) return;
@@ -150,13 +154,11 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
           </a>
         </div>
       ) : (
-        <div
-          className="h-[320px] w-full overflow-hidden rounded-xl border border-[#d7dee8] bg-[#0b1220]"
-          id={containerId}
-          ref={containerRef}
-        >
+        <div className="relative h-[320px] w-full overflow-hidden rounded-xl border border-[#d7dee8] bg-[#0b1220]">
+          {/* 엔진이 컨테이너 내부 DOM을 직접 제어하므로 React 자식을 두지 않습니다 */}
+          <div className="h-full w-full" id={containerId} ref={containerRef} />
           {status === "loading" ? (
-            <div className="flex h-full items-center justify-center text-sm text-[#94a3b8]">
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-[#94a3b8]">
               3D 지형·건물 불러오는 중…
             </div>
           ) : null}
