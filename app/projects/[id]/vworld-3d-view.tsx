@@ -41,7 +41,7 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
         setErrorMessage("3D 엔진 초기화 시간 초과 — 브이월드 인증키의 서비스 URL 등록을 확인해 주세요.");
         return "error";
       });
-    }, 30_000);
+    }, 45_000);
 
     return () => {
       window.removeEventListener("message", handleMessage);

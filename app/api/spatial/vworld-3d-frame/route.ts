@@ -45,6 +45,11 @@ export async function GET(request: NextRequest) {
   var PRESETS = { birds: { h: 600, t: -45 }, persp: { h: 200, t: -15 }, top: { h: 800, t: -90 } };
   var map = null;
   var startedAt = Date.now();
+  var scriptErrors = [];
+  window.onerror = function (message, source) {
+    scriptErrors.push(String(message) + (source ? " @" + String(source).split("/").slice(-1)[0] : ""));
+    return false;
+  };
 
   function camera(preset) {
     return new vw.CameraPosition(new vw.CoordZ(x, y, preset.h), new vw.Direction(0, preset.t, 0));
@@ -56,8 +61,13 @@ export async function GET(request: NextRequest) {
 
   function boot() {
     if (!(window.vw && window.vw.Map)) {
-      if (Date.now() - startedAt > 25000) {
-        notify({ type: "vworld3d-error", message: "3D 엔진 로드 실패 (인증키·서비스 URL 등록 또는 네트워크 확인 필요)" });
+      if (Date.now() - startedAt > 40000) {
+        var detail = "vw=" + (typeof window.vw) + ", host=" + window.location.hostname;
+        if (scriptErrors.length > 0) detail += ", errors: " + scriptErrors.slice(0, 3).join(" | ");
+        notify({
+          type: "vworld3d-error",
+          message: "3D 엔진 로드 실패 — 인증키 서비스 URL과 접속 도메인이 일치하는지 확인해 주세요. [" + detail + "]",
+        });
         return;
       }
       return setTimeout(boot, 150);
