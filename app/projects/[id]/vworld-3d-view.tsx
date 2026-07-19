@@ -15,14 +15,13 @@ const PRESETS: Record<CameraPreset, { height: number; tilt: number }> = {
 
 let scriptPromise: Promise<void> | null = null;
 
-function loadVworldScript(apiKey: string): Promise<void> {
+function loadVworldScript(apiKey: string, domain: string): Promise<void> {
   if (typeof window === "undefined") return Promise.reject(new Error("클라이언트에서만 사용 가능합니다."));
   if ((window as any).vw?.Map) return Promise.resolve();
   if (scriptPromise) return scriptPromise;
 
   scriptPromise = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    const domain = window.location.origin;
     script.src = `https://map.vworld.kr/js/webglMapInit.js.do?version=2.0&apiKey=${encodeURIComponent(apiKey)}&domain=${encodeURIComponent(domain)}`;
     script.async = true;
     script.onload = () => {
@@ -48,28 +47,33 @@ function loadVworldScript(apiKey: string): Promise<void> {
 /**
  * 브이월드 WebGL 3D 지도 — 사업지 상공에서 조감(사시도)·투시·수직 카메라로
  * 주변 지형·건물 형태를 입체적으로 보여줍니다.
- * NEXT_PUBLIC_VWORLD_API_KEY가 필요하며, 키의 서비스 URL에 현재 도메인이 등록되어 있어야 합니다.
+ * 키는 서버의 VWORLD_API_KEY를 로그인 사용자 전용 API로 전달받아 사용합니다.
  */
 export default function Vworld3DView({ x, y }: { x: number; y: number }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
-  const apiKey = process.env.NEXT_PUBLIC_VWORLD_API_KEY ?? "";
-  const [status, setStatus] = useState<"loading" | "ready" | "error">(apiKey ? "loading" : "error");
-  const [errorMessage, setErrorMessage] = useState(
-    apiKey ? "" : "NEXT_PUBLIC_VWORLD_API_KEY가 설정되지 않았습니다.",
-  );
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [errorMessage, setErrorMessage] = useState("");
   const [preset, setPreset] = useState<CameraPreset>("조감");
   const reactId = useId();
   const containerId = `vworld3d-${reactId.replace(/[^a-zA-Z0-9]/g, "")}`;
 
   useEffect(() => {
-    if (!apiKey) return;
-
     let cancelled = false;
 
     (async () => {
       try {
-        await loadVworldScript(apiKey);
+        const keyResponse = await fetch("/api/spatial/client-key", { credentials: "same-origin" });
+        const keyPayload = (await keyResponse.json().catch(() => ({}))) as {
+          key?: string;
+          domain?: string;
+          error?: string;
+        };
+        if (!keyResponse.ok || !keyPayload.key) {
+          throw new Error(keyPayload.error ?? "브이월드 키를 가져오지 못했습니다.");
+        }
+
+        await loadVworldScript(keyPayload.key, keyPayload.domain ?? window.location.hostname);
         if (cancelled || !containerRef.current) return;
 
         const vw = (window as any).vw;
@@ -97,7 +101,7 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
       cancelled = true;
       mapRef.current = null;
     };
-  }, [apiKey, containerId, x, y]);
+  }, [containerId, x, y]);
 
   function applyPreset(next: CameraPreset) {
     setPreset(next);
