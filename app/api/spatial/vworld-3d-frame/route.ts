@@ -26,7 +26,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "x·y 좌표가 필요합니다." }, { status: 400 });
   }
 
-  const scriptSrc = `https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=${encodeURIComponent(key)}&domain=${encodeURIComponent(getVWorldDomain())}`;
+  // 주의: 브이월드 로더는 domain에 'https:' 문자열이 없으면 엔진 하위 스크립트를
+  // http://로 주입한다 → https 페이지에서 혼합 콘텐츠로 차단되어 초기화 실패.
+  // 반드시 프로토콜을 포함해 전달한다.
+  const scriptSrc = `https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=${encodeURIComponent(key)}&domain=${encodeURIComponent(`https://${getVWorldDomain()}`)}`;
 
   const html = `<!DOCTYPE html>
 <html>
