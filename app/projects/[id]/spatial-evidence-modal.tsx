@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 import type { EvaluationSpatialContext } from "@/lib/evaluation-context";
+import Vworld3DView from "./vworld-3d-view";
 
 const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
   ssr: false,
@@ -36,6 +37,7 @@ export default function SpatialEvidenceModal({
 }) {
   const [layerFeatures, setLayerFeatures] = useState<LayerFeature[]>([]);
   const [loadError, setLoadError] = useState("");
+  const [view, setView] = useState<"3d" | "2d">("3d");
 
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
@@ -104,13 +106,38 @@ export default function SpatialEvidenceModal({
             <p className="rounded-lg bg-[#f0f7ff] px-3 py-2 text-xs leading-5 text-[#1d4f8c]">{note}</p>
           ) : null}
 
-          {loadError ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                view === "3d" ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dcebfb]"
+              }`}
+              onClick={() => setView("3d")}
+              type="button"
+            >
+              3D 입체 (조감·투시)
+            </button>
+            <button
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                view === "2d" ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dcebfb]"
+              }`}
+              onClick={() => setView("2d")}
+              type="button"
+            >
+              2D 지구·지역 경계
+            </button>
+          </div>
+
+          {view === "2d" && loadError ? (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
               지도 레이어 조회 실패: {loadError} (아래 텍스트 정보는 검토 당시 조회 결과입니다)
             </p>
           ) : null}
 
-          <SpatialDetailMap layerFeatures={layerFeatures} point={{ x: spatial.point.x, y: spatial.point.y }} />
+          {view === "3d" ? (
+            <Vworld3DView x={spatial.point.x} y={spatial.point.y} />
+          ) : (
+            <SpatialDetailMap layerFeatures={layerFeatures} point={{ x: spatial.point.x, y: spatial.point.y }} />
+          )}
 
           <div className="grid gap-2 text-xs sm:grid-cols-2">
             <div className="rounded-lg border border-[#d7dee8] bg-[#f8fafc] px-3 py-2">

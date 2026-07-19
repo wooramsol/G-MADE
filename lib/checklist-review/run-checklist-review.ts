@@ -158,8 +158,13 @@ export async function runChecklistReview(
       onProgress: (label) => emitStep(emit, "evaluate", label),
     });
 
+    const evidenceCount = evaluation.findings.reduce((sum, finding) => sum + finding.evidence.length, 0);
+    const regionCount = evaluation.findings.reduce(
+      (sum, finding) => sum + finding.evidence.filter((entry) => entry.region).length,
+      0,
+    );
     console.log(
-      `[checklist-review] items=${evaluation.items.length} findings=${evaluation.findings.length} vision=${evaluation.usedVision} model=${evaluation.model}`,
+      `[checklist-review] items=${evaluation.items.length} findings=${evaluation.findings.length} evidence=${evidenceCount} regions=${regionCount} vision=${evaluation.usedVision} model=${evaluation.model}`,
     );
     if (evaluation.items.length === 0) {
       throw new Error(

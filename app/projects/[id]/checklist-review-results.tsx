@@ -218,13 +218,14 @@ function FindingCard({
         <div className="mt-3 space-y-1">
           {finding.evidence.map((evidence, index) => {
             const blobUrl = blobUrlByFileName.get(evidence.fileName);
+            const showViewer = Boolean(blobUrl && evidence.region);
             return (
               <p className="text-xs leading-5 text-[#64748b]" key={`${evidence.fileName}-${evidence.page}-${index}`}>
                 <span className="font-bold text-[#15345b]">
                   「{evidence.fileName}」 p.{evidence.page}
                 </span>{" "}
                 — {evidence.note}
-                {blobUrl ? (
+                {showViewer ? (
                   <button
                     className="ml-2 inline-flex items-center rounded-full bg-[#eef4fb] px-2 py-0.5 text-[11px] font-bold text-[#2463b3] hover:bg-[#dcebfb]"
                     onClick={() =>
@@ -233,12 +234,12 @@ function FindingCard({
                         page: evidence.page,
                         note: evidence.note,
                         region: evidence.region,
-                        blobUrl,
+                        blobUrl: blobUrl as string,
                       })
                     }
                     type="button"
                   >
-                    {evidence.region ? "도면에서 위치 보기" : "페이지 보기"}
+                    도면에서 위치 보기
                   </button>
                 ) : null}
               </p>
