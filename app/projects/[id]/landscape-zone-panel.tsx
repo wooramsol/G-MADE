@@ -6,6 +6,7 @@ import OverflowChipRow from "@/components/overflow-chip-row";
 import { Badge, SubsectionTitle } from "@/components/typography";
 import type { ProjectLocationPoint } from "@/lib/types";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
+import Vworld3DView from "./vworld-3d-view";
 
 const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
   ssr: false,
@@ -65,6 +66,7 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
   const [error, setError] = useState("");
   const [result, setResult] = useState<LandscapeZoneResponse | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [mapView, setMapView] = useState<"2d" | "3d">("2d");
 
   useEffect(() => {
     let cancelled = false;
@@ -146,10 +148,34 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
 
       {!loading && result && locationPoint ? (
         <div className="mb-4">
-          <SpatialDetailMap
-            point={{ x: locationPoint.x, y: locationPoint.y }}
-            layerFeatures={result.layerFeatures ?? []}
-          />
+          <div className="mb-2 flex items-center gap-1.5">
+            <button
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                mapView === "2d" ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dcebfb]"
+              }`}
+              onClick={() => setMapView("2d")}
+              type="button"
+            >
+              평면 지도 (지구·지역 경계)
+            </button>
+            <button
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                mapView === "3d" ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dcebfb]"
+              }`}
+              onClick={() => setMapView("3d")}
+              type="button"
+            >
+              3D 입체 (조감·투시)
+            </button>
+          </div>
+          {mapView === "2d" ? (
+            <SpatialDetailMap
+              point={{ x: locationPoint.x, y: locationPoint.y }}
+              layerFeatures={result.layerFeatures ?? []}
+            />
+          ) : (
+            <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
+          )}
         </div>
       ) : null}
 

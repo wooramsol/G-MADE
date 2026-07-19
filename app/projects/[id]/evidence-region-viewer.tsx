@@ -129,19 +129,33 @@ export default function EvidenceRegionViewer({
                 <canvas className="max-w-full rounded-lg bg-white shadow" ref={canvasRef} />
               )}
               {status === "ready" && target.region ? (
-                <div
-                  className="pointer-events-none absolute rounded border-2 border-red-500 bg-red-500/10"
-                  style={{
-                    left: `${target.region.x * 100}%`,
-                    top: `${target.region.y * 100}%`,
-                    width: `${target.region.width * 100}%`,
-                    height: `${target.region.height * 100}%`,
-                  }}
-                >
-                  <span className="absolute -top-6 left-0 whitespace-nowrap rounded bg-red-500 px-1.5 py-0.5 text-[11px] font-bold text-white">
-                    근거 위치
-                  </span>
-                </div>
+                <>
+                  {/* 표시 영역 밖을 어둡게 눌러 하이라이트 효과 */}
+                  <div
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      background: "rgba(15, 23, 42, 0.28)",
+                      clipPath: `polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 ${target.region.y * 100}%, ${target.region.x * 100}% ${target.region.y * 100}%, ${target.region.x * 100}% ${(target.region.y + target.region.height) * 100}%, ${(target.region.x + target.region.width) * 100}% ${(target.region.y + target.region.height) * 100}%, ${(target.region.x + target.region.width) * 100}% ${target.region.y * 100}%, 0 ${target.region.y * 100}%)`,
+                    }}
+                  />
+                  <div
+                    className="pointer-events-none absolute rounded border-2 border-red-500 bg-red-500/10 shadow-[0_0_0_2px_rgba(255,255,255,0.6)]"
+                    style={{
+                      left: `${target.region.x * 100}%`,
+                      top: `${target.region.y * 100}%`,
+                      width: `${target.region.width * 100}%`,
+                      height: `${target.region.height * 100}%`,
+                    }}
+                  >
+                    <div
+                      className={`absolute left-0 max-w-[300px] rounded bg-red-600/95 px-2 py-1 text-[11px] font-bold leading-4 text-white shadow ${
+                        target.region.y > 0.12 ? "bottom-full mb-1" : "top-full mt-1"
+                      }`}
+                    >
+                      {target.note.length > 90 ? `${target.note.slice(0, 90)}…` : target.note}
+                    </div>
+                  </div>
+                </>
               ) : null}
               {status === "loading" ? (
                 <div className="flex h-48 w-72 items-center justify-center">
