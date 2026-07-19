@@ -16,6 +16,7 @@ import {
   type ChecklistItem,
   type ChecklistLawRef,
   type ChecklistSourcePage,
+  type EvidenceRegion,
 } from "./types";
 
 const EVALUATE_MAX_OUTPUT_TOKENS = 16_384;
@@ -54,6 +55,7 @@ const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의�
 규칙:
 - 반드시 문서에서 실제로 확인한 내용만 근거로 사용합니다. 추측·일반론 금지.
 - evidence의 fileName·page는 실제로 근거를 확인한 페이지만 기재합니다. 도면·이미지 속 글자도 근거로 인정합니다.
+- 근거가 도면·이미지의 특정 위치(표기·범례·해당 부위)라면 evidence에 region을 추가합니다: 페이지 왼쪽 위 기준 정규화 좌표 {"x":0~1,"y":0~1,"width":0~1,"height":0~1}. 위치를 특정하기 어려우면 region을 생략합니다 (억지로 추정 금지).
 - lawRefs는 아래 '조회된 법령·지침' 목록에 있는 것만 인용합니다. 목록에 없는 법령은 절대 언급하지 않습니다.
 - 사업지가 경관지구 등 공간정보에 해당하면 관련 항목의 spatialNote에 반영합니다.
 - 도면의 치수·수치·축척은 문서에서 숫자를 명확히 판독한 경우에만 근거로 사용합니다. 축소·저해상도로 숫자가 불명확하면 추정하지 말고 "확인불가"로 판정하고 rationale에 판독 불가 사실을 밝힙니다.
@@ -355,7 +357,7 @@ ${itemsJson}
 
 위 항목 각각에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 판정하세요.
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
+{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","region":{"x":0.1,"y":0.4,"width":0.3,"height":0.2}}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
 }
 
 function buildVisionExtractAndEvaluatePrompt(projectLabel: string, contextText: string): string {
@@ -368,7 +370,7 @@ ${contextText}
 2. 각 항목에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 충족 여부를 판정하세요.
 
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}
+{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","region":{"x":0.1,"y":0.4,"width":0.3,"height":0.2}}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}
 
 체크리스트 페이지를 찾지 못하면 {"summary":"...","checklistPages":[],"items":[],"findings":[]} 형태로 출력하세요.`;
 }
@@ -377,7 +379,12 @@ type RawFinding = {
   itemId?: string;
   status?: string;
   rationale?: string;
-  evidence?: Array<{ fileName?: string; page?: number; note?: string }>;
+  evidence?: Array<{
+    fileName?: string;
+    page?: number;
+    note?: string;
+    region?: { x?: number; y?: number; width?: number; height?: number };
+  }>;
   lawRefs?: Array<{ title?: string; article?: string } | string>;
   spatialNote?: string;
   recommendation?: string;
@@ -476,6 +483,33 @@ function buildKnownPagesIndex(files: UploadedFileSummary[]) {
   };
 }
 
+/** 정규화 좌표(0~1) 영역을 검증·클램프합니다. 유효하지 않으면 undefined. */
+export function sanitizeEvidenceRegion(
+  raw?: { x?: number; y?: number; width?: number; height?: number },
+): EvidenceRegion | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+
+  const clamp01 = (value: unknown): number | null => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return Math.min(1, Math.max(0, num));
+  };
+
+  const x = clamp01(raw.x);
+  const y = clamp01(raw.y);
+  const width = clamp01(raw.width);
+  const height = clamp01(raw.height);
+  if (x === null || y === null || width === null || height === null) return undefined;
+  if (width <= 0.001 || height <= 0.001) return undefined;
+
+  return {
+    x,
+    y,
+    width: Math.min(width, 1 - x),
+    height: Math.min(height, 1 - y),
+  };
+}
+
 export function sanitizeFindings(
   rawFindings: RawFinding[],
   items: ChecklistItem[],
@@ -503,6 +537,7 @@ export function sanitizeFindings(
         fileName: String(entry?.fileName ?? "").trim(),
         page: Number(entry?.page) || 0,
         note: String(entry?.note ?? "").trim(),
+        region: sanitizeEvidenceRegion(entry?.region),
       }))
       .filter((entry) => entry.note && isKnownPage(entry.fileName, entry.page))
       .slice(0, 6);

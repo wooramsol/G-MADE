@@ -25,11 +25,21 @@ export type ChecklistItem = {
   source?: ChecklistSourcePage;
 };
 
+/** 페이지 왼쪽 위 기준 정규화 좌표(0~1)의 근거 위치 영역. */
+export type EvidenceRegion = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type ChecklistEvidence = {
   fileName: string;
   page: number;
   /** 해당 페이지에서 확인된 내용 (도면·이미지·본문) */
   note: string;
+  /** 근거가 도면·이미지의 특정 위치일 때의 대략적 영역 (AI 추정, 근사치) */
+  region?: EvidenceRegion;
 };
 
 export type ChecklistLawRef = {
