@@ -57,6 +57,13 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
     );
   }
 
+  function rotate(delta: number) {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "vworld3d-rotate", delta },
+      window.location.origin,
+    );
+  }
+
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
@@ -73,7 +80,26 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
             {PRESET_LABELS[name]}
           </button>
         ))}
-        <span className="text-[11px] text-[#94a3b8]">마우스 드래그·휠로 회전·확대 가능</span>
+        <span className="mx-1 h-4 w-px bg-[#d7dee8]" />
+        <button
+          aria-label="왼쪽으로 회전"
+          className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:bg-[#dcebfb] disabled:opacity-50"
+          disabled={status !== "ready"}
+          onClick={() => rotate(-45)}
+          type="button"
+        >
+          ⟲ 회전
+        </button>
+        <button
+          aria-label="오른쪽으로 회전"
+          className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:bg-[#dcebfb] disabled:opacity-50"
+          disabled={status !== "ready"}
+          onClick={() => rotate(45)}
+          type="button"
+        >
+          회전 ⟳
+        </button>
+        <span className="text-[11px] text-[#94a3b8]">마우스 드래그·휠로 자유 회전·확대 가능</span>
       </div>
 
       {status === "error" ? (

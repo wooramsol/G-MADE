@@ -54,8 +54,16 @@ export async function GET(request: NextRequest) {
     return false;
   };
 
-  function camera(preset) {
-    return new vw.CameraPosition(new vw.CoordZ(x, y, preset.h), new vw.Direction(0, preset.t, 0));
+  var current = { preset: "birds", heading: 0 };
+
+  function camera() {
+    var preset = PRESETS[current.preset];
+    return new vw.CameraPosition(new vw.CoordZ(x, y, preset.h), new vw.Direction(current.heading, preset.t, 0));
+  }
+
+  function moveCamera() {
+    if (!map) return;
+    try { map.moveTo(camera()); } catch (e) {}
   }
 
   function notify(payload) {
@@ -77,9 +85,10 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      var init = camera(PRESETS.birds);
+      var init = camera();
       map = new vw.Map();
-      map.setOption({ mapId: "vmap", initPosition: init, logo: false, navigation: true });
+      // navigation:false — 현재위치 등 기본 위젯 숨김 (회전·프리셋은 부모 UI 버튼으로 제어)
+      map.setOption({ mapId: "vmap", initPosition: init, logo: false, navigation: false });
       map.setMapId("vmap");
       map.setInitPosition(init);
       map.start();
@@ -91,8 +100,12 @@ export async function GET(request: NextRequest) {
 
   window.addEventListener("message", function (event) {
     var data = event.data || {};
-    if (data.type === "vworld3d-preset" && map && PRESETS[data.preset]) {
-      try { map.moveTo(camera(PRESETS[data.preset])); } catch (e) {}
+    if (data.type === "vworld3d-preset" && PRESETS[data.preset]) {
+      current.preset = data.preset;
+      moveCamera();
+    } else if (data.type === "vworld3d-rotate" && typeof data.delta === "number") {
+      current.heading = (current.heading + data.delta + 360) % 360;
+      moveCamera();
     }
   });
 
