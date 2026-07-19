@@ -67,6 +67,8 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
   const [result, setResult] = useState<LandscapeZoneResponse | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [mapView, setMapView] = useState<"2d" | "3d">("2d");
+  /** 3D 엔진은 무거워서 최초 열람 후에는 언마운트하지 않고 숨겨서 세션을 유지합니다. */
+  const [threeDMounted, setThreeDMounted] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,20 +164,26 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
               className={`rounded-full px-3 py-1 text-xs font-bold ${
                 mapView === "3d" ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dcebfb]"
               }`}
-              onClick={() => setMapView("3d")}
+              onClick={() => {
+                setThreeDMounted(true);
+                setMapView("3d");
+              }}
               type="button"
             >
               3D 입체 (조감·투시)
             </button>
           </div>
-          {mapView === "2d" ? (
+          <div className={mapView === "2d" ? "" : "hidden"}>
             <SpatialDetailMap
               point={{ x: locationPoint.x, y: locationPoint.y }}
               layerFeatures={result.layerFeatures ?? []}
             />
-          ) : (
-            <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
-          )}
+          </div>
+          {threeDMounted ? (
+            <div className={mapView === "3d" ? "" : "hidden"}>
+              <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
+            </div>
+          ) : null}
         </div>
       ) : null}
 
