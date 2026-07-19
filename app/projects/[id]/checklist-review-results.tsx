@@ -11,6 +11,8 @@ import type {
 import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import EvidenceRegionViewer, { type EvidenceViewerTarget } from "./evidence-region-viewer";
+import SpatialEvidenceModal from "./spatial-evidence-modal";
+import type { EvaluationSpatialContext } from "@/lib/evaluation-context";
 
 const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string }> = {
   충족: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
@@ -108,6 +110,7 @@ export default function ChecklistReviewResults({ review }: { review: ChecklistRe
                   finding={findingsByItemId.get(item.id)}
                   item={item}
                   key={item.id}
+                  spatial={review.spatialContext}
                 />
               ))}
             </ul>
@@ -186,14 +189,17 @@ function FindingCard({
   item,
   finding,
   blobUrlByFileName,
+  spatial,
 }: {
   item: ChecklistItem;
   finding?: ChecklistFinding;
   blobUrlByFileName: Map<string, string>;
+  spatial: EvaluationSpatialContext | null;
 }) {
   const status = finding?.status ?? "확인불가";
   const style = STATUS_STYLES[status];
   const [viewerTarget, setViewerTarget] = useState<EvidenceViewerTarget | null>(null);
+  const [spatialOpen, setSpatialOpen] = useState(false);
 
   return (
     <li className="rounded-xl border border-[#d7dee8] bg-white p-4">
@@ -246,7 +252,20 @@ function FindingCard({
       {finding?.spatialNote ? (
         <p className="mt-2 rounded-lg bg-[#f0f7ff] px-3 py-2 text-xs leading-5 text-[#1d4f8c]">
           공간정보: {finding.spatialNote}
+          {spatial ? (
+            <button
+              className="ml-2 inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-[#2463b3] shadow-sm hover:bg-[#dcebfb]"
+              onClick={() => setSpatialOpen(true)}
+              type="button"
+            >
+              지도에서 보기
+            </button>
+          ) : null}
         </p>
+      ) : null}
+
+      {spatialOpen && spatial ? (
+        <SpatialEvidenceModal note={finding?.spatialNote} onClose={() => setSpatialOpen(false)} spatial={spatial} />
       ) : null}
 
       {finding && finding.lawRefs.length > 0 ? (
