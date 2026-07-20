@@ -114,3 +114,26 @@ export function buildGuidelineReferenceUrl(guide: Pick<Guideline, "id" | "title"
 export function isExternalUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
+
+/**
+ * 조문 단위 딥링크 (국가법령정보센터 단축주소: law.go.kr/{종류}/{명칭}/{제N조}).
+ * article에 "제N조" 표기가 없으면 null — 이 경우 기존 상세 URL을 사용하세요.
+ * 종류는 명칭으로 추정: 조례 → 자치법규, 지침·규정·훈령·고시 → 행정규칙, 그 외 법령.
+ */
+export function buildArticleDeepLink(title: string, article?: string): string | null {
+  if (!article) return null;
+  const articleMatch = article.match(/제\s*(\d+)\s*조(?:\s*의\s*(\d+))?/);
+  if (!articleMatch) return null;
+
+  const normalizedTitle = normalizeLawTitle(title);
+  if (!normalizedTitle) return null;
+
+  const kind = /조례/.test(normalizedTitle)
+    ? "자치법규"
+    : /지침|규정|훈령|고시|예규/.test(normalizedTitle)
+      ? "행정규칙"
+      : "법령";
+  const articlePath = `제${articleMatch[1]}조${articleMatch[2] ? `의${articleMatch[2]}` : ""}`;
+
+  return `https://www.law.go.kr/${kind}/${encodeURIComponent(normalizedTitle)}/${encodeURIComponent(articlePath)}`;
+}

@@ -11,6 +11,7 @@ import type {
 import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import EvidenceRegionViewer, { type EvidenceViewerTarget } from "./evidence-region-viewer";
+import { buildArticleDeepLink } from "@/lib/reference-links";
 
 const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string }> = {
   충족: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
@@ -139,7 +140,7 @@ export default function ChecklistReviewResults({ review }: { review: ChecklistRe
               <li key={`${law.title}-${law.article}`}>
                 <a
                   className="font-semibold text-[#2463b3] hover:underline"
-                  href={law.sourceUrl}
+                  href={buildArticleDeepLink(law.title, law.article) ?? law.sourceUrl}
                   rel="noreferrer"
                   target="_blank"
                 >
@@ -256,7 +257,7 @@ function FindingCard({
             law.sourceUrl ? (
               <a
                 className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:underline"
-                href={law.sourceUrl}
+                href={buildArticleDeepLink(law.title, law.article) ?? law.sourceUrl}
                 key={`${law.title}-${law.article ?? ""}`}
                 rel="noreferrer"
                 target="_blank"
