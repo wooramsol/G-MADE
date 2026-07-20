@@ -57,11 +57,9 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
     );
   }
 
-  function rotate(delta: number) {
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "vworld3d-rotate", delta },
-      window.location.origin,
-    );
+  function goHome() {
+    setPreset("birds");
+    iframeRef.current?.contentWindow?.postMessage({ type: "vworld3d-home" }, window.location.origin);
   }
 
   return (
@@ -82,24 +80,15 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
         ))}
         <span className="mx-1 h-4 w-px bg-[#d7dee8]" />
         <button
-          aria-label="왼쪽으로 회전"
+          aria-label="처음 위치로"
           className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:bg-[#dcebfb] disabled:opacity-50"
           disabled={status !== "ready"}
-          onClick={() => rotate(-45)}
+          onClick={goHome}
+          title="사업지 상공 처음 위치로 되돌아갑니다"
           type="button"
         >
-          ⟲ 회전
+          ⌂ 처음 위치
         </button>
-        <button
-          aria-label="오른쪽으로 회전"
-          className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:bg-[#dcebfb] disabled:opacity-50"
-          disabled={status !== "ready"}
-          onClick={() => rotate(45)}
-          type="button"
-        >
-          회전 ⟳
-        </button>
-        <span className="text-[11px] text-[#94a3b8]">마우스 드래그·휠로 자유 회전·확대 가능</span>
       </div>
 
       {status === "error" ? (
@@ -126,6 +115,13 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
           {status === "loading" ? (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-[#94a3b8]">
               3D 지형·건물 불러오는 중…
+            </div>
+          ) : null}
+          {status === "ready" ? (
+            <div className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap gap-x-3 gap-y-0.5 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-semibold leading-4 text-white backdrop-blur-sm">
+              <span>🖱 드래그: 이동</span>
+              <span>휠: 확대·축소</span>
+              <span>휠 클릭+드래그: 회전·기울기</span>
             </div>
           ) : null}
         </div>
