@@ -107,7 +107,6 @@ export async function GET(request: NextRequest) {
       var pin = new vw.geom.Point(new vw.Coord(x, y));
       pin.setId("site-pin");
       pin.setImage(window.location.origin + "/leaflet/marker-icon.png");
-      pin.setName("사업지");
       pin.create();
     } catch (e) {
       if (pinTries < 10) setTimeout(addSitePin, 1000);
