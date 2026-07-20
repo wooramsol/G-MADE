@@ -116,24 +116,20 @@ export function isExternalUrl(value: string): boolean {
 }
 
 /**
- * 조문 단위 딥링크 (국가법령정보센터 단축주소: law.go.kr/{종류}/{명칭}/{제N조}).
- * article에 "제N조" 표기가 없으면 null — 이 경우 기존 상세 URL을 사용하세요.
- * 종류는 명칭으로 추정: 조례 → 자치법규, 지침·규정·훈령·고시 → 행정규칙, 그 외 법령.
+ * 법령 전문(全文) 페이지를 열되 해당 조문 위치로 이동하는 URL.
+ * 국가법령정보센터 본문 뷰어의 joNo 파라미터(조번호 4자리+가지번호 2자리)를 사용합니다.
+ * 잘라낸 조문 단독 뷰가 아니라 전문이 열리므로 다른 조문도 그대로 탐색 가능합니다.
+ * lsInfoP·lsEfInfoP(법령 본문) URL만 지원 — 그 외에는 null을 반환하니 기존 URL을 사용하세요.
  */
-export function buildArticleDeepLink(title: string, article?: string): string | null {
-  if (!article) return null;
+export function buildArticleJumpUrl(sourceUrl?: string, article?: string): string | null {
+  if (!sourceUrl || !article) return null;
+  const trimmed = sourceUrl.trim();
+  if (!/^https:\/\/(?:www\.)?law\.go\.kr\/(?:LSW\/)?(?:lsInfoP|lsEfInfoP)\.do\?/i.test(trimmed)) return null;
+  if (/[?&]joNo=/.test(trimmed)) return trimmed;
+
   const articleMatch = article.match(/제\s*(\d+)\s*조(?:\s*의\s*(\d+))?/);
   if (!articleMatch) return null;
 
-  const normalizedTitle = normalizeLawTitle(title);
-  if (!normalizedTitle) return null;
-
-  const kind = /조례/.test(normalizedTitle)
-    ? "자치법규"
-    : /지침|규정|훈령|고시|예규/.test(normalizedTitle)
-      ? "행정규칙"
-      : "법령";
-  const articlePath = `제${articleMatch[1]}조${articleMatch[2] ? `의${articleMatch[2]}` : ""}`;
-
-  return `https://www.law.go.kr/${kind}/${encodeURIComponent(normalizedTitle)}/${encodeURIComponent(articlePath)}`;
+  const joNo = articleMatch[1].padStart(4, "0") + (articleMatch[2] ?? "0").padStart(2, "0");
+  return `${trimmed}&joNo=${joNo}&ancYnChk=0`;
 }
