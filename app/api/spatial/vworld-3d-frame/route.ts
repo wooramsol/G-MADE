@@ -92,9 +92,25 @@ export async function GET(request: NextRequest) {
       map.setMapId("vmap");
       map.setInitPosition(init);
       map.start();
+      setTimeout(addSitePin, 1500);
       notify({ type: "vworld3d-ready" });
     } catch (error) {
       notify({ type: "vworld3d-error", message: String(error && error.message ? error.message : error) });
+    }
+  }
+
+  // 사업지 좌표에 핀 표시 (평면 지도와 동일한 마커 이미지). 엔진 준비 전이면 재시도.
+  var pinTries = 0;
+  function addSitePin() {
+    pinTries += 1;
+    try {
+      var pin = new vw.geom.Point(new vw.Coord(x, y));
+      pin.setId("site-pin");
+      pin.setImage(window.location.origin + "/leaflet/marker-icon.png");
+      pin.setName("사업지");
+      pin.create();
+    } catch (e) {
+      if (pinTries < 10) setTimeout(addSitePin, 1000);
     }
   }
 
