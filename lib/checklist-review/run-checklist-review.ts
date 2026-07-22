@@ -19,6 +19,7 @@ import type { Project } from "@/lib/types";
 import { isClaudeConfigured } from "./claude-call";
 import { evaluateChecklistItems } from "./evaluate-items";
 import { extractChecklistItems } from "./extract-items";
+import { extractProjectMetrics } from "./extract-metrics";
 import { findChecklistPages } from "./find-checklist-pages";
 import {
   CHECKLIST_REVIEW_STEPS,
@@ -146,6 +147,8 @@ export async function runChecklistReview(
     }
 
     emitStep(emit, "context");
+    // 사업 규모 지표 추출은 평가와 병렬로 진행 (실패해도 검토에 영향 없음)
+    const metricsPromise = extractProjectMetrics(filesForAnalysis);
     const context = await buildEvaluationContext(projectId);
 
     emitStep(emit, "evaluate");
@@ -188,6 +191,7 @@ export async function runChecklistReview(
       items: evaluation.items,
       findings: evaluation.findings,
       counts: countFindingStatuses(evaluation.findings),
+      metrics: await metricsPromise,
       summary: evaluation.summary,
       referenceLaws: context.referenceLaws.slice(0, 12).map((law) => ({
         title: law.title,

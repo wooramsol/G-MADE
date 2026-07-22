@@ -81,6 +81,28 @@ export default function ChecklistReviewResults({ review }: { review: ChecklistRe
         </p>
       ) : null}
 
+      {review.metrics && review.metrics.length > 0 ? (
+        <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
+          <p className="text-sm font-bold text-[#15345b]">사업 규모 (문서에서 자동 인식)</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {review.metrics.map((metric) => (
+              <div className="rounded-lg bg-[#f8fafc] px-3 py-2 text-xs" key={metric.label}>
+                <p className="font-bold text-[#475569]">{metric.label}</p>
+                <p className="mt-0.5 font-semibold leading-5 text-[#172033]">{metric.value}</p>
+                {metric.source ? (
+                  <p className="mt-0.5 text-[10px] text-[#94a3b8]">
+                    「{metric.source.fileName}」 p.{metric.source.page}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-4 text-[#94a3b8]">
+            제출 문서에 명시된 값을 원문 그대로 추출한 결과입니다. 최종 수치는 도서 원본으로 확인해 주세요.
+          </p>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         <FilterChip
           active={filter === "전체"}

@@ -75,6 +75,13 @@ export type ChecklistReviewFile = {
 
 export type ChecklistStatusCounts = Record<ChecklistItemStatus, number>;
 
+/** 문서에서 자동 추출한 사업 규모 지표 (원문 표기 그대로). */
+export type ChecklistReviewMetric = {
+  label: string;
+  value: string;
+  source?: ChecklistSourcePage;
+};
+
 /** 1회 체크리스트 검토 결과. */
 export type ChecklistReview = {
   id: string;
@@ -85,6 +92,8 @@ export type ChecklistReview = {
   items: ChecklistItem[];
   findings: ChecklistFinding[];
   counts: ChecklistStatusCounts;
+  /** 문서에서 자동 추출한 사업 규모 지표 */
+  metrics?: ChecklistReviewMetric[];
   /** 전체 총평 */
   summary: string;
   referenceLaws: Array<{ title: string; article: string; summary: string; sourceUrl: string }>;
