@@ -42,7 +42,6 @@ function validateForm(form: FormState): string {
   if (!form.client.trim()) return "시행자를 입력해 주세요.";
   if (!form.designer.trim()) return "설계자를 입력해 주세요.";
   if (!form.projectType) return "사업유형을 선택해 주세요.";
-  if (!form.scale.trim()) return "규모를 입력해 주세요.";
   if (!form.reviewType) return "심의종류를 선택해 주세요.";
   if (!form.receivedAt.trim()) return "접수일을 입력해 주세요.";
   return "";
@@ -140,7 +139,6 @@ export default function ProjectMetadataEditor({
         <Field label="설계자" value={form.designer} onChange={(value) => updateField("designer", value)} />
         <SelectField label="사업유형" options={projectTypes} value={form.projectType} onChange={(value) => updateField("projectType", value)} />
         <SelectField label="심의종류" options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
-        <Field label="규모" value={form.scale} onChange={(value) => updateField("scale", value)} />
         <Field label="접수일" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
         <SelectField
           label="프로젝트 상태"

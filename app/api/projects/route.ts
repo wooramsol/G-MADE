@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const payload = await request.json();
-    const requiredFields = ["name", "location", "client", "designer", "projectType", "scale", "reviewType", "receivedAt"];
+    const requiredFields = ["name", "location", "client", "designer", "projectType", "reviewType", "receivedAt"];
 
     for (const field of requiredFields) {
       if (!String(payload[field] ?? "").trim()) {
