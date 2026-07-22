@@ -6,7 +6,7 @@ import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { Caption, MutedText } from "@/components/typography";
 import type { ChecklistReviewProgressEvent } from "@/lib/checklist-review/progress";
-import type { ChecklistReview } from "@/lib/checklist-review/types";
+import { CHECKLIST_ITEM_STATUSES, type ChecklistItemStatus, type ChecklistReview } from "@/lib/checklist-review/types";
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
 import { exceedsServerlessUploadLimit, SERVERLESS_UPLOAD_LIMIT_LABEL } from "@/lib/blob-config";
 import { submitChecklistReviewStream } from "@/lib/client-checklist-stream";
@@ -19,6 +19,14 @@ import { buildOversizedUploadMessage, getMaxUploadFileLabel, getOversizedUploadF
 import type { Project } from "@/lib/types";
 import { showToast } from "../../toast";
 import ChecklistReviewResults from "./checklist-review-results";
+
+/** 검토 이력 목록의 상태별 건수 태그 색상 (결과 화면 배지와 동일 톤). */
+const HISTORY_COUNT_STYLES: Record<ChecklistItemStatus, string> = {
+  충족: "bg-emerald-50 text-emerald-700",
+  부분충족: "bg-amber-50 text-amber-700",
+  미충족: "bg-red-50 text-red-700",
+  확인불가: "bg-slate-100 text-slate-600",
+};
 
 export default function ChecklistReviewSection({ project }: { project: Project }) {
   const router = useRouter();
@@ -273,8 +281,20 @@ export default function ChecklistReviewSection({ project }: { project: Project }
                       onClick={() => setSelectedReviewId(review.id)}
                       type="button"
                     >
-                      {formatUploadDateTime(review.reviewedAt)} · 항목 {review.items.length}개 · 미충족{" "}
-                      {review.counts.미충족}
+                      <span className="block">{formatUploadDateTime(review.reviewedAt)}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        <span className="rounded-full bg-[#e8f1ff] px-1.5 py-0.5 text-[10px] font-bold text-[#2463b3]">
+                          전체 {review.items.length}
+                        </span>
+                        {CHECKLIST_ITEM_STATUSES.map((statusName) => (
+                          <span
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${HISTORY_COUNT_STYLES[statusName]}`}
+                            key={statusName}
+                          >
+                            {statusName} {review.counts[statusName] ?? 0}
+                          </span>
+                        ))}
+                      </span>
                     </button>
                     <button
                       aria-label="검토 기록 삭제"
