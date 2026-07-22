@@ -22,6 +22,40 @@ const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string }>
 
 type StatusFilter = ChecklistItemStatus | "전체";
 
+/**
+ * 총평을 읽기 쉬운 문단으로 나눕니다.
+ * 줄바꿈 우선 분리 후, 220자를 넘는 문단은 문장 단위로 묶어 재분할합니다
+ * (배치 요약을 한 줄로 이어붙인 기존 검토 데이터 대응).
+ */
+function splitSummaryParagraphs(summary: string): string[] {
+  const blocks = summary
+    .split(/\n+/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  const paragraphs: string[] = [];
+  for (const block of blocks) {
+    if (block.length <= 220) {
+      paragraphs.push(block);
+      continue;
+    }
+
+    const sentences = block.split(/(?<=[.!?])\s+/).filter(Boolean);
+    let current = "";
+    for (const sentence of sentences) {
+      if (current && current.length + sentence.length > 180) {
+        paragraphs.push(current.trim());
+        current = sentence;
+      } else {
+        current = current ? `${current} ${sentence}` : sentence;
+      }
+    }
+    if (current.trim()) paragraphs.push(current.trim());
+  }
+
+  return paragraphs;
+}
+
 export default function ChecklistReviewResults({ review }: { review: ChecklistReview }) {
   const [filter, setFilter] = useState<StatusFilter>("전체");
 
@@ -76,9 +110,13 @@ export default function ChecklistReviewResults({ review }: { review: ChecklistRe
       </div>
 
       {review.summary ? (
-        <p className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 text-sm font-semibold leading-6 text-[#172033]">
-          {review.summary}
-        </p>
+        <div className="space-y-2.5 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+          {splitSummaryParagraphs(review.summary).map((paragraph, index) => (
+            <p className="text-sm font-semibold leading-6 text-[#172033]" key={index}>
+              {paragraph}
+            </p>
+          ))}
+        </div>
       ) : null}
 
       {review.metrics && review.metrics.length > 0 ? (

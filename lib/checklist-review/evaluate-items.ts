@@ -835,7 +835,7 @@ export async function evaluateChecklistItems(options: {
     findings: allFindings,
     items,
     checklistPages,
-    summary: summaries.join(" "),
+    summary: summaries.join("\n\n"),
     model,
     usedVision: hasVision,
     warnings,
