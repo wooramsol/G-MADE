@@ -7,6 +7,7 @@ import { extractJsonContent } from "@/lib/ai/extract-json";
 import { parsePageSlices } from "@/lib/ai/page-citation";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { splitPdfIntoChunks } from "@/lib/pdf/split-pdf";
+import { buildManualContextText } from "@/lib/manual/reference-manual";
 import type { EvaluationContext } from "@/lib/evaluation-context";
 import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock } from "./claude-call";
 import {
@@ -58,6 +59,7 @@ const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의�
 - 도면·이미지에서 확인한 근거에는 가능한 한 evidence.region을 포함합니다: 근거가 보이는 대략의 영역을 페이지 왼쪽 위 기준 정규화 좌표 {"x":0~1,"y":0~1,"width":0~1,"height":0~1}로 표기합니다. 정밀할 필요 없이 사분면 수준의 근사면 충분합니다. 본문 텍스트 근거이거나 페이지 전체가 근거인 경우에만 생략합니다.
 - 공간정보(경관지구·용도지역·문화재)가 항목 판단에 참고되면 spatialNote에 구체적으로 기재합니다. 해당 없음이 판단 근거가 되는 경우도 기재합니다.
 - lawRefs는 아래 '조회된 법령·지침' 목록에 있는 것만 인용합니다. 목록에 없는 법령은 절대 언급하지 않습니다.
+- '심의 매뉴얼 발췌'가 제공되면 판정 기준·보완 방향의 근거로 우선 참조합니다. 매뉴얼 기준을 인용할 때는 rationale·recommendation에 "매뉴얼 p.N" 형식으로 출처를 표기합니다. 발췌에 없는 내용을 매뉴얼 출처로 지어내지 않습니다.
 - 사업지가 경관지구 등 공간정보에 해당하면 관련 항목의 spatialNote에 반영합니다.
 - 도면의 치수·수치·축척은 문서에서 숫자를 명확히 판독한 경우에만 근거로 사용합니다. 축소·저해상도로 숫자가 불명확하면 추정하지 말고 "확인불가"로 판정하고 rationale에 판독 불가 사실을 밝힙니다.
 - "미충족"·"부분충족" 항목에는 구체적인 보완 방향(recommendation)을 제시합니다.
@@ -673,9 +675,14 @@ export async function evaluateChecklistItems(options: {
     }
 
     if (payloads.length === 1) {
-      // 단일 그룹: 추출+평가를 한 번에 (기존 동작)
+      // 단일 그룹: 추출+평가를 한 번에 (기존 동작). 항목을 아직 모르므로 매뉴얼은 일반 발췌.
+      const genericManual = buildManualContextText([
+        context.project?.projectType ?? "",
+        "경관심의 체크리스트 상정도서 작성방법",
+      ]);
+      const extractContext = genericManual ? `${contextText}\n\n${genericManual}` : contextText;
       onProgress?.("문서에서 체크리스트를 찾아 추출·평가 중입니다 (비전 분석)");
-      const result = await runCall(buildVisionExtractAndEvaluatePrompt(projectLabel, contextText), payloads[0], 60);
+      const result = await runCall(buildVisionExtractAndEvaluatePrompt(projectLabel, extractContext), payloads[0], 60);
       const payload = parsePayload(result.text);
       if (!payload) {
         throw new Error("AI 평가 응답(JSON)을 해석하지 못했습니다. 다시 시도해 주세요.");
@@ -751,6 +758,10 @@ export async function evaluateChecklistItems(options: {
   }
 
   // ── 2단계: 항목 배치 × 문서 그룹 병렬 평가 ──
+  // 체크리스트 항목과 관련성 높은 심의 매뉴얼 페이지를 발췌해 평가 기준으로 주입
+  const manualContextText = buildManualContextText(items.map((item) => item.text));
+  const evaluationContextText = manualContextText ? `${contextText}\n\n${manualContextText}` : contextText;
+
   const batches = chunkItems(items);
   const groupCount = Math.max(1, payloads.length);
   onProgress?.(
@@ -760,7 +771,7 @@ export async function evaluateChecklistItems(options: {
   );
 
   const evaluateBatchOnPayload = async (batch: ChecklistItem[], payload: DocumentPayload | null) => {
-    const basePrompt = buildItemsPrompt(batch, projectLabel, contextText);
+    const basePrompt = buildItemsPrompt(batch, projectLabel, evaluationContextText);
     const prompt = payload?.chunk ? `${chunkNote(payload.chunk)}\n\n${basePrompt}` : basePrompt;
 
     let result;

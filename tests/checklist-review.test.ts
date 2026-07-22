@@ -306,3 +306,20 @@ test("mergeExtractedItems는 구간 간 중복 항목을 제거하고 id를 재�
     ],
   );
 });
+
+// ── 심의 매뉴얼 발췌 ──
+test("selectManualExcerpts는 항목 키워드와 관련된 매뉴얼 페이지를 상한 내에서 반환한다", async () => {
+  const { selectManualExcerpts, buildManualContextText } = await import("../lib/manual/reference-manual");
+
+  const excerpts = selectManualExcerpts(["건축물 외벽 색채 계획", "야간 경관 조명"]);
+  assert.ok(excerpts.length > 0, "색채·조명 관련 페이지가 최소 1개 이상 선택되어야 함");
+  assert.ok(excerpts.length <= 10);
+  assert.ok(excerpts.every((entry) => entry.page >= 1 && entry.text.length > 0));
+
+  const contextText = buildManualContextText(["색채 계획"]);
+  assert.match(contextText, /\[심의 매뉴얼 발췌/);
+  assert.match(contextText, /매뉴얼 p\.\d+/);
+
+  // 무의미한 질의는 빈 결과
+  assert.equal(buildManualContextText([""]), "");
+});
