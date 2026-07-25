@@ -10,6 +10,23 @@ const PROJECT_NAME = "G-MADE AI-전문가 하이브리드 평가 시스템";
 export const metadata: Metadata = {
   title: PROJECT_NAME,
   description: "경관사전심의·공공디자인심의를 위한 AI·전문가 하이브리드 평가 지원 시스템",
+  // 아이패드·아이폰 홈 화면 설치 시 전체화면 앱으로 실행
+  appleWebApp: {
+    capable: true,
+    title: "G-MADE",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport = {
+  themeColor: "#15345b",
+  width: "device-width",
+  initialScale: 1,
+  // 아이패드에서 입력 포커스 시 과도한 확대 방지하되 접근성 위해 수동 확대는 허용
+  viewportFit: "cover" as const,
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

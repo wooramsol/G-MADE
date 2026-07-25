@@ -172,3 +172,12 @@ textarea {
     display: block !important;
   }
 }
+
+/* 터치 기기(아이패드 등): 입력 포커스 시 사파리 자동 확대 방지를 위해 16px 보장 */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
