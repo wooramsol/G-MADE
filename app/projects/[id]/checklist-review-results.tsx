@@ -288,13 +288,13 @@ function FindingCard({
                 <span className="font-bold text-[#15345b]">「{evidence.fileName}」</span>{" "}
                 {href ? (
                   <a
-                    className="font-bold text-[#2463b3] underline decoration-dotted underline-offset-2 hover:text-[#1d4f8c]"
+                    className="inline-flex items-center gap-0.5 rounded-md border border-[#b9d2f0] bg-[#eef4fb] px-1.5 py-0.5 align-middle text-[11px] font-bold text-[#2463b3] hover:border-[#2463b3] hover:bg-[#dcebfb]"
                     href={href}
                     rel="noreferrer"
                     target="_blank"
                     title="원본 PDF의 해당 페이지 열기"
                   >
-                    p.{evidence.page}
+                    p.{evidence.page} ↗
                   </a>
                 ) : (
                   <span className="font-bold text-[#15345b]">p.{evidence.page}</span>
