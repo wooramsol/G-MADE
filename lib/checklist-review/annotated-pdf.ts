@@ -20,14 +20,24 @@ export type PdfAnnotation = {
   note: string;
 };
 
-/** 해당 파일에 좌표가 있는 근거들을 페이지 순서로 수집합니다. */
+/**
+ * 해당 파일에 좌표가 있는 근거들을 페이지 순서로 수집합니다.
+ * 한글 파일명 NFC/NFD 표기 차이를 흡수하고, 검토 내 PDF가 1개뿐이면
+ * 파일명이 달라도 모든 좌표 근거를 그 파일로 귀속합니다.
+ */
 export function collectAnnotationsForFile(review: ChecklistReview, fileName: string): PdfAnnotation[] {
+  const normalize = (name: string) => name.normalize("NFC");
+  const target = normalize(fileName);
+  const pdfFileCount = review.files.filter((file) => /\.pdf$/i.test(file.originalName)).length;
+  const acceptAny = pdfFileCount <= 1;
+
   const itemById = new Map(review.items.map((item) => [item.id, item]));
   const collected: Omit<PdfAnnotation, "index">[] = [];
 
   for (const finding of review.findings) {
     for (const evidence of finding.evidence) {
-      if (evidence.fileName !== fileName || !evidence.region || evidence.page < 1) continue;
+      if (!evidence.region || evidence.page < 1) continue;
+      if (!acceptAny && normalize(evidence.fileName) !== target) continue;
       collected.push({
         page: evidence.page,
         region: evidence.region,

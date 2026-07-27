@@ -66,15 +66,29 @@ export default function ChecklistReviewResults({
 
   /** 좌표가 있는 근거를 가진 PDF 파일 목록 (표시 도면 PDF 생성 대상) */
   const annotatedFiles = useMemo(() => {
+    // 한글 파일명은 macOS 업로드 시 NFD, AI 인용 시 NFC로 표기가 갈릴 수 있어 정규화 후 비교
+    const normalize = (name: string) => name.normalize("NFC");
     const counts = new Map<string, number>();
+    let totalRegions = 0;
     for (const finding of review.findings) {
       for (const evidence of finding.evidence) {
-        if (evidence.region) counts.set(evidence.fileName, (counts.get(evidence.fileName) ?? 0) + 1);
+        if (!evidence.region) continue;
+        totalRegions += 1;
+        const key = normalize(evidence.fileName);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
       }
     }
-    return review.files
-      .filter((file) => /\.pdf$/i.test(file.originalName) && (counts.get(file.originalName) ?? 0) > 0)
-      .map((file) => ({ file, count: counts.get(file.originalName) ?? 0 }));
+
+    const pdfFiles = review.files.filter((file) => /\.pdf$/i.test(file.originalName));
+    const matched = pdfFiles
+      .filter((file) => (counts.get(normalize(file.originalName)) ?? 0) > 0)
+      .map((file) => ({ file, count: counts.get(normalize(file.originalName)) ?? 0 }));
+
+    // 파일명 표기가 달라 매칭이 안 되어도, PDF가 1개뿐이면 전체 표시를 그 파일에 귀속
+    if (matched.length === 0 && totalRegions > 0 && pdfFiles.length === 1) {
+      return [{ file: pdfFiles[0], count: totalRegions }];
+    }
+    return matched;
   }, [review.findings, review.files]);
 
   const findingsByItemId = useMemo(() => {
