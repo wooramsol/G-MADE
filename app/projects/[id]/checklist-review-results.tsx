@@ -127,19 +127,6 @@ export default function ChecklistReviewResults({
         </div>
       </div>
 
-      {/* 임시 진단 표시 — 페이지 링크 미생성 원인 확인용, 확인 후 제거 예정 */}
-      <Caption className="text-[#94a3b8]">
-        [진단] files={review.files?.length ?? "undef"} · pdf=
-        {review.files?.filter((file) => /\.pdf$/i.test(file.originalName)).length ?? "-"} · 첫파일ID=
-        {review.files?.[0]?.id ?? "없음"} · 첫파일명={review.files?.[0]?.originalName ?? "없음"} ·{" "}
-        {(() => {
-          const sample = review.findings.find((finding) => finding.evidence.length > 0)?.evidence[0];
-          if (!sample) return "근거샘플=없음";
-          const href = pageHref(sample.fileName, sample.page);
-          return `근거샘플=${sample.fileName}#${sample.page}(${typeof sample.page}) · 링크=${href ? "생성됨" : "실패"}`;
-        })()}
-      </Caption>
-
       {review.summary ? (
         <div className="space-y-2.5 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
           {splitSummaryParagraphs(review.summary).map((paragraph, index) => (
@@ -303,9 +290,14 @@ function FindingCard({
                 <span className="font-bold text-[#15345b]">「{evidence.fileName}」</span>{" "}
                 {href ? (
                   <a
-                    className="font-bold text-blue-600 underline underline-offset-2 hover:text-blue-800"
                     href={href}
                     rel="noreferrer"
+                    style={{
+                      color: "#2563eb",
+                      fontWeight: 700,
+                      textDecoration: "underline",
+                      textUnderlineOffset: "2px",
+                    }}
                     target="_blank"
                     title="원본 PDF의 해당 페이지 열기"
                   >
