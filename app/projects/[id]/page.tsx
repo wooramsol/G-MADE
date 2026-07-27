@@ -65,7 +65,6 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <Info label="시행자" value={project.client} />
               <Info label="설계자" value={project.designer} />
               <Info label="사업유형" value={project.projectType} />
-              {project.scale ? <Info label="규모 (직접 입력)" value={project.scale} /> : null}
               <Info label="심의종류" value={project.reviewType} />
               <Info label="접수일" value={project.receivedAt} />
               <Info label="상태" value={project.status} />
