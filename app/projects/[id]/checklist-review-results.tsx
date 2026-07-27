@@ -12,11 +12,27 @@ import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { buildArticleJumpUrl } from "@/lib/reference-links";
 
-const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string }> = {
-  충족: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-  부분충족: { badge: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
-  미충족: { badge: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
-  확인불가: { badge: "bg-slate-100 text-slate-600 border-slate-200", dot: "bg-slate-400" },
+const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string; card: string }> = {
+  충족: {
+    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    dot: "bg-emerald-500",
+    card: "border-emerald-200 bg-emerald-50/50",
+  },
+  부분충족: {
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    dot: "bg-amber-500",
+    card: "border-amber-200 bg-amber-50/50",
+  },
+  미충족: {
+    badge: "bg-red-50 text-red-700 border-red-200",
+    dot: "bg-red-500",
+    card: "border-red-200 bg-red-50/50",
+  },
+  확인불가: {
+    badge: "bg-slate-100 text-slate-600 border-slate-200",
+    dot: "bg-slate-400",
+    card: "border-slate-200 bg-slate-50/60",
+  },
 };
 
 type StatusFilter = ChecklistItemStatus | "전체";
@@ -269,7 +285,7 @@ function FindingCard({
   const style = STATUS_STYLES[status];
 
   return (
-    <li className="rounded-xl border border-[#d7dee8] bg-white p-4">
+    <li className={`rounded-xl border p-4 ${style.card}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-sm font-bold leading-6 text-[#172033]">{item.text}</p>
         <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold ${style.badge}`}>
