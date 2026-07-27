@@ -7,7 +7,7 @@ import { callClaude, type ClaudeContentBlock } from "./claude-call";
 import type { ChecklistReviewMetric } from "./types";
 
 const METRIC_KEYWORDS =
-  /대지\s*면적|건축\s*면적|연면적|건폐율|용적률|조경\s*면적|주차|층수|최고\s*높이|사업\s*개요|건축\s*개요/;
+  /대\s*지\s*면\s*적|건\s*축\s*면\s*적|연\s*면\s*적|건\s*폐\s*율|용\s*적\s*률|조\s*경\s*면\s*적|주\s*차|층\s*수|최\s*고\s*높\s*이|사\s*업\s*개\s*요|건\s*축\s*개\s*요/;
 
 const METRICS_SYSTEM = `당신은 건축·경관 심의 문서에서 사업 규모 지표를 추출하는 도구입니다.
 규칙:
@@ -32,6 +32,7 @@ const VISION_CHUNK_MAX_PAGES = 40;
  */
 export async function extractProjectMetrics(files: UploadedFileSummary[]): Promise<ChecklistReviewMetric[]> {
   try {
+    // 1차: 개요 키워드가 있는 텍스트 페이지에서 추출
     const slices = parsePageSlices(files).filter((slice) => METRIC_KEYWORDS.test(slice.text));
     let text = "";
     for (const slice of slices) {
@@ -40,73 +41,91 @@ export async function extractProjectMetrics(files: UploadedFileSummary[]): Promi
       text += chunk;
     }
 
-    let blocks: ClaudeContentBlock[];
-    let includesPdf = false;
-
     if (text.trim().length >= 200) {
-      blocks = [{ type: "text", text }];
-    } else {
-      // 텍스트가 빈약한 스캔본 → 첫 PDF 앞부분(개요가 보통 앞장에 위치)을 비전으로 판독
-      const file = files.find((candidate) =>
-        (candidate.visionAssets ?? []).some((asset) => asset.mediaType === "application/pdf"),
-      );
-      const asset = file?.visionAssets?.find((entry) => entry.mediaType === "application/pdf");
-      if (!file || !asset) return [];
-
-      let base64 = asset.base64;
-      const bytes = Math.ceil((base64.length * 3) / 4);
-      if (bytes > VISION_CHUNK_MAX_BYTES || (file.totalPages ?? 0) > 90) {
-        const chunks = await splitPdfIntoChunks(base64, {
-          maxBytesPerChunk: VISION_CHUNK_MAX_BYTES,
-          maxPagesPerChunk: VISION_CHUNK_MAX_PAGES,
-        });
-        if (chunks.length === 0) return [];
-        base64 = chunks[0].base64;
+      const fromText = await runMetricsExtraction([{ type: "text", text }], false);
+      if (fromText.length > 0) {
+        console.log(`[checklist-review] metrics=${fromText.length} mode=text`);
+        return fromText;
       }
-
-      blocks = [
-        {
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: base64 },
-          title: file.originalName,
-        },
-      ];
-      includesPdf = true;
     }
 
-    const result = await callClaude({
-      model: CLAUDE_FAST_MODEL,
-      system: METRICS_SYSTEM,
-      userBlocks: [...blocks, { type: "text", text: METRICS_PROMPT }],
-      maxOutputTokens: 2_000,
-      includesPdf,
-      timeoutMs: 90_000,
-    });
+    // 2차: 텍스트에서 못 찾음(개요표가 이미지인 경우) → 문서 앞부분 비전 판독
+    const visionBlocks = await buildVisionBlocks(files);
+    if (!visionBlocks) {
+      console.log("[checklist-review] metrics=0 mode=none (텍스트 미검출·비전 자산 없음)");
+      return [];
+    }
 
-    const json = extractJsonContent(result.text);
-    if (!json) return [];
-    const parsed = JSON.parse(json) as {
-      metrics?: Array<{ label?: string; value?: string; fileName?: string; page?: number }>;
-    };
-
-    const seen = new Set<string>();
-    return (parsed.metrics ?? [])
-      .map((metric) => ({
-        label: String(metric?.label ?? "").trim(),
-        value: String(metric?.value ?? "").trim(),
-        source:
-          metric?.fileName && metric?.page
-            ? { fileName: String(metric.fileName), page: Number(metric.page) || 0 }
-            : undefined,
-      }))
-      .filter((metric) => {
-        if (!metric.label || !metric.value || seen.has(metric.label)) return false;
-        seen.add(metric.label);
-        return true;
-      })
-      .slice(0, 16);
+    const fromVision = await runMetricsExtraction(visionBlocks, true);
+    console.log(`[checklist-review] metrics=${fromVision.length} mode=vision`);
+    return fromVision;
   } catch (error) {
     console.warn("[checklist-review] 규모 지표 추출 실패:", error instanceof Error ? error.message : error);
     return [];
   }
+}
+
+/** 첫 PDF의 앞부분(개요가 보통 앞장에 위치)을 비전 블록으로 준비합니다. */
+async function buildVisionBlocks(files: UploadedFileSummary[]): Promise<ClaudeContentBlock[] | null> {
+  const file = files.find((candidate) =>
+    (candidate.visionAssets ?? []).some((asset) => asset.mediaType === "application/pdf"),
+  );
+  const asset = file?.visionAssets?.find((entry) => entry.mediaType === "application/pdf");
+  if (!file || !asset) return null;
+
+  let base64 = asset.base64;
+  const bytes = Math.ceil((base64.length * 3) / 4);
+  if (bytes > VISION_CHUNK_MAX_BYTES || (file.totalPages ?? 0) > 90) {
+    const chunks = await splitPdfIntoChunks(base64, {
+      maxBytesPerChunk: VISION_CHUNK_MAX_BYTES,
+      maxPagesPerChunk: VISION_CHUNK_MAX_PAGES,
+    });
+    if (chunks.length === 0) return null;
+    base64 = chunks[0].base64;
+  }
+
+  return [
+    {
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: base64 },
+      title: file.originalName,
+    },
+  ];
+}
+
+async function runMetricsExtraction(
+  blocks: ClaudeContentBlock[],
+  includesPdf: boolean,
+): Promise<ChecklistReviewMetric[]> {
+  const result = await callClaude({
+    model: CLAUDE_FAST_MODEL,
+    system: METRICS_SYSTEM,
+    userBlocks: [...blocks, { type: "text", text: METRICS_PROMPT }],
+    maxOutputTokens: 2_000,
+    includesPdf,
+    timeoutMs: 90_000,
+  });
+
+  const json = extractJsonContent(result.text);
+  if (!json) return [];
+  const parsed = JSON.parse(json) as {
+    metrics?: Array<{ label?: string; value?: string; fileName?: string; page?: number }>;
+  };
+
+  const seen = new Set<string>();
+  return (parsed.metrics ?? [])
+    .map((metric) => ({
+      label: String(metric?.label ?? "").trim(),
+      value: String(metric?.value ?? "").trim(),
+      source:
+        metric?.fileName && metric?.page
+          ? { fileName: String(metric.fileName), page: Number(metric.page) || 0 }
+          : undefined,
+    }))
+    .filter((metric) => {
+      if (!metric.label || !metric.value || seen.has(metric.label)) return false;
+      seen.add(metric.label);
+      return true;
+    })
+    .slice(0, 16);
 }
