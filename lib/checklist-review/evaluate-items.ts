@@ -21,10 +21,10 @@ import {
 } from "./types";
 
 const EVALUATE_MAX_OUTPUT_TOKENS = 16_384;
-const ITEMS_PER_BATCH = 20;
-/** 항목당 예상 출력 토큰 (간결 출력 기준) — max_tokens 산정용 */
-const OUTPUT_TOKENS_PER_ITEM = 320;
-const OUTPUT_TOKENS_BASE = 1_200;
+const ITEMS_PER_BATCH = 15;
+/** 항목당 예상 출력 토큰 — 잘림(max_tokens)이 판정 누락·회차 간 편차를 만들므로 여유 있게 */
+const OUTPUT_TOKENS_PER_ITEM = 480;
+const OUTPUT_TOKENS_BASE = 1_500;
 
 /** 대용량 PDF 분할 구간당 최대 용량 (구간마다 별도 요청이므로 요청 한도만 지키면 됨) */
 const CHUNK_MAX_BYTES = 15 * 1024 * 1024;
@@ -55,6 +55,7 @@ const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의�
 
 규칙:
 - 반드시 문서에서 실제로 확인한 내용만 근거로 사용합니다. 추측·일반론 금지.
+- 판정 일관성: 같은 문서·같은 항목에는 항상 같은 판정이 나와야 합니다. 경계가 모호하면 "문서에 명시적 근거가 있는가"를 유일한 기준으로 삼습니다 — 명확한 근거 있음=충족, 근거가 일부만 있음=부분충족, 반영되지 않았음이 확인됨=미충족, 근거 자체가 없음=확인불가.
 - evidence의 fileName·page는 실제로 근거를 확인한 페이지만 기재합니다. 도면·이미지 속 글자도 근거로 인정합니다.
 - 공간정보(경관지구·용도지역·문화재)가 항목 판단에 참고되면 spatialNote에 구체적으로 기재합니다. 해당 없음이 판단 근거가 되는 경우도 기재합니다.
 - lawRefs는 아래 '조회된 법령·지침' 목록에 있는 것만 인용합니다. 목록에 없는 법령은 절대 언급하지 않습니다.

@@ -33,6 +33,8 @@ export type ClaudeCallOptions = {
   model?: string;
   includesPdf?: boolean;
   timeoutMs?: number;
+  /** 기본 0 — 같은 문서에 같은 판정이 나오도록 결정적 출력 사용 */
+  temperature?: number;
 };
 
 export type ClaudeCallResult = {
@@ -72,6 +74,7 @@ export async function callClaude(options: ClaudeCallOptions): Promise<ClaudeCall
             body: JSON.stringify({
               model,
               max_tokens: options.maxOutputTokens,
+              temperature: options.temperature ?? 0,
               system: options.system,
               messages: [{ role: "user", content: options.userBlocks }],
             }),
