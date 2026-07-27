@@ -122,7 +122,7 @@ export default function ChecklistReviewResults({
           <SubsectionTitle>체크리스트 검토 결과</SubsectionTitle>
           <Caption className="mt-1 text-[#64748b]">
             {formatUploadDateTime(review.reviewedAt)} · 항목 {review.items.length}개 ·{" "}
-            {review.itemSource === "vision" ? "스캔 문서(비전 추출)" : "텍스트 추출"} · {review.model}
+            {review.itemSource === "vision" ? "스캔 문서(비전 추출)" : "텍스트 추출"} · G-Made Hive AI
           </Caption>
         </div>
         <div className="flex flex-wrap items-center gap-3">
