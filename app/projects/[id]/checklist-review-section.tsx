@@ -315,7 +315,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
 
         <div className="min-w-0">
           {selectedReview ? (
-            <ChecklistReviewResults projectId={project.id} review={selectedReview} />
+            <ChecklistReviewResults review={selectedReview} />
           ) : (
             <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc]">
               <MutedText>

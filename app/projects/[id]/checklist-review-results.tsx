@@ -55,41 +55,8 @@ function splitSummaryParagraphs(summary: string): string[] {
   return paragraphs;
 }
 
-export default function ChecklistReviewResults({
-  review,
-  projectId,
-}: {
-  review: ChecklistReview;
-  projectId: string;
-}) {
+export default function ChecklistReviewResults({ review }: { review: ChecklistReview }) {
   const [filter, setFilter] = useState<StatusFilter>("전체");
-
-  /** 좌표가 있는 근거를 가진 PDF 파일 목록 (표시 도면 PDF 생성 대상) */
-  const annotatedFiles = useMemo(() => {
-    // 한글 파일명은 macOS 업로드 시 NFD, AI 인용 시 NFC로 표기가 갈릴 수 있어 정규화 후 비교
-    const normalize = (name: string) => name.normalize("NFC");
-    const counts = new Map<string, number>();
-    let totalRegions = 0;
-    for (const finding of review.findings) {
-      for (const evidence of finding.evidence) {
-        if (!evidence.region) continue;
-        totalRegions += 1;
-        const key = normalize(evidence.fileName);
-        counts.set(key, (counts.get(key) ?? 0) + 1);
-      }
-    }
-
-    const pdfFiles = review.files.filter((file) => /\.pdf$/i.test(file.originalName));
-    const matched = pdfFiles
-      .filter((file) => (counts.get(normalize(file.originalName)) ?? 0) > 0)
-      .map((file) => ({ file, count: counts.get(normalize(file.originalName)) ?? 0 }));
-
-    // 파일명 표기가 달라 매칭이 안 되어도, PDF가 1개뿐이면 전체 표시를 그 파일에 귀속
-    if (matched.length === 0 && totalRegions > 0 && pdfFiles.length === 1) {
-      return [{ file: pdfFiles[0], count: totalRegions }];
-    }
-    return matched;
-  }, [review.findings, review.files]);
 
   const findingsByItemId = useMemo(() => {
     const map = new Map<string, ChecklistFinding>();
@@ -159,29 +126,6 @@ export default function ChecklistReviewResults({
           <p className="mt-2 text-[11px] leading-4 text-[#94a3b8]">
             제출 문서에 명시된 값을 원문 그대로 추출한 결과입니다. 최종 수치는 도서 원본으로 확인해 주세요.
           </p>
-        </div>
-      ) : null}
-
-      {annotatedFiles.length > 0 ? (
-        <div className="rounded-xl border border-[#c9dcf5] bg-[#f0f7ff] p-4">
-          <p className="text-sm font-bold text-[#15345b]">AI 표시 도면 PDF</p>
-          <Caption className="mt-1 text-[#475569]">
-            AI가 확인한 근거 위치가 원본 도면 위에 번호·색상 영역(초록=충족 · 주황=부분충족 · 빨강=미충족 ·
-            회색=확인불가)으로 표시되고, 마지막 장에 번호별 주석 목록이 붙습니다. 열어서 보거나 그대로 다운로드하세요.
-          </Caption>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {annotatedFiles.map(({ file, count }) => (
-              <a
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#2463b3] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1d4f8c]"
-                href={`/api/checklist-reviews/annotated-pdf?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}&fileId=${encodeURIComponent(file.id)}`}
-                key={file.id}
-                rel="noreferrer"
-                target="_blank"
-              >
-                「{file.originalName}」 표시 도면 열기 · {count}곳
-              </a>
-            ))}
-          </div>
         </div>
       ) : null}
 

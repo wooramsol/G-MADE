@@ -56,7 +56,6 @@ const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의�
 규칙:
 - 반드시 문서에서 실제로 확인한 내용만 근거로 사용합니다. 추측·일반론 금지.
 - evidence의 fileName·page는 실제로 근거를 확인한 페이지만 기재합니다. 도면·이미지 속 글자도 근거로 인정합니다.
-- 도면·이미지에서 확인한 근거에는 가능한 한 evidence.region을 포함합니다: 근거가 보이는 대략의 영역을 페이지 왼쪽 위 기준 정규화 좌표 {"x":0~1,"y":0~1,"width":0~1,"height":0~1}로 표기합니다. 정밀할 필요 없이 사분면 수준의 근사면 충분합니다. 본문 텍스트 근거이거나 페이지 전체가 근거인 경우에만 생략합니다.
 - 공간정보(경관지구·용도지역·문화재)가 항목 판단에 참고되면 spatialNote에 구체적으로 기재합니다. 해당 없음이 판단 근거가 되는 경우도 기재합니다.
 - lawRefs는 아래 '조회된 법령·지침' 목록에 있는 것만 인용합니다. 목록에 없는 법령은 절대 언급하지 않습니다.
 - '심의 매뉴얼 발췌'가 제공되면 판정 기준·보완 방향의 근거로 우선 참조합니다. 매뉴얼 기준을 인용할 때는 rationale·recommendation에 "매뉴얼 p.N" 형식으로 출처를 표기합니다. 발췌에 없는 내용을 매뉴얼 출처로 지어내지 않습니다.
@@ -360,7 +359,7 @@ ${itemsJson}
 
 위 항목 각각에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 판정하세요.
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","region":{"x":0.1,"y":0.4,"width":0.3,"height":0.2}}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
+{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
 }
 
 function buildVisionExtractAndEvaluatePrompt(projectLabel: string, contextText: string): string {
@@ -373,7 +372,7 @@ ${contextText}
 2. 각 항목에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 충족 여부를 판정하세요.
 
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","region":{"x":0.1,"y":0.4,"width":0.3,"height":0.2}}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}
+{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}
 
 체크리스트 페이지를 찾지 못하면 {"summary":"...","checklistPages":[],"items":[],"findings":[]} 형태로 출력하세요.`;
 }
