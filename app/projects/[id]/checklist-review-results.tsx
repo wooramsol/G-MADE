@@ -72,9 +72,11 @@ export default function ChecklistReviewResults({
     for (const file of pdfFiles) idByName.set(normalize(file.originalName), file.id);
 
     return (fileName: string, page: number): string | undefined => {
+      // 저장·역직렬화 과정에서 페이지가 문자열로 들어오는 경우가 있어 숫자로 강제 변환
+      const pageNumber = Number(page);
       const fileId = idByName.get(normalize(fileName)) ?? (pdfFiles.length === 1 ? pdfFiles[0].id : undefined);
-      if (!fileId || !Number.isFinite(page) || page < 1) return undefined;
-      return `/api/checklist-reviews/original-file?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}&fileId=${encodeURIComponent(fileId)}#page=${page}`;
+      if (!fileId || !Number.isFinite(pageNumber) || pageNumber < 1) return undefined;
+      return `/api/checklist-reviews/original-file?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}&fileId=${encodeURIComponent(fileId)}#page=${pageNumber}`;
     };
   }, [review.files, review.id, projectId]);
 
