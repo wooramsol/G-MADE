@@ -277,8 +277,10 @@ function FindingCard({
         </span>
       </div>
 
-      {finding?.rationale ? (
-        <p className="mt-2 text-sm leading-6 text-[#475569]">{finding.rationale}</p>
+      {finding?.rationale || finding?.recommendation ? (
+        <p className="mt-2 text-sm leading-6 text-[#475569]">
+          {[finding?.rationale, finding?.recommendation].filter(Boolean).join(" ")}
+        </p>
       ) : null}
 
       {finding && finding.evidence.length > 0 ? (
@@ -313,11 +315,6 @@ function FindingCard({
         </div>
       ) : null}
 
-      {finding?.spatialNote ? (
-        <p className="mt-2 rounded-lg bg-[#f0f7ff] px-3 py-2 text-xs leading-5 text-[#1d4f8c]">
-          공간정보: {finding.spatialNote}
-        </p>
-      ) : null}
 
       {finding && finding.lawRefs.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -346,11 +343,6 @@ function FindingCard({
         </div>
       ) : null}
 
-      {finding?.recommendation ? (
-        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
-          보완 방향: {finding.recommendation}
-        </p>
-      ) : null}
     </li>
   );
 }

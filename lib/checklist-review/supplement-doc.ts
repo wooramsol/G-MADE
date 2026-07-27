@@ -92,7 +92,6 @@ export async function buildSupplementDoc(
           body(`근거: 「${evidence.fileName}」 p.${evidence.page} — ${evidence.note}`, { indent: true }),
         );
       }
-      if (finding.spatialNote) sections.push(body(`공간정보: ${finding.spatialNote}`, { indent: true }));
       if (finding.lawRefs.length > 0) {
         sections.push(
           body(

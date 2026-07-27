@@ -57,14 +57,13 @@ const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의�
 - 반드시 문서에서 실제로 확인한 내용만 근거로 사용합니다. 추측·일반론 금지.
 - 판정 일관성: 같은 문서·같은 항목에는 항상 같은 판정이 나와야 합니다. 경계가 모호하면 "문서에 명시적 근거가 있는가"를 유일한 기준으로 삼습니다 — 명확한 근거 있음=충족, 근거가 일부만 있음=부분충족, 반영되지 않았음이 확인됨=미충족, 근거 자체가 없음=확인불가.
 - evidence의 fileName·page는 실제로 근거를 확인한 페이지만 기재합니다. 도면·이미지 속 글자도 근거로 인정합니다.
-- 공간정보(경관지구·용도지역·문화재)가 항목 판단에 참고되면 spatialNote에 구체적으로 기재합니다. 해당 없음이 판단 근거가 되는 경우도 기재합니다.
+- 공간정보(경관지구·용도지역·문화재)가 판단에 실제로 영향을 준 경우에만 rationale에 반영합니다.
 - lawRefs는 아래 '조회된 법령·지침' 목록에 있는 것만 인용합니다. 목록에 없는 법령은 절대 언급하지 않습니다.
 - '심의 매뉴얼 발췌'가 제공되면 판정 기준·보완 방향의 근거로 우선 참조합니다. 매뉴얼 기준을 인용할 때는 rationale·recommendation에 "매뉴얼 p.N" 형식으로 출처를 표기합니다. 발췌에 없는 내용을 매뉴얼 출처로 지어내지 않습니다.
-- 사업지가 경관지구 등 공간정보에 해당하면 관련 항목의 spatialNote에 반영합니다.
 - 도면의 치수·수치·축척은 문서에서 숫자를 명확히 판독한 경우에만 근거로 사용합니다. 축소·저해상도로 숫자가 불명확하면 추정하지 말고 "확인불가"로 판정하고 rationale에 판독 불가 사실을 밝힙니다.
 - "미충족"·"부분충족" 항목에는 구체적인 보완 방향(recommendation)을 제시합니다.
 - 간결하게 씁니다: rationale은 2문장 이내, evidence는 항목당 최대 2개(note는 60자 이내), recommendation은 1~2문장.
-- 문체 통일: summary·rationale·note·spatialNote·recommendation 등 모든 서술은 개조식 명사형 종결("~함", "~됨", "~임", "~필요", "~확인")로 작성합니다. "~합니다/~했습니다/~있다" 같은 서술형 종결은 사용하지 않습니다. (예: "배치도 p.12에서 차폐 조경 확인됨", "야간 조명 계획 보완 필요")
+- 문체 통일: summary·rationale·note·recommendation 등 모든 서술은 개조식 명사형 종결("~함", "~됨", "~임", "~필요", "~확인")로 작성합니다. "~합니다/~했습니다/~있다" 같은 서술형 종결은 사용하지 않습니다. (예: "배치도 p.12에서 차폐 조경 확인됨", "야간 조명 계획 보완 필요")
 - 반드시 JSON만 출력합니다.`;
 
 export type EvaluateItemsResult = {
@@ -360,7 +359,7 @@ ${itemsJson}
 
 위 항목 각각에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 판정하세요.
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
+{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
 }
 
 function buildVisionExtractAndEvaluatePrompt(projectLabel: string, contextText: string): string {
@@ -373,7 +372,7 @@ ${contextText}
 2. 각 항목에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 충족 여부를 판정하세요.
 
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"spatialNote":"공간정보 근거(해당 시)","recommendation":"보완 방향(미충족·부분충족 시)"}]}
+{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}
 
 체크리스트 페이지를 찾지 못하면 {"summary":"...","checklistPages":[],"items":[],"findings":[]} 형태로 출력하세요.`;
 }
