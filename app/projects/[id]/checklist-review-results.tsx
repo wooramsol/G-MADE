@@ -55,8 +55,28 @@ function splitSummaryParagraphs(summary: string): string[] {
   return paragraphs;
 }
 
-export default function ChecklistReviewResults({ review }: { review: ChecklistReview }) {
+export default function ChecklistReviewResults({
+  review,
+  projectId,
+}: {
+  review: ChecklistReview;
+  projectId: string;
+}) {
   const [filter, setFilter] = useState<StatusFilter>("전체");
+
+  /** 근거 fileName·page → 원본 PDF 해당 페이지를 여는 링크 (NFC 정규화 + 단일 PDF 폴백) */
+  const pageHref = useMemo(() => {
+    const normalize = (name: string) => name.normalize("NFC");
+    const idByName = new Map<string, string>();
+    const pdfFiles = review.files.filter((file) => /\.pdf$/i.test(file.originalName));
+    for (const file of pdfFiles) idByName.set(normalize(file.originalName), file.id);
+
+    return (fileName: string, page: number): string | undefined => {
+      const fileId = idByName.get(normalize(fileName)) ?? (pdfFiles.length === 1 ? pdfFiles[0].id : undefined);
+      if (!fileId || !Number.isFinite(page) || page < 1) return undefined;
+      return `/api/checklist-reviews/original-file?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}&fileId=${encodeURIComponent(fileId)}#page=${page}`;
+    };
+  }, [review.files, review.id, projectId]);
 
   const findingsByItemId = useMemo(() => {
     const map = new Map<string, ChecklistFinding>();
@@ -87,14 +107,22 @@ export default function ChecklistReviewResults({ review }: { review: ChecklistRe
             {review.itemSource === "vision" ? "스캔 문서(비전 추출)" : "텍스트 추출"} · {review.model}
           </Caption>
         </div>
-        {review.checklistPages.length > 0 ? (
-          <Caption className="text-[#64748b]">
-            체크리스트 페이지:{" "}
-            {review.checklistPages
-              .map((page) => `「${page.fileName}」 p.${page.page}`)
-              .join(", ")}
-          </Caption>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          {review.checklistPages.length > 0 ? (
+            <Caption className="text-[#64748b]">
+              체크리스트 페이지:{" "}
+              {review.checklistPages
+                .map((page) => `「${page.fileName}」 p.${page.page}`)
+                .join(", ")}
+            </Caption>
+          ) : null}
+          <a
+            className="inline-flex items-center rounded-lg bg-[#2463b3] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1d4f8c]"
+            href={`/api/checklist-reviews/supplement-doc?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}`}
+          >
+            보완요구서 초안 다운로드 (.docx)
+          </a>
+        </div>
       </div>
 
       {review.summary ? (
@@ -152,7 +180,7 @@ export default function ChecklistReviewResults({ review }: { review: ChecklistRe
             <Eyebrow>{category}</Eyebrow>
             <ul className="mt-2 space-y-3">
               {items.map((item) => (
-                <FindingCard finding={findingsByItemId.get(item.id)} item={item} key={item.id} />
+                <FindingCard finding={findingsByItemId.get(item.id)} item={item} key={item.id} pageHref={pageHref} />
               ))}
             </ul>
           </div>
@@ -226,7 +254,15 @@ function FilterChip({
   );
 }
 
-function FindingCard({ item, finding }: { item: ChecklistItem; finding?: ChecklistFinding }) {
+function FindingCard({
+  item,
+  finding,
+  pageHref,
+}: {
+  item: ChecklistItem;
+  finding?: ChecklistFinding;
+  pageHref: (fileName: string, page: number) => string | undefined;
+}) {
   const status = finding?.status ?? "확인불가";
   const style = STATUS_STYLES[status];
 
@@ -245,14 +281,28 @@ function FindingCard({ item, finding }: { item: ChecklistItem; finding?: Checkli
 
       {finding && finding.evidence.length > 0 ? (
         <div className="mt-3 space-y-1">
-          {finding.evidence.map((evidence, index) => (
-            <p className="text-xs leading-5 text-[#64748b]" key={`${evidence.fileName}-${evidence.page}-${index}`}>
-              <span className="font-bold text-[#15345b]">
-                「{evidence.fileName}」 p.{evidence.page}
-              </span>{" "}
-              — {evidence.note}
-            </p>
-          ))}
+          {finding.evidence.map((evidence, index) => {
+            const href = pageHref(evidence.fileName, evidence.page);
+            return (
+              <p className="text-xs leading-5 text-[#64748b]" key={`${evidence.fileName}-${evidence.page}-${index}`}>
+                <span className="font-bold text-[#15345b]">「{evidence.fileName}」</span>{" "}
+                {href ? (
+                  <a
+                    className="font-bold text-[#2463b3] underline decoration-dotted underline-offset-2 hover:text-[#1d4f8c]"
+                    href={href}
+                    rel="noreferrer"
+                    target="_blank"
+                    title="원본 PDF의 해당 페이지 열기"
+                  >
+                    p.{evidence.page}
+                  </a>
+                ) : (
+                  <span className="font-bold text-[#15345b]">p.{evidence.page}</span>
+                )}{" "}
+                — {evidence.note}
+              </p>
+            );
+          })}
         </div>
       ) : null}
 
