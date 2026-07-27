@@ -323,3 +323,51 @@ test("selectManualExcerpts는 항목 키워드와 관련된 매뉴얼 페이지�
   // 무의미한 질의는 빈 결과
   assert.equal(buildManualContextText([""]), "");
 });
+
+// ── 표시 도면 PDF 생성 ──
+test("buildAnnotatedPdf는 영역 표시와 주석 목록 페이지가 추가된 유효한 PDF를 생성한다", async () => {
+  const { buildAnnotatedPdf, collectAnnotationsForFile } = await import("../lib/checklist-review/annotated-pdf");
+  const { PDFDocument } = await import("pdf-lib");
+  const { readFileSync } = await import("node:fs");
+
+  const source = await PDFDocument.create();
+  source.addPage([600, 800]);
+  source.addPage([600, 800]);
+  const sourceBytes = await source.save();
+
+  const review = {
+    items: [{ id: "c1", text: "가로변 차폐 조경 계획 반영" }],
+    findings: [
+      {
+        itemId: "c1",
+        status: "충족" as const,
+        rationale: "확인됨",
+        evidence: [
+          {
+            fileName: "도서.pdf",
+            page: 2,
+            note: "배치도에서 차폐 조경 확인됨",
+            region: { x: 0.2, y: 0.3, width: 0.4, height: 0.2 },
+          },
+        ],
+        lawRefs: [],
+      },
+    ],
+    files: [],
+  } as unknown as import("../lib/checklist-review/types").ChecklistReview;
+
+  const annotations = collectAnnotationsForFile(review, "도서.pdf");
+  assert.equal(annotations.length, 1);
+  assert.equal(annotations[0].index, 1);
+
+  const fontBytes = readFileSync("public/fonts/NanumGothic-Regular.ttf");
+  const annotatedBytes = await buildAnnotatedPdf(
+    new Uint8Array(sourceBytes),
+    annotations,
+    fontBytes.buffer.slice(fontBytes.byteOffset, fontBytes.byteOffset + fontBytes.byteLength),
+    { fileName: "도서.pdf", reviewedAt: "2026. 7. 27." },
+  );
+
+  const annotated = await PDFDocument.load(annotatedBytes);
+  assert.equal(annotated.getPageCount(), 3); // 원본 2p + 주석 목록 1p
+});

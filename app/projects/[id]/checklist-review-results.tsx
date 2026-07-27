@@ -10,7 +10,6 @@ import type {
 } from "@/lib/checklist-review/types";
 import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
-import EvidenceRegionViewer, { type EvidenceViewerTarget } from "./evidence-region-viewer";
 import { buildArticleJumpUrl } from "@/lib/reference-links";
 
 const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string }> = {
@@ -56,19 +55,27 @@ function splitSummaryParagraphs(summary: string): string[] {
   return paragraphs;
 }
 
-export default function ChecklistReviewResults({ review }: { review: ChecklistReview }) {
+export default function ChecklistReviewResults({
+  review,
+  projectId,
+}: {
+  review: ChecklistReview;
+  projectId: string;
+}) {
   const [filter, setFilter] = useState<StatusFilter>("전체");
 
-  /** 근거 fileName → 열람 가능한 blobUrl (PDF·이미지만) */
-  const blobUrlByFileName = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const file of review.files) {
-      if (file.blobUrl && /\.(pdf|png|jpe?g)$/i.test(file.originalName)) {
-        map.set(file.originalName, file.blobUrl);
+  /** 좌표가 있는 근거를 가진 PDF 파일 목록 (표시 도면 PDF 생성 대상) */
+  const annotatedFiles = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const finding of review.findings) {
+      for (const evidence of finding.evidence) {
+        if (evidence.region) counts.set(evidence.fileName, (counts.get(evidence.fileName) ?? 0) + 1);
       }
     }
-    return map;
-  }, [review.files]);
+    return review.files
+      .filter((file) => /\.pdf$/i.test(file.originalName) && (counts.get(file.originalName) ?? 0) > 0)
+      .map((file) => ({ file, count: counts.get(file.originalName) ?? 0 }));
+  }, [review.findings, review.files]);
 
   const findingsByItemId = useMemo(() => {
     const map = new Map<string, ChecklistFinding>();
@@ -141,6 +148,29 @@ export default function ChecklistReviewResults({ review }: { review: ChecklistRe
         </div>
       ) : null}
 
+      {annotatedFiles.length > 0 ? (
+        <div className="rounded-xl border border-[#c9dcf5] bg-[#f0f7ff] p-4">
+          <p className="text-sm font-bold text-[#15345b]">AI 표시 도면 PDF</p>
+          <Caption className="mt-1 text-[#475569]">
+            AI가 확인한 근거 위치가 원본 도면 위에 번호·색상 영역(초록=충족 · 주황=부분충족 · 빨강=미충족 ·
+            회색=확인불가)으로 표시되고, 마지막 장에 번호별 주석 목록이 붙습니다. 열어서 보거나 그대로 다운로드하세요.
+          </Caption>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {annotatedFiles.map(({ file, count }) => (
+              <a
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#2463b3] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1d4f8c]"
+                href={`/api/checklist-reviews/annotated-pdf?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}&fileId=${encodeURIComponent(file.id)}`}
+                key={file.id}
+                rel="noreferrer"
+                target="_blank"
+              >
+                「{file.originalName}」 표시 도면 열기 · {count}곳
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         <FilterChip
           active={filter === "전체"}
@@ -164,12 +194,7 @@ export default function ChecklistReviewResults({ review }: { review: ChecklistRe
             <Eyebrow>{category}</Eyebrow>
             <ul className="mt-2 space-y-3">
               {items.map((item) => (
-                <FindingCard
-                  blobUrlByFileName={blobUrlByFileName}
-                  finding={findingsByItemId.get(item.id)}
-                  item={item}
-                  key={item.id}
-                />
+                <FindingCard finding={findingsByItemId.get(item.id)} item={item} key={item.id} />
               ))}
             </ul>
           </div>
@@ -243,18 +268,9 @@ function FilterChip({
   );
 }
 
-function FindingCard({
-  item,
-  finding,
-  blobUrlByFileName,
-}: {
-  item: ChecklistItem;
-  finding?: ChecklistFinding;
-  blobUrlByFileName: Map<string, string>;
-}) {
+function FindingCard({ item, finding }: { item: ChecklistItem; finding?: ChecklistFinding }) {
   const status = finding?.status ?? "확인불가";
   const style = STATUS_STYLES[status];
-  const [viewerTarget, setViewerTarget] = useState<EvidenceViewerTarget | null>(null);
 
   return (
     <li className="rounded-xl border border-[#d7dee8] bg-white p-4">
@@ -271,39 +287,16 @@ function FindingCard({
 
       {finding && finding.evidence.length > 0 ? (
         <div className="mt-3 space-y-1">
-          {finding.evidence.map((evidence, index) => {
-            const blobUrl = blobUrlByFileName.get(evidence.fileName);
-            const showViewer = Boolean(blobUrl && evidence.region);
-            return (
-              <p className="text-xs leading-5 text-[#64748b]" key={`${evidence.fileName}-${evidence.page}-${index}`}>
-                <span className="font-bold text-[#15345b]">
-                  「{evidence.fileName}」 p.{evidence.page}
-                </span>{" "}
-                — {evidence.note}
-                {showViewer ? (
-                  <button
-                    className="ml-2 inline-flex items-center rounded-full bg-[#eef4fb] px-2 py-0.5 text-[11px] font-bold text-[#2463b3] hover:bg-[#dcebfb]"
-                    onClick={() =>
-                      setViewerTarget({
-                        fileName: evidence.fileName,
-                        page: evidence.page,
-                        note: evidence.note,
-                        region: evidence.region,
-                        blobUrl: blobUrl as string,
-                      })
-                    }
-                    type="button"
-                  >
-                    도면에서 위치 보기
-                  </button>
-                ) : null}
-              </p>
-            );
-          })}
+          {finding.evidence.map((evidence, index) => (
+            <p className="text-xs leading-5 text-[#64748b]" key={`${evidence.fileName}-${evidence.page}-${index}`}>
+              <span className="font-bold text-[#15345b]">
+                「{evidence.fileName}」 p.{evidence.page}
+              </span>{" "}
+              — {evidence.note}
+            </p>
+          ))}
         </div>
       ) : null}
-
-      {viewerTarget ? <EvidenceRegionViewer onClose={() => setViewerTarget(null)} target={viewerTarget} /> : null}
 
       {finding?.spatialNote ? (
         <p className="mt-2 rounded-lg bg-[#f0f7ff] px-3 py-2 text-xs leading-5 text-[#1d4f8c]">
