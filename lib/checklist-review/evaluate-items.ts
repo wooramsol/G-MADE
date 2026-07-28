@@ -786,7 +786,7 @@ export async function evaluateChecklistItems(options: {
   const groupCount = Math.max(1, payloads.length);
   onProgress?.(
     batches.length * groupCount > 1
-      ? `체크리스트 ${items.length}개 항목 평가 중 (배치 ${batches.length} × 문서 그룹 ${groupCount} 병렬 처리)`
+      ? `체크리스트 ${items.length}개 항목 평가 중 (배치 ${batches.length} × 문서 그룹 ${groupCount})`
       : `체크리스트 ${items.length}개 항목 평가 중`,
   );
 
@@ -852,7 +852,9 @@ export async function evaluateChecklistItems(options: {
   // 검토 자체가 실패함(실제 발생). 그래서 절충: 배치가 적으면(≤3) 완전 순차로
   // 캐싱 효과를 최대화하고, 배치가 많으면 동시 2개씩 처리해 소요 시간을 절반
   // 가까이 줄이면서도 3번째 배치부터는 여전히 캐시 적중을 기대할 수 있게 함.
-  const BATCH_SEQUENTIAL_THRESHOLD = 3;
+  // 실측 결과 배치 3개(각 19항목, 문서 7.4MB)를 완전 순차 실행만으로도 서버 시간
+  // 한도(285초)를 초과함 — 임계값을 2로 낮춰 배치 3개 이상이면 바로 동시 2개 처리로 전환.
+  const BATCH_SEQUENTIAL_THRESHOLD = 2;
   const batchConcurrency = batches.length <= BATCH_SEQUENTIAL_THRESHOLD ? 1 : 2;
 
   const results: Array<{ model: string; summary: string; findings: ChecklistFinding[] }> = new Array(
