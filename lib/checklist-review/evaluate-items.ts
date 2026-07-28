@@ -10,7 +10,7 @@ import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { extractPdfPages, splitPdfIntoChunks } from "@/lib/pdf/split-pdf";
 import { buildManualContextText } from "@/lib/manual/reference-manual";
 import type { EvaluationContext } from "@/lib/evaluation-context";
-import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock } from "./claude-call";
+import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock, type ClaudeUsage } from "./claude-call";
 import { selectRelevantPagesForBatch } from "./relevant-pages";
 import {
   normalizeChecklistStatus,
@@ -836,6 +836,19 @@ export async function evaluateChecklistItems(options: {
     : "[사업 개요] 정보 없음";
   const contextText = buildContextText(context);
 
+  // 비용 진단용 — 이 검토(리뷰) 한 건 안의 모든 Claude 호출(체크리스트 추출 + 배치 평가)
+  // 토큰 사용량을 합산합니다. 회차마다 비용이 크게 달라지는 원인(배치 수 변동·페이지
+  // 선별량 변동 등)을 로그로 추적할 수 있게 합니다.
+  const usageTotals = { calls: 0, input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
+  const trackUsage = (usage?: ClaudeUsage) => {
+    if (!usage) return;
+    usageTotals.calls += 1;
+    usageTotals.input += usage.inputTokens;
+    usageTotals.output += usage.outputTokens;
+    usageTotals.cacheWrite += usage.cacheCreationInputTokens;
+    usageTotals.cacheRead += usage.cacheReadInputTokens;
+  };
+
   const runCall = async (
     prompt: string,
     payload: DocumentPayload | null,
@@ -844,13 +857,15 @@ export async function evaluateChecklistItems(options: {
   ) => {
     const docBlocks = payload ? payload.blocks : (await buildDocumentBlocks(files, null)).blocks;
     const blocks: ClaudeContentBlock[] = [...docBlocks, { type: "text", text: prompt }];
-    return callClaude({
+    const result = await callClaude({
       system,
       userBlocks: blocks,
       maxOutputTokens: resolveMaxOutputTokens(itemCount),
       includesPdf: payload ? payloadHasVision(payload) : false,
       timeoutMs: resolveTimeoutMs(),
     });
+    trackUsage(result.usage);
+    return result;
   };
 
   // ── 텍스트에서 항목을 얻지 못한 경우: 비전으로 체크리스트 추출 ──
@@ -1009,7 +1024,7 @@ export async function evaluateChecklistItems(options: {
     };
   };
 
-  const evaluateBatch = async (batch: ChecklistItem[]) => {
+  const evaluateBatch = async (batch: ChecklistItem[], batchIndex: number) => {
     // 배치마다 그 배치의 항목과 관련성 높은 페이지만 담은 페이로드를 새로 구성합니다
     // (페이지 관련도 필터링) — 매 배치가 문서 전체를 재전송하던 기존 방식 대비 비용이 줄어듭니다.
     const batchPayloads = await buildBatchDocumentPayloads(
@@ -1019,6 +1034,21 @@ export async function evaluateChecklistItems(options: {
       checklistPages,
       chunkFallbackPayloads,
     );
+    // 비용 진단용 — 이 배치가 실제로 몇 페이지를 재전송했는지 남깁니다. 회차마다 비용이
+    // 달라지는 원인이 "항목 추출 결과(배치 수)"인지 "페이지 선별량"인지 여기서 구분됩니다.
+    const pageLog = batchPayloads
+      .map((payload) => {
+        if (payload.chunk) return `${payload.chunk.fileName}:구간(p.${payload.chunk.startPage}-${payload.chunk.endPage})`;
+        if (payload.pageMaps?.length) {
+          return payload.pageMaps.map((entry) => `${entry.fileName}:필터링(${entry.mapping.length}p)`).join(",");
+        }
+        return payloadHasVision(payload) ? "전체문서" : "텍스트전용";
+      })
+      .join(" | ");
+    console.log(
+      `[checklist-review] batch=${batchIndex + 1}/${batches.length} items=${batch.length} groups=${batchPayloads.length} pages=[${pageLog}]`,
+    );
+
     const targets: Array<DocumentPayload | null> = batchPayloads.length > 0 ? batchPayloads : [null];
     const settled = await Promise.allSettled(targets.map((payload) => evaluateBatchOnPayload(batch, payload)));
     const succeeded = settled.flatMap((entry) => (entry.status === "fulfilled" ? [entry.value] : []));
@@ -1043,10 +1073,18 @@ export async function evaluateChecklistItems(options: {
   // 실패했다(로그로 확인). 캐싱으로 아낄 수 있는 비용보다 "검토가 아예 안 되는" 쪽이
   // 훨씬 나쁘므로, 신뢰성을 위해 완전 병렬 실행으로 되돌림 — 배치 크기 확대(15→25)로
   // 이미 줄여둔 배치 수만큼은 여전히 절감 효과가 유지된다.
-  const results = await Promise.all(batches.map((batch) => evaluateBatch(batch)));
+  const results = await Promise.all(batches.map((batch, index) => evaluateBatch(batch, index)));
   const allFindings = results.flatMap((entry) => entry.findings);
   const summaries = results.map((entry) => entry.summary).filter(Boolean);
   const model = results[results.length - 1]?.model ?? extractionModel;
+
+  // 비용 진단용 — 이 검토 1건에 실제로 사용된 토큰 총합. 같은 문서를 재검토했을 때 비용이
+  // 회차마다 다르다면, 이 로그의 calls(호출 횟수)·input(재전송 토큰)을 비교해 원인을
+  // (체크리스트 추출 결과에 따른 배치 수 변동 vs 페이지 선별량 변동 vs 재시도) 특정할 수 있습니다.
+  console.log(
+    `[checklist-review] usage-summary items=${items.length} batches=${batches.length} calls=${usageTotals.calls} ` +
+      `input=${usageTotals.input} output=${usageTotals.output} cache_write=${usageTotals.cacheWrite} cache_read=${usageTotals.cacheRead}`,
+  );
 
   return {
     findings: allFindings,

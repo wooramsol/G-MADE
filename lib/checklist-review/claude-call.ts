@@ -37,10 +37,21 @@ export type ClaudeCallOptions = {
   temperature?: number;
 };
 
+/** Anthropic 응답의 토큰 사용량 (비용 진단용 — 호출부에서 합산해 로그로 남깁니다). */
+export type ClaudeUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  /** 프롬프트 캐시에 새로 기록된 입력 토큰 (쓰기 프리미엄 적용) */
+  cacheCreationInputTokens: number;
+  /** 프롬프트 캐시에서 읽어 할인 적용된 입력 토큰 */
+  cacheReadInputTokens: number;
+};
+
 export type ClaudeCallResult = {
   text: string;
   model: string;
   stopReason?: string;
+  usage?: ClaudeUsage;
 };
 
 export function isClaudeConfigured(): boolean {
@@ -108,6 +119,12 @@ export async function callClaude(options: ClaudeCallOptions): Promise<ClaudeCall
         const payload = (await response.json()) as {
           content?: Array<{ type: string; text?: string }>;
           stop_reason?: string;
+          usage?: {
+            input_tokens?: number;
+            output_tokens?: number;
+            cache_creation_input_tokens?: number;
+            cache_read_input_tokens?: number;
+          };
         };
         const text = (payload.content ?? [])
           .filter((block) => block.type === "text" && block.text)
@@ -119,7 +136,22 @@ export async function callClaude(options: ClaudeCallOptions): Promise<ClaudeCall
           throw new AiAnalysisError("Claude 응답이 비어 있습니다.", "claude");
         }
 
-        return { text, model, stopReason: payload.stop_reason };
+        const usage: ClaudeUsage | undefined = payload.usage
+          ? {
+              inputTokens: payload.usage.input_tokens ?? 0,
+              outputTokens: payload.usage.output_tokens ?? 0,
+              cacheCreationInputTokens: payload.usage.cache_creation_input_tokens ?? 0,
+              cacheReadInputTokens: payload.usage.cache_read_input_tokens ?? 0,
+            }
+          : undefined;
+        if (usage) {
+          console.log(
+            `[checklist-review] claude usage model=${model} in=${usage.inputTokens} out=${usage.outputTokens} ` +
+              `cache_write=${usage.cacheCreationInputTokens} cache_read=${usage.cacheReadInputTokens}`,
+          );
+        }
+
+        return { text, model, stopReason: payload.stop_reason, usage };
       } catch (error) {
         if (error instanceof ClaudePayloadTooLargeError || error instanceof AiAnalysisError) {
           throw error;
