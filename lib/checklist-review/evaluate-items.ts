@@ -1,4 +1,5 @@
 import {
+  CLAUDE_PDF_VISION_MAX_BYTES,
   selectClaudeVisionFiles,
   visionFileKey,
   type ClaudeVisionSelection,
@@ -6,10 +7,11 @@ import {
 import { extractJsonContent } from "@/lib/ai/extract-json";
 import { parsePageSlices } from "@/lib/ai/page-citation";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
-import { splitPdfIntoChunks } from "@/lib/pdf/split-pdf";
+import { extractPdfPages, splitPdfIntoChunks } from "@/lib/pdf/split-pdf";
 import { buildManualContextText } from "@/lib/manual/reference-manual";
 import type { EvaluationContext } from "@/lib/evaluation-context";
 import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock } from "./claude-call";
+import { selectRelevantPagesForBatch } from "./relevant-pages";
 import {
   normalizeChecklistStatus,
   type ChecklistEvidence,
@@ -37,8 +39,16 @@ const OUTPUT_TOKENS_BASE = 1_500;
 const CHUNK_MAX_BYTES = 15 * 1024 * 1024;
 /** 분할 구간당 최대 페이지 (Anthropic 요청당 100페이지 한도 내) */
 const CHUNK_MAX_PAGES = 90;
-/** 파일당 최대 분석 구간 수 (비용·시간 상한) */
+/** 파일당 최대 분석 구간 수 (비용·시간 상한) — 페이지 관련도 필터링 실패 시의 폴백에서만 사용 */
 const MAX_CHUNKS_PER_FILE = 6;
+
+/**
+ * 페이지 관련도 필터링 on/off 스위치. 배치마다 문서 전체를 재전송하는 대신, 그 배치의
+ * 항목과 관련성 높은 페이지만 추출해 보냅니다 (텍스트 레이어 기반 키워드 매칭 — 근거를
+ * 놓칠 정확도 리스크가 있음을 감수하고 비용을 크게 줄이기 위한 선택). 문제가 발견되면
+ * 이 값을 false로 바꿔 기존(전체 문서 재전송) 방식으로 즉시 되돌릴 수 있습니다.
+ */
+const ENABLE_PAGE_RELEVANCE_FILTERING = true;
 
 const STATUS_RANK: Record<ChecklistFinding["status"], number> = {
   충족: 3,
@@ -127,16 +137,21 @@ export function buildContextText(context: EvaluationContext): string {
 /**
  * 파일별 선별 결과에 따라 비전(문서·이미지)과 텍스트 블록을 섞어 구성합니다.
  * selection이 null이면 텍스트 전용 모드입니다.
+ * pageFilter가 주어지면(파일명 -> 원본 페이지 번호 목록) 해당 PDF는 그 페이지만 추출해
+ * 전송합니다 — 배치별 관련 페이지만 재전송해 비용을 줄이는 용도입니다. 추출에 실패하면
+ * 안전하게 전체 문서로 폴백합니다.
  * shouldCache가 true일 때만 마지막 블록에 cache_control을 붙입니다 — 같은 문서를
  * 다시 쓸 일이 없는 단일 호출에 캐시 마커를 붙이면 쓰기 프리미엄(약 25%)만 물게 되므로,
  * 실제로 재사용될 때만(배치가 2개 이상 등) 캐싱을 활성화합니다.
  */
-function buildDocumentBlocks(
+async function buildDocumentBlocks(
   files: UploadedFileSummary[],
   selection: ClaudeVisionSelection | null,
   shouldCache = true,
-): ClaudeContentBlock[] {
+  pageFilter?: Map<string, number[]>,
+): Promise<{ blocks: ClaudeContentBlock[]; pageMaps: Array<{ fileName: string; mapping: number[] }> }> {
   const blocks: ClaudeContentBlock[] = [];
+  const pageMaps: Array<{ fileName: string; mapping: number[] }> = [];
 
   for (const file of files) {
     const includeVision = selection?.includedKeys.has(visionFileKey(file)) ?? false;
@@ -144,11 +159,33 @@ function buildDocumentBlocks(
     if (includeVision) {
       for (const asset of file.visionAssets ?? []) {
         if (asset.mediaType === "application/pdf") {
-          blocks.push({
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: asset.base64 },
-            title: file.originalName,
-          });
+          const allowedPages = pageFilter?.get(file.originalName);
+          let usedFiltered = false;
+
+          if (allowedPages && allowedPages.length > 0) {
+            try {
+              const extracted = await extractPdfPages(asset.base64, allowedPages);
+              if (extracted) {
+                blocks.push({
+                  type: "document",
+                  source: { type: "base64", media_type: "application/pdf", data: extracted.base64 },
+                  title: `${file.originalName} (관련 페이지 발췌 ${extracted.pages.length}p)`,
+                });
+                pageMaps.push({ fileName: file.originalName, mapping: extracted.pages });
+                usedFiltered = true;
+              }
+            } catch {
+              // 추출 실패 시 아래에서 전체 문서로 폴백
+            }
+          }
+
+          if (!usedFiltered) {
+            blocks.push({
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: asset.base64 },
+              title: file.originalName,
+            });
+          }
         } else {
           blocks.push({
             type: "image",
@@ -171,13 +208,20 @@ function buildDocumentBlocks(
     if (last) last.cache_control = { type: "ephemeral" };
   }
 
-  return blocks;
+  return { blocks, pageMaps };
 }
 
-/** 요청 1건에 담기는 문서 페이로드 그룹. chunk가 있으면 대용량 PDF의 분할 구간입니다. */
+/**
+ * 요청 1건에 담기는 문서 페이로드 그룹.
+ * - chunk: 대용량 PDF를 연속 구간으로 분할한 폴백 경로에서 사용 (페이지 관련도 필터링이
+ *   불가능할 때 — 텍스트 레이어 없음 등).
+ * - pageMaps: 페이지 관련도 필터링이 적용된 파일들의 로컬(첨부본 내) -> 원본 페이지 매핑.
+ *   같은 배치 안에서도 파일별로 필터링 여부가 다를 수 있어 배열로 관리합니다.
+ */
 export type DocumentPayload = {
   blocks: ClaudeContentBlock[];
   chunk?: { fileName: string; startPage: number; endPage: number };
+  pageMaps?: Array<{ fileName: string; mapping: number[] }>;
 };
 
 function payloadHasVision(payload: DocumentPayload): boolean {
@@ -190,21 +234,27 @@ function chunkNote(chunk: NonNullable<DocumentPayload["chunk"]>): string {
 - 이 구간에서 근거를 찾지 못한 항목은 "확인불가"로 판정하세요. 다른 구간에서 별도로 평가됩니다.`;
 }
 
+function relevantPagesNote(fileName: string, pageCount: number): string {
+  return `[주의] 첨부된 「${fileName}」 문서는 전체 중 이 배치의 항목과 관련성이 높다고 판단된 ${pageCount}개 페이지만
+발췌한 것입니다 (전체가 아닙니다).
+- 페이지 인용 시 첨부 문서에서 보이는 페이지 번호(1부터 시작)를 그대로 기재하세요. 원본 페이지 번호로는 시스템이 변환합니다.
+- 이 발췌본에서 근거를 찾지 못했다고 해서 원본 전체에 근거가 없다고 단정하지 말고, 발췌 범위 내 확인 결과만 근거로 삼아 신중히 판정하세요.`;
+}
+
 /**
- * 문서 페이로드 그룹들을 구성합니다: 한도 내 파일들의 기본 그룹 +
- * 용량·페이지 한도 초과 PDF의 분할 구간 그룹들 (구간마다 별도 API 요청).
+ * 용량·페이지 한도로 제외된 파일들을 연속 구간으로 분할해 폴백 페이로드로 만듭니다.
+ * 페이지 관련도 필터링(관련 페이지만 직접 추출)이 불가능한 경우에만 사용되는 경로입니다
+ * (텍스트 레이어가 없는 스캔본 등). 호출 비용이 있으므로 평가 단계 진입 전 한 번만 계산해
+ * 배치마다 재사용합니다.
  */
-async function buildDocumentPayloads(
+async function buildChunkFallbackPayloads(
   files: UploadedFileSummary[],
-  selection: ClaudeVisionSelection,
+  excluded: ClaudeVisionSelection["excluded"],
   warnings: string[],
-  shouldCacheBase = true,
 ): Promise<DocumentPayload[]> {
-  const payloads: DocumentPayload[] = [];
-  const base: DocumentPayload = { blocks: buildDocumentBlocks(files, selection, shouldCacheBase) };
   const chunkPayloads: DocumentPayload[] = [];
 
-  for (const entry of selection.excluded) {
+  for (const entry of excluded) {
     const file = files.find((candidate) => candidate.originalName === entry.fileName);
     const pdfAsset = file?.visionAssets?.find((asset) => asset.mediaType === "application/pdf");
     if (!file || !pdfAsset) {
@@ -251,14 +301,109 @@ async function buildDocumentPayloads(
     }
   }
 
+  return chunkPayloads;
+}
+
+/**
+ * 문서 페이로드 그룹들을 구성합니다: 한도 내 파일들의 기본 그룹 + 미리 계산된 구간 분할 폴백
+ * 그룹들. 체크리스트 항목을 아직 모르는 단계(비전 추출)에서 사용하므로 페이지 필터링은
+ * 적용하지 않습니다.
+ */
+async function buildDocumentPayloads(
+  files: UploadedFileSummary[],
+  selection: ClaudeVisionSelection,
+  chunkPayloads: DocumentPayload[],
+  shouldCacheBase = true,
+): Promise<DocumentPayload[]> {
+  const payloads: DocumentPayload[] = [];
+  const built = await buildDocumentBlocks(files, selection, shouldCacheBase);
+  const base: DocumentPayload = { blocks: built.blocks };
+  let chunks = chunkPayloads;
+
   // 기본 그룹에 비전이 없으면 그 텍스트를 첫 구간에 합쳐 호출 수를 줄입니다.
-  if (!payloadHasVision(base) && chunkPayloads.length > 0) {
-    chunkPayloads[0] = { ...chunkPayloads[0], blocks: [...base.blocks, ...chunkPayloads[0].blocks] };
+  if (!payloadHasVision(base) && chunks.length > 0) {
+    chunks = [{ ...chunks[0], blocks: [...base.blocks, ...chunks[0].blocks] }, ...chunks.slice(1)];
   } else if (base.blocks.length > 0) {
     payloads.push(base);
   }
 
-  payloads.push(...chunkPayloads);
+  payloads.push(...chunks);
+  return payloads;
+}
+
+/**
+ * 평가 배치 1개에 대해, 항목과 관련성 높은 페이지만 담은 문서 페이로드를 구성합니다.
+ * - 기본 포함 파일(용량 내): 관련 페이지만 추출해 재전송 — 배치마다 전체 PDF를 다시 보내던
+ *   기존 방식 대비 재전송 페이지 수만큼 비용이 줄어듭니다.
+ * - 용량 초과로 제외된 파일: 텍스트 레이어가 있으면 원본 전체에서 관련 페이지를 직접 추출해
+ *   (구간 분할 없이) 한 번에 보냅니다 — 원본이 수백 페이지라도 배치당 수십 페이지만
+ *   전송되므로, 앞부분 몇 구간만 보고 뒷부분이 통째로 잘리던 기존 구간 분할의 한계가
+ *   사실상 사라집니다. 텍스트 레이어가 없거나(스캔본) 추출 실패·용량 초과 시에는
+ *   미리 계산해 둔 구간 분할 폴백(chunkFallbackPayloads)을 그대로 사용합니다.
+ * ENABLE_PAGE_RELEVANCE_FILTERING이 false면 필터링 없이 기존 동작(전체 문서 + 구간 폴백)을
+ * 그대로 수행합니다.
+ */
+async function buildBatchDocumentPayloads(
+  files: UploadedFileSummary[],
+  selection: ClaudeVisionSelection,
+  batchItems: ChecklistItem[],
+  checklistPages: ChecklistSourcePage[],
+  chunkFallbackPayloads: DocumentPayload[],
+): Promise<DocumentPayload[]> {
+  if (!ENABLE_PAGE_RELEVANCE_FILTERING) {
+    const built = await buildDocumentBlocks(files, selection, false);
+    const payloads: DocumentPayload[] = [];
+    if (built.blocks.length > 0) payloads.push({ blocks: built.blocks });
+    payloads.push(...chunkFallbackPayloads);
+    return payloads;
+  }
+
+  const { pagesByFile, skippedFiles } = selectRelevantPagesForBatch(files, batchItems, checklistPages);
+
+  const pageFilter = new Map<string, number[]>();
+  for (const [fileName, pages] of pagesByFile) {
+    if (!skippedFiles.has(fileName)) pageFilter.set(fileName, pages);
+  }
+
+  const built = await buildDocumentBlocks(files, selection, false, pageFilter);
+  const payloads: DocumentPayload[] = [];
+  if (built.blocks.length > 0) {
+    payloads.push({ blocks: built.blocks, pageMaps: built.pageMaps.length > 0 ? built.pageMaps : undefined });
+  }
+
+  for (const entry of selection.excluded) {
+    const file = files.find((candidate) => candidate.originalName === entry.fileName);
+    const pdfAsset = file?.visionAssets?.find((asset) => asset.mediaType === "application/pdf");
+    const relevantPages = pagesByFile.get(entry.fileName);
+    const canFilter = Boolean(file && pdfAsset && relevantPages && relevantPages.length > 0 && !skippedFiles.has(entry.fileName));
+
+    let handled = false;
+    if (canFilter && file && pdfAsset && relevantPages) {
+      try {
+        const extracted = await extractPdfPages(pdfAsset.base64, relevantPages);
+        if (extracted && extracted.sizeBytes <= CLAUDE_PDF_VISION_MAX_BYTES) {
+          payloads.push({
+            blocks: [
+              {
+                type: "document",
+                source: { type: "base64", media_type: "application/pdf", data: extracted.base64 },
+                title: `${file.originalName} (관련 페이지 발췌 ${extracted.pages.length}p / 전체 ${file.totalPages ?? "?"}p)`,
+              },
+            ],
+            pageMaps: [{ fileName: file.originalName, mapping: extracted.pages }],
+          });
+          handled = true;
+        }
+      } catch {
+        // 아래에서 구간 분할 폴백으로 처리
+      }
+    }
+
+    if (!handled) {
+      payloads.push(...chunkFallbackPayloads.filter((payload) => payload.chunk?.fileName === entry.fileName));
+    }
+  }
+
   return payloads;
 }
 
@@ -277,22 +422,53 @@ ${note ? `\n${note}\n` : ""}
 체크리스트 페이지가 없으면 {"checklistPages":[],"items":[]}만 출력하세요.`;
 }
 
-/** 분할 구간 응답의 페이지 번호를 원본 기준으로 변환하고 파일명을 원본명으로 고정합니다. */
-function offsetChunkPages(payload: RawEvaluationPayload, chunk: DocumentPayload["chunk"]): RawEvaluationPayload {
-  if (!chunk) return payload;
-  const offset = chunk.startPage - 1;
-  const mapPage = (page?: number): number | undefined => {
+function findPageMapping(
+  pageMaps: Array<{ fileName: string; mapping: number[] }> | undefined,
+  fileName: string,
+): number[] | undefined {
+  if (!pageMaps || pageMaps.length === 0) return undefined;
+  const exact = pageMaps.find((entry) => entry.fileName === fileName);
+  if (exact) return exact.mapping;
+  return pageMaps.find((entry) => entry.fileName.includes(fileName) || fileName.includes(entry.fileName))?.mapping;
+}
+
+/**
+ * 첨부본(구간 분할 또는 페이지 관련도 필터링)의 로컬 페이지 번호를 원본 페이지 번호로
+ * 변환합니다.
+ * - chunk(연속 구간 분할): 파일명을 원본명으로 고정하고 오프셋을 더합니다.
+ * - pageMaps(페이지 관련도 필터링): 응답의 fileName으로 해당 파일의 매핑 배열을 찾아
+ *   로컬 페이지(1부터)를 그 배열의 값으로 치환합니다. 매핑을 찾지 못하면(필터링 미적용
+ *   파일 등) 페이지 번호를 그대로 둡니다 — 그런 파일은 원래부터 전체 문서가 전송됐으므로
+ *   변환이 필요 없습니다.
+ */
+function remapPayloadPages(
+  payload: RawEvaluationPayload,
+  meta: Pick<DocumentPayload, "chunk" | "pageMaps"> | null | undefined,
+): RawEvaluationPayload {
+  const chunk = meta?.chunk;
+  const pageMaps = meta?.pageMaps;
+  if (!chunk && (!pageMaps || pageMaps.length === 0)) return payload;
+
+  const remap = (fileName: string | undefined, page: unknown): { fileName?: string; page?: number } => {
     const num = Number(page);
-    return Number.isFinite(num) && num >= 1 ? num + offset : undefined;
+    if (!Number.isFinite(num) || num < 1) return { fileName, page: undefined };
+
+    if (chunk) {
+      return { fileName: chunk.fileName, page: num + (chunk.startPage - 1) };
+    }
+
+    const mapping = findPageMapping(pageMaps, fileName ?? "");
+    if (!mapping) return { fileName, page: num };
+    return { fileName, page: mapping[num - 1] };
   };
 
   return {
     ...payload,
-    checklistPages: payload.checklistPages?.map((entry) => ({ fileName: chunk.fileName, page: mapPage(entry?.page) })),
-    items: payload.items?.map((entry) => ({ ...entry, fileName: chunk.fileName, page: mapPage(entry?.page) })),
+    checklistPages: payload.checklistPages?.map((entry) => ({ ...entry, ...remap(entry?.fileName, entry?.page) })),
+    items: payload.items?.map((entry) => ({ ...entry, ...remap(entry?.fileName, entry?.page) })),
     findings: payload.findings?.map((finding) => ({
       ...finding,
-      evidence: finding.evidence?.map((entry) => ({ ...entry, fileName: chunk.fileName, page: mapPage(entry?.page) })),
+      evidence: finding.evidence?.map((entry) => ({ ...entry, ...remap(entry?.fileName, entry?.page) })),
     })),
   };
 }
@@ -643,12 +819,16 @@ export async function evaluateChecklistItems(options: {
 
   const visionExtractMode = options.items.length === 0;
   const visionSelection = selectClaudeVisionFiles(files);
+  // 용량 초과로 제외된 파일의 구간 분할 폴백은 한 번만 계산해 재사용합니다 — 페이지 관련도
+  // 필터링이 가능한 배치는 이 폴백을 쓰지 않지만, 필터링이 불가능한(텍스트 레이어 없음 등)
+  // 경우를 위해 미리 준비해 둡니다.
+  const chunkFallbackPayloads = await buildChunkFallbackPayloads(files, visionSelection.excluded, warnings);
   // 캐싱은 항목 평가 배치를 병렬로 실행하는 한(아래 참고) 대부분 무의미함 — 캐시가
   // 기록되기 전에 다음 요청이 이미 나가버림. 유일한 예외는 대용량 PDF가 여러 구간으로
   // 분할되는 경우(excluded.length>0): 구간 탐색 호출이 평가 배치보다 먼저 끝나
   // 캐시를 미리 만들어 두므로, 그 뒤에 병렬로 나가는 평가 배치들도 캐시를 활용할 수 있음.
   const shouldCacheBaseDocuments = visionExtractMode && visionSelection.excluded.length > 0;
-  const payloads = await buildDocumentPayloads(files, visionSelection, warnings, shouldCacheBaseDocuments);
+  const payloads = await buildDocumentPayloads(files, visionSelection, chunkFallbackPayloads, shouldCacheBaseDocuments);
   const hasVision = payloads.some(payloadHasVision);
 
   const projectLabel = context.project
@@ -662,7 +842,7 @@ export async function evaluateChecklistItems(options: {
     itemCount: number,
     system: string = EVALUATE_SYSTEM_PROMPT,
   ) => {
-    const docBlocks = payload ? payload.blocks : buildDocumentBlocks(files, null);
+    const docBlocks = payload ? payload.blocks : (await buildDocumentBlocks(files, null)).blocks;
     const blocks: ClaudeContentBlock[] = [...docBlocks, { type: "text", text: prompt }];
     return callClaude({
       system,
@@ -735,7 +915,7 @@ export async function evaluateChecklistItems(options: {
           VISION_EXTRACT_SYSTEM,
         );
         const parsed = parsePayload(result.text);
-        return { payload, model: result.model, parsed: parsed ? offsetChunkPages(parsed, payload.chunk) : null };
+        return { payload, model: result.model, parsed: parsed ? remapPayloadPages(parsed, payload) : null };
       }),
     );
 
@@ -792,7 +972,10 @@ export async function evaluateChecklistItems(options: {
 
   const evaluateBatchOnPayload = async (batch: ChecklistItem[], payload: DocumentPayload | null) => {
     const basePrompt = buildItemsPrompt(batch, projectLabel, evaluationContextText);
-    const prompt = payload?.chunk ? `${chunkNote(payload.chunk)}\n\n${basePrompt}` : basePrompt;
+    const notes: string[] = [];
+    if (payload?.chunk) notes.push(chunkNote(payload.chunk));
+    for (const map of payload?.pageMaps ?? []) notes.push(relevantPagesNote(map.fileName, map.mapping.length));
+    const prompt = notes.length > 0 ? `${notes.join("\n\n")}\n\n${basePrompt}` : basePrompt;
 
     let result;
     try {
@@ -818,7 +1001,7 @@ export async function evaluateChecklistItems(options: {
       warnings.push("일부 배치의 AI 응답이 길이 제한으로 잘려, 판정이 누락된 항목은 확인불가로 처리했습니다.");
     }
 
-    const translated = offsetChunkPages(parsed, payload?.chunk);
+    const translated = remapPayloadPages(parsed, payload);
     return {
       model: result.model,
       summary: translated.summary?.trim() ?? "",
@@ -827,7 +1010,16 @@ export async function evaluateChecklistItems(options: {
   };
 
   const evaluateBatch = async (batch: ChecklistItem[]) => {
-    const targets: Array<DocumentPayload | null> = payloads.length > 0 ? payloads : [null];
+    // 배치마다 그 배치의 항목과 관련성 높은 페이지만 담은 페이로드를 새로 구성합니다
+    // (페이지 관련도 필터링) — 매 배치가 문서 전체를 재전송하던 기존 방식 대비 비용이 줄어듭니다.
+    const batchPayloads = await buildBatchDocumentPayloads(
+      files,
+      visionSelection,
+      batch,
+      checklistPages,
+      chunkFallbackPayloads,
+    );
+    const targets: Array<DocumentPayload | null> = batchPayloads.length > 0 ? batchPayloads : [null];
     const settled = await Promise.allSettled(targets.map((payload) => evaluateBatchOnPayload(batch, payload)));
     const succeeded = settled.flatMap((entry) => (entry.status === "fulfilled" ? [entry.value] : []));
 

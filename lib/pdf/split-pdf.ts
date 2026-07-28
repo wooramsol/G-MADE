@@ -67,3 +67,41 @@ async function serializePageRange(source: PDFDocument, startIndex: number, count
   }
   return target.save({ useObjectStreams: true });
 }
+
+export type ExtractedPdfPages = {
+  base64: string;
+  /** 실제로 포함된 원본 페이지 번호(오름차순, 1-based) — 요청한 목록 중 유효 범위만 반영 */
+  pages: number[];
+  sizeBytes: number;
+};
+
+/**
+ * 지정된 페이지 번호(1-based, 중복·순서 무관, 비연속 허용)만 뽑아 새 PDF를 만듭니다.
+ * 배치별 관련 페이지만 전송해 비용을 줄이는 페이지 관련도 필터링에 사용합니다
+ * (splitPdfIntoChunks의 "연속 구간 분할"과 달리, 원본 어디에 있든 필요한 페이지만 모읍니다).
+ * 유효한 페이지가 하나도 없으면 null을 반환합니다.
+ */
+export async function extractPdfPages(base64: string, pageNumbers: number[]): Promise<ExtractedPdfPages | null> {
+  const sourceBytes = Buffer.from(base64, "base64");
+  const source = await PDFDocument.load(sourceBytes, { ignoreEncryption: false });
+  const pageCount = source.getPageCount();
+
+  const pages = [...new Set(pageNumbers)]
+    .filter((page) => Number.isFinite(page) && page >= 1 && page <= pageCount)
+    .sort((left, right) => left - right);
+  if (pages.length === 0) return null;
+
+  const indices = pages.map((page) => page - 1);
+  const target = await PDFDocument.create();
+  const copied = await target.copyPages(source, indices);
+  for (const page of copied) {
+    target.addPage(page);
+  }
+  const bytes = await target.save({ useObjectStreams: true });
+
+  return {
+    base64: Buffer.from(bytes).toString("base64"),
+    pages,
+    sizeBytes: bytes.length,
+  };
+}

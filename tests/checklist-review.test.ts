@@ -324,3 +324,79 @@ test("selectManualExcerpts는 항목 키워드와 관련된 매뉴얼 페이지�
   assert.equal(buildManualContextText([""]), "");
 });
 
+
+// ── 페이지 관련도 필터링 ──
+test("extractPdfPages는 지정한 비연속 페이지만 담은 새 PDF를 만들고 매핑을 반환한다", async () => {
+  const { extractPdfPages } = await import("../lib/pdf/split-pdf");
+  const { PDFDocument } = await import("pdf-lib");
+
+  const doc = await PDFDocument.create();
+  for (let index = 0; index < 10; index += 1) {
+    doc.addPage([200, 200]);
+  }
+  const base64 = Buffer.from(await doc.save()).toString("base64");
+
+  const extracted = await extractPdfPages(base64, [7, 2, 2, 9]);
+  assert.ok(extracted);
+  assert.deepEqual(extracted?.pages, [2, 7, 9]);
+
+  const rebuilt = await PDFDocument.load(Buffer.from(extracted!.base64, "base64"));
+  assert.equal(rebuilt.getPageCount(), 3);
+
+  const empty = await extractPdfPages(base64, [999, -1]);
+  assert.equal(empty, null);
+});
+
+test("selectRelevantPagesForBatch는 텍스트 레이어 없는 파일을 skippedFiles로 폴백 표시한다", async () => {
+  const { selectRelevantPagesForBatch } = await import("../lib/checklist-review/relevant-pages");
+
+  const scannedFile: UploadedFileSummary = {
+    originalName: "스캔본.pdf",
+    extractedTextPreview: "",
+    totalPages: 40,
+  };
+
+  const { pagesByFile, skippedFiles } = selectRelevantPagesForBatch(
+    [scannedFile],
+    [{ id: "c1", text: "야간 경관 조명 계획 수립 여부" }],
+  );
+
+  assert.ok(skippedFiles.has("스캔본.pdf"));
+  assert.equal(pagesByFile.has("스캔본.pdf"), false);
+});
+
+test("selectRelevantPagesForBatch는 항목 키워드와 일치하는 페이지를 선별하고 작은 문서는 건너뛴다", async () => {
+  const { selectRelevantPagesForBatch } = await import("../lib/checklist-review/relevant-pages");
+  const { buildPdfPageMarkedText } = await import("../lib/ai/page-citation");
+
+  const pageTexts = Array.from({ length: 30 }, (_, index) => {
+    if (index === 4) return "야간 경관 조명 계획 배치도 색채 검토 결과 요약 설명 본문";
+    if (index === 17) return "보행 동선 장애인 보행약자 접근성 배치 계획 검토 결과 요약";
+    return `기타 일반 본문 페이지 ${index + 1} 관련 없는 내용 설명 서술`;
+  });
+
+  const bigFile: UploadedFileSummary = {
+    originalName: "대형문서.pdf",
+    extractedTextPreview: buildPdfPageMarkedText("대형문서.pdf", pageTexts),
+    totalPages: pageTexts.length,
+  };
+
+  const { pagesByFile, skippedFiles } = selectRelevantPagesForBatch(
+    [bigFile],
+    [{ id: "c1", text: "야간 경관 조명 계획이 배치도에 반영되어 있는가" }],
+  );
+
+  assert.ok(!skippedFiles.has("대형문서.pdf"));
+  const pages = pagesByFile.get("대형문서.pdf") ?? [];
+  assert.ok(pages.includes(5), `p.5가 선별되어야 함 (실제: ${pages.join(",")})`);
+  assert.ok(pages.length < pageTexts.length, "전체 페이지보다는 적게 선별되어야 함");
+
+  // 페이지 수가 적은(20p 이하) 문서는 필터링 이득이 적어 항상 skip
+  const smallFile: UploadedFileSummary = {
+    originalName: "소형문서.pdf",
+    extractedTextPreview: buildPdfPageMarkedText("소형문서.pdf", pageTexts.slice(0, 10)),
+    totalPages: 10,
+  };
+  const smallResult = selectRelevantPagesForBatch([smallFile], [{ id: "c1", text: "야간 경관 조명 계획" }]);
+  assert.ok(smallResult.skippedFiles.has("소형문서.pdf"));
+});
