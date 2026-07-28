@@ -400,3 +400,36 @@ test("selectRelevantPagesForBatch는 항목 키워드와 일치하는 페이지�
   const smallResult = selectRelevantPagesForBatch([smallFile], [{ id: "c1", text: "야간 경관 조명 계획" }]);
   assert.ok(smallResult.skippedFiles.has("소형문서.pdf"));
 });
+
+// ── 동일 문서 재분석 감지(캐시) ──
+test("computeFilesFingerprint는 파일 내용이 완전히 같을 때만 동일한 지문을 반환한다", async () => {
+  const { computeFilesFingerprint, hashFileBuffer } = await import("../lib/checklist-review/file-fingerprint");
+
+  const hashA = hashFileBuffer(Buffer.from("문서 내용 A"));
+  const hashB = hashFileBuffer(Buffer.from("문서 내용 B"));
+
+  const filesV1 = [{ originalName: "심의도서.pdf", contentHash: hashA }];
+  const filesV1Again = [{ originalName: "심의도서.pdf", contentHash: hashA }];
+  const filesV2 = [{ originalName: "심의도서.pdf", contentHash: hashB }];
+
+  assert.equal(computeFilesFingerprint(filesV1), computeFilesFingerprint(filesV1Again));
+  assert.notEqual(computeFilesFingerprint(filesV1), computeFilesFingerprint(filesV2));
+
+  // 파일 순서가 달라도(정렬 후 비교) 같은 집합이면 동일 지문
+  const twoFilesOrderA = [
+    { originalName: "a.pdf", contentHash: hashA },
+    { originalName: "b.pdf", contentHash: hashB },
+  ];
+  const twoFilesOrderB = [
+    { originalName: "b.pdf", contentHash: hashB },
+    { originalName: "a.pdf", contentHash: hashA },
+  ];
+  assert.equal(computeFilesFingerprint(twoFilesOrderA), computeFilesFingerprint(twoFilesOrderB));
+
+  // 해시 없는 파일이 섞여 있으면(예: 이 기능 도입 이전 기록) 비교 불가로 null
+  assert.equal(computeFilesFingerprint([{ originalName: "옛날파일.pdf" }]), null);
+  assert.equal(computeFilesFingerprint([]), null);
+
+  // 파일 개수가 다르면 다른 지문
+  assert.notEqual(computeFilesFingerprint(filesV1), computeFilesFingerprint(twoFilesOrderA));
+});

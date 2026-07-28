@@ -20,6 +20,7 @@ import { isClaudeConfigured } from "./claude-call";
 import { evaluateChecklistItems } from "./evaluate-items";
 import { extractChecklistItems } from "./extract-items";
 import { extractProjectMetrics } from "./extract-metrics";
+import { computeFilesFingerprint, hashFileBuffer } from "./file-fingerprint";
 import { findChecklistPages } from "./find-checklist-pages";
 import {
   CHECKLIST_REVIEW_STEPS,
@@ -110,7 +111,8 @@ export async function runChecklistReview(
     const extractionWarnings: string[] = [];
     const filesForAnalysis: UploadedFileSummary[] = await Promise.all(
       savedFiles.map(async (file) => {
-        const content = await extractDocumentContent(await readSavedUploadFile(file), file.originalName);
+        const buffer = await readSavedUploadFile(file);
+        const content = await extractDocumentContent(buffer, file.originalName);
         extractionWarnings.push(...content.warnings);
         return {
           id: file.id,
@@ -120,79 +122,135 @@ export async function runChecklistReview(
           extractedTextPreview: content.fullText,
           visionAssets: content.visionAssets,
           totalPages: content.totalPages,
+          contentHash: hashFileBuffer(buffer),
         };
       }),
     );
 
-    emitStep(emit, "checklist");
-    const checklistSlices = findChecklistPages(filesForAnalysis);
-    console.log(
-      `[checklist-review] files=${filesForAnalysis.length} checklistPages=${checklistSlices.length} ` +
-        filesForAnalysis
-          .map((file) => `${file.originalName}:${file.totalPages ?? "?"}p/text${(file.extractedTextPreview ?? "").length}자`)
-          .join(", "),
+    // 동일한 파일 집합(내용 기준)을 이 프로젝트에서 이미 분석한 적이 있는지 확인합니다.
+    // 완전히 같은 문서라면 체크리스트 추출·항목 평가·규모 지표 추출(모두 Claude 호출)을
+    // 다시 하지 않고 이전 결과를 그대로 재사용해 토큰을 아낍니다. 파일 하나라도 이름·내용이
+    // 다르면(계산해시 불일치) 캐시를 사용하지 않고 항상 새로 분석합니다.
+    const currentFingerprint = computeFilesFingerprint(
+      filesForAnalysis.map((file) => ({ originalName: file.originalName, contentHash: file.contentHash })),
     );
-    let items: ChecklistReview["items"] = [];
-    let itemSource: ChecklistReview["itemSource"] = "text";
+    const cachedReview = currentFingerprint
+      ? [...(project.checklistReviews ?? [])]
+          .reverse()
+          .find((entry) => computeFilesFingerprint(entry.files) === currentFingerprint)
+      : undefined;
+    console.log(
+      cachedReview
+        ? `[checklist-review] cache-hit fingerprint=${currentFingerprint} reusedReviewId=${cachedReview.id} reusedAt=${cachedReview.reviewedAt}`
+        : `[checklist-review] cache-miss fingerprint=${currentFingerprint ?? "null(해시 비교 불가)"}`,
+    );
 
-    if (checklistSlices.length > 0) {
-      emitStep(emit, "checklist", `체크리스트 페이지 ${checklistSlices.length}개에서 항목 추출 중`);
-      const extracted = await extractChecklistItems(checklistSlices);
-      items = extracted.items;
-    }
-
-    if (items.length === 0) {
-      // 텍스트 레이어에서 항목을 얻지 못함 → 평가 단계에서 비전으로 추출+평가
-      itemSource = "vision";
-    }
-
+    // 법령·공간정보 조회는 Claude 호출이 아니라 비용이 들지 않고, 시간에 따라 최신화될 수
+    // 있으므로 캐시 여부와 무관하게 항상 새로 조회합니다.
     emitStep(emit, "context");
-    // 사업 규모 지표 추출은 평가와 병렬로 진행 (실패해도 검토에 영향 없음)
-    const metricsPromise = extractProjectMetrics(filesForAnalysis);
     const context = await buildEvaluationContext(projectId);
 
-    emitStep(emit, "evaluate");
-    const evaluation = await evaluateChecklistItems({
-      files: filesForAnalysis,
-      items,
-      checklistPages: checklistSlices.map((slice) => ({ fileName: slice.fileName, page: slice.page })),
-      context,
-      getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
-      onProgress: (label) => emitStep(emit, "evaluate", label),
-    });
+    let items: ChecklistReview["items"];
+    let itemSource: ChecklistReview["itemSource"];
+    let checklistPages: ChecklistReview["checklistPages"];
+    let findings: ChecklistReview["findings"];
+    let summary: string;
+    let model: string;
+    let metrics: ChecklistReview["metrics"];
+    let evaluationWarnings: string[];
 
-    const evidenceCount = evaluation.findings.reduce((sum, finding) => sum + finding.evidence.length, 0);
-    const regionCount = evaluation.findings.reduce(
-      (sum, finding) => sum + finding.evidence.filter((entry) => entry.region).length,
-      0,
-    );
-    console.log(
-      `[checklist-review] items=${evaluation.items.length} findings=${evaluation.findings.length} evidence=${evidenceCount} regions=${regionCount} vision=${evaluation.usedVision} model=${evaluation.model}`,
-    );
-    if (evaluation.items.length === 0) {
-      throw new Error(
-        dedupeWarnings([...evaluation.warnings]).join(" ") ||
-          "제출 문서에서 '체크리스트' 페이지를 찾지 못했습니다. 체크리스트가 포함된 자료인지 확인해 주세요.",
+    if (cachedReview) {
+      emitStep(emit, "checklist", "동일 문서 감지 — 이전 분석 결과 재사용 중");
+      emitStep(emit, "evaluate", "동일 문서 감지 — 이전 분석 결과 재사용 중 (AI 재호출 없음)");
+
+      items = cachedReview.items;
+      itemSource = cachedReview.itemSource;
+      checklistPages = cachedReview.checklistPages;
+      findings = cachedReview.findings;
+      summary = cachedReview.summary;
+      model = cachedReview.model;
+      metrics = cachedReview.metrics;
+      evaluationWarnings = [
+        `동일한 문서(내용 기준)가 이전 검토(${cachedReview.reviewedAt.slice(0, 16).replace("T", " ")} UTC)에서 이미 분석되어, AI를 다시 호출하지 않고 그 결과를 재사용했습니다.`,
+      ];
+    } else {
+      emitStep(emit, "checklist");
+      const checklistSlices = findChecklistPages(filesForAnalysis);
+      console.log(
+        `[checklist-review] files=${filesForAnalysis.length} checklistPages=${checklistSlices.length} ` +
+          filesForAnalysis
+            .map((file) => `${file.originalName}:${file.totalPages ?? "?"}p/text${(file.extractedTextPreview ?? "").length}자`)
+            .join(", "),
       );
+
+      let extractedItems: ChecklistReview["items"] = [];
+      if (checklistSlices.length > 0) {
+        emitStep(emit, "checklist", `체크리스트 페이지 ${checklistSlices.length}개에서 항목 추출 중`);
+        const extracted = await extractChecklistItems(checklistSlices);
+        extractedItems = extracted.items;
+      }
+      // 텍스트 레이어에서 항목을 얻지 못함 → 평가 단계에서 비전으로 추출+평가
+      const resolvedItemSource: ChecklistReview["itemSource"] = extractedItems.length === 0 ? "vision" : "text";
+
+      // 사업 규모 지표 추출은 평가와 병렬로 진행 (실패해도 검토에 영향 없음)
+      const metricsPromise = extractProjectMetrics(filesForAnalysis);
+
+      emitStep(emit, "evaluate");
+      const evaluation = await evaluateChecklistItems({
+        files: filesForAnalysis,
+        items: extractedItems,
+        checklistPages: checklistSlices.map((slice) => ({ fileName: slice.fileName, page: slice.page })),
+        context,
+        getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
+        onProgress: (label) => emitStep(emit, "evaluate", label),
+      });
+
+      const evidenceCount = evaluation.findings.reduce((sum, finding) => sum + finding.evidence.length, 0);
+      const regionCount = evaluation.findings.reduce(
+        (sum, finding) => sum + finding.evidence.filter((entry) => entry.region).length,
+        0,
+      );
+      console.log(
+        `[checklist-review] items=${evaluation.items.length} findings=${evaluation.findings.length} evidence=${evidenceCount} regions=${regionCount} vision=${evaluation.usedVision} model=${evaluation.model}`,
+      );
+      if (evaluation.items.length === 0) {
+        throw new Error(
+          dedupeWarnings([...evaluation.warnings]).join(" ") ||
+            "제출 문서에서 '체크리스트' 페이지를 찾지 못했습니다. 체크리스트가 포함된 자료인지 확인해 주세요.",
+        );
+      }
+
+      items = evaluation.items;
+      itemSource = resolvedItemSource;
+      checklistPages = evaluation.checklistPages;
+      findings = evaluation.findings;
+      summary = evaluation.summary;
+      model = evaluation.model;
+      metrics = await metricsPromise;
+      evaluationWarnings = evaluation.warnings;
     }
 
     const review: ChecklistReview = {
       id: `review-${Date.now()}-${crypto.randomUUID()}`,
       reviewedAt,
-      files: savedFiles.map((file) => ({
-        id: file.id,
-        originalName: file.originalName,
-        fileType: file.originalName.split(".").pop()?.toUpperCase() ?? file.fileType,
-        sizeBytes: file.sizeBytes,
-        storageKey: file.storageKey,
-        blobUrl: file.blobUrl,
-      })),
-      checklistPages: evaluation.checklistPages,
-      items: evaluation.items,
-      findings: evaluation.findings,
-      counts: countFindingStatuses(evaluation.findings),
-      metrics: await metricsPromise,
-      summary: evaluation.summary,
+      files: savedFiles.map((file) => {
+        const analyzed = filesForAnalysis.find((entry) => entry.id === file.id);
+        return {
+          id: file.id,
+          originalName: file.originalName,
+          fileType: file.originalName.split(".").pop()?.toUpperCase() ?? file.fileType,
+          sizeBytes: file.sizeBytes,
+          storageKey: file.storageKey,
+          blobUrl: file.blobUrl,
+          contentHash: analyzed?.contentHash,
+        };
+      }),
+      checklistPages,
+      items,
+      findings,
+      counts: countFindingStatuses(findings),
+      metrics,
+      summary,
       referenceLaws: context.referenceLaws.slice(0, 12).map((law) => ({
         title: law.title,
         article: law.article,
@@ -202,8 +260,8 @@ export async function runChecklistReview(
       spatialContext: context.spatial,
       lawSource: context.lawSource,
       itemSource,
-      model: evaluation.model,
-      warnings: dedupeWarnings([...context.warnings, ...extractionWarnings, ...evaluation.warnings]),
+      model,
+      warnings: dedupeWarnings([...context.warnings, ...extractionWarnings, ...evaluationWarnings]),
     };
 
     emitStep(emit, "save");

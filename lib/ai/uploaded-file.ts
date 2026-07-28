@@ -12,4 +12,6 @@ export type UploadedFileSummary = {
   totalPages?: number;
   /** 저장 경로 (Blob key 등) */
   storagePath?: string;
+  /** 원본 바이트의 sha256 해시 — 동일 파일 재업로드(중복 재분석) 감지에 사용 */
+  contentHash?: string;
 };
