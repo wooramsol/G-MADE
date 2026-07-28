@@ -2,13 +2,12 @@ import { auth } from "@/auth";
 import IntegrationStatusPanel from "@/components/integration-status-panel";
 import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/typography";
 import LoginHistoryPanel from "@/components/login-history-panel";
+import { roles } from "@/lib/demo-data";
 import { getIntegrationStatuses } from "@/lib/integrations/status";
 import { getLoginHistoryForEmail } from "@/lib/login-history";
-import { getAllProjects } from "@/lib/project-store";
 import { getRoleLabel } from "@/lib/role-labels";
 import SaasPageShell from "../saas-page-shell";
 import LogoutButton from "./logout-button";
-import PurgeEvaluationsPanel from "./purge-evaluations-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +17,6 @@ export default async function MyPage() {
   const initial = user?.name?.slice(0, 1) ?? "?";
   const integrations = await getIntegrationStatuses();
   const loginHistory = user?.email ? await getLoginHistoryForEmail(user.email) : [];
-  const purgeableProjects =
-    user?.role === "ADMIN"
-      ? (await getAllProjects()).map((project) => ({ id: project.id, name: project.name }))
-      : [];
 
   return (
     <SaasPageShell
@@ -70,6 +65,16 @@ export default async function MyPage() {
               </div>
             ))}
           </div>
+
+          <p className="mt-6 text-sm font-bold text-[#15345b]">사용자 권한 체계 (적용 예정)</p>
+          <div className="mt-3 space-y-3">
+            {roles.map((role) => (
+              <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3" key={role.code}>
+                <p className="font-bold text-[#15345b]">{role.label}</p>
+                <p className="mt-1 text-sm leading-6 text-[#64748b]">{role.authority}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -104,8 +109,6 @@ export default async function MyPage() {
           </div>
         </div>
       </section>
-
-      {user?.role === "ADMIN" ? <PurgeEvaluationsPanel projects={purgeableProjects} /> : null}
 
       <section>
         <Panel title="로그인 히스토리">

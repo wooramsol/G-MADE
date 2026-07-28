@@ -30,6 +30,12 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
       <div className="mx-auto max-w-[1500px] px-6 pt-8">
+        <Link
+          className="mb-3 inline-flex items-center gap-1 text-sm font-bold !text-[#2463b3] hover:underline"
+          href="/projects"
+        >
+          ← 프로젝트 목록으로
+        </Link>
         <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>

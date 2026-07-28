@@ -1,16 +1,8 @@
-import { getDashboardPageData } from "@/lib/dashboard-data";
-import DashboardOverview from "./dashboard-overview";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function Dashboard() {
-  const { projects, roles } = await getDashboardPageData();
-
-  return (
-    <main className="min-h-screen bg-[#f4f7fb] text-[#172033]">
-      <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
-        <DashboardOverview serverProjects={projects} roles={roles} />
-      </div>
-    </main>
-  );
+/** 대시보드 제거 — 프로젝트 관리가 메인 페이지입니다. */
+export default function Home() {
+  redirect("/projects");
 }
