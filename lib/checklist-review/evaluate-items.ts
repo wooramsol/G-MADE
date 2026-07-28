@@ -846,14 +846,31 @@ export async function evaluateChecklistItems(options: {
     };
   };
 
-  // 배치를 순차 실행 — 동시에 쏘면 Anthropic 프롬프트 캐시가 기록되기 전에
-  // 다음 요청이 나가버려 캐싱(같은 문서 재사용 시 약 90% 할인)이 무용지물이 됨.
-  // 순차 실행하면 배치 2번째부터 문서 토큰이 캐시로 처리돼 비용이 크게 줄어드는
-  // 대신, 배치 수만큼 총 소요 시간이 늘어남(속도 ↔ 비용 트레이드오프).
-  const results: Array<{ model: string; summary: string; findings: ChecklistFinding[] }> = [];
-  for (const batch of batches) {
-    results.push(await evaluateBatch(batch));
-  }
+  // 배치를 완전 병렬로 쏘면 Anthropic 프롬프트 캐시가 기록되기 전에 다음 요청이
+  // 나가버려 캐싱(같은 문서 재사용 시 약 90% 할인)이 무용지물이 됨. 그렇다고 전부
+  // 순차 실행하면 배치가 많은 대형 체크리스트에서 서버 시간 한도(285초)를 넘겨
+  // 검토 자체가 실패함(실제 발생). 그래서 절충: 배치가 적으면(≤3) 완전 순차로
+  // 캐싱 효과를 최대화하고, 배치가 많으면 동시 2개씩 처리해 소요 시간을 절반
+  // 가까이 줄이면서도 3번째 배치부터는 여전히 캐시 적중을 기대할 수 있게 함.
+  const BATCH_SEQUENTIAL_THRESHOLD = 3;
+  const batchConcurrency = batches.length <= BATCH_SEQUENTIAL_THRESHOLD ? 1 : 2;
+
+  const results: Array<{ model: string; summary: string; findings: ChecklistFinding[] }> = new Array(
+    batches.length,
+  );
+  let nextBatchIndex = 0;
+  const runBatchWorker = async () => {
+    for (;;) {
+      const index = nextBatchIndex;
+      nextBatchIndex += 1;
+      if (index >= batches.length) return;
+      results[index] = await evaluateBatch(batches[index]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(batchConcurrency, batches.length) }, () => runBatchWorker()),
+  );
+
   const allFindings = results.flatMap((entry) => entry.findings);
   const summaries = results.map((entry) => entry.summary).filter(Boolean);
   const model = results[results.length - 1]?.model ?? extractionModel;
