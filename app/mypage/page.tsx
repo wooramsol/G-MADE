@@ -79,7 +79,8 @@ export default async function MyPage() {
         <div className="grid items-start gap-4 xl:grid-cols-2">
           <div className="flex min-w-0 flex-col gap-4">
             {integrations.groups
-              .filter((group) => group.id === "ai")
+              .filter((group) => group.id === "ai" || group.id === "database")
+              .sort((a, b) => (a.id === "ai" ? -1 : b.id === "ai" ? 1 : 0))
               .map((group) => (
                 <IntegrationStatusPanel checkedAt={integrations.checkedAt} group={group} key={group.id} />
               ))}
@@ -87,7 +88,7 @@ export default async function MyPage() {
 
           <div className="flex min-w-0 flex-col gap-4">
             {integrations.groups
-              .filter((group) => group.id !== "ai")
+              .filter((group) => group.id !== "ai" && group.id !== "database")
               .map((group) => (
                 <IntegrationStatusPanel
                   checkedAt={integrations.checkedAt}
