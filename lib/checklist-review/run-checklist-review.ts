@@ -3,6 +3,7 @@ import { isAiAnalysisError } from "@/lib/ai/analysis-error";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { buildEvaluationContext } from "@/lib/evaluation-context";
 import { ensureProjectRecordFromSnapshot } from "@/lib/ensure-project-record";
+import { hashPdfPages } from "@/lib/pdf/split-pdf";
 import { addProjectChecklistReview, getProjectById, upsertProjectRecord } from "@/lib/project-store";
 import {
   deleteSavedUploadFiles,
@@ -20,14 +21,20 @@ import { isClaudeConfigured } from "./claude-call";
 import { evaluateChecklistItems } from "./evaluate-items";
 import { extractChecklistItems } from "./extract-items";
 import { extractProjectMetrics } from "./extract-metrics";
-import { computeFilesFingerprint, hashFileBuffer } from "./file-fingerprint";
+import { hashFileBuffer } from "./file-fingerprint";
 import { findChecklistPages } from "./find-checklist-pages";
+import {
+  buildFindingsByText,
+  computeChangedPages,
+  isPageUnchanged,
+  partitionItemsForReuse,
+} from "./partial-reuse";
 import {
   CHECKLIST_REVIEW_STEPS,
   type ChecklistReviewProgressEvent,
   type ChecklistReviewStreamEvent,
 } from "./progress";
-import { countFindingStatuses, type ChecklistReview } from "./types";
+import { countFindingStatuses, type ChecklistFinding, type ChecklistReview } from "./types";
 
 export type RunChecklistReviewInput = {
   projectId: string;
@@ -114,6 +121,7 @@ export async function runChecklistReview(
         const buffer = await readSavedUploadFile(file);
         const content = await extractDocumentContent(buffer, file.originalName);
         extractionWarnings.push(...content.warnings);
+        const pdfAsset = content.visionAssets?.find((asset) => asset.mediaType === "application/pdf");
         return {
           id: file.id,
           originalName: file.originalName,
@@ -123,30 +131,55 @@ export async function runChecklistReview(
           visionAssets: content.visionAssets,
           totalPages: content.totalPages,
           contentHash: hashFileBuffer(buffer),
+          pageHashes: pdfAsset ? (await hashPdfPages(pdfAsset.base64)) ?? undefined : undefined,
         };
       }),
     );
 
-    // 동일한 파일 집합(내용 기준)을 이 프로젝트에서 이미 분석한 적이 있는지 확인합니다.
-    // 완전히 같은 문서라면 체크리스트 추출·항목 평가·규모 지표 추출(모두 Claude 호출)을
-    // 다시 하지 않고 이전 결과를 그대로 재사용해 토큰을 아낍니다. 파일 하나라도 이름·내용이
-    // 다르면(계산해시 불일치) 캐시를 사용하지 않고 항상 새로 분석합니다.
-    const currentFingerprint = computeFilesFingerprint(
-      filesForAnalysis.map((file) => ({ originalName: file.originalName, contentHash: file.contentHash })),
-    );
-    const cachedReview = currentFingerprint
-      ? [...(project.checklistReviews ?? [])]
-          .reverse()
-          .find((entry) => computeFilesFingerprint(entry.files) === currentFingerprint)
-      : undefined;
+    // 이 프로젝트의 가장 최근 검토를 "기준"으로 삼아 이번 파일들과 페이지 단위로 비교합니다.
+    // - 파일 전체가 완전히 같으면(내용 해시 일치) 그 파일은 변경 페이지 없음으로 처리됩니다.
+    // - 일부 페이지만 바뀌었다면(텍스트든 도면이든 — 페이지 해시가 원본 페이지 객체 전체를
+    //   반영하므로 둘 다 감지됩니다) 그 페이지만 "변경"으로 표시됩니다.
+    // - 기준이 없거나(첫 검토) 페이지 수가 달라지는 등 안전하게 비교할 수 없으면 해당 파일은
+    //   전체 변경으로 취급합니다.
+    // 이후 이 정보로 "근거 페이지가 안 바뀐 항목은 재사용, 바뀐 항목만 재분석"을 수행해
+    // Claude 호출(=비용)을 최소화합니다.
+    const baselineReview = [...(project.checklistReviews ?? [])].reverse()[0];
+    const changedPages = baselineReview
+      ? computeChangedPages(
+          filesForAnalysis.map((file) => ({
+            originalName: file.originalName,
+            contentHash: file.contentHash,
+            pageHashes: file.pageHashes,
+          })),
+          baselineReview.files.map((file) => ({
+            originalName: file.originalName,
+            contentHash: file.contentHash,
+            pageHashes: file.pageHashes,
+          })),
+        )
+      : null;
+    const baselineFindingsByText = baselineReview
+      ? buildFindingsByText(baselineReview.items, baselineReview.findings)
+      : null;
+    const checklistPagesUnchanged =
+      Boolean(baselineReview && changedPages) &&
+      (baselineReview?.checklistPages.length ?? 0) > 0 &&
+      (baselineReview?.checklistPages ?? []).every((page) => isPageUnchanged(changedPages!, page.fileName, page.page));
+
     console.log(
-      cachedReview
-        ? `[checklist-review] cache-hit fingerprint=${currentFingerprint} reusedReviewId=${cachedReview.id} reusedAt=${cachedReview.reviewedAt}`
-        : `[checklist-review] cache-miss fingerprint=${currentFingerprint ?? "null(해시 비교 불가)"}`,
+      changedPages
+        ? `[checklist-review] baseline=${baselineReview!.id} checklistPagesUnchanged=${checklistPagesUnchanged} changed=[${[...changedPages.entries()]
+            .map(
+              ([name, pages]) =>
+                `${name}:${pages === "all-changed" ? "전체변경" : pages === "all-unchanged" ? "동일" : `${pages.size}p동일확인`}`,
+            )
+            .join(", ")}]`
+        : `[checklist-review] baseline=없음 (첫 검토이거나 비교 불가)`,
     );
 
     // 법령·공간정보 조회는 Claude 호출이 아니라 비용이 들지 않고, 시간에 따라 최신화될 수
-    // 있으므로 캐시 여부와 무관하게 항상 새로 조회합니다.
+    // 있으므로 항상 새로 조회합니다.
     emitStep(emit, "context");
     const context = await buildEvaluationContext(projectId);
 
@@ -159,20 +192,13 @@ export async function runChecklistReview(
     let metrics: ChecklistReview["metrics"];
     let evaluationWarnings: string[];
 
-    if (cachedReview) {
-      emitStep(emit, "checklist", "동일 문서 감지 — 이전 분석 결과 재사용 중");
-      emitStep(emit, "evaluate", "동일 문서 감지 — 이전 분석 결과 재사용 중 (AI 재호출 없음)");
-
-      items = cachedReview.items;
-      itemSource = cachedReview.itemSource;
-      checklistPages = cachedReview.checklistPages;
-      findings = cachedReview.findings;
-      summary = cachedReview.summary;
-      model = cachedReview.model;
-      metrics = cachedReview.metrics;
-      evaluationWarnings = [
-        `동일한 문서(내용 기준)가 이전 검토(${cachedReview.reviewedAt.slice(0, 16).replace("T", " ")} UTC)에서 이미 분석되어, AI를 다시 호출하지 않고 그 결과를 재사용했습니다.`,
-      ];
+    if (checklistPagesUnchanged && baselineReview) {
+      // 체크리스트 표가 있던 페이지가 그대로이므로 항목 추출은 다시 하지 않고 기준 검토의
+      // 항목 목록을 그대로 씁니다 (항목별 재사용 여부는 아래에서 개별 판정).
+      emitStep(emit, "checklist", "체크리스트 페이지 변경 없음 — 이전 항목 목록 재사용 중");
+      items = baselineReview.items;
+      itemSource = baselineReview.itemSource;
+      checklistPages = baselineReview.checklistPages;
     } else {
       emitStep(emit, "checklist");
       const checklistSlices = findChecklistPages(filesForAnalysis);
@@ -189,8 +215,37 @@ export async function runChecklistReview(
         const extracted = await extractChecklistItems(checklistSlices);
         extractedItems = extracted.items;
       }
-      // 텍스트 레이어에서 항목을 얻지 못함 → 평가 단계에서 비전으로 추출+평가
-      const resolvedItemSource: ChecklistReview["itemSource"] = extractedItems.length === 0 ? "vision" : "text";
+      items = extractedItems;
+      // 텍스트 레이어에서 항목을 얻지 못함 → 평가 단계에서 비전으로 추출+평가. 이 경로는
+      // 항목을 미리 알 수 없어(비전이 문서를 보면서 한 번에 찾고 판정) 아래의 항목별 재사용을
+      // 적용할 수 없고, 매번 전체를 새로 평가합니다.
+      itemSource = extractedItems.length === 0 ? "vision" : "text";
+      checklistPages = checklistSlices.map((slice) => ({ fileName: slice.fileName, page: slice.page }));
+    }
+
+    const { reused: reusedFindings, needEval: itemsNeedingEval } =
+      items.length > 0 && baselineFindingsByText && changedPages
+        ? partitionItemsForReuse(items, baselineFindingsByText, changedPages)
+        : { reused: new Map<string, ChecklistFinding>(), needEval: items };
+
+    if (items.length > 0 && itemsNeedingEval.length === 0) {
+      // 모든 항목의 근거 페이지가 변경되지 않아 전부 재사용 — AI 재호출 없음.
+      emitStep(emit, "evaluate", "동일 근거 페이지 확인 — 이전 분석 결과 재사용 중 (AI 재호출 없음)");
+      findings = items.map((item) => reusedFindings.get(item.id)!);
+      summary = baselineReview!.summary;
+      model = baselineReview!.model;
+      metrics = baselineReview!.metrics;
+      evaluationWarnings = [
+        `이전 검토(${baselineReview!.reviewedAt.slice(0, 16).replace("T", " ")} UTC)와 비교해 변경된 근거 페이지가 없어, AI를 다시 호출하지 않고 그 결과를 재사용했습니다.`,
+      ];
+    } else {
+      const reuseNotice =
+        reusedFindings.size > 0
+          ? [
+              `이전 검토와 비교해 변경되지 않은 페이지에 근거한 ${reusedFindings.size}개 항목은 재사용하고, ` +
+                `변경되었거나 새로 생긴 ${itemsNeedingEval.length}개 항목만 다시 분석했습니다.`,
+            ]
+          : [];
 
       // 사업 규모 지표 추출은 평가와 병렬로 진행 (실패해도 검토에 영향 없음)
       const metricsPromise = extractProjectMetrics(filesForAnalysis);
@@ -198,8 +253,8 @@ export async function runChecklistReview(
       emitStep(emit, "evaluate");
       const evaluation = await evaluateChecklistItems({
         files: filesForAnalysis,
-        items: extractedItems,
-        checklistPages: checklistSlices.map((slice) => ({ fileName: slice.fileName, page: slice.page })),
+        items: itemsNeedingEval,
+        checklistPages,
         context,
         getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
         onProgress: (label) => emitStep(emit, "evaluate", label),
@@ -211,23 +266,31 @@ export async function runChecklistReview(
         0,
       );
       console.log(
-        `[checklist-review] items=${evaluation.items.length} findings=${evaluation.findings.length} evidence=${evidenceCount} regions=${regionCount} vision=${evaluation.usedVision} model=${evaluation.model}`,
+        `[checklist-review] items=${evaluation.items.length} findings=${evaluation.findings.length} evidence=${evidenceCount} regions=${regionCount} vision=${evaluation.usedVision} model=${evaluation.model} reused=${reusedFindings.size}`,
       );
-      if (evaluation.items.length === 0) {
+
+      // itemSource가 "vision"이면 항목을 미리 몰랐으므로(위에서 items=[]로 시작) 비전이
+      // 새로 발견·평가한 결과를 그대로 씁니다.
+      if (itemSource === "vision") {
+        items = evaluation.items;
+        checklistPages = evaluation.checklistPages;
+      }
+
+      if (items.length === 0) {
         throw new Error(
           dedupeWarnings([...evaluation.warnings]).join(" ") ||
             "제출 문서에서 '체크리스트' 페이지를 찾지 못했습니다. 체크리스트가 포함된 자료인지 확인해 주세요.",
         );
       }
 
-      items = evaluation.items;
-      itemSource = resolvedItemSource;
-      checklistPages = evaluation.checklistPages;
-      findings = evaluation.findings;
-      summary = evaluation.summary;
-      model = evaluation.model;
+      const freshFindingsById = new Map(evaluation.findings.map((finding) => [finding.itemId, finding]));
+      findings = items
+        .map((item) => reusedFindings.get(item.id) ?? freshFindingsById.get(item.id))
+        .filter((finding): finding is ChecklistFinding => Boolean(finding));
+      summary = evaluation.summary || baselineReview?.summary || "";
+      model = evaluation.model || baselineReview?.model || "";
       metrics = await metricsPromise;
-      evaluationWarnings = evaluation.warnings;
+      evaluationWarnings = [...reuseNotice, ...evaluation.warnings];
     }
 
     const review: ChecklistReview = {
@@ -243,6 +306,7 @@ export async function runChecklistReview(
           storageKey: file.storageKey,
           blobUrl: file.blobUrl,
           contentHash: analyzed?.contentHash,
+          pageHashes: analyzed?.pageHashes,
         };
       }),
       checklistPages,

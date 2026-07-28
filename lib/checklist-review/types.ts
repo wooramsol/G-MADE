@@ -73,6 +73,8 @@ export type ChecklistReviewFile = {
   blobUrl?: string;
   /** 원본 바이트의 sha256 해시 — 동일 파일 재업로드(중복 재분석) 감지에 사용 */
   contentHash?: string;
+  /** 페이지별 내용 해시(인덱스 i = 원본 p.(i+1)) — 일부 페이지만 바뀐 재제출 감지에 사용 */
+  pageHashes?: string[];
 };
 
 export type ChecklistStatusCounts = Record<ChecklistItemStatus, number>;

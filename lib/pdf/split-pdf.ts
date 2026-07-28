@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { PDFDocument } from "pdf-lib";
 
 export type PdfChunk = {
@@ -104,4 +105,33 @@ export async function extractPdfPages(base64: string, pageNumbers: number[]): Pr
     pages,
     sizeBytes: bytes.length,
   };
+}
+
+/** 페이지 단위 내용 해시 계산 시 처리할 최대 페이지 수 — 초과하면 계산을 포기합니다. */
+const MAX_PAGES_FOR_HASHING = 400;
+
+/**
+ * PDF의 각 페이지를 개별 PDF로 직렬화해 sha256으로 해시합니다. 텍스트뿐 아니라 도면·
+ * 이미지 등 페이지의 모든 내용(원본 페이지 객체 그래프)을 반영하므로, 텍스트는 그대로인데
+ * 도면만 바뀐 경우도 감지할 수 있습니다. 동일 문서 재제출 시 "어느 페이지가 실제로
+ * 바뀌었는지" 판별해 바뀌지 않은 페이지 근거의 항목은 재분석을 건너뛰는 데 사용합니다.
+ * 반환값의 인덱스 i는 원본 p.(i+1)에 해당합니다. 페이지 수가 너무 많으면(비용 상한)
+ * null을 반환합니다 — 호출자는 이 경우 파일 전체 단위로만 변경 여부를 판단해야 합니다.
+ */
+export async function hashPdfPages(base64: string): Promise<string[] | null> {
+  const sourceBytes = Buffer.from(base64, "base64");
+  const source = await PDFDocument.load(sourceBytes, { ignoreEncryption: false });
+  const pageCount = source.getPageCount();
+  if (pageCount === 0) return [];
+  if (pageCount > MAX_PAGES_FOR_HASHING) return null;
+
+  const hashes: string[] = [];
+  for (let index = 0; index < pageCount; index += 1) {
+    const target = await PDFDocument.create();
+    const [copied] = await target.copyPages(source, [index]);
+    target.addPage(copied);
+    const bytes = await target.save({ useObjectStreams: false });
+    hashes.push(crypto.createHash("sha256").update(bytes).digest("hex"));
+  }
+  return hashes;
 }

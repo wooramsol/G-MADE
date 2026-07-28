@@ -433,3 +433,100 @@ test("computeFilesFingerprint는 파일 내용이 완전히 같을 때만 동일
   // 파일 개수가 다르면 다른 지문
   assert.notEqual(computeFilesFingerprint(filesV1), computeFilesFingerprint(twoFilesOrderA));
 });
+
+// ── 부분 변경(페이지 단위) 재분석 감지 ──
+test("hashPdfPages는 페이지 내용이 바뀌면 해당 페이지의 해시만 달라진다", async () => {
+  const { hashPdfPages } = await import("../lib/pdf/split-pdf");
+  const { PDFDocument, rgb } = await import("pdf-lib");
+
+  const buildDoc = async (secondPageMarked: boolean) => {
+    const doc = await PDFDocument.create();
+    for (let index = 0; index < 3; index += 1) {
+      const page = doc.addPage([200, 200]);
+      if (index === 1 && secondPageMarked) {
+        page.drawRectangle({ x: 20, y: 100, width: 50, height: 30, color: rgb(0, 0, 0) });
+      }
+    }
+    return Buffer.from(await doc.save()).toString("base64");
+  };
+
+  const original = await hashPdfPages(await buildDoc(false));
+  const modified = await hashPdfPages(await buildDoc(true));
+
+  assert.ok(original && modified);
+  assert.equal(original!.length, 3);
+  assert.equal(modified!.length, 3);
+  assert.equal(original![0], modified![0], "1페이지는 안 바뀌었으니 해시도 같아야 함");
+  assert.notEqual(original![1], modified![1], "2페이지 내용이 바뀌었으니 해시도 달라야 함");
+  assert.equal(original![2], modified![2], "3페이지는 안 바뀌었으니 해시도 같아야 함");
+});
+
+test("computeChangedPages는 내용 해시가 같은 파일을 변경 없음으로, 페이지 수가 다른 파일을 전체 변경으로 처리한다", async () => {
+  const { computeChangedPages } = await import("../lib/checklist-review/partial-reuse");
+
+  const changed = computeChangedPages(
+    [
+      { originalName: "a.pdf", contentHash: "same" },
+      { originalName: "b.pdf", contentHash: "hashB2", pageHashes: ["p1", "p2x", "p3"] },
+      { originalName: "c.pdf", contentHash: "hashC2", pageHashes: ["p1", "p2"] },
+      { originalName: "d.pdf", contentHash: "hashD" },
+    ],
+    [
+      { originalName: "a.pdf", contentHash: "same" },
+      { originalName: "b.pdf", contentHash: "hashB1", pageHashes: ["p1", "p2", "p3"] },
+      { originalName: "c.pdf", contentHash: "hashC1", pageHashes: ["p1", "p2", "p3"] },
+    ],
+  );
+
+  assert.equal(changed.get("a.pdf"), "all-unchanged");
+  assert.deepEqual(changed.get("b.pdf"), new Set([1, 3]));
+  assert.equal(changed.get("c.pdf"), "all-changed");
+  assert.equal(changed.get("d.pdf"), "all-changed");
+});
+
+test("partitionItemsForReuse는 근거 페이지가 안 바뀐 항목만 재사용하고, 근거 없는 판정은 항상 재분석한다", async () => {
+  const { computeChangedPages, buildFindingsByText, partitionItemsForReuse } = await import(
+    "../lib/checklist-review/partial-reuse"
+  );
+
+  const baselineItems = [
+    { id: "c1", text: "가로변 차폐 조경 계획 반영" },
+    { id: "c2", text: "야간 경관 조명 계획 수립" },
+    { id: "c3", text: "장애인 보행약자 접근로 확보" },
+  ];
+  const baselineFindings = [
+    {
+      itemId: "c1",
+      status: "충족" as const,
+      rationale: "배치도에서 확인",
+      evidence: [{ fileName: "심의도서.pdf", page: 5, note: "차폐 조경 표기" }],
+      lawRefs: [],
+    },
+    {
+      itemId: "c2",
+      status: "미충족" as const,
+      rationale: "조명 계획 미확인",
+      evidence: [{ fileName: "심의도서.pdf", page: 12, note: "조명 계획 없음" }],
+      lawRefs: [],
+    },
+    { itemId: "c3", status: "확인불가" as const, rationale: "근거 없음", evidence: [], lawRefs: [] },
+  ];
+
+  const changed = computeChangedPages(
+    [{ originalName: "심의도서.pdf", contentHash: "v2", pageHashes: ["h1", "h2", "h3-changed", "h4", "h5", "h6"] }],
+    [{ originalName: "심의도서.pdf", contentHash: "v1", pageHashes: ["h1", "h2", "h3", "h4", "h5", "h6"] }],
+  );
+
+  const findingsByText = buildFindingsByText(baselineItems, baselineFindings);
+  const currentItems = [...baselineItems]; // 문구는 그대로, 페이지 3만 바뀐 상황
+  const { reused, needEval } = partitionItemsForReuse(currentItems, findingsByText, changed);
+
+  // c1(근거 p.5)은 페이지 해시가 같아 재사용. c2(근거 p.12)는 애초에 6페이지짜리 문서라
+  // p.12가 "확인된 페이지" 목록에 있을 수 없으므로(화이트리스트 방식) 안전하게 변경 취급.
+  // c3는 근거 자체가 없는 판정이라 항상 재분석.
+  assert.ok(reused.has("c1"));
+  assert.equal(reused.get("c1")?.status, "충족");
+  assert.ok(needEval.some((item) => item.id === "c2"));
+  assert.ok(needEval.some((item) => item.id === "c3"));
+  assert.equal(reused.size + needEval.length, currentItems.length);
+});
