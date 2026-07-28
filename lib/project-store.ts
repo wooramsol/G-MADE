@@ -161,6 +161,18 @@ export async function removeProjectChecklistReview(
   }));
 }
 
+/** 검토 기록 여러 건을 한 번에 삭제합니다. (관리 모드 다중 선택 삭제) */
+export async function removeProjectChecklistReviews(
+  id: string,
+  reviewIds: string[],
+): Promise<Project | undefined> {
+  const idSet = new Set(reviewIds);
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    checklistReviews: (project.checklistReviews ?? []).filter((review) => !idSet.has(review.id)),
+  }));
+}
+
 /**
  * 모든 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. 데모 프로젝트는 저장소 오버레이로 비웁니다.
  * excludeProjectIds에 지정한 프로젝트의 기록은 유지합니다.

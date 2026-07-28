@@ -11,7 +11,11 @@ import {
   CHECKLIST_SERVER_DEADLINE_MS,
 } from "@/lib/checklist-review/progress";
 import { isFileLike } from "@/lib/save-uploaded-files";
-import { getProjectById, removeProjectChecklistReview } from "@/lib/project-store";
+import {
+  getProjectById,
+  removeProjectChecklistReview,
+  removeProjectChecklistReviews,
+} from "@/lib/project-store";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { Project } from "@/lib/types";
 
@@ -126,27 +130,40 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** 개별 검토 기록을 삭제합니다. (업로드된 파일은 다른 검토에서 재사용될 수 있어 유지) */
+/** 검토 기록을 삭제합니다. reviewIds(배열)를 보내면 다중 삭제, reviewId(단일)도 계속 지원합니다. */
 export async function DELETE(request: NextRequest) {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult.response;
 
-  const body = (await request.json().catch(() => ({}))) as { projectId?: unknown; reviewId?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    projectId?: unknown;
+    reviewId?: unknown;
+    reviewIds?: unknown;
+  };
   const projectId = String(body.projectId ?? "").trim();
-  const reviewId = String(body.reviewId ?? "").trim();
-  if (!projectId || !reviewId) {
-    return NextResponse.json({ error: "projectId와 reviewId가 필요합니다." }, { status: 400 });
+  const reviewIds = Array.isArray(body.reviewIds)
+    ? Array.from(new Set(body.reviewIds.map((value) => String(value).trim()).filter(Boolean)))
+    : [];
+  const singleReviewId = String(body.reviewId ?? "").trim();
+  const targetReviewIds = reviewIds.length > 0 ? reviewIds : singleReviewId ? [singleReviewId] : [];
+
+  if (!projectId || targetReviewIds.length === 0) {
+    return NextResponse.json({ error: "projectId와 reviewId(또는 reviewIds)가 필요합니다." }, { status: 400 });
   }
 
   const project = await getProjectById(projectId);
   if (!project) {
     return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
   }
-  if (!(project.checklistReviews ?? []).some((review) => review.id === reviewId)) {
+  const existingIds = new Set((project.checklistReviews ?? []).map((review) => review.id));
+  if (!targetReviewIds.some((id) => existingIds.has(id))) {
     return NextResponse.json({ error: "해당 검토 기록을 찾을 수 없습니다." }, { status: 404 });
   }
 
-  const updated = await removeProjectChecklistReview(projectId, reviewId);
+  const updated =
+    targetReviewIds.length > 1
+      ? await removeProjectChecklistReviews(projectId, targetReviewIds)
+      : await removeProjectChecklistReview(projectId, targetReviewIds[0]);
   revalidateProjectViews(projectId);
   return NextResponse.json({ project: updated ?? null });
 }

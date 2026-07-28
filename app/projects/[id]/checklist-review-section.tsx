@@ -52,19 +52,36 @@ export default function ChecklistReviewSection({ project }: { project: Project }
     [effectiveProject.checklistReviews],
   );
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
-  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
+  const [managementMode, setManagementMode] = useState(false);
+  const [selectedReviewIds, setSelectedReviewIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const selectedReview: ChecklistReview | undefined =
     reviews.find((review) => review.id === selectedReviewId) ?? reviews[0];
 
-  async function handleDeleteReview(reviewId: string) {
-    if (!window.confirm("이 검토 기록을 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.")) return;
+  function toggleManagementMode() {
+    setManagementMode((current) => !current);
+    setSelectedReviewIds(new Set());
+  }
 
-    setDeletingReviewId(reviewId);
+  function toggleReviewChecked(reviewId: string) {
+    setSelectedReviewIds((current) => {
+      const next = new Set(current);
+      if (next.has(reviewId)) next.delete(reviewId);
+      else next.add(reviewId);
+      return next;
+    });
+  }
+
+  async function handleBulkDeleteReviews() {
+    if (selectedReviewIds.size === 0) return;
+    if (!window.confirm(`선택한 ${selectedReviewIds.size}건의 검토 기록을 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.`)) return;
+
+    setBulkDeleting(true);
     try {
       const response = await fetch("/api/checklist-reviews", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id, reviewId }),
+        body: JSON.stringify({ projectId: project.id, reviewIds: Array.from(selectedReviewIds) }),
       });
       const payload = (await response.json().catch(() => ({}))) as { project?: Project | null; error?: string };
       if (!response.ok) {
@@ -72,8 +89,10 @@ export default function ChecklistReviewSection({ project }: { project: Project }
       }
 
       if (payload.project) setLiveProject(payload.project);
-      if (selectedReviewId === reviewId) setSelectedReviewId(null);
-      showToast({ message: "검토 기록을 삭제했습니다.", tone: "success" });
+      if (selectedReviewId && selectedReviewIds.has(selectedReviewId)) setSelectedReviewId(null);
+      showToast({ message: `검토 기록 ${selectedReviewIds.size}건을 삭제했습니다.`, tone: "success" });
+      setSelectedReviewIds(new Set());
+      setManagementMode(false);
       router.refresh();
     } catch (error) {
       showToast({
@@ -81,7 +100,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
         tone: "error",
       });
     } finally {
-      setDeletingReviewId(null);
+      setBulkDeleting(false);
     }
   }
 
@@ -268,17 +287,51 @@ export default function ChecklistReviewSection({ project }: { project: Project }
 
           {reviews.length > 0 ? (
             <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
-              <p className="text-sm font-bold text-[#15345b]">검토 이력 {reviews.length}건</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-bold text-[#15345b]">검토 이력 {reviews.length}건</p>
+                <button
+                  className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#2463b3] hover:bg-[#eef4fb]"
+                  onClick={toggleManagementMode}
+                  type="button"
+                >
+                  {managementMode ? "완료" : "관리"}
+                </button>
+              </div>
+
+              {managementMode ? (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-[#f8fafc] px-3 py-2">
+                  <span className="text-xs font-semibold text-[#475569]">{selectedReviewIds.size}건 선택됨</span>
+                  <button
+                    className="rounded-lg px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={selectedReviewIds.size === 0 || bulkDeleting}
+                    onClick={handleBulkDeleteReviews}
+                    type="button"
+                  >
+                    {bulkDeleting ? "삭제 중..." : "선택 삭제"}
+                  </button>
+                </div>
+              ) : null}
+
               <ul className="mt-2 space-y-1.5">
                 {reviews.map((review) => (
-                  <li className="flex items-center gap-1" key={review.id}>
+                  <li className="flex items-center gap-2" key={review.id}>
+                    {managementMode ? (
+                      <input
+                        checked={selectedReviewIds.has(review.id)}
+                        className="shrink-0"
+                        onChange={() => toggleReviewChecked(review.id)}
+                        type="checkbox"
+                      />
+                    ) : null}
                     <button
                       className={`min-w-0 flex-1 rounded-lg px-3 py-2 text-left text-xs font-semibold ${
-                        selectedReview?.id === review.id
+                        !managementMode && selectedReview?.id === review.id
                           ? "bg-[#eef4fb] text-[#15345b]"
                           : "text-[#475569] hover:bg-[#f8fafc]"
                       }`}
-                      onClick={() => setSelectedReviewId(review.id)}
+                      onClick={() =>
+                        managementMode ? toggleReviewChecked(review.id) : setSelectedReviewId(review.id)
+                      }
                       type="button"
                     >
                       <span className="block">{formatUploadDateTime(review.reviewedAt)}</span>
@@ -295,16 +348,6 @@ export default function ChecklistReviewSection({ project }: { project: Project }
                           </span>
                         ))}
                       </span>
-                    </button>
-                    <button
-                      aria-label="검토 기록 삭제"
-                      className="shrink-0 rounded-lg px-2 py-2 text-xs font-bold text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={deletingReviewId !== null}
-                      onClick={() => handleDeleteReview(review.id)}
-                      title="검토 기록 삭제"
-                      type="button"
-                    >
-                      {deletingReviewId === review.id ? "삭제 중" : "삭제"}
                     </button>
                   </li>
                 ))}
