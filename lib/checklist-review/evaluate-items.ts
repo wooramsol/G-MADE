@@ -21,7 +21,13 @@ import {
 } from "./types";
 
 const EVALUATE_MAX_OUTPUT_TOKENS = 16_384;
-const ITEMS_PER_BATCH = 15;
+/**
+ * 배치당 항목 수. 배치마다 제출 문서(PDF 비전) 전체를 다시 첨부하므로 배치가
+ * 많을수록 토큰 비용이 배수로 늘어남 — max_tokens 한도(16384) 안에서 잘리지
+ * 않는 한 최대치로 유지해 배치 수(= PDF 재전송 횟수)를 최소화한다.
+ * (OUTPUT_TOKENS_BASE + 30*OUTPUT_TOKENS_PER_ITEM = 15,900 < 16,384로 여유 확보)
+ */
+const ITEMS_PER_BATCH = 25;
 /** 항목당 예상 출력 토큰 — 잘림(max_tokens)이 판정 누락·회차 간 편차를 만들므로 여유 있게 */
 const OUTPUT_TOKENS_PER_ITEM = 480;
 const OUTPUT_TOKENS_BASE = 1_500;
