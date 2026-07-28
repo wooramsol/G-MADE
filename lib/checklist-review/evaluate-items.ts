@@ -126,8 +126,15 @@ export function buildContextText(context: EvaluationContext): string {
 /**
  * 파일별 선별 결과에 따라 비전(문서·이미지)과 텍스트 블록을 섞어 구성합니다.
  * selection이 null이면 텍스트 전용 모드입니다.
+ * shouldCache가 true일 때만 마지막 블록에 cache_control을 붙입니다 — 같은 문서를
+ * 다시 쓸 일이 없는 단일 호출에 캐시 마커를 붙이면 쓰기 프리미엄(약 25%)만 물게 되므로,
+ * 실제로 재사용될 때만(배치가 2개 이상 등) 캐싱을 활성화합니다.
  */
-function buildDocumentBlocks(files: UploadedFileSummary[], selection: ClaudeVisionSelection | null): ClaudeContentBlock[] {
+function buildDocumentBlocks(
+  files: UploadedFileSummary[],
+  selection: ClaudeVisionSelection | null,
+  shouldCache = true,
+): ClaudeContentBlock[] {
   const blocks: ClaudeContentBlock[] = [];
 
   for (const file of files) {
@@ -157,9 +164,11 @@ function buildDocumentBlocks(files: UploadedFileSummary[], selection: ClaudeVisi
     }
   }
 
-  // 배치 호출 시 문서 페이로드 재사용 (prompt caching)
-  const last = blocks[blocks.length - 1];
-  if (last) last.cache_control = { type: "ephemeral" };
+  // 배치 호출 시 문서 페이로드 재사용 (prompt caching) — 재사용이 예상될 때만 마킹
+  if (shouldCache) {
+    const last = blocks[blocks.length - 1];
+    if (last) last.cache_control = { type: "ephemeral" };
+  }
 
   return blocks;
 }
@@ -188,9 +197,10 @@ async function buildDocumentPayloads(
   files: UploadedFileSummary[],
   selection: ClaudeVisionSelection,
   warnings: string[],
+  shouldCacheBase = true,
 ): Promise<DocumentPayload[]> {
   const payloads: DocumentPayload[] = [];
-  const base: DocumentPayload = { blocks: buildDocumentBlocks(files, selection) };
+  const base: DocumentPayload = { blocks: buildDocumentBlocks(files, selection, shouldCacheBase) };
   const chunkPayloads: DocumentPayload[] = [];
 
   for (const entry of selection.excluded) {
@@ -630,16 +640,21 @@ export async function evaluateChecklistItems(options: {
   };
   const warnings: string[] = [];
 
+  const visionExtractMode = options.items.length === 0;
+  // 같은 문서 페이로드가 재사용될 것으로 예상될 때만 캐싱 활성화:
+  // - 비전 추출 모드: 단일 구간이면 호출 1번뿐(무의미)이지만 다중 구간(대용량 분할)이면
+  //   구간 탐색 호출 + 이후 평가 배치에서 같은 구간을 재사용하므로 캐싱이 유효함
+  // - 일반 모드: 배치가 2개 이상이면(=같은 문서를 여러 번 재사용) 캐싱이 유효함
+  const shouldCacheBaseDocuments = visionExtractMode || chunkItems(options.items).length > 1;
+
   const visionSelection = selectClaudeVisionFiles(files);
-  const payloads = await buildDocumentPayloads(files, visionSelection, warnings);
+  const payloads = await buildDocumentPayloads(files, visionSelection, warnings, shouldCacheBaseDocuments);
   const hasVision = payloads.some(payloadHasVision);
 
   const projectLabel = context.project
     ? `[사업 개요] ${context.project.name} / ${context.project.projectType} / ${context.project.reviewType} / 위치: ${context.project.location}`
     : "[사업 개요] 정보 없음";
   const contextText = buildContextText(context);
-
-  const visionExtractMode = options.items.length === 0;
 
   const runCall = async (
     prompt: string,
@@ -831,7 +846,14 @@ export async function evaluateChecklistItems(options: {
     };
   };
 
-  const results = await Promise.all(batches.map((batch) => evaluateBatch(batch)));
+  // 배치를 순차 실행 — 동시에 쏘면 Anthropic 프롬프트 캐시가 기록되기 전에
+  // 다음 요청이 나가버려 캐싱(같은 문서 재사용 시 약 90% 할인)이 무용지물이 됨.
+  // 순차 실행하면 배치 2번째부터 문서 토큰이 캐시로 처리돼 비용이 크게 줄어드는
+  // 대신, 배치 수만큼 총 소요 시간이 늘어남(속도 ↔ 비용 트레이드오프).
+  const results: Array<{ model: string; summary: string; findings: ChecklistFinding[] }> = [];
+  for (const batch of batches) {
+    results.push(await evaluateBatch(batch));
+  }
   const allFindings = results.flatMap((entry) => entry.findings);
   const summaries = results.map((entry) => entry.summary).filter(Boolean);
   const model = results[results.length - 1]?.model ?? extractionModel;
