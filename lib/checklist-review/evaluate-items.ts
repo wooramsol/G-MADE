@@ -641,13 +641,12 @@ export async function evaluateChecklistItems(options: {
   const warnings: string[] = [];
 
   const visionExtractMode = options.items.length === 0;
-  // 같은 문서 페이로드가 재사용될 것으로 예상될 때만 캐싱 활성화:
-  // - 비전 추출 모드: 단일 구간이면 호출 1번뿐(무의미)이지만 다중 구간(대용량 분할)이면
-  //   구간 탐색 호출 + 이후 평가 배치에서 같은 구간을 재사용하므로 캐싱이 유효함
-  // - 일반 모드: 배치가 2개 이상이면(=같은 문서를 여러 번 재사용) 캐싱이 유효함
-  const shouldCacheBaseDocuments = visionExtractMode || chunkItems(options.items).length > 1;
-
   const visionSelection = selectClaudeVisionFiles(files);
+  // 캐싱은 항목 평가 배치를 병렬로 실행하는 한(아래 참고) 대부분 무의미함 — 캐시가
+  // 기록되기 전에 다음 요청이 이미 나가버림. 유일한 예외는 대용량 PDF가 여러 구간으로
+  // 분할되는 경우(excluded.length>0): 구간 탐색 호출이 평가 배치보다 먼저 끝나
+  // 캐시를 미리 만들어 두므로, 그 뒤에 병렬로 나가는 평가 배치들도 캐시를 활용할 수 있음.
+  const shouldCacheBaseDocuments = visionExtractMode && visionSelection.excluded.length > 0;
   const payloads = await buildDocumentPayloads(files, visionSelection, warnings, shouldCacheBaseDocuments);
   const hasVision = payloads.some(payloadHasVision);
 
@@ -786,7 +785,7 @@ export async function evaluateChecklistItems(options: {
   const groupCount = Math.max(1, payloads.length);
   onProgress?.(
     batches.length * groupCount > 1
-      ? `체크리스트 ${items.length}개 항목 평가 중 (배치 ${batches.length} × 문서 그룹 ${groupCount})`
+      ? `체크리스트 ${items.length}개 항목 평가 중 (배치 ${batches.length} × 문서 그룹 ${groupCount} 병렬 처리)`
       : `체크리스트 ${items.length}개 항목 평가 중`,
   );
 
@@ -846,33 +845,12 @@ export async function evaluateChecklistItems(options: {
     };
   };
 
-  // 배치를 완전 병렬로 쏘면 Anthropic 프롬프트 캐시가 기록되기 전에 다음 요청이
-  // 나가버려 캐싱(같은 문서 재사용 시 약 90% 할인)이 무용지물이 됨. 그렇다고 전부
-  // 순차 실행하면 배치가 많은 대형 체크리스트에서 서버 시간 한도(285초)를 넘겨
-  // 검토 자체가 실패함(실제 발생). 그래서 절충: 배치가 적으면(≤3) 완전 순차로
-  // 캐싱 효과를 최대화하고, 배치가 많으면 동시 2개씩 처리해 소요 시간을 절반
-  // 가까이 줄이면서도 3번째 배치부터는 여전히 캐시 적중을 기대할 수 있게 함.
-  // 실측 결과 배치 3개(각 19항목, 문서 7.4MB)를 완전 순차 실행만으로도 서버 시간
-  // 한도(285초)를 초과함 — 임계값을 2로 낮춰 배치 3개 이상이면 바로 동시 2개 처리로 전환.
-  const BATCH_SEQUENTIAL_THRESHOLD = 2;
-  const batchConcurrency = batches.length <= BATCH_SEQUENTIAL_THRESHOLD ? 1 : 2;
-
-  const results: Array<{ model: string; summary: string; findings: ChecklistFinding[] }> = new Array(
-    batches.length,
-  );
-  let nextBatchIndex = 0;
-  const runBatchWorker = async () => {
-    for (;;) {
-      const index = nextBatchIndex;
-      nextBatchIndex += 1;
-      if (index >= batches.length) return;
-      results[index] = await evaluateBatch(batches[index]);
-    }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(batchConcurrency, batches.length) }, () => runBatchWorker()),
-  );
-
+  // 배치를 순차/제한된 동시성으로 실행해 캐싱을 노리는 시도를 두 차례 배포해봤으나,
+  // 실제 문서(7.4MB, 3배치)에서 서버 시간 한도(285초)를 반복해서 초과해 검토 자체가
+  // 실패했다(로그로 확인). 캐싱으로 아낄 수 있는 비용보다 "검토가 아예 안 되는" 쪽이
+  // 훨씬 나쁘므로, 신뢰성을 위해 완전 병렬 실행으로 되돌림 — 배치 크기 확대(15→25)로
+  // 이미 줄여둔 배치 수만큼은 여전히 절감 효과가 유지된다.
+  const results = await Promise.all(batches.map((batch) => evaluateBatch(batch)));
   const allFindings = results.flatMap((entry) => entry.findings);
   const summaries = results.map((entry) => entry.summary).filter(Boolean);
   const model = results[results.length - 1]?.model ?? extractionModel;
