@@ -461,31 +461,44 @@ test("hashPdfPages는 페이지 내용이 바뀌면 해당 페이지의 해시�
   assert.equal(original![2], modified![2], "3페이지는 안 바뀌었으니 해시도 같아야 함");
 });
 
-test("computeChangedPages는 내용 해시가 같은 파일을 변경 없음으로, 페이지 수가 다른 파일을 전체 변경으로 처리한다", async () => {
-  const { computeChangedPages } = await import("../lib/checklist-review/partial-reuse");
+test("computeFileAlignments는 내용 해시가 같은 파일을 identical로, 새 파일을 unavailable로 처리한다", async () => {
+  const { computeFileAlignments } = await import("../lib/checklist-review/partial-reuse");
 
-  const changed = computeChangedPages(
+  const alignments = computeFileAlignments(
     [
       { originalName: "a.pdf", contentHash: "same" },
       { originalName: "b.pdf", contentHash: "hashB2", pageHashes: ["p1", "p2x", "p3"] },
-      { originalName: "c.pdf", contentHash: "hashC2", pageHashes: ["p1", "p2"] },
       { originalName: "d.pdf", contentHash: "hashD" },
     ],
     [
       { originalName: "a.pdf", contentHash: "same" },
       { originalName: "b.pdf", contentHash: "hashB1", pageHashes: ["p1", "p2", "p3"] },
-      { originalName: "c.pdf", contentHash: "hashC1", pageHashes: ["p1", "p2", "p3"] },
     ],
   );
 
-  assert.equal(changed.get("a.pdf"), "all-unchanged");
-  assert.deepEqual(changed.get("b.pdf"), new Set([1, 3]));
-  assert.equal(changed.get("c.pdf"), "all-changed");
-  assert.equal(changed.get("d.pdf"), "all-changed");
+  assert.deepEqual(alignments.get("a.pdf"), { kind: "identical" });
+  assert.deepEqual(alignments.get("b.pdf"), { kind: "aligned", baselineToCurrent: new Map([[1, 1], [3, 3]]) });
+  assert.deepEqual(alignments.get("d.pdf"), { kind: "unavailable" });
 });
 
-test("partitionItemsForReuse는 근거 페이지가 안 바뀐 항목만 재사용하고, 근거 없는 판정은 항상 재분석한다", async () => {
-  const { computeChangedPages, buildFindingsByText, partitionItemsForReuse } = await import(
+test("alignPagesByContent는 페이지가 삽입·삭제돼 번호가 밀려도 내용으로 올바르게 대응시킨다", async () => {
+  const { alignPagesByContent } = await import("../lib/checklist-review/partial-reuse");
+
+  // 기준: p1 p2 p3 p4 p5 / 현재: p1 [새페이지] p2 p3 [p4 삭제됨] p5
+  const baseline = ["h1", "h2", "h3", "h4", "h5"];
+  const current = ["h1", "hNEW", "h2", "h3", "h5"];
+
+  const mapping = alignPagesByContent(baseline, current);
+
+  assert.equal(mapping.get(1), 1, "기준 p1 -> 현재 p1");
+  assert.equal(mapping.get(2), 3, "기준 p2 -> 현재 p3 (앞에 새 페이지가 끼어들어 한 칸 밀림)");
+  assert.equal(mapping.get(3), 4, "기준 p3 -> 현재 p4");
+  assert.equal(mapping.has(4), false, "기준 p4는 삭제되어 대응 없음");
+  assert.equal(mapping.get(5), 5, "기준 p5 -> 현재 p5 (삭제된 p4만큼 다시 앞으로 당겨짐)");
+});
+
+test("partitionItemsForReuse는 페이지가 밀려도 근거를 재사용하며 페이지 번호를 현재 문서 기준으로 재매핑한다", async () => {
+  const { computeFileAlignments, buildFindingsByText, partitionItemsForReuse } = await import(
     "../lib/checklist-review/partial-reuse"
   );
 
@@ -506,27 +519,41 @@ test("partitionItemsForReuse는 근거 페이지가 안 바뀐 항목만 재사�
       itemId: "c2",
       status: "미충족" as const,
       rationale: "조명 계획 미확인",
-      evidence: [{ fileName: "심의도서.pdf", page: 12, note: "조명 계획 없음" }],
+      evidence: [{ fileName: "심의도서.pdf", page: 3, note: "조명 계획 없음" }],
       lawRefs: [],
     },
     { itemId: "c3", status: "확인불가" as const, rationale: "근거 없음", evidence: [], lawRefs: [] },
   ];
 
-  const changed = computeChangedPages(
-    [{ originalName: "심의도서.pdf", contentHash: "v2", pageHashes: ["h1", "h2", "h3-changed", "h4", "h5", "h6"] }],
-    [{ originalName: "심의도서.pdf", contentHash: "v1", pageHashes: ["h1", "h2", "h3", "h4", "h5", "h6"] }],
+  // 2페이지 앞에 새 표지 페이지가 하나 삽입됨: 기준 p3(c2 근거) -> 현재 p4, 기준 p5(c1 근거) -> 현재 p6
+  const alignments = computeFileAlignments(
+    [
+      {
+        originalName: "심의도서.pdf",
+        contentHash: "v2",
+        pageHashes: ["h1", "hNEW", "h2", "h3", "h4", "h5"],
+      },
+    ],
+    [
+      {
+        originalName: "심의도서.pdf",
+        contentHash: "v1",
+        pageHashes: ["h1", "h2", "h3", "h4", "h5"],
+      },
+    ],
   );
 
   const findingsByText = buildFindingsByText(baselineItems, baselineFindings);
-  const currentItems = [...baselineItems]; // 문구는 그대로, 페이지 3만 바뀐 상황
-  const { reused, needEval } = partitionItemsForReuse(currentItems, findingsByText, changed);
+  const currentItems = [...baselineItems]; // 문구는 그대로, 표지 한 장만 추가된 상황
+  const { reused, needEval } = partitionItemsForReuse(currentItems, findingsByText, alignments);
 
-  // c1(근거 p.5)은 페이지 해시가 같아 재사용. c2(근거 p.12)는 애초에 6페이지짜리 문서라
-  // p.12가 "확인된 페이지" 목록에 있을 수 없으므로(화이트리스트 방식) 안전하게 변경 취급.
+  // c1(근거 기준 p.5)은 삽입 이후 페이지라 현재 p.6으로 재매핑되어 재사용.
+  // c2(근거 기준 p.3)도 현재 p.4로 재매핑되어 재사용.
   // c3는 근거 자체가 없는 판정이라 항상 재분석.
   assert.ok(reused.has("c1"));
-  assert.equal(reused.get("c1")?.status, "충족");
-  assert.ok(needEval.some((item) => item.id === "c2"));
+  assert.equal(reused.get("c1")?.evidence[0]?.page, 6, "삽입된 페이지만큼 밀려 p.6으로 재매핑되어야 함");
+  assert.ok(reused.has("c2"));
+  assert.equal(reused.get("c2")?.evidence[0]?.page, 4, "삽입된 페이지만큼 밀려 p.4로 재매핑되어야 함");
   assert.ok(needEval.some((item) => item.id === "c3"));
   assert.equal(reused.size + needEval.length, currentItems.length);
 });

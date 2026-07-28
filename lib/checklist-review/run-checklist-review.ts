@@ -25,9 +25,10 @@ import { hashFileBuffer } from "./file-fingerprint";
 import { findChecklistPages } from "./find-checklist-pages";
 import {
   buildFindingsByText,
-  computeChangedPages,
-  isPageUnchanged,
+  computeFileAlignments,
   partitionItemsForReuse,
+  remapChecklistPages,
+  remapItem,
 } from "./partial-reuse";
 import {
   CHECKLIST_REVIEW_STEPS,
@@ -136,17 +137,19 @@ export async function runChecklistReview(
       }),
     );
 
-    // 이 프로젝트의 가장 최근 검토를 "기준"으로 삼아 이번 파일들과 페이지 단위로 비교합니다.
-    // - 파일 전체가 완전히 같으면(내용 해시 일치) 그 파일은 변경 페이지 없음으로 처리됩니다.
-    // - 일부 페이지만 바뀌었다면(텍스트든 도면이든 — 페이지 해시가 원본 페이지 객체 전체를
-    //   반영하므로 둘 다 감지됩니다) 그 페이지만 "변경"으로 표시됩니다.
-    // - 기준이 없거나(첫 검토) 페이지 수가 달라지는 등 안전하게 비교할 수 없으면 해당 파일은
-    //   전체 변경으로 취급합니다.
-    // 이후 이 정보로 "근거 페이지가 안 바뀐 항목은 재사용, 바뀐 항목만 재분석"을 수행해
-    // Claude 호출(=비용)을 최소화합니다.
+    // 이 프로젝트의 가장 최근 검토를 "기준"으로 삼아 이번 파일들과 페이지 "내용"(해시)을
+    // 기준으로 정렬합니다. 단순 페이지 번호 비교가 아니라 LCS(최장 공통 부분수열) 정렬을
+    // 쓰므로, 페이지가 삽입·삭제돼 번호가 밀려도 같은 내용의 페이지를 올바르게 대응시켜
+    // "실제로는 안 바뀐 페이지"를 찾아냅니다.
+    // - 파일 전체가 완전히 같으면(내용 해시 일치) 정렬 계산 없이 항등 매핑.
+    // - 기준이 없거나(첫 검토) 정렬 비용이 너무 크면(대용량) 비교를 포기 — 안전하게 전체
+    //   재분석으로 처리됩니다.
+    // 이후 이 정보로 "근거 페이지가 현재 문서에 그대로 있는 항목은 재사용(페이지 번호는
+    // 현재 문서 기준으로 재매핑), 없어졌거나 바뀐 항목만 재분석"을 수행해 Claude 호출(=비용)을
+    // 최소화합니다.
     const baselineReview = [...(project.checklistReviews ?? [])].reverse()[0];
-    const changedPages = baselineReview
-      ? computeChangedPages(
+    const alignments = baselineReview
+      ? computeFileAlignments(
           filesForAnalysis.map((file) => ({
             originalName: file.originalName,
             contentHash: file.contentHash,
@@ -162,19 +165,20 @@ export async function runChecklistReview(
     const baselineFindingsByText = baselineReview
       ? buildFindingsByText(baselineReview.items, baselineReview.findings)
       : null;
-    const checklistPagesUnchanged =
-      Boolean(baselineReview && changedPages) &&
-      (baselineReview?.checklistPages.length ?? 0) > 0 &&
-      (baselineReview?.checklistPages ?? []).every((page) => isPageUnchanged(changedPages!, page.fileName, page.page));
+    const remappedBaselineChecklistPages =
+      baselineReview && alignments && baselineReview.checklistPages.length > 0
+        ? remapChecklistPages(baselineReview.checklistPages, alignments)
+        : null;
 
     console.log(
-      changedPages
-        ? `[checklist-review] baseline=${baselineReview!.id} checklistPagesUnchanged=${checklistPagesUnchanged} changed=[${[...changedPages.entries()]
-            .map(
-              ([name, pages]) =>
-                `${name}:${pages === "all-changed" ? "전체변경" : pages === "all-unchanged" ? "동일" : `${pages.size}p동일확인`}`,
-            )
-            .join(", ")}]`
+      alignments
+        ? `[checklist-review] baseline=${baselineReview!.id} checklistPagesReusable=${remappedBaselineChecklistPages !== null} ` +
+            `align=[${[...alignments.entries()]
+              .map(
+                ([name, entry]) =>
+                  `${name}:${entry.kind === "identical" ? "동일" : entry.kind === "unavailable" ? "비교불가(전체변경)" : `${entry.baselineToCurrent.size}p대응확인`}`,
+              )
+              .join(", ")}]`
         : `[checklist-review] baseline=없음 (첫 검토이거나 비교 불가)`,
     );
 
@@ -192,13 +196,14 @@ export async function runChecklistReview(
     let metrics: ChecklistReview["metrics"];
     let evaluationWarnings: string[];
 
-    if (checklistPagesUnchanged && baselineReview) {
-      // 체크리스트 표가 있던 페이지가 그대로이므로 항목 추출은 다시 하지 않고 기준 검토의
-      // 항목 목록을 그대로 씁니다 (항목별 재사용 여부는 아래에서 개별 판정).
-      emitStep(emit, "checklist", "체크리스트 페이지 변경 없음 — 이전 항목 목록 재사용 중");
-      items = baselineReview.items;
+    if (remappedBaselineChecklistPages && baselineReview && alignments) {
+      // 체크리스트 표가 있던 페이지들이 (번호가 밀렸더라도) 현재 문서에 그대로 있으므로
+      // 항목 추출은 다시 하지 않고 기준 검토의 항목 목록을 현재 페이지 번호로 재매핑해
+      // 그대로 씁니다 (항목별 재사용 여부는 아래에서 개별 판정).
+      emitStep(emit, "checklist", "체크리스트 페이지 확인됨 — 이전 항목 목록 재사용 중");
+      items = baselineReview.items.map((item) => remapItem(item, alignments));
       itemSource = baselineReview.itemSource;
-      checklistPages = baselineReview.checklistPages;
+      checklistPages = remappedBaselineChecklistPages;
     } else {
       emitStep(emit, "checklist");
       const checklistSlices = findChecklistPages(filesForAnalysis);
@@ -224,8 +229,8 @@ export async function runChecklistReview(
     }
 
     const { reused: reusedFindings, needEval: itemsNeedingEval } =
-      items.length > 0 && baselineFindingsByText && changedPages
-        ? partitionItemsForReuse(items, baselineFindingsByText, changedPages)
+      items.length > 0 && baselineFindingsByText && alignments
+        ? partitionItemsForReuse(items, baselineFindingsByText, alignments)
         : { reused: new Map<string, ChecklistFinding>(), needEval: items };
 
     if (items.length > 0 && itemsNeedingEval.length === 0) {
