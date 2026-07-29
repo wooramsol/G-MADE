@@ -7,6 +7,7 @@ import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { Caption, MutedText } from "@/components/typography";
 import type { ChecklistReviewProgressEvent } from "@/lib/checklist-review/progress";
 import { CHECKLIST_ITEM_STATUSES, type ChecklistItemStatus, type ChecklistReview } from "@/lib/checklist-review/types";
+import { formatUsageLabel } from "@/lib/checklist-review/usage-cost";
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
 import { exceedsServerlessUploadLimit, SERVERLESS_UPLOAD_LIMIT_LABEL } from "@/lib/blob-config";
 import { submitChecklistReviewStream } from "@/lib/client-checklist-stream";
@@ -347,6 +348,11 @@ export default function ChecklistReviewSection({ project }: { project: Project }
                             {statusName} {review.counts[statusName] ?? 0}
                           </span>
                         ))}
+                        {review.usage ? (
+                          <span className="ml-auto select-none text-[7px] leading-none text-slate-300">
+                            {formatUsageLabel(review.usage)}
+                          </span>
+                        ) : null}
                       </span>
                     </button>
                   </li>

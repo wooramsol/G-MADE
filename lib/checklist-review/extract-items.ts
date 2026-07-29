@@ -1,7 +1,7 @@
 import { CLAUDE_FAST_MODEL } from "@/lib/ai/claude-models";
 import { extractJsonContent } from "@/lib/ai/extract-json";
 import type { PageSlice } from "@/lib/ai/page-citation";
-import { callClaude } from "./claude-call";
+import { callClaude, type ClaudeUsage } from "./claude-call";
 import { buildChecklistPagesText } from "./find-checklist-pages";
 import type { ChecklistItem } from "./types";
 
@@ -58,6 +58,7 @@ export function parseExtractedItems(raw: string, fallbackPage?: { fileName: stri
 export async function extractChecklistItems(pages: PageSlice[]): Promise<{
   items: ChecklistItem[];
   model: string;
+  usage?: ClaudeUsage;
 }> {
   const pagesText = buildChecklistPagesText(pages);
   if (!pagesText.trim()) {
@@ -73,5 +74,5 @@ export async function extractChecklistItems(pages: PageSlice[]): Promise<{
   });
 
   const fallback = pages[0] ? { fileName: pages[0].fileName, page: pages[0].page } : undefined;
-  return { items: parseExtractedItems(result.text, fallback), model: result.model };
+  return { items: parseExtractedItems(result.text, fallback), model: result.model, usage: result.usage };
 }

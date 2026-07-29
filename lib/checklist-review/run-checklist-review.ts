@@ -22,6 +22,7 @@ import { evaluateChecklistItems } from "./evaluate-items";
 import { extractChecklistItems } from "./extract-items";
 import { extractProjectMetrics } from "./extract-metrics";
 import { hashFileBuffer } from "./file-fingerprint";
+import { addUsage, estimateUsageSummary, mergeUsageByModel, type UsageByModel } from "./usage-cost";
 import { findChecklistPages } from "./find-checklist-pages";
 import {
   buildFindingsByText,
@@ -194,6 +195,7 @@ export async function runChecklistReview(
     let summary: string;
     let model: string;
     let metrics: ChecklistReview["metrics"];
+    const usageByModel: UsageByModel = new Map();
     let evaluationWarnings: string[];
 
     if (remappedBaselineChecklistPages && baselineReview && alignments) {
@@ -219,6 +221,7 @@ export async function runChecklistReview(
         emitStep(emit, "checklist", `체크리스트 페이지 ${checklistSlices.length}개에서 항목 추출 중`);
         const extracted = await extractChecklistItems(checklistSlices);
         extractedItems = extracted.items;
+        addUsage(usageByModel, extracted.model, extracted.usage);
       }
       items = extractedItems;
       // 텍스트 레이어에서 항목을 얻지 못함 → 평가 단계에서 비전으로 추출+평가. 이 경로는
@@ -265,6 +268,7 @@ export async function runChecklistReview(
         onProgress: (label) => emitStep(emit, "evaluate", label),
       });
 
+      mergeUsageByModel(usageByModel, evaluation.usageByModel);
       const evidenceCount = evaluation.findings.reduce((sum, finding) => sum + finding.evidence.length, 0);
       const regionCount = evaluation.findings.reduce(
         (sum, finding) => sum + finding.evidence.filter((entry) => entry.region).length,
@@ -294,9 +298,16 @@ export async function runChecklistReview(
         .filter((finding): finding is ChecklistFinding => Boolean(finding));
       summary = evaluation.summary || baselineReview?.summary || "";
       model = evaluation.model || baselineReview?.model || "";
-      metrics = await metricsPromise;
+      const metricsResult = await metricsPromise;
+      metrics = metricsResult.metrics;
+      mergeUsageByModel(usageByModel, metricsResult.usageByModel);
       evaluationWarnings = [...reuseNotice, ...evaluation.warnings];
     }
+
+    const usageSummary = estimateUsageSummary(usageByModel);
+    console.log(
+      `[checklist-review] cost-summary totalTokens=${usageSummary.totalTokens} costUsd=${usageSummary.costUsd.toFixed(4)}`,
+    );
 
     const review: ChecklistReview = {
       id: `review-${Date.now()}-${crypto.randomUUID()}`,
@@ -330,6 +341,7 @@ export async function runChecklistReview(
       lawSource: context.lawSource,
       itemSource,
       model,
+      usage: usageSummary,
       warnings: dedupeWarnings([...context.warnings, ...extractionWarnings, ...evaluationWarnings]),
     };
 

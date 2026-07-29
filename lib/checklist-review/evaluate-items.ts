@@ -10,8 +10,9 @@ import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { extractPdfPages, splitPdfIntoChunks } from "@/lib/pdf/split-pdf";
 import { buildManualContextText } from "@/lib/manual/reference-manual";
 import type { EvaluationContext } from "@/lib/evaluation-context";
-import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock, type ClaudeUsage } from "./claude-call";
+import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock } from "./claude-call";
 import { selectRelevantPagesForBatch } from "./relevant-pages";
+import { addUsage, type UsageByModel } from "./usage-cost";
 import {
   normalizeChecklistStatus,
   type ChecklistEvidence,
@@ -91,6 +92,7 @@ export type EvaluateItemsResult = {
   model: string;
   usedVision: boolean;
   warnings: string[];
+  usageByModel: UsageByModel;
 };
 
 /** 조회된 법령·공간정보를 프롬프트 텍스트로 요약합니다. */
@@ -839,15 +841,7 @@ export async function evaluateChecklistItems(options: {
   // 비용 진단용 — 이 검토(리뷰) 한 건 안의 모든 Claude 호출(체크리스트 추출 + 배치 평가)
   // 토큰 사용량을 합산합니다. 회차마다 비용이 크게 달라지는 원인(배치 수 변동·페이지
   // 선별량 변동 등)을 로그로 추적할 수 있게 합니다.
-  const usageTotals = { calls: 0, input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
-  const trackUsage = (usage?: ClaudeUsage) => {
-    if (!usage) return;
-    usageTotals.calls += 1;
-    usageTotals.input += usage.inputTokens;
-    usageTotals.output += usage.outputTokens;
-    usageTotals.cacheWrite += usage.cacheCreationInputTokens;
-    usageTotals.cacheRead += usage.cacheReadInputTokens;
-  };
+  const usageByModel: UsageByModel = new Map();
 
   const runCall = async (
     prompt: string,
@@ -864,7 +858,7 @@ export async function evaluateChecklistItems(options: {
       includesPdf: payload ? payloadHasVision(payload) : false,
       timeoutMs: resolveTimeoutMs(),
     });
-    trackUsage(result.usage);
+    addUsage(usageByModel, result.model, result.usage);
     return result;
   };
 
@@ -886,6 +880,7 @@ export async function evaluateChecklistItems(options: {
           ...warnings,
           "문서 텍스트에서 '체크리스트' 페이지를 찾지 못했고, 비전 분석도 불가능해 평가를 진행하지 못했습니다. 체크리스트가 포함된 PDF인지 확인해 주세요.",
         ],
+        usageByModel,
       };
     }
 
@@ -916,6 +911,7 @@ export async function evaluateChecklistItems(options: {
         model: result.model,
         usedVision: true,
         warnings,
+        usageByModel,
       };
     }
 
@@ -968,6 +964,7 @@ export async function evaluateChecklistItems(options: {
           ...warnings,
           "비전 분석으로도 문서에서 '체크리스트' 페이지를 찾지 못했습니다. 체크리스트가 포함된 자료인지 확인해 주세요.",
         ],
+        usageByModel,
       };
     }
   }
@@ -1081,9 +1078,11 @@ export async function evaluateChecklistItems(options: {
   // 비용 진단용 — 이 검토 1건에 실제로 사용된 토큰 총합. 같은 문서를 재검토했을 때 비용이
   // 회차마다 다르다면, 이 로그의 calls(호출 횟수)·input(재전송 토큰)을 비교해 원인을
   // (체크리스트 추출 결과에 따른 배치 수 변동 vs 페이지 선별량 변동 vs 재시도) 특정할 수 있습니다.
+  const usageLog = Array.from(usageByModel.entries())
+    .map(([model, usage]) => `${model}:in=${usage.inputTokens},out=${usage.outputTokens},cw=${usage.cacheCreationInputTokens},cr=${usage.cacheReadInputTokens}`)
+    .join(" | ");
   console.log(
-    `[checklist-review] usage-summary items=${items.length} batches=${batches.length} calls=${usageTotals.calls} ` +
-      `input=${usageTotals.input} output=${usageTotals.output} cache_write=${usageTotals.cacheWrite} cache_read=${usageTotals.cacheRead}`,
+    `[checklist-review] usage-summary items=${items.length} batches=${batches.length} ${usageLog}`,
   );
 
   return {
@@ -1094,5 +1093,6 @@ export async function evaluateChecklistItems(options: {
     model,
     usedVision: hasVision,
     warnings,
+    usageByModel,
   };
 }

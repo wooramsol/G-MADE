@@ -3,8 +3,9 @@ import { extractJsonContent } from "@/lib/ai/extract-json";
 import { parsePageSlices } from "@/lib/ai/page-citation";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { splitPdfIntoChunks } from "@/lib/pdf/split-pdf";
-import { callClaude, type ClaudeContentBlock } from "./claude-call";
+import { callClaude, type ClaudeContentBlock, type ClaudeUsage } from "./claude-call";
 import type { ChecklistReviewMetric } from "./types";
+import { addUsage, type UsageByModel } from "./usage-cost";
 
 const METRIC_KEYWORDS =
   /대\s*지\s*면\s*적|건\s*축\s*면\s*적|연\s*면\s*적|건\s*폐\s*율|용\s*적\s*률|조\s*경\s*면\s*적|주\s*차|층\s*수|최\s*고\s*높\s*이|사\s*업\s*개\s*요|건\s*축\s*개\s*요/;
@@ -25,12 +26,19 @@ const METRICS_PROMPT = `제출 문서에서 다음 사업 규모 지표를 찾�
 const VISION_CHUNK_MAX_BYTES = 15 * 1024 * 1024;
 const VISION_CHUNK_MAX_PAGES = 40;
 
+export type ExtractMetricsResult = {
+  metrics: ChecklistReviewMetric[];
+  usageByModel: UsageByModel;
+};
+
 /**
  * 제출 문서에서 사업 규모 지표를 자동 추출합니다 (저비용 모델).
  * 텍스트 레이어에 개요 정보가 있으면 텍스트로, 스캔본이면 첫 PDF 앞부분을 비전으로 읽습니다.
  * 실패해도 검토 흐름을 막지 않도록 빈 배열을 반환합니다.
  */
-export async function extractProjectMetrics(files: UploadedFileSummary[]): Promise<ChecklistReviewMetric[]> {
+export async function extractProjectMetrics(files: UploadedFileSummary[]): Promise<ExtractMetricsResult> {
+  const usageByModel: UsageByModel = new Map();
+
   try {
     // 1차: 개요 키워드가 있는 텍스트 페이지에서 추출
     const slices = parsePageSlices(files).filter((slice) => METRIC_KEYWORDS.test(slice.text));
@@ -43,9 +51,10 @@ export async function extractProjectMetrics(files: UploadedFileSummary[]): Promi
 
     if (text.trim().length >= 200) {
       const fromText = await runMetricsExtraction([{ type: "text", text }], false);
-      if (fromText.length > 0) {
-        console.log(`[checklist-review] metrics=${fromText.length} mode=text`);
-        return fromText;
+      addUsage(usageByModel, fromText.model, fromText.usage);
+      if (fromText.metrics.length > 0) {
+        console.log(`[checklist-review] metrics=${fromText.metrics.length} mode=text`);
+        return { metrics: fromText.metrics, usageByModel };
       }
     }
 
@@ -53,15 +62,16 @@ export async function extractProjectMetrics(files: UploadedFileSummary[]): Promi
     const visionBlocks = await buildVisionBlocks(files);
     if (!visionBlocks) {
       console.log("[checklist-review] metrics=0 mode=none (텍스트 미검출·비전 자산 없음)");
-      return [];
+      return { metrics: [], usageByModel };
     }
 
     const fromVision = await runMetricsExtraction(visionBlocks, true);
-    console.log(`[checklist-review] metrics=${fromVision.length} mode=vision`);
-    return fromVision;
+    addUsage(usageByModel, fromVision.model, fromVision.usage);
+    console.log(`[checklist-review] metrics=${fromVision.metrics.length} mode=vision`);
+    return { metrics: fromVision.metrics, usageByModel };
   } catch (error) {
     console.warn("[checklist-review] 규모 지표 추출 실패:", error instanceof Error ? error.message : error);
-    return [];
+    return { metrics: [], usageByModel };
   }
 }
 
@@ -96,7 +106,7 @@ async function buildVisionBlocks(files: UploadedFileSummary[]): Promise<ClaudeCo
 async function runMetricsExtraction(
   blocks: ClaudeContentBlock[],
   includesPdf: boolean,
-): Promise<ChecklistReviewMetric[]> {
+): Promise<{ metrics: ChecklistReviewMetric[]; model: string; usage?: ClaudeUsage }> {
   const result = await callClaude({
     model: CLAUDE_FAST_MODEL,
     system: METRICS_SYSTEM,
@@ -107,13 +117,13 @@ async function runMetricsExtraction(
   });
 
   const json = extractJsonContent(result.text);
-  if (!json) return [];
+  if (!json) return { metrics: [], model: result.model, usage: result.usage };
   const parsed = JSON.parse(json) as {
     metrics?: Array<{ label?: string; value?: string; fileName?: string; page?: number }>;
   };
 
   const seen = new Set<string>();
-  return (parsed.metrics ?? [])
+  const metrics = (parsed.metrics ?? [])
     .map((metric) => ({
       label: String(metric?.label ?? "").trim(),
       value: String(metric?.value ?? "").trim(),
@@ -128,4 +138,6 @@ async function runMetricsExtraction(
       return true;
     })
     .slice(0, 16);
+
+  return { metrics, model: result.model, usage: result.usage };
 }

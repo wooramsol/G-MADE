@@ -6,6 +6,13 @@ import { sanitizeFindings } from "../lib/checklist-review/evaluate-items";
 import { parseExtractedItems } from "../lib/checklist-review/extract-items";
 import { findChecklistPages } from "../lib/checklist-review/find-checklist-pages";
 import { countFindingStatuses, normalizeChecklistStatus } from "../lib/checklist-review/types";
+import {
+  addUsage,
+  estimateUsageSummary,
+  formatUsageLabel,
+  mergeUsageByModel,
+  type UsageByModel,
+} from "../lib/checklist-review/usage-cost";
 import type { EvaluationContext } from "../lib/evaluation-context";
 
 const FILE_NAME = "심의도서.pdf";
@@ -556,4 +563,111 @@ test("partitionItemsForReuse는 페이지가 밀려도 근거를 재사용하며
   assert.equal(reused.get("c2")?.evidence[0]?.page, 4, "삽입된 페이지만큼 밀려 p.4로 재매핑되어야 함");
   assert.ok(needEval.some((item) => item.id === "c3"));
   assert.equal(reused.size + needEval.length, currentItems.length);
+});
+
+test("addUsage: 같은 모델의 여러 호출 사용량을 누적한다", () => {
+  const usageByModel: UsageByModel = new Map();
+  addUsage(usageByModel, "claude-sonnet-4-6", {
+    inputTokens: 1000,
+    outputTokens: 200,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+  });
+  addUsage(usageByModel, "claude-sonnet-4-6", {
+    inputTokens: 500,
+    outputTokens: 100,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+  });
+  addUsage(usageByModel, "claude-sonnet-4-6", undefined);
+
+  const usage = usageByModel.get("claude-sonnet-4-6");
+  assert.equal(usage?.inputTokens, 1500);
+  assert.equal(usage?.outputTokens, 300);
+});
+
+test("mergeUsageByModel: 다른 맵의 사용량을 모델별로 합산한다", () => {
+  const target: UsageByModel = new Map();
+  addUsage(target, "claude-sonnet-4-6", {
+    inputTokens: 100,
+    outputTokens: 50,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+  });
+
+  const source: UsageByModel = new Map();
+  addUsage(source, "claude-sonnet-4-6", {
+    inputTokens: 200,
+    outputTokens: 30,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+  });
+  addUsage(source, "claude-haiku-4-5", {
+    inputTokens: 40,
+    outputTokens: 10,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+  });
+
+  mergeUsageByModel(target, source);
+
+  assert.equal(target.get("claude-sonnet-4-6")?.inputTokens, 300);
+  assert.equal(target.get("claude-sonnet-4-6")?.outputTokens, 80);
+  assert.equal(target.get("claude-haiku-4-5")?.inputTokens, 40);
+});
+
+test("estimateUsageSummary: sonnet 단가($3/$15/1M)로 비용을 추정한다", () => {
+  const usageByModel: UsageByModel = new Map();
+  addUsage(usageByModel, "claude-sonnet-4-6", {
+    inputTokens: 1_000_000,
+    outputTokens: 1_000_000,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+  });
+
+  const summary = estimateUsageSummary(usageByModel);
+  assert.equal(summary.totalTokens, 2_000_000);
+  // 1M input * $3/M + 1M output * $15/M = $18
+  assert.ok(Math.abs(summary.costUsd - 18) < 1e-9, `expected ~18, got ${summary.costUsd}`);
+});
+
+test("estimateUsageSummary: haiku 단가($1/$5/1M)와 캐시 배수를 반영한다", () => {
+  const usageByModel: UsageByModel = new Map();
+  addUsage(usageByModel, "claude-haiku-4-5", {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheCreationInputTokens: 1_000_000,
+    cacheReadInputTokens: 1_000_000,
+  });
+
+  const summary = estimateUsageSummary(usageByModel);
+  // cache write 1M * $1.25/M + cache read 1M * $0.10/M = $1.35
+  assert.ok(Math.abs(summary.costUsd - 1.35) < 1e-9, `expected ~1.35, got ${summary.costUsd}`);
+});
+
+test("estimateUsageSummary: sonnet·haiku를 섞어 쓰면 모델별 단가를 각각 적용해 합산한다", () => {
+  const usageByModel: UsageByModel = new Map();
+  addUsage(usageByModel, "claude-sonnet-4-6", {
+    inputTokens: 1_000_000,
+    outputTokens: 0,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+  });
+  addUsage(usageByModel, "claude-haiku-4-5", {
+    inputTokens: 1_000_000,
+    outputTokens: 0,
+    cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0,
+  });
+
+  const summary = estimateUsageSummary(usageByModel);
+  assert.equal(summary.totalTokens, 2_000_000);
+  // sonnet 1M input * $3/M + haiku 1M input * $1/M = $4
+  assert.ok(Math.abs(summary.costUsd - 4) < 1e-9, `expected ~4, got ${summary.costUsd}`);
+});
+
+test("formatUsageLabel: 999k9.99 형식으로 천 단위 토큰·달러(소수 2자리)를 표기한다", () => {
+  assert.equal(formatUsageLabel({ totalTokens: 999_000, costUsd: 9.99 }), "999k9.99");
+  assert.equal(formatUsageLabel({ totalTokens: 0, costUsd: 0 }), "0k0.00");
+  assert.equal(formatUsageLabel({ totalTokens: 1_499, costUsd: 0.004 }), "1k0.00");
 });

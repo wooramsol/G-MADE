@@ -106,6 +106,8 @@ export type ChecklistReview = {
   /** 항목 추출 경로: 텍스트 레이어(text) 또는 비전(vision) */
   itemSource: "text" | "vision";
   model: string;
+  /** 이 검토에 사용된 총 토큰·비용 (개발자 진단용) */
+  usage?: { totalTokens: number; costUsd: number };
   warnings: string[];
 };
 
