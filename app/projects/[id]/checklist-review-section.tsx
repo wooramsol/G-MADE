@@ -349,7 +349,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
                           </span>
                         ))}
                         {review.usage ? (
-                          <span className="ml-auto select-none text-[7px] leading-none text-slate-300">
+                          <span className="ml-auto select-none text-[11px] leading-none text-slate-300">
                             {formatUsageLabel(review.usage)}
                           </span>
                         ) : null}
