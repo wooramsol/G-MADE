@@ -506,7 +506,7 @@ test("alignPagesByContent는 페이지가 삽입·삭제돼 번호가 밀려도 
 });
 
 test("partitionItemsForReuse는 페이지가 밀려도 근거를 재사용하며 페이지 번호를 현재 문서 기준으로 재매핑한다", async () => {
-  const { computeFileAlignments, buildFindingsByText, partitionItemsForReuse } = await import(
+  const { computeFileAlignments, buildFindingsByText, hasAnyDocumentChange, partitionItemsForReuse } = await import(
     "../lib/checklist-review/partial-reuse"
   );
 
@@ -553,17 +553,75 @@ test("partitionItemsForReuse는 페이지가 밀려도 근거를 재사용하며
 
   const findingsByText = buildFindingsByText(baselineItems, baselineFindings);
   const currentItems = [...baselineItems]; // 문구는 그대로, 표지 한 장만 추가된 상황
-  const { reused, needEval } = partitionItemsForReuse(currentItems, findingsByText, alignments);
+  const currentFingerprints = [{ originalName: "심의도서.pdf", contentHash: "v2", pageHashes: ["h1", "hNEW", "h2", "h3", "h4", "h5"] }];
+  const baselineFingerprints = [{ originalName: "심의도서.pdf", contentHash: "v1", pageHashes: ["h1", "h2", "h3", "h4", "h5"] }];
+  const documentChanged = hasAnyDocumentChange(currentFingerprints, baselineFingerprints, alignments);
+  assert.equal(documentChanged, true, "페이지가 삽입됐으므로 문서 변경으로 판별돼야 함");
 
-  // c1(근거 기준 p.5)은 삽입 이후 페이지라 현재 p.6으로 재매핑되어 재사용.
-  // c2(근거 기준 p.3)도 현재 p.4로 재매핑되어 재사용.
-  // c3는 근거 자체가 없는 판정이라 항상 재분석.
+  const { reused, needEval } = partitionItemsForReuse(currentItems, findingsByText, alignments, documentChanged);
+
+  // c1(충족, 근거 기준 p.5)은 삽입 이후 페이지라 현재 p.6으로 재매핑되어 재사용.
+  // c2(미충족)는 근거 페이지(p.3->p.4)가 안 바뀌었어도 문서에 변경(새 페이지)이 있으므로
+  //   보완 내용이 새 페이지에 반영됐을 수 있어 재분석 — 반복 개선 워크플로우의 핵심.
+  // c3(확인불가)는 근거 자체가 없는 판정이라 항상 재분석.
   assert.ok(reused.has("c1"));
   assert.equal(reused.get("c1")?.evidence[0]?.page, 6, "삽입된 페이지만큼 밀려 p.6으로 재매핑되어야 함");
-  assert.ok(reused.has("c2"));
-  assert.equal(reused.get("c2")?.evidence[0]?.page, 4, "삽입된 페이지만큼 밀려 p.4로 재매핑되어야 함");
+  assert.ok(needEval.some((item) => item.id === "c2"), "미충족 항목은 문서 변경 시 근거가 그대로여도 재분석돼야 함");
   assert.ok(needEval.some((item) => item.id === "c3"));
   assert.equal(reused.size + needEval.length, currentItems.length);
+});
+
+test("partitionItemsForReuse는 문서가 완전히 동일하면 미충족 판정도 재사용한다 (변경이 없으면 결과가 달라질 수 없음)", async () => {
+  const { computeFileAlignments, buildFindingsByText, hasAnyDocumentChange, partitionItemsForReuse } = await import(
+    "../lib/checklist-review/partial-reuse"
+  );
+
+  const items = [
+    { id: "c1", text: "가로변 차폐 조경 계획 반영" },
+    { id: "c2", text: "야간 경관 조명 계획 수립" },
+  ];
+  const findings = [
+    {
+      itemId: "c1",
+      status: "충족" as const,
+      rationale: "배치도에서 확인",
+      evidence: [{ fileName: "심의도서.pdf", page: 5, note: "차폐 조경 표기" }],
+      lawRefs: [],
+    },
+    {
+      itemId: "c2",
+      status: "미충족" as const,
+      rationale: "조명 계획 미확인",
+      evidence: [{ fileName: "심의도서.pdf", page: 3, note: "조명 계획 없음" }],
+      lawRefs: [],
+    },
+  ];
+
+  const fingerprints = [{ originalName: "심의도서.pdf", contentHash: "same", pageHashes: ["h1", "h2", "h3", "h4", "h5"] }];
+  const alignments = computeFileAlignments(fingerprints, fingerprints);
+  const documentChanged = hasAnyDocumentChange(fingerprints, fingerprints, alignments);
+  assert.equal(documentChanged, false);
+
+  const { reused, needEval } = partitionItemsForReuse(items, buildFindingsByText(items, findings), alignments, documentChanged);
+  assert.ok(reused.has("c1"));
+  assert.ok(reused.has("c2"), "완전히 동일한 재제출이면 미충족 판정도 재사용돼야 함 (AI 호출 0)");
+  assert.equal(needEval.length, 0);
+});
+
+test("hasAnyDocumentChange는 파일 추가·제거도 변경으로 판별한다", async () => {
+  const { computeFileAlignments, hasAnyDocumentChange } = await import("../lib/checklist-review/partial-reuse");
+
+  const baseline = [{ originalName: "심의도서.pdf", contentHash: "same", pageHashes: ["h1", "h2"] }];
+  // 기존 파일은 완전히 동일하지만, 보완 도면 파일이 새로 추가됨 — 개선 내용이 그 파일에
+  // 있을 수 있으므로 변경으로 판별돼야 함.
+  const current = [
+    { originalName: "심의도서.pdf", contentHash: "same", pageHashes: ["h1", "h2"] },
+    { originalName: "보완도면.pdf", contentHash: "new", pageHashes: ["x1"] },
+  ];
+
+  const alignments = computeFileAlignments(current, baseline);
+  assert.equal(hasAnyDocumentChange(current, baseline, alignments), true);
+  assert.equal(hasAnyDocumentChange(baseline, baseline, computeFileAlignments(baseline, baseline)), false);
 });
 
 test("addUsage: 같은 모델의 여러 호출 사용량을 누적한다", () => {

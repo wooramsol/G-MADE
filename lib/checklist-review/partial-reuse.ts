@@ -131,6 +131,32 @@ export function computeFileAlignments(
 }
 
 /**
+ * 제출물에 어떤 변경이라도 있는지 판별합니다 — 파일이 추가/제거됐거나, 어느 파일이든
+ * 내용이 완전히 동일하지 않으면(페이지 추가·삭제·수정 포함) true.
+ *
+ * 반복 개선 워크플로우(보완 요구 -> 업체 수정 -> 재제출)에서 재사용 정책을 가르는
+ * 기준입니다: 업체가 미충족 항목을 고치려고 "새 페이지를 추가"하는 경우, 기존 근거
+ * 페이지는 안 바뀌었어도 개선 내용은 새 페이지에 있으므로, 문서에 변경이 있는 한
+ * 비충족(미충족·부분충족·확인불가) 판정은 재사용하면 안 됩니다.
+ */
+export function hasAnyDocumentChange(
+  currentFiles: FileFingerprint[],
+  baselineFiles: FileFingerprint[],
+  alignments: AlignmentByFile,
+): boolean {
+  const currentNames = new Set(currentFiles.map((file) => file.originalName));
+  const baselineNames = new Set(baselineFiles.map((file) => file.originalName));
+  if (currentNames.size !== baselineNames.size) return true;
+  for (const name of currentNames) {
+    if (!baselineNames.has(name)) return true;
+  }
+  for (const entry of alignments.values()) {
+    if (entry.kind !== "identical") return true;
+  }
+  return false;
+}
+
+/**
  * 기준 검토의 페이지 번호를 현재 문서 기준 페이지 번호로 변환합니다. 그 페이지 내용이
  * 현재 문서에서 확인되지 않으면(삭제됐거나 내용이 바뀜) undefined를 반환합니다.
  */
@@ -210,20 +236,36 @@ export function buildFindingsByText(
 }
 
 /**
- * 현재 항목들을 "재사용 가능"과 "재분석 필요"로 나눕니다. 항목 원문이 기준 검토의 항목과
- * 일치하고, 그 판정의 근거 페이지 전부가 현재 문서에서 확인될 때만 재사용하며(페이지
- * 번호는 현재 문서 기준으로 재매핑됨), 그 외에는 재분석 대상으로 분류합니다.
+ * 현재 항목들을 "재사용 가능"과 "재분석 필요"로 나눕니다.
+ *
+ * 재사용 조건 (모두 만족해야 함):
+ * 1. 항목 원문이 기준 검토의 항목과 일치.
+ * 2. 판정의 근거 페이지 전부가 현재 문서에서 확인됨(페이지 번호는 현재 문서 기준으로
+ *    재매핑됨 — 삽입·삭제로 번호가 밀린 경우 포함).
+ * 3. documentChanged가 true(제출물 어딘가가 바뀜)인 경우, 판정이 "충족"일 것.
+ *    충족 판정은 그 근거가 그대로 남아 있는 한 안전하게 재사용할 수 있지만,
+ *    비충족(미충족·부분충족·확인불가) 판정은 업체가 보완 내용을 "새 페이지 추가"나
+ *    "다른 페이지 수정"으로 반영했을 수 있어 — 기존 근거 페이지가 안 바뀌었어도 —
+ *    반드시 재분석해야 합니다. 그렇지 않으면 보완이 반영돼도 판정이 영영 갱신되지
+ *    않아, 재제출을 반복하며 충족률을 높이는 워크플로우가 성립하지 않습니다.
+ *    (documentChanged가 false, 즉 완전히 동일한 재제출이면 아무것도 달라질 수 없으므로
+ *    비충족 판정도 그대로 재사용합니다.)
  */
 export function partitionItemsForReuse(
   items: ChecklistItem[],
   baselineFindingsByText: Map<string, ChecklistFinding>,
   alignments: AlignmentByFile,
+  documentChanged: boolean,
 ): { reused: Map<string, ChecklistFinding>; needEval: ChecklistItem[] } {
   const reused = new Map<string, ChecklistFinding>();
   const needEval: ChecklistItem[] = [];
 
   for (const item of items) {
     const baselineFinding = baselineFindingsByText.get(normalizeItemText(item.text));
+    if (documentChanged && baselineFinding && baselineFinding.status !== "충족") {
+      needEval.push(item);
+      continue;
+    }
     const remapped = baselineFinding ? remapFindingToCurrentPages(baselineFinding, alignments) : null;
     if (remapped) {
       reused.set(item.id, { ...remapped, itemId: item.id });

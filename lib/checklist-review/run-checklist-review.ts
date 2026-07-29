@@ -27,6 +27,7 @@ import { findChecklistPages } from "./find-checklist-pages";
 import {
   buildFindingsByText,
   computeFileAlignments,
+  hasAnyDocumentChange,
   partitionItemsForReuse,
   remapChecklistPages,
   remapItem,
@@ -149,20 +150,27 @@ export async function runChecklistReview(
     // 현재 문서 기준으로 재매핑), 없어졌거나 바뀐 항목만 재분석"을 수행해 Claude 호출(=비용)을
     // 최소화합니다.
     const baselineReview = [...(project.checklistReviews ?? [])].reverse()[0];
-    const alignments = baselineReview
-      ? computeFileAlignments(
-          filesForAnalysis.map((file) => ({
-            originalName: file.originalName,
-            contentHash: file.contentHash,
-            pageHashes: file.pageHashes,
-          })),
-          baselineReview.files.map((file) => ({
-            originalName: file.originalName,
-            contentHash: file.contentHash,
-            pageHashes: file.pageHashes,
-          })),
-        )
+    const currentFingerprints = filesForAnalysis.map((file) => ({
+      originalName: file.originalName,
+      contentHash: file.contentHash,
+      pageHashes: file.pageHashes,
+    }));
+    const baselineFingerprints = baselineReview
+      ? baselineReview.files.map((file) => ({
+          originalName: file.originalName,
+          contentHash: file.contentHash,
+          pageHashes: file.pageHashes,
+        }))
       : null;
+    const alignments =
+      baselineFingerprints !== null ? computeFileAlignments(currentFingerprints, baselineFingerprints) : null;
+    // 제출물에 변경이 하나라도 있으면(파일 추가/제거·페이지 추가/삭제/수정) true.
+    // 이 경우 비충족 판정은 — 보완 내용이 새/다른 페이지에 반영됐을 수 있으므로 —
+    // 근거 페이지가 그대로여도 재사용하지 않고 재분석합니다(partitionItemsForReuse 참고).
+    const documentChanged =
+      baselineFingerprints !== null && alignments !== null
+        ? hasAnyDocumentChange(currentFingerprints, baselineFingerprints, alignments)
+        : true;
     const baselineFindingsByText = baselineReview
       ? buildFindingsByText(baselineReview.items, baselineReview.findings)
       : null;
@@ -173,7 +181,7 @@ export async function runChecklistReview(
 
     console.log(
       alignments
-        ? `[checklist-review] baseline=${baselineReview!.id} checklistPagesReusable=${remappedBaselineChecklistPages !== null} ` +
+        ? `[checklist-review] baseline=${baselineReview!.id} changed=${documentChanged} checklistPagesReusable=${remappedBaselineChecklistPages !== null} ` +
             `align=[${[...alignments.entries()]
               .map(
                 ([name, entry]) =>
@@ -233,7 +241,7 @@ export async function runChecklistReview(
 
     const { reused: reusedFindings, needEval: itemsNeedingEval } =
       items.length > 0 && baselineFindingsByText && alignments
-        ? partitionItemsForReuse(items, baselineFindingsByText, alignments)
+        ? partitionItemsForReuse(items, baselineFindingsByText, alignments, documentChanged)
         : { reused: new Map<string, ChecklistFinding>(), needEval: items };
 
     if (items.length > 0 && itemsNeedingEval.length === 0) {
@@ -250,8 +258,9 @@ export async function runChecklistReview(
       const reuseNotice =
         reusedFindings.size > 0
           ? [
-              `이전 검토와 비교해 변경되지 않은 페이지에 근거한 ${reusedFindings.size}개 항목은 재사용하고, ` +
-                `변경되었거나 새로 생긴 ${itemsNeedingEval.length}개 항목만 다시 분석했습니다.`,
+              `이전 검토에서 충족으로 판정됐고 근거 페이지가 변경되지 않은 ${reusedFindings.size}개 항목은 재사용하고, ` +
+                `나머지 ${itemsNeedingEval.length}개 항목(미충족·부분충족·확인불가 및 근거가 변경된 항목)은 ` +
+                `보완 내용 반영 여부를 확인하기 위해 다시 분석했습니다.`,
             ]
           : [];
 
