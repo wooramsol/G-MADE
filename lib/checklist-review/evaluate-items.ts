@@ -10,6 +10,7 @@ import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { extractPdfPages, splitPdfIntoChunks } from "@/lib/pdf/split-pdf";
 import { buildManualContextText } from "@/lib/manual/reference-manual";
 import type { EvaluationContext } from "@/lib/evaluation-context";
+import { MAX_UPLOAD_FILE_BYTES } from "@/lib/upload-limits";
 import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock } from "./claude-call";
 import { selectRelevantPagesForBatch } from "./relevant-pages";
 import { addUsage, type UsageByModel } from "./usage-cost";
@@ -37,11 +38,18 @@ const OUTPUT_TOKENS_PER_ITEM = 480;
 const OUTPUT_TOKENS_BASE = 1_500;
 
 /** 대용량 PDF 분할 구간당 최대 용량 (구간마다 별도 요청이므로 요청 한도만 지키면 됨) */
-const CHUNK_MAX_BYTES = 15 * 1024 * 1024;
+export const CHUNK_MAX_BYTES = 15 * 1024 * 1024;
 /** 분할 구간당 최대 페이지 (Anthropic 요청당 100페이지 한도 내) */
 const CHUNK_MAX_PAGES = 90;
-/** 파일당 최대 분석 구간 수 (비용·시간 상한) — 페이지 관련도 필터링 실패 시의 폴백에서만 사용 */
-const MAX_CHUNKS_PER_FILE = 6;
+/**
+ * 파일당 최대 분석 구간 수 — 페이지 관련도 필터링이 불가능한 경우(스캔본 등)의 폴백에서만
+ * 사용됨. 예전엔 6(=15MB×6=90MB)으로 고정돼 있어, 앱이 업로드를 허용하는 최대 용량
+ * (MAX_UPLOAD_FILE_BYTES=100MB)보다 낮았음 — 텍스트 레이어 없는 100MB 근처 스캔 문서를
+ * 올리면 뒷부분이 경고만 남긴 채 조용히 분석에서 빠지는 실제 재현 가능한 버그였음.
+ * 앱이 실제로 허용하는 업로드 상한을 항상 커버하도록 동적으로 계산하고(페이지 크기 편차에
+ * 대비해 여유분 +2 구간 추가), 업로드 상한이 나중에 바뀌어도 이 값이 자동으로 따라가게 함.
+ */
+export const MAX_CHUNKS_PER_FILE = Math.ceil(MAX_UPLOAD_FILE_BYTES / CHUNK_MAX_BYTES) + 2;
 
 /**
  * 페이지 관련도 필터링 on/off 스위치. 배치마다 문서 전체를 재전송하는 대신, 그 배치의

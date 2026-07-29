@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPdfPageMarkedText } from "../lib/ai/page-citation";
 import type { UploadedFileSummary } from "../lib/ai/uploaded-file";
-import { sanitizeFindings } from "../lib/checklist-review/evaluate-items";
+import { CHUNK_MAX_BYTES, MAX_CHUNKS_PER_FILE, sanitizeFindings } from "../lib/checklist-review/evaluate-items";
 import { parseExtractedItems } from "../lib/checklist-review/extract-items";
 import { findChecklistPages } from "../lib/checklist-review/find-checklist-pages";
 import { countFindingStatuses, normalizeChecklistStatus } from "../lib/checklist-review/types";
@@ -14,6 +14,7 @@ import {
   type UsageByModel,
 } from "../lib/checklist-review/usage-cost";
 import type { EvaluationContext } from "../lib/evaluation-context";
+import { MAX_UPLOAD_FILE_BYTES } from "../lib/upload-limits";
 
 const FILE_NAME = "심의도서.pdf";
 
@@ -670,4 +671,16 @@ test("formatUsageLabel: 999k9.99 형식으로 천 단위 토큰·달러(소수 2
   assert.equal(formatUsageLabel({ totalTokens: 999_000, costUsd: 9.99 }), "999k9.99");
   assert.equal(formatUsageLabel({ totalTokens: 0, costUsd: 0 }), "0k0.00");
   assert.equal(formatUsageLabel({ totalTokens: 1_499, costUsd: 0.004 }), "1k0.00");
+});
+
+test("MAX_CHUNKS_PER_FILE는 앱이 허용하는 최대 업로드 용량(100MB)을 항상 커버한다", () => {
+  // 텍스트 레이어가 없어 페이지 관련도 필터링이 불가능한 스캔본이 앱의 업로드 상한
+  // (MAX_UPLOAD_FILE_BYTES)에 가깝게 올라와도, 구간 분할 폴백이 뒷부분을 조용히
+  // 잘라내지 않고 문서 전체를 커버해야 한다. (실제로 이 값이 90MB로 고정돼 있어
+  // 100MB 파일의 뒷부분이 분석에서 누락되던 버그가 있었음 — 회귀 방지용 가드.)
+  assert.ok(
+    MAX_CHUNKS_PER_FILE * CHUNK_MAX_BYTES >= MAX_UPLOAD_FILE_BYTES,
+    `MAX_CHUNKS_PER_FILE(${MAX_CHUNKS_PER_FILE}) * CHUNK_MAX_BYTES(${CHUNK_MAX_BYTES}) = ` +
+      `${MAX_CHUNKS_PER_FILE * CHUNK_MAX_BYTES}, MAX_UPLOAD_FILE_BYTES=${MAX_UPLOAD_FILE_BYTES}`,
+  );
 });
