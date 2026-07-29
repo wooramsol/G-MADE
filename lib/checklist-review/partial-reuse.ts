@@ -251,28 +251,54 @@ export function buildFindingsByText(
  *    (documentChanged가 false, 즉 완전히 동일한 재제출이면 아무것도 달라질 수 없으므로
  *    비충족 판정도 그대로 재사용합니다.)
  */
+/** 항목이 재사용되지 못한 사유 (진단 로그용). */
+export type ReuseSkipReason =
+  | "원문불일치" // 기준 검토에 같은 원문의 항목이 없음
+  | "비충족재분석" // 문서 변경이 있어 비충족 판정은 재분석 (정상 동작)
+  | "근거없음" // 판정에 근거가 없어(주로 확인불가) 항상 재분석
+  | "근거재매핑실패"; // 근거 페이지가 현재 문서에서 확인 안 됨 (삭제·변경 or 파일명 불일치)
+
 export function partitionItemsForReuse(
   items: ChecklistItem[],
   baselineFindingsByText: Map<string, ChecklistFinding>,
   alignments: AlignmentByFile,
   documentChanged: boolean,
-): { reused: Map<string, ChecklistFinding>; needEval: ChecklistItem[] } {
+): { reused: Map<string, ChecklistFinding>; needEval: ChecklistItem[]; skipReasons: Map<string, ReuseSkipReason> } {
   const reused = new Map<string, ChecklistFinding>();
   const needEval: ChecklistItem[] = [];
+  const skipReasons = new Map<string, ReuseSkipReason>();
 
   for (const item of items) {
     const baselineFinding = baselineFindingsByText.get(normalizeItemText(item.text));
-    if (documentChanged && baselineFinding && baselineFinding.status !== "충족") {
+    if (!baselineFinding) {
+      skipReasons.set(item.id, "원문불일치");
       needEval.push(item);
       continue;
     }
-    const remapped = baselineFinding ? remapFindingToCurrentPages(baselineFinding, alignments) : null;
+    if (!documentChanged) {
+      // 제출물이 완전히 동일하면 결과가 달라질 수 없으므로 근거 유무·재매핑과 무관하게
+      // 그대로 재사용합니다 (근거 없는 확인불가 판정 포함 — 페이지 번호도 항등).
+      reused.set(item.id, { ...baselineFinding, itemId: item.id });
+      continue;
+    }
+    if (baselineFinding.status !== "충족") {
+      skipReasons.set(item.id, "비충족재분석");
+      needEval.push(item);
+      continue;
+    }
+    if (baselineFinding.evidence.length === 0) {
+      skipReasons.set(item.id, "근거없음");
+      needEval.push(item);
+      continue;
+    }
+    const remapped = remapFindingToCurrentPages(baselineFinding, alignments);
     if (remapped) {
       reused.set(item.id, { ...remapped, itemId: item.id });
     } else {
+      skipReasons.set(item.id, "근거재매핑실패");
       needEval.push(item);
     }
   }
 
-  return { reused, needEval };
+  return { reused, needEval, skipReasons };
 }

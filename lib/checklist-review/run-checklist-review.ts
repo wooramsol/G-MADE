@@ -178,6 +178,14 @@ export async function runChecklistReview(
       baselineReview && alignments && baselineReview.checklistPages.length > 0
         ? remapChecklistPages(baselineReview.checklistPages, alignments)
         : null;
+    // 진단: 체크리스트 페이지 재사용이 실패하면 어떤 항목이 왜 실패했는지 남깁니다
+    // (파일명 불일치인지, 페이지 대응 실패인지 구분 가능하도록 정렬 키 목록도 함께).
+    if (baselineReview && alignments && remappedBaselineChecklistPages === null) {
+      console.log(
+        `[checklist-review] checklistPages-remap-failed baselinePages=${JSON.stringify(baselineReview.checklistPages)} ` +
+          `alignKeys=${JSON.stringify([...alignments.keys()])}`,
+      );
+    }
 
     console.log(
       alignments
@@ -239,10 +247,23 @@ export async function runChecklistReview(
       checklistPages = checklistSlices.map((slice) => ({ fileName: slice.fileName, page: slice.page }));
     }
 
-    const { reused: reusedFindings, needEval: itemsNeedingEval } =
+    const { reused: reusedFindings, needEval: itemsNeedingEval, skipReasons } =
       items.length > 0 && baselineFindingsByText && alignments
         ? partitionItemsForReuse(items, baselineFindingsByText, alignments, documentChanged)
-        : { reused: new Map<string, ChecklistFinding>(), needEval: items };
+        : { reused: new Map<string, ChecklistFinding>(), needEval: items, skipReasons: new Map() };
+
+    // 진단: 기준 검토가 있는데 재사용이 0건이면 사유별 집계를 남깁니다 — "동일 문서인데
+    // 왜 토큰을 썼는지"를 로그만으로 특정할 수 있게 합니다.
+    if (baselineReview && items.length > 0) {
+      const reasonCounts = new Map<string, number>();
+      for (const reason of skipReasons.values()) {
+        reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+      }
+      console.log(
+        `[checklist-review] reuse-partition reused=${reusedFindings.size} needEval=${itemsNeedingEval.length} ` +
+          `changed=${documentChanged} reasons=${JSON.stringify(Object.fromEntries(reasonCounts))}`,
+      );
+    }
 
     if (items.length > 0 && itemsNeedingEval.length === 0) {
       // 모든 항목의 근거 페이지가 변경되지 않아 전부 재사용 — AI 재호출 없음.
