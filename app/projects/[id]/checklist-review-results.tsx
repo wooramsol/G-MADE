@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Caption, Eyebrow, MutedText, SubsectionTitle } from "@/components/typography";
 import type {
   ChecklistFinding,
@@ -79,6 +79,39 @@ export default function ChecklistReviewResults({
   projectId: string;
 }) {
   const [filter, setFilter] = useState<StatusFilter>("전체");
+
+  // 항목별 공무원 코멘트 — 낙관적 로컬 상태 (저장 성공 시 갱신, 검토 전환 시 리셋)
+  const [comments, setComments] = useState<Record<string, string>>(review.comments ?? {});
+  const [commentsReviewId, setCommentsReviewId] = useState(review.id);
+  if (commentsReviewId !== review.id) {
+    // 다른 검토로 전환됨 — 렌더 중 상태 보정 패턴 (https://react.dev/learn/you-might-not-need-an-effect)
+    setCommentsReviewId(review.id);
+    setComments(review.comments ?? {});
+  }
+
+  const saveComment = useCallback(
+    async (itemId: string, text: string) => {
+      const response = await fetch("/api/checklist-reviews", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, reviewId: review.id, itemId, comment: text }),
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "코멘트를 저장하지 못했습니다.");
+      }
+      setComments((prev) => {
+        const next = { ...prev };
+        if (text.trim()) {
+          next[itemId] = text.trim();
+        } else {
+          delete next[itemId];
+        }
+        return next;
+      });
+    },
+    [projectId, review.id],
+  );
 
   /** 근거 fileName·page → 원본 PDF 해당 페이지를 여는 링크 (NFC 정규화 + 단일 PDF 폴백) */
   const pageHref = useMemo(() => {
@@ -198,7 +231,14 @@ export default function ChecklistReviewResults({
             <Eyebrow>{category}</Eyebrow>
             <ul className="mt-2 space-y-3">
               {items.map((item) => (
-                <FindingCard finding={findingsByItemId.get(item.id)} item={item} key={item.id} pageHref={pageHref} />
+                <FindingCard
+                  comment={comments[item.id]}
+                  finding={findingsByItemId.get(item.id)}
+                  item={item}
+                  key={item.id}
+                  onSaveComment={saveComment}
+                  pageHref={pageHref}
+                />
               ))}
             </ul>
           </div>
@@ -276,13 +316,41 @@ function FindingCard({
   item,
   finding,
   pageHref,
+  comment,
+  onSaveComment,
 }: {
   item: ChecklistItem;
   finding?: ChecklistFinding;
   pageHref: (fileName: string, page: number) => string | undefined;
+  comment?: string;
+  onSaveComment: (itemId: string, text: string) => Promise<void>;
 }) {
   const status = finding?.status ?? "확인불가";
   const style = STATUS_STYLES[status];
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [commentError, setCommentError] = useState("");
+
+  const startEditing = () => {
+    setDraft(comment ?? "");
+    setCommentError("");
+    setEditing(true);
+  };
+
+  const submitComment = async (text: string) => {
+    setSaving(true);
+    setCommentError("");
+    try {
+      await onSaveComment(item.id, text);
+      setEditing(false);
+    } catch (error) {
+      setCommentError(error instanceof Error ? error.message : "코멘트를 저장하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <li className={`rounded-xl border p-4 ${style.card}`}>
@@ -359,6 +427,75 @@ function FindingCard({
         </div>
       ) : null}
 
+      {editing ? (
+        <div className="mt-3 rounded-lg border border-[#c9d6e6] bg-white p-2.5">
+          <textarea
+            autoFocus
+            className="w-full resize-y rounded-md border border-[#d7dee8] px-2.5 py-1.5 text-xs leading-5 text-[#172033] focus:border-[#2463b3] focus:outline-none"
+            disabled={saving}
+            maxLength={2000}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="이 항목에 대한 검토 코멘트를 입력하세요"
+            rows={2}
+            value={draft}
+          />
+          {commentError ? <p className="mt-1 text-[11px] font-semibold text-red-600">{commentError}</p> : null}
+          <div className="mt-1.5 flex items-center justify-end gap-1.5">
+            {comment ? (
+              <button
+                className="rounded-md px-2 py-1 text-[11px] font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
+                disabled={saving}
+                onClick={() => void submitComment("")}
+                type="button"
+              >
+                삭제
+              </button>
+            ) : null}
+            <button
+              className="rounded-md px-2 py-1 text-[11px] font-bold text-[#64748b] hover:bg-[#f1f5f9] disabled:opacity-50"
+              disabled={saving}
+              onClick={() => setEditing(false)}
+              type="button"
+            >
+              취소
+            </button>
+            <button
+              className="primary-action-blue rounded-md px-2.5 py-1 text-[11px] font-bold disabled:opacity-50"
+              disabled={saving || !draft.trim()}
+              onClick={() => void submitComment(draft)}
+              type="button"
+            >
+              {saving ? "저장 중..." : "저장"}
+            </button>
+          </div>
+        </div>
+      ) : comment ? (
+        <div className="mt-3 rounded-lg border border-[#c9d6e6] bg-white/80 px-3 py-2">
+          <div className="flex items-start justify-between gap-2">
+            <p className="min-w-0 flex-1 whitespace-pre-wrap text-xs leading-5 text-[#334155]">
+              <span className="mr-1.5 font-bold text-[#15345b]">코멘트</span>
+              {comment}
+            </p>
+            <button
+              className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-[#2463b3] hover:bg-[#eef4fb]"
+              onClick={startEditing}
+              type="button"
+            >
+              수정
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2 flex justify-end">
+          <button
+            className="rounded-md px-2 py-1 text-[11px] font-bold text-[#94a3b8] hover:bg-white/70 hover:text-[#2463b3]"
+            onClick={startEditing}
+            type="button"
+          >
+            + 코멘트
+          </button>
+        </div>
+      )}
     </li>
   );
 }

@@ -108,6 +108,8 @@ export type ChecklistReview = {
   model: string;
   /** 이 검토에 사용된 총 토큰·비용 (개발자 진단용) */
   usage?: { totalTokens: number; costUsd: number };
+  /** 공무원이 항목별로 남긴 코멘트 (itemId -> 텍스트) */
+  comments?: Record<string, string>;
   warnings: string[];
 };
 

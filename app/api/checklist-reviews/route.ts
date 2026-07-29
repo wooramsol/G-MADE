@@ -15,6 +15,7 @@ import {
   getProjectById,
   removeProjectChecklistReview,
   removeProjectChecklistReviews,
+  updateProjectChecklistReviewComment,
 } from "@/lib/project-store";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { Project } from "@/lib/types";
@@ -131,6 +132,45 @@ export async function POST(request: NextRequest) {
 }
 
 /** 검토 기록을 삭제합니다. reviewIds(배열)를 보내면 다중 삭제, reviewId(단일)도 계속 지원합니다. */
+const MAX_COMMENT_LENGTH = 2_000;
+
+/** 검토 항목별 공무원 코멘트 저장/삭제 (comment가 비어 있으면 삭제). */
+export async function PATCH(request: NextRequest) {
+  const authResult = await requireApiSession();
+  if (authResult.response) return authResult.response;
+
+  const body = (await request.json().catch(() => ({}))) as {
+    projectId?: unknown;
+    reviewId?: unknown;
+    itemId?: unknown;
+    comment?: unknown;
+  };
+  const projectId = String(body.projectId ?? "").trim();
+  const reviewId = String(body.reviewId ?? "").trim();
+  const itemId = String(body.itemId ?? "").trim();
+  const comment = String(body.comment ?? "").trim().slice(0, MAX_COMMENT_LENGTH);
+
+  if (!projectId || !reviewId || !itemId) {
+    return NextResponse.json({ error: "projectId, reviewId, itemId가 필요합니다." }, { status: 400 });
+  }
+
+  const project = await getProjectById(projectId);
+  if (!project) {
+    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+  }
+  const review = (project.checklistReviews ?? []).find((entry) => entry.id === reviewId);
+  if (!review) {
+    return NextResponse.json({ error: "해당 검토 기록을 찾을 수 없습니다." }, { status: 404 });
+  }
+  if (!review.items.some((item) => item.id === itemId)) {
+    return NextResponse.json({ error: "해당 체크리스트 항목을 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  const updated = await updateProjectChecklistReviewComment(projectId, reviewId, itemId, comment);
+  revalidateProjectViews(projectId);
+  return NextResponse.json({ project: updated ?? null, comment });
+}
+
 export async function DELETE(request: NextRequest) {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult.response;

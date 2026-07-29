@@ -136,6 +136,28 @@ export async function addProjectChecklistReview(
   }));
 }
 
+/** 검토 기록의 특정 항목 코멘트를 저장(빈 문자열이면 삭제)합니다. */
+export async function updateProjectChecklistReviewComment(
+  id: string,
+  reviewId: string,
+  itemId: string,
+  comment: string,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    checklistReviews: (project.checklistReviews ?? []).map((review) => {
+      if (review.id !== reviewId) return review;
+      const comments = { ...(review.comments ?? {}) };
+      if (comment) {
+        comments[itemId] = comment;
+      } else {
+        delete comments[itemId];
+      }
+      return { ...review, comments };
+    }),
+  }));
+}
+
 /** 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. */
 export async function clearProjectChecklistReviews(id: string): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => {
