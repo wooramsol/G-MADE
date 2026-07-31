@@ -89,7 +89,7 @@ export async function buildSupplementDoc(
       if (finding.rationale) sections.push(body(`판정 사유: ${finding.rationale}`, { indent: true }));
       for (const evidence of finding.evidence) {
         sections.push(
-          body(`근거: 「${evidence.fileName}」 p.${evidence.page} — ${evidence.note}`, { indent: true }),
+          body(`근거: p.${evidence.page} — ${evidence.note}`, { indent: true }),
         );
       }
       if (finding.lawRefs.length > 0) {

@@ -162,9 +162,7 @@ export default function ChecklistReviewResults({
           {review.checklistPages.length > 0 ? (
             <Caption className="text-[#64748b]">
               체크리스트 페이지:{" "}
-              {review.checklistPages
-                .map((page) => `「${page.fileName}」 p.${page.page}`)
-                .join(", ")}
+              {review.checklistPages.map((page) => `p.${page.page}`).join(", ")}
             </Caption>
           ) : null}
           <a
@@ -196,7 +194,7 @@ export default function ChecklistReviewResults({
                 <p className="mt-0.5 font-semibold leading-5 text-[#172033]">{metric.value}</p>
                 {metric.source ? (
                   <p className="mt-0.5 text-[10px] text-[#94a3b8]">
-                    「{metric.source.fileName}」 p.{metric.source.page}
+                    p.{metric.source.page}
                   </p>
                 ) : null}
               </div>
@@ -373,7 +371,6 @@ function FindingCard({
             const href = pageHref(evidence.fileName, evidence.page);
             return (
               <p className="text-xs leading-5 text-[#64748b]" key={`${evidence.fileName}-${evidence.page}-${index}`}>
-                <span className="font-bold text-[#15345b]">「{evidence.fileName}」</span>{" "}
                 {href ? (
                   <a
                     href={href}
