@@ -25,20 +25,21 @@ export type FileFingerprint = {
 };
 
 /**
- * 파일 하나에 대한 기준(직전 검토) 대비 정렬 결과.
- * - "identical": 파일 내용 해시가 완전히 같음 — 페이지 번호도 그대로(항등 매핑).
- * - "unavailable": 비교 불가(새 파일·페이지 해시 계산 불가/용량 초과 등) — 이 파일의
- *   어떤 페이지도 "안 바뀜"으로 확인할 수 없습니다.
+ * 기준(과거 검토) 파일 하나가 현재 제출물의 어느 파일과 어떻게 대응되는지.
+ * - "identical": 내용 해시가 완전히 같음 — 페이지 번호도 그대로(항등 매핑).
  * - "aligned": 페이지 내용(해시) 기준 최장 공통 부분수열(LCS)로 정렬한 결과.
  *   baselineToCurrent는 기준 검토의 페이지 번호 -> 현재 문서에서 같은 내용을 가진
  *   페이지 번호. 삽입·삭제·순서 변경으로 밀린 페이지도 내용만 같으면 대응됩니다.
- *   대응이 없으면(그 페이지가 삭제됐거나 내용이 바뀜) 매핑에 없습니다.
+ *
+ * currentFileName: 대응된 현재 파일명. 업체가 재제출하며 파일명을 바꾸는 경우가
+ * 흔하므로(날짜·버전 표기 등) 이름이 아니라 내용으로 매칭하며, 기준 파일명과 다를 수
+ * 있습니다. 재사용하는 근거·페이지 참조의 파일명은 이 값으로 재작성해야 합니다.
  */
 export type FileAlignment =
-  | { kind: "identical" }
-  | { kind: "unavailable" }
-  | { kind: "aligned"; baselineToCurrent: Map<number, number> };
+  | { kind: "identical"; currentFileName: string }
+  | { kind: "aligned"; currentFileName: string; baselineToCurrent: Map<number, number> };
 
+/** key: 기준(과거 검토)의 파일명. 항목이 없는 파일은 비교 불가(전체 변경 취급). */
 export type AlignmentByFile = Map<string, FileAlignment>;
 
 /**
@@ -87,44 +88,81 @@ export function alignPagesByContent(baselineHashes: string[], currentHashes: str
 /** 페이지 단위 정렬 계산 상한 — LCS는 O(n*m)이라 너무 크면 계산을 포기합니다. */
 const MAX_ALIGNMENT_CELLS = 400 * 400;
 
+/** 이름이 다른 파일끼리 내용으로 교차 매칭할 때 요구하는 최소 대응 페이지 수·비율. */
+const MIN_CROSS_MATCH_PAGES = 3;
+const MIN_CROSS_MATCH_RATIO = 0.3;
+
+/** 두 파일을 내용으로 대응시킵니다. 대응 근거가 전혀 없으면 null. */
+function alignPair(baseline: FileFingerprint, current: FileFingerprint): FileAlignment | null {
+  if (baseline.contentHash && current.contentHash && baseline.contentHash === current.contentHash) {
+    return { kind: "identical", currentFileName: current.originalName };
+  }
+  if (!baseline.pageHashes || !current.pageHashes) return null;
+  if (baseline.pageHashes.length * current.pageHashes.length > MAX_ALIGNMENT_CELLS) return null;
+  const baselineToCurrent = alignPagesByContent(baseline.pageHashes, current.pageHashes);
+  if (baselineToCurrent.size === 0) return null;
+  return { kind: "aligned", currentFileName: current.originalName, baselineToCurrent };
+}
+
 /**
- * 현재 파일들과 기준(직전) 검토의 파일들을 파일별로 정렬합니다.
- * - 파일명이 기준에 없으면(새 파일) "unavailable".
- * - 내용 해시가 완전히 같으면 "identical"(정렬 계산 생략, 빠른 경로).
- * - 페이지 해시가 없거나(계산 불가) 정렬 비용이 상한을 넘으면 "unavailable".
- * - 그 외에는 내용 기준 LCS 정렬을 계산합니다.
+ * 현재 파일들과 기준(과거) 검토의 파일들을 내용 기준으로 대응시킵니다.
+ *
+ * 1차로 같은 파일명끼리 비교하고, 남은 파일들은 이름이 달라도 내용으로 교차 매칭합니다 —
+ * 업체가 "2024.12.03 접수용.pdf" -> "2025.01.10 최종.pdf"처럼 파일명을 바꿔 재제출하는
+ * 것이 일반적이므로, 이름만 보고 "완전히 새 파일"로 취급하면 이전 판정을 전혀 재사용하지
+ * 못하고 회차 간 판정 편차(충족 개수 요동)까지 생깁니다. 교차 매칭은 오매칭을 막기 위해
+ * 대응 페이지가 임계값(최소 3페이지, 짧은 쪽의 30%) 이상일 때만 인정하며 1:1로만 맺습니다.
  */
 export function computeFileAlignments(
   currentFiles: FileFingerprint[],
   baselineFiles: FileFingerprint[],
 ): AlignmentByFile {
-  const baselineByName = new Map(baselineFiles.map((file) => [file.originalName, file]));
   const result: AlignmentByFile = new Map();
+  const usedCurrentNames = new Set<string>();
+  const currentByName = new Map(currentFiles.map((file) => [file.originalName, file]));
+  const unmatchedBaselines: FileFingerprint[] = [];
 
-  for (const file of currentFiles) {
-    const baseline = baselineByName.get(file.originalName);
-    if (!baseline) {
-      result.set(file.originalName, { kind: "unavailable" });
+  // 1차: 같은 파일명끼리
+  for (const baseline of baselineFiles) {
+    const current = currentByName.get(baseline.originalName);
+    if (!current) {
+      unmatchedBaselines.push(baseline);
       continue;
     }
+    usedCurrentNames.add(current.originalName);
+    const entry = alignPair(baseline, current);
+    if (entry) result.set(baseline.originalName, entry);
+  }
 
-    if (baseline.contentHash && file.contentHash && baseline.contentHash === file.contentHash) {
-      result.set(file.originalName, { kind: "identical" });
-      continue;
+  // 2차: 이름이 다른 파일끼리 내용으로 교차 매칭 (파일명 변경 재제출 대응)
+  for (const baseline of unmatchedBaselines) {
+    let best: FileAlignment | null = null;
+    let bestScore = 0;
+
+    for (const current of currentFiles) {
+      if (usedCurrentNames.has(current.originalName)) continue;
+      const entry = alignPair(baseline, current);
+      if (!entry) continue;
+
+      if (entry.kind === "identical") {
+        best = entry;
+        bestScore = Number.MAX_SAFE_INTEGER;
+        break;
+      }
+
+      const minPages = Math.min(baseline.pageHashes?.length ?? 0, current.pageHashes?.length ?? 0);
+      const threshold = Math.max(MIN_CROSS_MATCH_PAGES, Math.ceil(minPages * MIN_CROSS_MATCH_RATIO));
+      if (entry.baselineToCurrent.size < threshold) continue;
+      if (entry.baselineToCurrent.size > bestScore) {
+        best = entry;
+        bestScore = entry.baselineToCurrent.size;
+      }
     }
 
-    if (!baseline.pageHashes || !file.pageHashes) {
-      result.set(file.originalName, { kind: "unavailable" });
-      continue;
+    if (best) {
+      result.set(baseline.originalName, best);
+      usedCurrentNames.add(best.currentFileName);
     }
-
-    if (baseline.pageHashes.length * file.pageHashes.length > MAX_ALIGNMENT_CELLS) {
-      result.set(file.originalName, { kind: "unavailable" });
-      continue;
-    }
-
-    const baselineToCurrent = alignPagesByContent(baseline.pageHashes, file.pageHashes);
-    result.set(file.originalName, { kind: "aligned", baselineToCurrent });
   }
 
   return result;
@@ -144,16 +182,18 @@ export function hasAnyDocumentChange(
   baselineFiles: FileFingerprint[],
   alignments: AlignmentByFile,
 ): boolean {
-  const currentNames = new Set(currentFiles.map((file) => file.originalName));
-  const baselineNames = new Set(baselineFiles.map((file) => file.originalName));
-  if (currentNames.size !== baselineNames.size) return true;
-  for (const name of currentNames) {
-    if (!baselineNames.has(name)) return true;
+  if (currentFiles.length !== baselineFiles.length) return true;
+
+  // 모든 기준 파일이 현재 파일과 "identical"로 1:1 대응돼야 무변경 — 파일명은 바뀌어도
+  // 내용이 같으면(이름만 바꾼 재제출) 무변경으로 봅니다.
+  const matchedCurrentNames = new Set<string>();
+  for (const baseline of baselineFiles) {
+    const entry = alignments.get(baseline.originalName);
+    if (!entry || entry.kind !== "identical") return true;
+    if (matchedCurrentNames.has(entry.currentFileName)) return true;
+    matchedCurrentNames.add(entry.currentFileName);
   }
-  for (const entry of alignments.values()) {
-    if (entry.kind !== "identical") return true;
-  }
-  return false;
+  return matchedCurrentNames.size !== currentFiles.length;
 }
 
 export type BaselineCandidate<T> = {
@@ -192,11 +232,11 @@ export function selectBestBaseline<T extends { files: FileFingerprint[] }>(
     }
 
     let score = 0;
-    for (const [name, entry] of alignments) {
+    for (const entry of alignments.values()) {
       if (entry.kind === "identical") {
-        const current = currentFiles.find((file) => file.originalName === name);
+        const current = currentFiles.find((file) => file.originalName === entry.currentFileName);
         score += current?.pageHashes?.length ?? 1;
-      } else if (entry.kind === "aligned") {
+      } else {
         score += entry.baselineToCurrent.size;
       }
     }
@@ -211,19 +251,20 @@ export function selectBestBaseline<T extends { files: FileFingerprint[] }>(
 }
 
 /**
- * 기준 검토의 페이지 번호를 현재 문서 기준 페이지 번호로 변환합니다. 그 페이지 내용이
- * 현재 문서에서 확인되지 않으면(삭제됐거나 내용이 바뀜) undefined를 반환합니다.
+ * 기준 검토의 (파일명, 페이지)를 현재 문서 기준으로 변환합니다. 파일명이 바뀐 재제출도
+ * 내용 매칭으로 대응되며, 반환되는 fileName은 현재 파일명입니다. 그 페이지 내용이 현재
+ * 문서에서 확인되지 않으면(삭제됐거나 내용이 바뀜) undefined를 반환합니다.
  */
 export function mapBaselinePageToCurrent(
   alignments: AlignmentByFile,
   fileName: string,
   baselinePage: number,
-): number | undefined {
+): { fileName: string; page: number } | undefined {
   const entry = alignments.get(fileName);
   if (!entry) return undefined;
-  if (entry.kind === "identical") return baselinePage;
-  if (entry.kind === "unavailable") return undefined;
-  return entry.baselineToCurrent.get(baselinePage);
+  if (entry.kind === "identical") return { fileName: entry.currentFileName, page: baselinePage };
+  const page = entry.baselineToCurrent.get(baselinePage);
+  return page === undefined ? undefined : { fileName: entry.currentFileName, page };
 }
 
 /**
@@ -240,9 +281,9 @@ export function remapFindingToCurrentPages(
 
   const remappedEvidence: ChecklistEvidence[] = [];
   for (const entry of finding.evidence) {
-    const mappedPage = mapBaselinePageToCurrent(alignments, entry.fileName, entry.page);
-    if (mappedPage === undefined) return null;
-    remappedEvidence.push({ ...entry, page: mappedPage });
+    const mapped = mapBaselinePageToCurrent(alignments, entry.fileName, entry.page);
+    if (mapped === undefined) return null;
+    remappedEvidence.push({ ...entry, fileName: mapped.fileName, page: mapped.page });
   }
 
   return { ...finding, evidence: remappedEvidence };
@@ -255,9 +296,9 @@ export function remapChecklistPages(
 ): ChecklistSourcePage[] | null {
   const remapped: ChecklistSourcePage[] = [];
   for (const page of pages) {
-    const mappedPage = mapBaselinePageToCurrent(alignments, page.fileName, page.page);
-    if (mappedPage === undefined) return null;
-    remapped.push({ fileName: page.fileName, page: mappedPage });
+    const mapped = mapBaselinePageToCurrent(alignments, page.fileName, page.page);
+    if (mapped === undefined) return null;
+    remapped.push({ fileName: mapped.fileName, page: mapped.page });
   }
   return remapped;
 }
@@ -265,10 +306,10 @@ export function remapChecklistPages(
 /** 항목의 출처 페이지(source)를 현재 문서 기준으로 재매핑합니다. 실패하면 source만 제거(항목 자체는 유지). */
 export function remapItem(item: ChecklistItem, alignments: AlignmentByFile): ChecklistItem {
   if (!item.source) return item;
-  const mappedPage = mapBaselinePageToCurrent(alignments, item.source.fileName, item.source.page);
-  return mappedPage === undefined
+  const mapped = mapBaselinePageToCurrent(alignments, item.source.fileName, item.source.page);
+  return mapped === undefined
     ? { ...item, source: undefined }
-    : { ...item, source: { ...item.source, page: mappedPage } };
+    : { ...item, source: { ...item.source, fileName: mapped.fileName, page: mapped.page } };
 }
 
 export function normalizeItemText(text: string): string {

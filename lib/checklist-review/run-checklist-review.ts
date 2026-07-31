@@ -184,12 +184,12 @@ export async function runChecklistReview(
       alignments
         ? `[checklist-review] baseline=${baselineReview!.id} changed=${documentChanged} checklistPagesReusable=${remappedBaselineChecklistPages !== null} ` +
             `align=[${[...alignments.entries()]
-              .map(
-                ([name, entry]) =>
-                  `${name}:${entry.kind === "identical" ? "동일" : entry.kind === "unavailable" ? "비교불가(전체변경)" : `${entry.baselineToCurrent.size}p대응확인`}`,
-              )
+              .map(([name, entry]) => {
+                const renamed = entry.currentFileName !== name ? `->${entry.currentFileName}` : "";
+                return `${name}${renamed}:${entry.kind === "identical" ? "동일" : `${entry.baselineToCurrent.size}p대응확인`}`;
+              })
               .join(", ")}]`
-        : `[checklist-review] baseline=없음 (첫 검토이거나 비교 불가)`,
+        : `[checklist-review] baseline=없음 (첫 검토이거나 대응되는 이력 없음)`,
     );
 
     // 법령·공간정보 조회는 Claude 호출이 아니라 비용이 들지 않고, 시간에 따라 최신화될 수

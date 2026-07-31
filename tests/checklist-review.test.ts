@@ -469,7 +469,7 @@ test("hashPdfPages는 페이지 내용이 바뀌면 해당 페이지의 해시�
   assert.equal(original![2], modified![2], "3페이지는 안 바뀌었으니 해시도 같아야 함");
 });
 
-test("computeFileAlignments는 내용 해시가 같은 파일을 identical로, 새 파일을 unavailable로 처리한다", async () => {
+test("computeFileAlignments는 내용 해시가 같은 파일을 identical로, 대응 없는 파일은 항목 없음으로 처리한다", async () => {
   const { computeFileAlignments } = await import("../lib/checklist-review/partial-reuse");
 
   const alignments = computeFileAlignments(
@@ -484,9 +484,45 @@ test("computeFileAlignments는 내용 해시가 같은 파일을 identical로, �
     ],
   );
 
-  assert.deepEqual(alignments.get("a.pdf"), { kind: "identical" });
-  assert.deepEqual(alignments.get("b.pdf"), { kind: "aligned", baselineToCurrent: new Map([[1, 1], [3, 3]]) });
-  assert.deepEqual(alignments.get("d.pdf"), { kind: "unavailable" });
+  assert.deepEqual(alignments.get("a.pdf"), { kind: "identical", currentFileName: "a.pdf" });
+  assert.deepEqual(alignments.get("b.pdf"), {
+    kind: "aligned",
+    currentFileName: "b.pdf",
+    baselineToCurrent: new Map([[1, 1], [3, 3]]),
+  });
+  // d.pdf는 현재에만 있는 새 파일 — 기준 파일명 키 맵에는 항목이 없음
+  assert.equal(alignments.get("d.pdf"), undefined);
+});
+
+test("computeFileAlignments는 파일명이 바뀐 재제출도 내용으로 교차 매칭한다", async () => {
+  const { computeFileAlignments, hasAnyDocumentChange, mapBaselinePageToCurrent } = await import(
+    "../lib/checklist-review/partial-reuse"
+  );
+
+  // 1) 이름만 바꾼 완전 동일 재제출: identical + 무변경 판정
+  const baseline = [{ originalName: "2024.12.03 접수용.pdf", contentHash: "same", pageHashes: ["h1", "h2", "h3", "h4"] }];
+  const renamedSame = [{ originalName: "2025.01.10 최종.pdf", contentHash: "same", pageHashes: ["h1", "h2", "h3", "h4"] }];
+  const a1 = computeFileAlignments(renamedSame, baseline);
+  assert.deepEqual(a1.get("2024.12.03 접수용.pdf"), { kind: "identical", currentFileName: "2025.01.10 최종.pdf" });
+  assert.equal(hasAnyDocumentChange(renamedSame, baseline, a1), false, "이름만 바뀐 동일 제출물은 무변경");
+
+  // 2) 이름도 바뀌고 일부 페이지도 수정된 개선안: 교차 매칭 + 페이지·파일명 재매핑
+  const improved = [{ originalName: "2025.01.10 최종.pdf", contentHash: "v2", pageHashes: ["h1", "NEW", "h2", "h3", "h4x"] }];
+  const a2 = computeFileAlignments(improved, baseline);
+  const entry = a2.get("2024.12.03 접수용.pdf");
+  assert.equal(entry?.kind, "aligned");
+  assert.equal(entry?.currentFileName, "2025.01.10 최종.pdf");
+  // 기준 p.2(h2) -> 현재 p.3, 파일명도 현재 이름으로 재작성
+  assert.deepEqual(mapBaselinePageToCurrent(a2, "2024.12.03 접수용.pdf", 2), {
+    fileName: "2025.01.10 최종.pdf",
+    page: 3,
+  });
+  assert.equal(hasAnyDocumentChange(improved, baseline, a2), true);
+
+  // 3) 겹치는 페이지가 임계값 미만이면 오매칭 방지를 위해 대응하지 않음
+  const unrelated = [{ originalName: "다른사업.pdf", contentHash: "x", pageHashes: ["z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "h1"] }];
+  const a3 = computeFileAlignments(unrelated, baseline);
+  assert.equal(a3.get("2024.12.03 접수용.pdf"), undefined, "1페이지만 겹치는 무관한 파일은 매칭하지 않음");
 });
 
 test("alignPagesByContent는 페이지가 삽입·삭제돼 번호가 밀려도 내용으로 올바르게 대응시킨다", async () => {
