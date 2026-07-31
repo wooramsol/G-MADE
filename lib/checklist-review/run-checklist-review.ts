@@ -26,11 +26,10 @@ import { addUsage, estimateUsageSummary, mergeUsageByModel, type UsageByModel } 
 import { findChecklistPages } from "./find-checklist-pages";
 import {
   buildFindingsByText,
-  computeFileAlignments,
-  hasAnyDocumentChange,
   partitionItemsForReuse,
   remapChecklistPages,
   remapItem,
+  selectBestBaseline,
 } from "./partial-reuse";
 import {
   CHECKLIST_REVIEW_STEPS,
@@ -149,28 +148,22 @@ export async function runChecklistReview(
     // 이후 이 정보로 "근거 페이지가 현재 문서에 그대로 있는 항목은 재사용(페이지 번호는
     // 현재 문서 기준으로 재매핑), 없어졌거나 바뀐 항목만 재분석"을 수행해 Claude 호출(=비용)을
     // 최소화합니다.
-    const baselineReview = [...(project.checklistReviews ?? [])].reverse()[0];
+    // 기준 검토 선택: 직전 1건이 아니라 전체 이력에서 현재 제출물과 가장 잘 맞는 검토를
+    // 찾습니다. "초안 -> 개선안 -> 다시 초안"처럼 과거에 분석했던 파일이 다시 올라와도
+    // 그때의 결과를 찾아 재사용하기 위함입니다 (한 번 분석한 데이터는 이력에 보관돼 있으므로
+    // 새로 올라온 제출물을 이력 전체와 비교해 중복 여부를 판단).
     const currentFingerprints = filesForAnalysis.map((file) => ({
       originalName: file.originalName,
       contentHash: file.contentHash,
       pageHashes: file.pageHashes,
     }));
-    const baselineFingerprints = baselineReview
-      ? baselineReview.files.map((file) => ({
-          originalName: file.originalName,
-          contentHash: file.contentHash,
-          pageHashes: file.pageHashes,
-        }))
-      : null;
-    const alignments =
-      baselineFingerprints !== null ? computeFileAlignments(currentFingerprints, baselineFingerprints) : null;
+    const baselineCandidate = selectBestBaseline(currentFingerprints, project.checklistReviews ?? []);
+    const baselineReview = baselineCandidate?.review;
+    const alignments = baselineCandidate?.alignments ?? null;
     // 제출물에 변경이 하나라도 있으면(파일 추가/제거·페이지 추가/삭제/수정) true.
     // 이 경우 비충족 판정은 — 보완 내용이 새/다른 페이지에 반영됐을 수 있으므로 —
     // 근거 페이지가 그대로여도 재사용하지 않고 재분석합니다(partitionItemsForReuse 참고).
-    const documentChanged =
-      baselineFingerprints !== null && alignments !== null
-        ? hasAnyDocumentChange(currentFingerprints, baselineFingerprints, alignments)
-        : true;
+    const documentChanged = baselineCandidate ? !baselineCandidate.exactMatch : true;
     const baselineFindingsByText = baselineReview
       ? buildFindingsByText(baselineReview.items, baselineReview.findings)
       : null;

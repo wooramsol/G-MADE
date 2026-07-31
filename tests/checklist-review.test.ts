@@ -742,3 +742,34 @@ test("MAX_CHUNKS_PER_FILE는 앱이 허용하는 최대 업로드 용량(100MB)�
       `${MAX_CHUNKS_PER_FILE * CHUNK_MAX_BYTES}, MAX_UPLOAD_FILE_BYTES=${MAX_UPLOAD_FILE_BYTES}`,
   );
 });
+
+test("selectBestBaseline: 초안->개선안->다시 초안 순서에도 이력에서 동일 제출물을 찾아낸다", async () => {
+  const { selectBestBaseline } = await import("../lib/checklist-review/partial-reuse");
+
+  const draftFiles = [{ originalName: "심의도서.pdf", contentHash: "draft", pageHashes: ["d1", "d2", "d3"] }];
+  const improvedFiles = [{ originalName: "심의도서.pdf", contentHash: "improved", pageHashes: ["d1", "NEW", "d2", "d3"] }];
+
+  const reviews = [
+    { id: "r1-draft", files: draftFiles },
+    { id: "r2-improved", files: improvedFiles },
+  ];
+
+  // 다시 초안을 올림 — 직전(개선안)이 아니라 이력 속 r1(초안)이 완전 일치 기준으로 선택돼야 함.
+  const picked = selectBestBaseline(draftFiles, reviews);
+  assert.equal(picked?.review.id, "r1-draft");
+  assert.equal(picked?.exactMatch, true, "완전 일치로 인식돼 전액 재사용(AI 호출 0)이 가능해야 함");
+
+  // 개선안을 다시 올리면 r2가 선택돼야 함.
+  const picked2 = selectBestBaseline(improvedFiles, reviews);
+  assert.equal(picked2?.review.id, "r2-improved");
+  assert.equal(picked2?.exactMatch, true);
+
+  // 어느 이력과도 완전 일치하지 않는 새 버전은 가장 많은 페이지가 대응되는 검토를 기준으로 삼음.
+  const newerFiles = [{ originalName: "심의도서.pdf", contentHash: "v3", pageHashes: ["d1", "NEW", "d2", "d3", "EXTRA"] }];
+  const picked3 = selectBestBaseline(newerFiles, reviews);
+  assert.equal(picked3?.review.id, "r2-improved", "개선안과 4페이지가 겹치므로(초안은 3) 개선안이 기준");
+  assert.equal(picked3?.exactMatch, false);
+
+  // 이력이 없으면 null.
+  assert.equal(selectBestBaseline(draftFiles, []), null);
+});

@@ -156,6 +156,60 @@ export function hasAnyDocumentChange(
   return false;
 }
 
+export type BaselineCandidate<T> = {
+  review: T;
+  alignments: AlignmentByFile;
+  /** 현재 제출물과 완전히 동일한가 (파일 집합·내용 모두) */
+  exactMatch: boolean;
+};
+
+/**
+ * 전체 검토 이력에서 현재 제출물과 가장 잘 맞는 기준 검토를 고릅니다.
+ *
+ * 직전 검토 1건만 기준으로 삼으면 "초안 분석 -> 개선안 분석 -> 다시 초안 분석"처럼
+ * 과거에 이미 분석한 파일이 다시 올라오는 경우를 놓칩니다(직전=개선안과 비교해
+ * "변경됨"으로 오판 -> 전액 재분석). 한 번이라도 분석한 적 있는 제출물은 이력
+ * 어디에 있든 찾아 재사용해야 합니다.
+ *
+ * 선택 규칙:
+ * 1. 파일 집합·내용이 완전히 일치하는 검토가 있으면 그중 최신 것 (전액 재사용 가능).
+ * 2. 없으면 페이지 대응 수(내용이 같다고 확인된 페이지 합)가 가장 많은 검토.
+ *    동점이면 최신 검토 우선.
+ * 3. 대응 페이지가 하나도 없으면 null (기준 없음 — 전체 새로 분석).
+ */
+export function selectBestBaseline<T extends { files: FileFingerprint[] }>(
+  currentFiles: FileFingerprint[],
+  reviews: T[],
+): BaselineCandidate<T> | null {
+  let best: BaselineCandidate<T> | null = null;
+  let bestScore = 0;
+
+  // 최신 -> 과거 순으로 순회: 완전 일치는 최신 것을 즉시 선택, 점수 동점도 최신 우선.
+  for (const review of [...reviews].reverse()) {
+    const alignments = computeFileAlignments(currentFiles, review.files);
+    if (!hasAnyDocumentChange(currentFiles, review.files, alignments)) {
+      return { review, alignments, exactMatch: true };
+    }
+
+    let score = 0;
+    for (const [name, entry] of alignments) {
+      if (entry.kind === "identical") {
+        const current = currentFiles.find((file) => file.originalName === name);
+        score += current?.pageHashes?.length ?? 1;
+      } else if (entry.kind === "aligned") {
+        score += entry.baselineToCurrent.size;
+      }
+    }
+
+    if (score > bestScore) {
+      best = { review, alignments, exactMatch: false };
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
 /**
  * 기준 검토의 페이지 번호를 현재 문서 기준 페이지 번호로 변환합니다. 그 페이지 내용이
  * 현재 문서에서 확인되지 않으면(삭제됐거나 내용이 바뀜) undefined를 반환합니다.
