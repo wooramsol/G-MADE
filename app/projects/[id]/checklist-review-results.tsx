@@ -397,9 +397,9 @@ function FindingCard({
       ) : null}
 
 
-      {finding && finding.lawRefs.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {finding.lawRefs.map((law) =>
+      {(finding && finding.lawRefs.length > 0) || (!editing && !comment) ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {(finding?.lawRefs ?? []).map((law) =>
             law.sourceUrl ? (
               <a
                 className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:underline"
@@ -421,6 +421,15 @@ function FindingCard({
               </span>
             ),
           )}
+          {!editing && !comment ? (
+            <button
+              className="ml-auto rounded-full border border-[#c9d6e6] bg-white px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:bg-[#eef4fb]"
+              onClick={startEditing}
+              type="button"
+            >
+              + 추가의견
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -432,7 +441,7 @@ function FindingCard({
             disabled={saving}
             maxLength={2000}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="이 항목에 대한 검토 코멘트를 입력하세요"
+            placeholder="이 항목에 대한 추가의견을 입력하세요"
             rows={2}
             value={draft}
           />
@@ -470,7 +479,7 @@ function FindingCard({
         <div className="mt-3 rounded-lg border border-[#c9d6e6] bg-white/80 px-3 py-2">
           <div className="flex items-start justify-between gap-2">
             <p className="min-w-0 flex-1 whitespace-pre-wrap text-xs leading-5 text-[#334155]">
-              <span className="mr-1.5 font-bold text-[#15345b]">코멘트</span>
+              <span className="mr-1.5 font-bold text-[#15345b]">추가의견</span>
               {comment}
             </p>
             <button
@@ -482,17 +491,7 @@ function FindingCard({
             </button>
           </div>
         </div>
-      ) : (
-        <div className="mt-2 flex justify-end">
-          <button
-            className="rounded-md px-2 py-1 text-[11px] font-bold text-[#94a3b8] hover:bg-white/70 hover:text-[#2463b3]"
-            onClick={startEditing}
-            type="button"
-          >
-            + 코멘트
-          </button>
-        </div>
-      )}
+      ) : null}
     </li>
   );
 }
