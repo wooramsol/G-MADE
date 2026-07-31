@@ -847,3 +847,25 @@ test("computeFileAlignments는 합본(2권->1권)된 페이지도 추적하며, 
   // 2권의 표지(COVER)는 기준 쪽에서 중복 해시라 모호 → 이동 대응하지 않음 (오매칭 방지)
   assert.equal(mapBaselinePageToCurrent(alignments, "2권.pdf", 1), undefined);
 });
+
+test("parseExtractedItems는 max_tokens로 잘린 JSON 배열에서 완성된 항목까지 복구한다", async () => {
+  const { parseExtractedItems } = await import("../lib/checklist-review/extract-items");
+
+  // 세 번째 항목 중간에서 응답이 잘린 상황
+  const truncated = `[
+  {"category": "배치", "text": "주변 경관과 조화로운 배치 계획 수립", "fileName": "도서.pdf", "page": 3},
+  {"category": "배치", "text": "가로변 차폐 조경 계획 반영", "fileName": "도서.pdf", "page": 3},
+  {"category": "형태", "text": "건축물 입면의 `;
+
+  const items = parseExtractedItems(truncated);
+  assert.equal(items.length, 2, "완성된 앞 2개 항목은 복구돼야 함");
+  assert.equal(items[0].text, "주변 경관과 조화로운 배치 계획 수립");
+  assert.equal(items[1].source?.page, 3);
+
+  // 정상 JSON은 기존대로 전부 파싱
+  const intact = `[{"text": "야간 경관 조명 계획 수립", "fileName": "도서.pdf", "page": 5}]`;
+  assert.equal(parseExtractedItems(intact).length, 1);
+
+  // JSON이 전혀 없는 응답은 빈 배열
+  assert.equal(parseExtractedItems("추출할 항목이 없습니다.").length, 0);
+});

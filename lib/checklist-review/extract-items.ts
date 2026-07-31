@@ -21,15 +21,43 @@ type RawExtractedItem = {
   page?: number;
 };
 
+/**
+ * 응답이 max_tokens로 잘려 JSON 배열이 닫히지 않은 경우, 마지막으로 완성된 객체까지만
+ * 잘라 배열을 닫고 복구합니다. 항목이 하나도 복구되지 않는 것보다 완성된 앞부분이라도
+ * 살리는 편이 낫습니다 — 복구 실패(0개)로 처리되면 문서 전체를 비전으로 추출+평가하는
+ * 훨씬 느린 폴백 경로로 빠져 서버 시간 한도를 초과할 수 있습니다.
+ */
+function salvageTruncatedItemsArray(raw: string): unknown[] | null {
+  const start = raw.indexOf("[");
+  if (start < 0) return null;
+  const slice = raw.slice(start);
+  const lastClose = slice.lastIndexOf("}");
+  if (lastClose < 0) return null;
+  const candidate = `${slice.slice(0, lastClose + 1).replace(/,\s*$/, "")}]`;
+  try {
+    const parsed = JSON.parse(candidate) as unknown;
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function parseExtractedItems(raw: string, fallbackPage?: { fileName: string; page: number }): ChecklistItem[] {
   const json = extractJsonContent(raw);
-  if (!json) return [];
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return [];
+  let parsed: unknown = null;
+  if (json) {
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      parsed = null;
+    }
+  }
+  if (!Array.isArray(parsed)) {
+    parsed = salvageTruncatedItemsArray(raw);
+    if (Array.isArray(parsed)) {
+      console.warn(`[checklist-review] 항목 추출 응답이 잘려 복구 파싱 사용 — 복구된 항목=${parsed.length}`);
+    }
   }
 
   if (!Array.isArray(parsed)) return [];
@@ -69,9 +97,15 @@ export async function extractChecklistItems(pages: PageSlice[]): Promise<{
     model: CLAUDE_FAST_MODEL,
     system: EXTRACT_SYSTEM_PROMPT,
     userBlocks: [{ type: "text", text: pagesText }],
-    maxOutputTokens: 8_192,
+    // 대형 도서는 체크리스트 항목이 80개를 넘기도 함 — 8192로는 잘려서(items=0 오인 ->
+    // 문서 전체 비전 추출+평가 폴백 -> 서버 시간 한도 초과) 검토가 실패한 사례가 있어 확대.
+    maxOutputTokens: 16_384,
     timeoutMs: 120_000,
   });
+
+  if (result.stopReason === "max_tokens") {
+    console.warn("[checklist-review] 항목 추출 응답이 max_tokens로 잘림 — 복구 파싱으로 진행");
+  }
 
   const fallback = pages[0] ? { fileName: pages[0].fileName, page: pages[0].page } : undefined;
   return { items: parseExtractedItems(result.text, fallback), model: result.model, usage: result.usage };
