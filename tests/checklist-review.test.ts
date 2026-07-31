@@ -900,3 +900,27 @@ test("findChecklistPages는 경관 표기가 없는 단독 체크리스트는 �
   assert.equal(pages.length, 1);
   assert.equal(pages[0]?.page, 1);
 });
+
+test("selectRelevantPagesForBatch는 도면 위주 문서(텍스트 페이지 비율 낮음)의 필터링을 생략한다", async () => {
+  const { selectRelevantPagesForBatch } = await import("../lib/checklist-review/relevant-pages");
+  const { buildPdfPageMarkedText } = await import("../lib/ai/page-citation");
+
+  // 60페이지 중 앞 25페이지만 텍스트가 있고 나머지 35페이지는 도면(텍스트 없음)인 문서
+  const pageTexts = Array.from({ length: 60 }, (_, index) =>
+    index < 25 ? `본문 페이지 ${index + 1} 경관 계획과 야간 조명 배치에 관한 설명입니다` : "",
+  );
+  const drawingHeavy: UploadedFileSummary = {
+    originalName: "도면위주.pdf",
+    extractedTextPreview: buildPdfPageMarkedText("도면위주.pdf", pageTexts),
+    totalPages: 60,
+  };
+
+  const { pagesByFile, skippedFiles } = selectRelevantPagesForBatch(
+    [drawingHeavy],
+    [{ id: "c1", text: "야간 경관 조명 계획 수립 여부" }],
+  );
+
+  // 텍스트 커버리지 25/60 < 60% -> 필터링 생략(전체 전송)해 도면 페이지 누락 방지
+  assert.ok(skippedFiles.has("도면위주.pdf"));
+  assert.equal(pagesByFile.has("도면위주.pdf"), false);
+});

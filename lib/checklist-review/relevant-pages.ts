@@ -30,6 +30,13 @@ const SKIP_FILTER_ABOVE_RATIO = 0.7;
 const MAX_SELECTED_PAGES_PER_FILE = 40;
 /** 키워드 매칭이 약해 선별 결과가 이보다 적으면 안전을 위해 페이지를 보충 */
 const MIN_TOTAL_SELECTED_PAGES = 8;
+/**
+ * 텍스트 레이어가 있는 페이지 비율이 이보다 낮으면 필터링을 생략하고 전체를 전송.
+ * 키워드 선별은 텍스트가 있는 페이지만 후보로 삼기 때문에, 도면·이미지 위주 문서에서는
+ * 정작 근거가 되는 도면 페이지가 체계적으로 발췌에서 빠져 "도면 확인 불가" 오판과
+ * 엉뚱한 페이지 인용을 만든다 — 이런 문서는 비용을 더 쓰더라도 전체를 보여줘야 한다.
+ */
+const MIN_TEXT_COVERAGE_RATIO = 0.6;
 
 export type RelevantPageSelection = {
   /** fileName -> 선별된 원본 페이지 번호(오름차순, 중복 없음). 필터링을 적용할 파일만 포함. */
@@ -51,6 +58,17 @@ export function selectRelevantPagesForBatch(
     const slices = parsePageSlices([file]);
 
     if (slices.length === 0 || totalPages === 0 || totalPages <= SKIP_FILTER_AT_OR_BELOW_PAGES) {
+      skippedFiles.add(file.originalName);
+      continue;
+    }
+
+    // 도면·이미지 위주 문서(텍스트 페이지 비율 낮음)는 필터링 생략 — 도면 페이지 누락 방지
+    const pagesWithText = new Set(slices.map((slice) => slice.page)).size;
+    if (pagesWithText / totalPages < MIN_TEXT_COVERAGE_RATIO) {
+      console.log(
+        `[checklist-review] 페이지 필터링 생략 「${file.originalName}」 — 텍스트 페이지 ${pagesWithText}/${totalPages} ` +
+          `(도면 위주 문서로 판단, 전체 전송)`,
+      );
       skippedFiles.add(file.originalName);
       continue;
     }
