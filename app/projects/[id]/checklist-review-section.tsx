@@ -106,32 +106,32 @@ export default function ChecklistReviewSection({ project }: { project: Project }
   }
 
   function toggleStoredFile(id: string) {
-    setSelectedStoredIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    // 검토 자료는 한 번에 1개만 — 회차 간 비교(재사용·충족 추이)의 기준을 명확히 하기 위함.
+    setSelectedStoredIds((current) => (current.has(id) ? new Set() : new Set([id])));
+    setNewFiles([]);
   }
 
   function handleFileInput(list: FileList | null) {
-    if (!list) return;
-    const incoming = Array.from(list);
+    if (!list || list.length === 0) return;
+    // 검토 자료는 한 번에 1개만 — 새 업로드는 기존 업로드·보관 자료 선택을 대체합니다.
+    const incoming = [list[0]];
     const oversized = getOversizedUploadFiles(incoming);
     if (oversized.length > 0) {
       showToast({ message: buildOversizedUploadMessage(oversized, getMaxUploadFileLabel()), tone: "error" });
       return;
     }
-    setNewFiles((current) => {
-      const names = new Set(current.map((file) => file.name));
-      return [...current, ...incoming.filter((file) => !names.has(file.name))];
-    });
+    setNewFiles(incoming);
+    setSelectedStoredIds(new Set());
   }
 
   async function handleRun() {
     const refs = storedFiles.filter((file) => selectedStoredIds.has(file.id));
     if (refs.length === 0 && newFiles.length === 0) {
       showToast({ message: "검토할 자료를 선택하거나 업로드해 주세요.", tone: "error" });
+      return;
+    }
+    if (refs.length + newFiles.length > 1) {
+      showToast({ message: "검토 자료는 한 번에 1개만 분석할 수 있습니다.", tone: "error" });
       return;
     }
 
@@ -203,7 +203,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
           <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
             <p className="text-sm font-bold text-[#15345b]">검토 자료 선택</p>
             <Caption className="mt-1 text-[#64748b]">
-              체크리스트가 포함된 PDF를 업로드하거나 이전에 올린 자료를 선택하세요.
+              체크리스트가 포함된 PDF 1개를 업로드하거나 이전에 올린 자료 1개를 선택하세요. (한 번에 1개만 분석)
             </Caption>
 
             <button
@@ -216,7 +216,6 @@ export default function ChecklistReviewSection({ project }: { project: Project }
             <input
               accept=".pdf,.png,.jpg,.jpeg"
               className="hidden"
-              multiple
               onChange={(event) => {
                 handleFileInput(event.target.files);
                 event.target.value = "";
@@ -257,8 +256,13 @@ export default function ChecklistReviewSection({ project }: { project: Project }
                       <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs hover:bg-[#f0f7ff]">
                         <input
                           checked={selectedStoredIds.has(file.id)}
+                          name="checklist-review-stored-file"
                           onChange={() => toggleStoredFile(file.id)}
-                          type="checkbox"
+                          onClick={() => {
+                            // 라디오는 재클릭 시 change 이벤트가 없으므로 클릭으로 선택 해제 지원
+                            if (selectedStoredIds.has(file.id)) toggleStoredFile(file.id);
+                          }}
+                          type="radio"
                         />
                         <span className="min-w-0 flex-1 truncate font-semibold text-[#172033]">
                           {file.originalName}

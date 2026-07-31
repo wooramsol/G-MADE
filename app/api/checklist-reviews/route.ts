@@ -60,6 +60,12 @@ export async function POST(request: NextRequest) {
 
     const files = formData.getAll("files").filter(isFileLike) as File[];
 
+    // 검토 자료는 한 번에 1개만 — 여러 파일을 동시에 분석하면 회차 간 비교(재사용·충족
+    // 추이)의 기준이 모호해지므로 서버에서도 강제합니다.
+    if (fileRefs.length + files.length > 1) {
+      return NextResponse.json({ error: "검토 자료는 한 번에 1개만 분석할 수 있습니다." }, { status: 400 });
+    }
+
     const input: RunChecklistReviewInput = {
       projectId,
       fileRefs,
