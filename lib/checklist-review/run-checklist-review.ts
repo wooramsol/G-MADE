@@ -176,19 +176,19 @@ export async function runChecklistReview(
     if (baselineReview && alignments && remappedBaselineChecklistPages === null) {
       console.log(
         `[checklist-review] checklistPages-remap-failed baselinePages=${JSON.stringify(baselineReview.checklistPages)} ` +
-          `alignKeys=${JSON.stringify([...alignments.keys()])}`,
+          `alignKeys=${JSON.stringify([...alignments.byFile.keys()])}`,
       );
     }
 
     console.log(
       alignments
         ? `[checklist-review] baseline=${baselineReview!.id} changed=${documentChanged} checklistPagesReusable=${remappedBaselineChecklistPages !== null} ` +
-            `align=[${[...alignments.entries()]
+            `align=[${[...alignments.byFile.entries()]
               .map(([name, entry]) => {
                 const renamed = entry.currentFileName !== name ? `->${entry.currentFileName}` : "";
                 return `${name}${renamed}:${entry.kind === "identical" ? "동일" : `${entry.baselineToCurrent.size}p대응확인`}`;
               })
-              .join(", ")}]`
+              .join(", ")}] moved=${alignments.movedPages.size}p`
         : `[checklist-review] baseline=없음 (첫 검토이거나 대응되는 이력 없음)`,
     );
 

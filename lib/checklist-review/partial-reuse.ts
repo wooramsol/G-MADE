@@ -43,6 +43,18 @@ export type FileAlignment =
 export type AlignmentByFile = Map<string, FileAlignment>;
 
 /**
+ * 제출물 전체의 대응 결과.
+ * - byFile: 파일 단위 대응 (이름 매칭 + 내용 교차 매칭).
+ * - movedPages: 파일 분권·합본·페이지 이동으로 "다른 파일"로 옮겨간 페이지의 개별 대응
+ *   (key: "기준파일명#페이지"). 내용 해시가 기준·현재 양쪽에서 유일한 페이지만 포함되므로
+ *   표지·간지 같은 중복 페이지가 엉뚱하게 대응될 위험이 없습니다.
+ */
+export type SubmissionAlignment = {
+  byFile: AlignmentByFile;
+  movedPages: Map<string, { fileName: string; page: number }>;
+};
+
+/**
  * 두 페이지 해시 시퀀스를 LCS(최장 공통 부분수열)로 정렬합니다. 반환값은
  * baseline 페이지 번호(1-based) -> current 페이지 번호(1-based) 매핑이며,
  * 순서를 보존하는 대응만 포함합니다(내용이 같아도 순서가 뒤바뀐 경우는 대응하지 않음
@@ -116,7 +128,7 @@ function alignPair(baseline: FileFingerprint, current: FileFingerprint): FileAli
 export function computeFileAlignments(
   currentFiles: FileFingerprint[],
   baselineFiles: FileFingerprint[],
-): AlignmentByFile {
+): SubmissionAlignment {
   const result: AlignmentByFile = new Map();
   const usedCurrentNames = new Set<string>();
   const currentByName = new Map(currentFiles.map((file) => [file.originalName, file]));
@@ -165,7 +177,59 @@ export function computeFileAlignments(
     }
   }
 
-  return result;
+  // 3차: 파일 분권·합본·페이지 이동 대응 — 파일쌍 대응으로 커버되지 못한 기준 페이지를
+  // 전역에서 탐색합니다 (예: 도서 1권을 2권으로 분권하면 뒷부분 페이지들이 "다른 파일"에
+  // 있음). 내용 해시가 기준·현재 양쪽에서 유일하고 아직 다른 대응에 점유되지 않은
+  // 페이지만 이동으로 인정해 오매칭을 방지합니다.
+  const movedPages = new Map<string, { fileName: string; page: number }>();
+
+  const baselineHashCount = new Map<string, number>();
+  for (const file of baselineFiles) {
+    for (const hash of file.pageHashes ?? []) {
+      baselineHashCount.set(hash, (baselineHashCount.get(hash) ?? 0) + 1);
+    }
+  }
+
+  const currentHashLocations = new Map<string, Array<{ fileName: string; page: number }>>();
+  for (const file of currentFiles) {
+    (file.pageHashes ?? []).forEach((hash, index) => {
+      const list = currentHashLocations.get(hash) ?? [];
+      list.push({ fileName: file.originalName, page: index + 1 });
+      currentHashLocations.set(hash, list);
+    });
+  }
+
+  // 파일쌍 대응이 이미 점유한 현재 페이지 집합
+  const claimedCurrent = new Set<string>();
+  for (const entry of result.values()) {
+    if (entry.kind === "identical") {
+      const current = currentByName.get(entry.currentFileName) ?? currentFiles.find((f) => f.originalName === entry.currentFileName);
+      const pageCount = current?.pageHashes?.length ?? 0;
+      for (let page = 1; page <= pageCount; page += 1) claimedCurrent.add(`${entry.currentFileName}#${page}`);
+    } else {
+      for (const page of entry.baselineToCurrent.values()) claimedCurrent.add(`${entry.currentFileName}#${page}`);
+    }
+  }
+
+  for (const baseline of baselineFiles) {
+    const entry = result.get(baseline.originalName);
+    if (entry?.kind === "identical") continue; // 전 페이지가 이미 대응됨
+    const hashes = baseline.pageHashes ?? [];
+    for (let index = 0; index < hashes.length; index += 1) {
+      const page = index + 1;
+      if (entry?.kind === "aligned" && entry.baselineToCurrent.has(page)) continue;
+      const hash = hashes[index];
+      if (baselineHashCount.get(hash) !== 1) continue; // 기준 쪽에서 중복 → 모호
+      const locations = currentHashLocations.get(hash) ?? [];
+      if (locations.length !== 1) continue; // 현재 쪽에 없거나 중복 → 모호
+      const target = locations[0];
+      if (claimedCurrent.has(`${target.fileName}#${target.page}`)) continue;
+      movedPages.set(`${baseline.originalName}#${page}`, target);
+      claimedCurrent.add(`${target.fileName}#${target.page}`);
+    }
+  }
+
+  return { byFile: result, movedPages };
 }
 
 /**
@@ -180,7 +244,7 @@ export function computeFileAlignments(
 export function hasAnyDocumentChange(
   currentFiles: FileFingerprint[],
   baselineFiles: FileFingerprint[],
-  alignments: AlignmentByFile,
+  alignments: SubmissionAlignment,
 ): boolean {
   if (currentFiles.length !== baselineFiles.length) return true;
 
@@ -188,7 +252,7 @@ export function hasAnyDocumentChange(
   // 내용이 같으면(이름만 바꾼 재제출) 무변경으로 봅니다.
   const matchedCurrentNames = new Set<string>();
   for (const baseline of baselineFiles) {
-    const entry = alignments.get(baseline.originalName);
+    const entry = alignments.byFile.get(baseline.originalName);
     if (!entry || entry.kind !== "identical") return true;
     if (matchedCurrentNames.has(entry.currentFileName)) return true;
     matchedCurrentNames.add(entry.currentFileName);
@@ -198,7 +262,7 @@ export function hasAnyDocumentChange(
 
 export type BaselineCandidate<T> = {
   review: T;
-  alignments: AlignmentByFile;
+  alignments: SubmissionAlignment;
   /** 현재 제출물과 완전히 동일한가 (파일 집합·내용 모두) */
   exactMatch: boolean;
 };
@@ -231,8 +295,8 @@ export function selectBestBaseline<T extends { files: FileFingerprint[] }>(
       return { review, alignments, exactMatch: true };
     }
 
-    let score = 0;
-    for (const entry of alignments.values()) {
+    let score = alignments.movedPages.size;
+    for (const entry of alignments.byFile.values()) {
       if (entry.kind === "identical") {
         const current = currentFiles.find((file) => file.originalName === entry.currentFileName);
         score += current?.pageHashes?.length ?? 1;
@@ -256,15 +320,18 @@ export function selectBestBaseline<T extends { files: FileFingerprint[] }>(
  * 문서에서 확인되지 않으면(삭제됐거나 내용이 바뀜) undefined를 반환합니다.
  */
 export function mapBaselinePageToCurrent(
-  alignments: AlignmentByFile,
+  alignments: SubmissionAlignment,
   fileName: string,
   baselinePage: number,
 ): { fileName: string; page: number } | undefined {
-  const entry = alignments.get(fileName);
-  if (!entry) return undefined;
-  if (entry.kind === "identical") return { fileName: entry.currentFileName, page: baselinePage };
-  const page = entry.baselineToCurrent.get(baselinePage);
-  return page === undefined ? undefined : { fileName: entry.currentFileName, page };
+  const entry = alignments.byFile.get(fileName);
+  if (entry) {
+    if (entry.kind === "identical") return { fileName: entry.currentFileName, page: baselinePage };
+    const page = entry.baselineToCurrent.get(baselinePage);
+    if (page !== undefined) return { fileName: entry.currentFileName, page };
+  }
+  // 파일쌍 대응에 없으면 분권·합본으로 다른 파일로 이동한 페이지인지 확인
+  return alignments.movedPages.get(`${fileName}#${baselinePage}`);
 }
 
 /**
@@ -275,7 +342,7 @@ export function mapBaselinePageToCurrent(
  */
 export function remapFindingToCurrentPages(
   finding: ChecklistFinding,
-  alignments: AlignmentByFile,
+  alignments: SubmissionAlignment,
 ): ChecklistFinding | null {
   if (finding.evidence.length === 0) return null;
 
@@ -292,7 +359,7 @@ export function remapFindingToCurrentPages(
 /** 체크리스트 표 페이지 목록을 전부 현재 문서 기준으로 재매핑합니다. 하나라도 실패하면 null. */
 export function remapChecklistPages(
   pages: ChecklistSourcePage[],
-  alignments: AlignmentByFile,
+  alignments: SubmissionAlignment,
 ): ChecklistSourcePage[] | null {
   const remapped: ChecklistSourcePage[] = [];
   for (const page of pages) {
@@ -304,7 +371,7 @@ export function remapChecklistPages(
 }
 
 /** 항목의 출처 페이지(source)를 현재 문서 기준으로 재매핑합니다. 실패하면 source만 제거(항목 자체는 유지). */
-export function remapItem(item: ChecklistItem, alignments: AlignmentByFile): ChecklistItem {
+export function remapItem(item: ChecklistItem, alignments: SubmissionAlignment): ChecklistItem {
   if (!item.source) return item;
   const mapped = mapBaselinePageToCurrent(alignments, item.source.fileName, item.source.page);
   return mapped === undefined
@@ -356,7 +423,7 @@ export type ReuseSkipReason =
 export function partitionItemsForReuse(
   items: ChecklistItem[],
   baselineFindingsByText: Map<string, ChecklistFinding>,
-  alignments: AlignmentByFile,
+  alignments: SubmissionAlignment,
   documentChanged: boolean,
 ): { reused: Map<string, ChecklistFinding>; needEval: ChecklistItem[]; skipReasons: Map<string, ReuseSkipReason> } {
   const reused = new Map<string, ChecklistFinding>();

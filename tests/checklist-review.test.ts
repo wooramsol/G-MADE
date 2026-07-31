@@ -484,14 +484,14 @@ test("computeFileAlignments는 내용 해시가 같은 파일을 identical로, �
     ],
   );
 
-  assert.deepEqual(alignments.get("a.pdf"), { kind: "identical", currentFileName: "a.pdf" });
-  assert.deepEqual(alignments.get("b.pdf"), {
+  assert.deepEqual(alignments.byFile.get("a.pdf"), { kind: "identical", currentFileName: "a.pdf" });
+  assert.deepEqual(alignments.byFile.get("b.pdf"), {
     kind: "aligned",
     currentFileName: "b.pdf",
     baselineToCurrent: new Map([[1, 1], [3, 3]]),
   });
   // d.pdf는 현재에만 있는 새 파일 — 기준 파일명 키 맵에는 항목이 없음
-  assert.equal(alignments.get("d.pdf"), undefined);
+  assert.equal(alignments.byFile.get("d.pdf"), undefined);
 });
 
 test("computeFileAlignments는 파일명이 바뀐 재제출도 내용으로 교차 매칭한다", async () => {
@@ -503,13 +503,13 @@ test("computeFileAlignments는 파일명이 바뀐 재제출도 내용으로 교
   const baseline = [{ originalName: "2024.12.03 접수용.pdf", contentHash: "same", pageHashes: ["h1", "h2", "h3", "h4"] }];
   const renamedSame = [{ originalName: "2025.01.10 최종.pdf", contentHash: "same", pageHashes: ["h1", "h2", "h3", "h4"] }];
   const a1 = computeFileAlignments(renamedSame, baseline);
-  assert.deepEqual(a1.get("2024.12.03 접수용.pdf"), { kind: "identical", currentFileName: "2025.01.10 최종.pdf" });
+  assert.deepEqual(a1.byFile.get("2024.12.03 접수용.pdf"), { kind: "identical", currentFileName: "2025.01.10 최종.pdf" });
   assert.equal(hasAnyDocumentChange(renamedSame, baseline, a1), false, "이름만 바뀐 동일 제출물은 무변경");
 
   // 2) 이름도 바뀌고 일부 페이지도 수정된 개선안: 교차 매칭 + 페이지·파일명 재매핑
   const improved = [{ originalName: "2025.01.10 최종.pdf", contentHash: "v2", pageHashes: ["h1", "NEW", "h2", "h3", "h4x"] }];
   const a2 = computeFileAlignments(improved, baseline);
-  const entry = a2.get("2024.12.03 접수용.pdf");
+  const entry = a2.byFile.get("2024.12.03 접수용.pdf");
   assert.equal(entry?.kind, "aligned");
   assert.equal(entry?.currentFileName, "2025.01.10 최종.pdf");
   // 기준 p.2(h2) -> 현재 p.3, 파일명도 현재 이름으로 재작성
@@ -522,7 +522,7 @@ test("computeFileAlignments는 파일명이 바뀐 재제출도 내용으로 교
   // 3) 겹치는 페이지가 임계값 미만이면 오매칭 방지를 위해 대응하지 않음
   const unrelated = [{ originalName: "다른사업.pdf", contentHash: "x", pageHashes: ["z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8", "h1"] }];
   const a3 = computeFileAlignments(unrelated, baseline);
-  assert.equal(a3.get("2024.12.03 접수용.pdf"), undefined, "1페이지만 겹치는 무관한 파일은 매칭하지 않음");
+  assert.equal(a3.byFile.get("2024.12.03 접수용.pdf"), undefined, "1페이지만 겹치는 무관한 파일은 매칭하지 않음");
 });
 
 test("alignPagesByContent는 페이지가 삽입·삭제돼 번호가 밀려도 내용으로 올바르게 대응시킨다", async () => {
@@ -808,4 +808,42 @@ test("selectBestBaseline: 초안->개선안->다시 초안 순서에도 이력�
 
   // 이력이 없으면 null.
   assert.equal(selectBestBaseline(draftFiles, []), null);
+});
+
+test("computeFileAlignments는 분권(1권->2권)으로 다른 파일로 이동한 페이지를 추적한다", async () => {
+  const { computeFileAlignments, mapBaselinePageToCurrent } = await import("../lib/checklist-review/partial-reuse");
+
+  // 기준: 6페이지짜리 도서 1권 -> 현재: 앞 3페이지는 1권, 뒤 3페이지는 새 2권으로 분권
+  const baseline = [{ originalName: "도서.pdf", contentHash: "v1", pageHashes: ["h1", "h2", "h3", "h4", "h5", "h6"] }];
+  const current = [
+    { originalName: "도서-1권.pdf", contentHash: "a", pageHashes: ["h1", "h2", "h3"] },
+    { originalName: "도서-2권.pdf", contentHash: "b", pageHashes: ["h4", "h5", "h6"] },
+  ];
+
+  const alignments = computeFileAlignments(current, baseline);
+  // 파일쌍 매칭은 1권과만 성립 (3페이지 대응) — 4~6페이지는 movedPages로 2권에 대응
+  assert.deepEqual(mapBaselinePageToCurrent(alignments, "도서.pdf", 2), { fileName: "도서-1권.pdf", page: 2 });
+  assert.deepEqual(mapBaselinePageToCurrent(alignments, "도서.pdf", 5), { fileName: "도서-2권.pdf", page: 2 });
+  assert.deepEqual(mapBaselinePageToCurrent(alignments, "도서.pdf", 6), { fileName: "도서-2권.pdf", page: 3 });
+});
+
+test("computeFileAlignments는 합본(2권->1권)된 페이지도 추적하며, 중복 해시 페이지는 이동 대응하지 않는다", async () => {
+  const { computeFileAlignments, mapBaselinePageToCurrent } = await import("../lib/checklist-review/partial-reuse");
+
+  // 기준: 2권 (각각 표지 해시 "COVER"가 중복) -> 현재: 합본 1권
+  const baseline = [
+    { originalName: "1권.pdf", contentHash: "a", pageHashes: ["COVER", "h1", "h2", "h3"] },
+    { originalName: "2권.pdf", contentHash: "b", pageHashes: ["COVER", "h4", "h5"] },
+  ];
+  const current = [
+    { originalName: "합본.pdf", contentHash: "m", pageHashes: ["COVER", "h1", "h2", "h3", "h4", "h5"] },
+  ];
+
+  const alignments = computeFileAlignments(current, baseline);
+  // 1권은 파일쌍 매칭(4페이지 대응)으로, 2권의 h4·h5는 movedPages로 합본에 대응
+  assert.deepEqual(mapBaselinePageToCurrent(alignments, "1권.pdf", 2), { fileName: "합본.pdf", page: 2 });
+  assert.deepEqual(mapBaselinePageToCurrent(alignments, "2권.pdf", 2), { fileName: "합본.pdf", page: 5 });
+  assert.deepEqual(mapBaselinePageToCurrent(alignments, "2권.pdf", 3), { fileName: "합본.pdf", page: 6 });
+  // 2권의 표지(COVER)는 기준 쪽에서 중복 해시라 모호 → 이동 대응하지 않음 (오매칭 방지)
+  assert.equal(mapBaselinePageToCurrent(alignments, "2권.pdf", 1), undefined);
 });
