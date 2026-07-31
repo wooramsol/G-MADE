@@ -105,6 +105,38 @@ export default function ChecklistReviewSection({ project }: { project: Project }
     }
   }
 
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
+
+  async function handleDeleteStoredFile(file: StoredFileRef) {
+    if (!window.confirm(`"${file.originalName}" 자료를 삭제할까요?\n실제 저장된 파일도 함께 삭제되어 되돌릴 수 없습니다.`)) {
+      return;
+    }
+    setDeletingFileId(file.id);
+    try {
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(project.id)}/files/${encodeURIComponent(file.id)}`,
+        { method: "DELETE" },
+      );
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "자료를 삭제하지 못했습니다.");
+      }
+      setSelectedStoredIds((current) => {
+        if (!current.has(file.id)) return current;
+        return new Set();
+      });
+      showToast({ message: `"${file.originalName}" 자료를 삭제했습니다.`, tone: "success" });
+      router.refresh();
+    } catch (error) {
+      showToast({
+        message: error instanceof Error ? error.message : "자료를 삭제하지 못했습니다.",
+        tone: "error",
+      });
+    } finally {
+      setDeletingFileId(null);
+    }
+  }
+
   function toggleStoredFile(id: string) {
     // 검토 자료는 한 번에 1개만 — 회차 간 비교(재사용·충족 추이)의 기준을 명확히 하기 위함.
     setSelectedStoredIds((current) => (current.has(id) ? new Set() : new Set([id])));
@@ -268,6 +300,19 @@ export default function ChecklistReviewSection({ project }: { project: Project }
                           {file.originalName}
                         </span>
                         <span className="shrink-0 text-[#94a3b8]">{formatBytes(file.sizeBytes)}</span>
+                        <button
+                          className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
+                          disabled={deletingFileId === file.id}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void handleDeleteStoredFile(file);
+                          }}
+                          title="자료 삭제 (저장된 파일도 함께 삭제)"
+                          type="button"
+                        >
+                          {deletingFileId === file.id ? "삭제 중" : "삭제"}
+                        </button>
                       </label>
                     </li>
                   ))}
