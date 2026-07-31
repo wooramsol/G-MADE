@@ -420,13 +420,14 @@ async function buildBatchDocumentPayloads(
 const VISION_EXTRACT_SYSTEM = `당신은 경관·공공디자인 심의 문서에서 체크리스트를 찾아 항목을 추출하는 도구입니다.
 규칙:
 - '체크리스트' 제목이 있는 페이지(표 형태의 점검 항목)를 찾습니다. 목차 페이지는 제외합니다.
+- 경관·공공디자인 분야의 체크리스트만 추출합니다. 건축계획·구조·소방·에너지 등 다른 분야의 체크리스트 페이지는 무시합니다.
 - 항목 원문을 최대한 그대로 보존합니다 (요약·의역 금지). 머리말·열 제목(반영여부·비고 등)·범례는 제외합니다.
 - 반드시 JSON만 출력합니다.`;
 
 function buildVisionExtractPrompt(projectLabel: string, note?: string): string {
   return `${projectLabel}
 ${note ? `\n${note}\n` : ""}
-첨부 문서에서 '체크리스트' 페이지를 찾아 표의 점검 항목을 추출하세요.
+첨부 문서에서 '경관·공공디자인 체크리스트' 페이지를 찾아 표의 점검 항목을 추출하세요. (건축계획·구조·소방 등 다른 분야의 체크리스트는 제외)
 출력 형식(JSON만):
 {"checklistPages":[{"fileName":"파일명","page":5}],"items":[{"category":"구분","text":"항목 원문","fileName":"파일명","page":5}]}
 체크리스트 페이지가 없으면 {"checklistPages":[],"items":[]}만 출력하세요.`;
@@ -571,7 +572,7 @@ function buildVisionExtractAndEvaluatePrompt(projectLabel: string, contextText: 
 ${contextText}
 
 제출 문서의 텍스트 레이어에서 체크리스트를 찾지 못했습니다. 문서(스캔·이미지 포함)를 직접 확인하여:
-1. '체크리스트' 제목이 있는 페이지들을 찾고, 그 표의 점검 항목을 원문 그대로 추출하세요.
+1. '경관·공공디자인 체크리스트' 페이지들을 찾고, 그 표의 점검 항목을 원문 그대로 추출하세요. (건축계획·구조·소방 등 다른 분야의 체크리스트는 제외)
 2. 각 항목에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 충족 여부를 판정하세요.
 
 출력 형식(JSON만):

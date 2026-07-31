@@ -869,3 +869,34 @@ test("parseExtractedItems는 max_tokens로 잘린 JSON 배열에서 완성된 �
   // JSON이 전혀 없는 응답은 빈 배열
   assert.equal(parseExtractedItems("추출할 항목이 없습니다.").length, 0);
 });
+
+test("findChecklistPages는 건축계획 등 타 분야 체크리스트가 섞여 있으면 경관 체크리스트만 사용한다", () => {
+  const file = buildFile([
+    "사업 개요\n위치: 경기도",
+    "경관 체크리스트\n□ 스카이라인 검토 반영\n□ 야간경관 계획 반영\n□ 색채계획 반영",
+    "건축계획 체크리스트\n□ 대지 안의 공지 확보\n□ 일조권 검토\n□ 주차 계획 반영",
+    "배치도\n(도면)",
+  ]);
+
+  const pages = findChecklistPages([file]);
+  assert.equal(pages.length, 1, "경관 체크리스트 페이지만 인식돼야 함");
+  assert.equal(pages[0]?.page, 2);
+});
+
+test("findChecklistPages는 경관 표기가 없는 단독 체크리스트는 기존대로 인식하되, 타 분야 명시 페이지는 제외한다", () => {
+  // 분야 표기 없는 단독 체크리스트 (일반적인 경관심의 도서)
+  const plain = buildFile([
+    "체크리스트\n□ 스카이라인 검토 반영\n□ 야간경관 계획 반영",
+    "배치도\n(도면)",
+  ]);
+  assert.equal(findChecklistPages([plain]).length, 1);
+
+  // 경관 표기는 없고 건축계획 체크리스트만 명시된 혼합 문서 -> 건축 페이지 제외
+  const mixed = buildFile([
+    "체크리스트\n□ 스카이라인 검토 반영\n□ 야간경관 계획 반영",
+    "건축계획 체크리스트\n□ 일조권 검토\n□ 주차 계획 반영",
+  ]);
+  const pages = findChecklistPages([mixed]);
+  assert.equal(pages.length, 1);
+  assert.equal(pages[0]?.page, 1);
+});
