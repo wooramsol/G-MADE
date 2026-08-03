@@ -386,12 +386,12 @@ export default function ChecklistReviewSection({ project }: { project: Project }
                     >
                       <span className="block">{formatUploadDateTime(review.reviewedAt)}</span>
                       <span className="mt-1 flex flex-wrap items-center gap-1">
-                        <span className="rounded-full bg-[#e8f1ff] px-1.5 py-0.5 text-[10px] font-bold text-[#2463b3]">
+                        <span className="rounded-full bg-[#e8f1ff] px-2 py-0.5 text-[11px] font-bold text-[#2463b3]">
                           전체 {review.items.length}
                         </span>
                         {CHECKLIST_ITEM_STATUSES.map((statusName) => (
                           <span
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${HISTORY_COUNT_STYLES[statusName]}`}
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${HISTORY_COUNT_STYLES[statusName]}`}
                             key={statusName}
                           >
                             {statusName} {review.counts[statusName] ?? 0}

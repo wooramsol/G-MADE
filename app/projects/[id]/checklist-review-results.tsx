@@ -189,18 +189,18 @@ export default function ChecklistReviewResults({
           <p className="text-sm font-bold text-[#15345b]">사업 규모 (문서에서 자동 인식)</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {review.metrics.map((metric) => (
-              <div className="rounded-lg bg-[#f8fafc] px-3 py-2 text-xs" key={metric.label}>
+              <div className="rounded-lg bg-[#f8fafc] px-3 py-2 text-[13px]" key={metric.label}>
                 <p className="font-bold text-[#475569]">{metric.label}</p>
                 <p className="mt-0.5 font-semibold leading-5 text-[#172033]">{metric.value}</p>
                 {metric.source ? (
-                  <p className="mt-0.5 text-[10px] text-[#94a3b8]">
+                  <p className="mt-0.5 text-[11px] text-[#94a3b8]">
                     p.{metric.source.page}
                   </p>
                 ) : null}
               </div>
             ))}
           </div>
-          <p className="mt-2 text-[11px] leading-4 text-[#94a3b8]">
+          <p className="mt-2 text-xs leading-5 text-[#94a3b8]">
             제출 문서에 명시된 값을 원문 그대로 추출한 결과입니다. 최종 수치는 도서 원본으로 확인해 주세요.
           </p>
         </div>
@@ -249,7 +249,7 @@ export default function ChecklistReviewResults({
       {review.warnings.length > 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-xs font-bold text-amber-800">검토 참고</p>
-          <ul className="mt-1 space-y-1 text-xs text-amber-800">
+          <ul className="mt-1.5 space-y-1 text-[13px] leading-5 text-amber-800">
             {review.warnings.map((warning) => (
               <li key={warning}>· {warning}</li>
             ))}
@@ -366,11 +366,11 @@ function FindingCard({
       ) : null}
 
       {finding && finding.evidence.length > 0 ? (
-        <div className="mt-3 space-y-1">
+        <div className="mt-3 space-y-1.5">
           {finding.evidence.map((evidence, index) => {
             const href = pageHref(evidence.fileName, evidence.page);
             return (
-              <p className="text-xs leading-5 text-[#64748b]" key={`${evidence.fileName}-${evidence.page}-${index}`}>
+              <p className="text-[13px] leading-5 text-[#64748b]" key={`${evidence.fileName}-${evidence.page}-${index}`}>
                 {href ? (
                   <a
                     href={href}
@@ -402,7 +402,7 @@ function FindingCard({
           {(finding?.lawRefs ?? []).map((law) =>
             law.sourceUrl ? (
               <a
-                className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:underline"
+                className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-xs font-bold text-[#2463b3] hover:underline"
                 href={buildArticleJumpUrl(law.sourceUrl, law.article) ?? law.sourceUrl}
                 key={`${law.title}-${law.article ?? ""}`}
                 rel="noreferrer"
@@ -413,7 +413,7 @@ function FindingCard({
               </a>
             ) : (
               <span
-                className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3]"
+                className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-xs font-bold text-[#2463b3]"
                 key={`${law.title}-${law.article ?? ""}`}
               >
                 {law.title}
@@ -423,7 +423,7 @@ function FindingCard({
           )}
           {!editing && !comment ? (
             <button
-              className="ml-auto rounded-full border border-[#c9d6e6] bg-white px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:bg-[#eef4fb]"
+              className="ml-auto rounded-full bg-[#eef4fb] px-2.5 py-1 text-xs font-bold text-[#2463b3] hover:bg-[#dcebfb]"
               onClick={startEditing}
               type="button"
             >
@@ -437,7 +437,7 @@ function FindingCard({
         <div className="mt-3 rounded-lg border border-[#c9d6e6] bg-white p-2.5">
           <textarea
             autoFocus
-            className="w-full resize-y rounded-md border border-[#d7dee8] px-2.5 py-1.5 text-xs leading-5 text-[#172033] focus:border-[#2463b3] focus:outline-none"
+            className="w-full resize-y rounded-md border border-[#d7dee8] px-2.5 py-1.5 text-[13px] leading-5 text-[#172033] focus:border-[#2463b3] focus:outline-none"
             disabled={saving}
             maxLength={2000}
             onChange={(event) => setDraft(event.target.value)}
@@ -445,11 +445,11 @@ function FindingCard({
             rows={2}
             value={draft}
           />
-          {commentError ? <p className="mt-1 text-[11px] font-semibold text-red-600">{commentError}</p> : null}
+          {commentError ? <p className="mt-1 text-xs font-semibold text-red-600">{commentError}</p> : null}
           <div className="mt-1.5 flex items-center justify-end gap-1.5">
             {comment ? (
               <button
-                className="rounded-md px-2 py-1 text-[11px] font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
+                className="rounded-md px-2.5 py-1 text-xs font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
                 disabled={saving}
                 onClick={() => void submitComment("")}
                 type="button"
@@ -458,7 +458,7 @@ function FindingCard({
               </button>
             ) : null}
             <button
-              className="rounded-md px-2 py-1 text-[11px] font-bold text-[#64748b] hover:bg-[#f1f5f9] disabled:opacity-50"
+              className="rounded-md px-2.5 py-1 text-xs font-bold text-[#64748b] hover:bg-[#f1f5f9] disabled:opacity-50"
               disabled={saving}
               onClick={() => setEditing(false)}
               type="button"
@@ -466,7 +466,7 @@ function FindingCard({
               취소
             </button>
             <button
-              className="primary-action-blue rounded-md px-2.5 py-1 text-[11px] font-bold disabled:opacity-50"
+              className="primary-action-blue rounded-md px-3 py-1 text-xs font-bold disabled:opacity-50"
               disabled={saving || !draft.trim()}
               onClick={() => void submitComment(draft)}
               type="button"
@@ -478,12 +478,12 @@ function FindingCard({
       ) : comment ? (
         <div className="mt-3 rounded-lg border border-[#c9d6e6] bg-white/80 px-3 py-2">
           <div className="flex items-start justify-between gap-2">
-            <p className="min-w-0 flex-1 whitespace-pre-wrap text-xs leading-5 text-[#334155]">
+            <p className="min-w-0 flex-1 whitespace-pre-wrap text-[13px] leading-5 text-[#334155]">
               <span className="mr-1.5 font-bold text-[#15345b]">추가의견</span>
               {comment}
             </p>
             <button
-              className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-[#2463b3] hover:bg-[#eef4fb]"
+              className="shrink-0 rounded-md px-2 py-1 text-xs font-bold text-[#2463b3] hover:bg-[#eef4fb]"
               onClick={startEditing}
               type="button"
             >
