@@ -71,11 +71,23 @@ function splitSummaryParagraphs(summary: string): string[] {
   return paragraphs;
 }
 
+/** 판정 순위 — 회차 간 개선/하락 판별용 (높을수록 좋음) */
+const STATUS_RANK: Record<ChecklistItemStatus, number> = { 충족: 3, 부분충족: 2, 미충족: 1, 확인불가: 0 };
+
+function normalizeItemTextForCompare(text: string): string {
+  return text.replace(/\s+/g, "");
+}
+
+type ItemChange = { kind: "개선" | "하락"; from: ChecklistItemStatus } | { kind: "신규" };
+
 export default function ChecklistReviewResults({
   review,
+  previousReview,
   projectId,
 }: {
   review: ChecklistReview;
+  /** 직전 회차 검토 — 회차 간 변화(개선/하락/신규) 비교용. 첫 회차면 undefined. */
+  previousReview?: ChecklistReview;
   projectId: string;
 }) {
   const [filter, setFilter] = useState<StatusFilter>("전체");
@@ -135,6 +147,44 @@ export default function ChecklistReviewResults({
     return map;
   }, [review.findings]);
 
+  // 회차 비교 — 직전 회차와 항목 원문(공백 무시) 기준으로 매칭해 상태 변화를 계산
+  const changesByItemId = useMemo(() => {
+    const map = new Map<string, ItemChange>();
+    if (!previousReview) return map;
+
+    const prevStatusByText = new Map<string, ChecklistItemStatus>();
+    const prevFindings = new Map(previousReview.findings.map((finding) => [finding.itemId, finding]));
+    for (const item of previousReview.items) {
+      const status = prevFindings.get(item.id)?.status;
+      if (status) prevStatusByText.set(normalizeItemTextForCompare(item.text), status);
+    }
+
+    for (const item of review.items) {
+      const current = findingsByItemId.get(item.id)?.status;
+      if (!current) continue;
+      const previous = prevStatusByText.get(normalizeItemTextForCompare(item.text));
+      if (previous === undefined) {
+        map.set(item.id, { kind: "신규" });
+        continue;
+      }
+      if (STATUS_RANK[current] > STATUS_RANK[previous]) map.set(item.id, { kind: "개선", from: previous });
+      else if (STATUS_RANK[current] < STATUS_RANK[previous]) map.set(item.id, { kind: "하락", from: previous });
+    }
+    return map;
+  }, [previousReview, review.items, findingsByItemId]);
+
+  const changeSummary = useMemo(() => {
+    let improved = 0;
+    let regressed = 0;
+    let added = 0;
+    for (const change of changesByItemId.values()) {
+      if (change.kind === "개선") improved += 1;
+      else if (change.kind === "하락") regressed += 1;
+      else added += 1;
+    }
+    return { improved, regressed, added };
+  }, [changesByItemId]);
+
   const groupedItems = useMemo(() => {
     const groups = new Map<string, ChecklistItem[]>();
     for (const item of review.items) {
@@ -173,6 +223,30 @@ export default function ChecklistReviewResults({
           </a>
         </div>
       </div>
+
+      {previousReview && (changeSummary.improved > 0 || changeSummary.regressed > 0 || changeSummary.added > 0) ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#d7dee8] bg-white px-4 py-2.5">
+          <span className="text-[13px] font-bold text-[#15345b]">이전 회차 대비</span>
+          {changeSummary.improved > 0 ? (
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+              ▲ 개선 {changeSummary.improved}
+            </span>
+          ) : null}
+          {changeSummary.regressed > 0 ? (
+            <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
+              ▼ 하락 {changeSummary.regressed}
+            </span>
+          ) : null}
+          {changeSummary.added > 0 ? (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+              신규 {changeSummary.added}
+            </span>
+          ) : null}
+          <span className="text-xs text-[#94a3b8]">
+            ({formatUploadDateTime(previousReview.reviewedAt)} 검토 기준)
+          </span>
+        </div>
+      ) : null}
 
       {review.summary ? (
         <div className="space-y-2.5 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
@@ -230,6 +304,7 @@ export default function ChecklistReviewResults({
             <ul className="mt-2 space-y-3">
               {items.map((item) => (
                 <FindingCard
+                  change={changesByItemId.get(item.id)}
                   comment={comments[item.id]}
                   finding={findingsByItemId.get(item.id)}
                   item={item}
@@ -316,12 +391,15 @@ function FindingCard({
   pageHref,
   comment,
   onSaveComment,
+  change,
 }: {
   item: ChecklistItem;
   finding?: ChecklistFinding;
   pageHref: (fileName: string, page: number) => string | undefined;
   comment?: string;
   onSaveComment: (itemId: string, text: string) => Promise<void>;
+  /** 직전 회차 대비 변화 (없으면 동일 or 첫 회차) */
+  change?: ItemChange;
 }) {
   const status = finding?.status ?? "확인불가";
   const style = STATUS_STYLES[status];
@@ -354,8 +432,21 @@ function FindingCard({
     <li className={`rounded-xl border p-4 ${style.card}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-sm font-bold leading-6 text-[#172033]">{item.text}</p>
-        <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold ${style.badge}`}>
-          {status}
+        <span className="flex shrink-0 items-center gap-1.5">
+          {change ? (
+            change.kind === "개선" ? (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700" title={`이전 회차: ${change.from}`}>
+                ▲ {change.from}→
+              </span>
+            ) : change.kind === "하락" ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700" title={`이전 회차: ${change.from}`}>
+                ▼ {change.from}→
+              </span>
+            ) : (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">신규</span>
+            )
+          ) : null}
+          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${style.badge}`}>{status}</span>
         </span>
       </div>
 

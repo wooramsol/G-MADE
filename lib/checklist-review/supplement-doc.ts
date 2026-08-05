@@ -105,6 +105,30 @@ export async function buildSupplementDoc(
       if (finding.recommendation) {
         sections.push(body(`보완 요구: ${finding.recommendation}`, { indent: true, bold: true }));
       }
+      const comment = review.comments?.[item.id]?.trim();
+      if (comment) {
+        sections.push(body(`담당자 의견: ${comment}`, { indent: true, bold: true }));
+      }
+    }
+  }
+
+  // 보완 대상이 아닌 항목(충족 판정)에 남긴 담당자 의견도 별도 절로 포함 —
+  // 화면에서 작성한 의견이 공문 초안에 빠짐없이 옮겨지도록.
+  const extraCommentItems = review.items.filter((item) => {
+    const status = findingsByItemId.get(item.id)?.status;
+    const comment = review.comments?.[item.id]?.trim();
+    return Boolean(comment) && status !== undefined && !TARGET_STATUS_ORDER.includes(status);
+  });
+  if (extraCommentItems.length > 0) {
+    sections.push(
+      heading(`담당자 추가의견 (${extraCommentItems.length}건) — 충족 판정 항목에 대한 별도 의견`, HeadingLevel.HEADING_1),
+    );
+    for (const item of extraCommentItems) {
+      sequence += 1;
+      sections.push(
+        body(`${sequence}. ${item.category ? `[${item.category}] ` : ""}${item.text}`, { bold: true }),
+      );
+      sections.push(body(`담당자 의견: ${review.comments?.[item.id]?.trim() ?? ""}`, { indent: true, bold: true }));
     }
   }
 

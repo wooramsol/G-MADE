@@ -58,6 +58,10 @@ export default function ChecklistReviewSection({ project }: { project: Project }
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const selectedReview: ChecklistReview | undefined =
     reviews.find((review) => review.id === selectedReviewId) ?? reviews[0];
+  // 회차 비교용 — 선택된 검토의 "직전" 회차 (reviews는 최신순 정렬이므로 다음 인덱스)
+  const previousReview: ChecklistReview | undefined = selectedReview
+    ? reviews[reviews.findIndex((review) => review.id === selectedReview.id) + 1]
+    : undefined;
 
   function toggleManagementMode() {
     setManagementMode((current) => !current);
@@ -413,7 +417,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
 
         <div className="min-w-0">
           {selectedReview ? (
-            <ChecklistReviewResults projectId={project.id} review={selectedReview} />
+            <ChecklistReviewResults previousReview={previousReview} projectId={project.id} review={selectedReview} />
           ) : (
             <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc]">
               <MutedText>
