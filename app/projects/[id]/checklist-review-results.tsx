@@ -37,39 +37,6 @@ const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string; c
 
 type StatusFilter = ChecklistItemStatus | "전체";
 
-/**
- * 총평을 읽기 쉬운 문단으로 나눕니다.
- * 줄바꿈 우선 분리 후, 220자를 넘는 문단은 문장 단위로 묶어 재분할합니다
- * (배치 요약을 한 줄로 이어붙인 기존 검토 데이터 대응).
- */
-function splitSummaryParagraphs(summary: string): string[] {
-  const blocks = summary
-    .split(/\n+/)
-    .map((block) => block.trim())
-    .filter(Boolean);
-
-  const paragraphs: string[] = [];
-  for (const block of blocks) {
-    if (block.length <= 220) {
-      paragraphs.push(block);
-      continue;
-    }
-
-    const sentences = block.split(/(?<=[.!?])\s+/).filter(Boolean);
-    let current = "";
-    for (const sentence of sentences) {
-      if (current && current.length + sentence.length > 180) {
-        paragraphs.push(current.trim());
-        current = sentence;
-      } else {
-        current = current ? `${current} ${sentence}` : sentence;
-      }
-    }
-    if (current.trim()) paragraphs.push(current.trim());
-  }
-
-  return paragraphs;
-}
 
 /** 판정 순위 — 회차 간 개선/하락 판별용 (높을수록 좋음) */
 const STATUS_RANK: Record<ChecklistItemStatus, number> = { 충족: 3, 부분충족: 2, 미충족: 1, 확인불가: 0 };
@@ -245,16 +212,6 @@ export default function ChecklistReviewResults({
           <span className="text-xs text-[#94a3b8]">
             ({formatUploadDateTime(previousReview.reviewedAt)} 검토 기준)
           </span>
-        </div>
-      ) : null}
-
-      {review.summary ? (
-        <div className="space-y-2.5 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
-          {splitSummaryParagraphs(review.summary).map((paragraph, index) => (
-            <p className="text-sm font-semibold leading-6 text-[#172033]" key={index}>
-              {paragraph}
-            </p>
-          ))}
         </div>
       ) : null}
 
