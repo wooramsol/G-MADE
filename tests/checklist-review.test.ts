@@ -924,3 +924,30 @@ test("selectRelevantPagesForBatch는 도면 위주 문서(텍스트 페이지 �
   assert.ok(skippedFiles.has("도면위주.pdf"));
   assert.equal(pagesByFile.has("도면위주.pdf"), false);
 });
+
+test("isMissingCoreMetrics·mergeMetrics — 핵심 지표 누락 감지와 비전 보완 병합", async () => {
+  const { isMissingCoreMetrics, mergeMetrics } = await import("../lib/checklist-review/extract-metrics");
+
+  const complete = [
+    { label: "대지면적", value: "78,654.00㎡" },
+    { label: "건축면적", value: "10,523.80㎡" },
+    { label: "건폐율", value: "15.22%" },
+    { label: "용적률", value: "249.69%" },
+    { label: "규모(층수)", value: "35층" },
+  ];
+  assert.equal(isMissingCoreMetrics(complete), false);
+
+  // 개요표가 이미지라 텍스트에서는 주차대수만 잡힌 상황 -> 핵심 지표 누락으로 감지
+  const partial = [{ label: "주차대수", value: "120대" }];
+  assert.equal(isMissingCoreMetrics(partial), true);
+
+  // 병합: 텍스트 추출값 우선, 비전은 빠진 라벨만 보충 (라벨 공백 무시 중복 제거)
+  const merged = mergeMetrics(partial, [
+    { label: "대지면적", value: "78,654.00㎡" },
+    { label: "주차 대수", value: "119대" }, // 텍스트와 같은 라벨(공백만 다름) -> 무시
+  ]);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].label, "주차대수");
+  assert.equal(merged[0].value, "120대", "텍스트 추출값이 우선돼야 함");
+  assert.equal(merged[1].label, "대지면적");
+});

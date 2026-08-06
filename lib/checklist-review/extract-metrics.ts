@@ -31,6 +31,37 @@ export type ExtractMetricsResult = {
   usageByModel: UsageByModel;
 };
 
+/** 사업개요의 핵심 지표 — 이 중 하나라도 없으면 비전 보완을 시도합니다. */
+const CORE_METRIC_PATTERNS: RegExp[] = [
+  /대\s*지\s*면\s*적/,
+  /건\s*축\s*면\s*적/,
+  /건\s*폐\s*율/,
+  /용\s*적\s*률/,
+  /층\s*수|규\s*모/,
+];
+
+/** 추출된 지표에 핵심 지표 누락이 있는지 — 개요표가 이미지/외곽선 글자인 문서 감지용. */
+export function isMissingCoreMetrics(metrics: ChecklistReviewMetric[]): boolean {
+  return CORE_METRIC_PATTERNS.some((pattern) => !metrics.some((metric) => pattern.test(metric.label)));
+}
+
+/** 라벨(공백 무시) 기준으로 병합 — primary(텍스트 추출) 우선, secondary(비전)는 빠진 라벨만 보충. */
+export function mergeMetrics(
+  primary: ChecklistReviewMetric[],
+  secondary: ChecklistReviewMetric[],
+): ChecklistReviewMetric[] {
+  const normalize = (label: string) => label.replace(/\s+/g, "");
+  const seen = new Set(primary.map((metric) => normalize(metric.label)));
+  const merged = [...primary];
+  for (const metric of secondary) {
+    const key = normalize(metric.label);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(metric);
+  }
+  return merged.slice(0, 16);
+}
+
 /**
  * 제출 문서에서 사업 규모 지표를 자동 추출합니다 (저비용 모델).
  * 텍스트 레이어에 개요 정보가 있으면 텍스트로, 스캔본이면 첫 PDF 앞부분을 비전으로 읽습니다.
@@ -53,7 +84,25 @@ export async function extractProjectMetrics(files: UploadedFileSummary[]): Promi
       const fromText = await runMetricsExtraction([{ type: "text", text }], false);
       addUsage(usageByModel, fromText.model, fromText.usage);
       if (fromText.metrics.length > 0) {
-        console.log(`[checklist-review] metrics=${fromText.metrics.length} mode=text`);
+        if (!isMissingCoreMetrics(fromText.metrics)) {
+          console.log(`[checklist-review] metrics=${fromText.metrics.length} mode=text`);
+          return { metrics: fromText.metrics, usageByModel };
+        }
+
+        // 핵심 지표(대지면적·건폐율 등)가 빠짐 — 사업개요 표가 이미지나 외곽선 글자로
+        // 들어가 텍스트 추출이 안 되는 문서. 비전으로 한 번 더 읽어 빠진 라벨만 보충.
+        const supplementBlocks = await buildVisionBlocks(files);
+        if (supplementBlocks) {
+          const fromVision = await runMetricsExtraction(supplementBlocks, true);
+          addUsage(usageByModel, fromVision.model, fromVision.usage);
+          const merged = mergeMetrics(fromText.metrics, fromVision.metrics);
+          console.log(
+            `[checklist-review] metrics=${merged.length} mode=text+vision (핵심 지표 누락 -> 비전 보완, 텍스트 ${fromText.metrics.length} + 비전 보충 ${merged.length - fromText.metrics.length})`,
+          );
+          return { metrics: merged, usageByModel };
+        }
+
+        console.log(`[checklist-review] metrics=${fromText.metrics.length} mode=text (핵심 지표 누락, 비전 자산 없음)`);
         return { metrics: fromText.metrics, usageByModel };
       }
     }
