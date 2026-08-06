@@ -38,6 +38,14 @@ import {
 } from "./progress";
 import { countFindingStatuses, type ChecklistFinding, type ChecklistReview } from "./types";
 
+/**
+ * 텍스트 추출로 얻은 체크리스트 항목이 이보다 적으면 "표 제목만 잡힌 오추출"로 판단합니다.
+ * 체크리스트 표 본문이 이미지·외곽선 글자인 PDF는 텍스트 레이어에 제목 줄만 있어서
+ * 항목 1~2개로 잘못 추출되는데, 0개가 아니라는 이유로 비전 추출 전환이 안 되면
+ * 표 전체가 항목 1개로 평가되는 잘못된 결과가 나옵니다 (실사용 재현 사례).
+ */
+const MIN_PLAUSIBLE_CHECKLIST_ITEMS = 5;
+
 export type RunChecklistReviewInput = {
   projectId: string;
   fileRefs: StoredFileRef[];
@@ -207,7 +215,12 @@ export async function runChecklistReview(
     const usageByModel: UsageByModel = new Map();
     let evaluationWarnings: string[];
 
-    if (remappedBaselineChecklistPages && baselineReview && alignments) {
+    if (
+      remappedBaselineChecklistPages &&
+      baselineReview &&
+      alignments &&
+      baselineReview.items.length >= MIN_PLAUSIBLE_CHECKLIST_ITEMS
+    ) {
       // 체크리스트 표가 있던 페이지들이 (번호가 밀렸더라도) 현재 문서에 그대로 있으므로
       // 항목 추출은 다시 하지 않고 기준 검토의 항목 목록을 현재 페이지 번호로 재매핑해
       // 그대로 씁니다 (항목별 재사용 여부는 아래에서 개별 판정).
@@ -231,6 +244,13 @@ export async function runChecklistReview(
         const extracted = await extractChecklistItems(checklistSlices);
         extractedItems = extracted.items;
         addUsage(usageByModel, extracted.model, extracted.usage);
+      }
+      if (extractedItems.length > 0 && extractedItems.length < MIN_PLAUSIBLE_CHECKLIST_ITEMS) {
+        console.warn(
+          `[checklist-review] 텍스트 추출 항목이 ${extractedItems.length}개뿐 — 체크리스트 표 본문이 ` +
+            `텍스트 레이어에 없는 문서(제목만 추출됨)로 판단해 비전 추출로 전환`,
+        );
+        extractedItems = [];
       }
       items = extractedItems;
       // 텍스트 레이어에서 항목을 얻지 못함 → 평가 단계에서 비전으로 추출+평가. 이 경로는
