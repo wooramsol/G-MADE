@@ -14,12 +14,12 @@ import type { Project } from "@/lib/types";
  * 공문에 옮겨 쓸 수 있는 형식으로 정리합니다.
  */
 
-const TARGET_STATUS_ORDER: ChecklistItemStatus[] = ["미충족", "부분충족", "확인불가"];
-
-const STATUS_GUIDE: Record<string, string> = {
-  미충족: "요구사항이 반영되지 않은 것으로 확인된 항목",
-  부분충족: "일부만 반영되었거나 근거가 불완전한 항목",
-  확인불가: "제출 문서만으로 판단할 수 없어 근거 자료 보완이 필요한 항목",
+/** 웹 결과 화면의 판정 배지 색과 맞춘 docx 텍스트 색 */
+const STATUS_COLORS: Record<ChecklistItemStatus, string> = {
+  충족: "047857",
+  부분충족: "B45309",
+  미충족: "B91C1C",
+  확인불가: "475569",
 };
 
 const FONT = "맑은 고딕";
@@ -32,12 +32,29 @@ function heading(text: string, level: (typeof HeadingLevel)[keyof typeof Heading
   });
 }
 
-function body(text: string, options?: { bold?: boolean; indent?: boolean; size?: number }): Paragraph {
+function body(text: string, options?: { bold?: boolean; indent?: boolean; size?: number; color?: string }): Paragraph {
   return new Paragraph({
     spacing: { after: 80 },
     indent: options?.indent ? { left: 360 } : undefined,
     children: [
-      new TextRun({ text, font: FONT, bold: options?.bold ?? false, size: options?.size ?? 20 }),
+      new TextRun({
+        text,
+        font: FONT,
+        bold: options?.bold ?? false,
+        size: options?.size ?? 20,
+        color: options?.color,
+      }),
+    ],
+  });
+}
+
+/** 항목 제목 줄: "N. 항목 원문 — [판정]" (판정은 웹 배지 색과 동일한 색상) */
+function itemTitleLine(sequence: number, text: string, status: ChecklistItemStatus): Paragraph {
+  return new Paragraph({
+    spacing: { before: 160, after: 80 },
+    children: [
+      new TextRun({ text: `${sequence}. ${text}  `, font: FONT, bold: true, size: 20 }),
+      new TextRun({ text: `[${status}]`, font: FONT, bold: true, size: 20, color: STATUS_COLORS[status] }),
     ],
   });
 }
@@ -56,7 +73,7 @@ export async function buildSupplementDoc(
       heading: HeadingLevel.TITLE,
       alignment: AlignmentType.CENTER,
       spacing: { after: 240 },
-      children: [new TextRun({ text: "경관심의 사전검토 보완요구사항 (초안)", font: FONT, bold: true })],
+      children: [new TextRun({ text: "경관심의 사전검토 결과 및 보완요구사항 (초안)", font: FONT, bold: true })],
     }),
   );
 
@@ -70,27 +87,45 @@ export async function buildSupplementDoc(
     ),
   );
 
+  // ── 사업 규모 (웹 화면과 동일 위치·내용) ──
+  if (review.metrics && review.metrics.length > 0) {
+    sections.push(heading("사업 규모 (문서에서 자동 인식)", HeadingLevel.HEADING_1));
+    for (const metric of review.metrics) {
+      sections.push(
+        body(
+          `${metric.label}: ${metric.value}${metric.source ? ` (p.${metric.source.page})` : ""}`,
+          { indent: true },
+        ),
+      );
+    }
+  }
+
+  // ── 항목별 검토 결과: 웹 결과 화면과 동일하게 구분(카테고리)별 그룹, 같은 순서 ──
+  const groups = new Map<string, typeof review.items>();
+  for (const item of review.items) {
+    const key = item.category?.trim() || "일반";
+    const list = groups.get(key) ?? [];
+    list.push(item);
+    groups.set(key, list);
+  }
+
   let sequence = 0;
+  for (const [category, groupItems] of groups) {
+    sections.push(heading(category, HeadingLevel.HEADING_1));
 
-  for (const status of TARGET_STATUS_ORDER) {
-    const items = review.items.filter((item) => findingsByItemId.get(item.id)?.status === status);
-    if (items.length === 0) continue;
-
-    sections.push(heading(`${status} 항목 (${items.length}건) — ${STATUS_GUIDE[status]}`, HeadingLevel.HEADING_1));
-
-    for (const item of items) {
+    for (const item of groupItems) {
       const finding = findingsByItemId.get(item.id);
       if (!finding) continue;
       sequence += 1;
 
-      sections.push(
-        body(`${sequence}. ${item.category ? `[${item.category}] ` : ""}${item.text}`, { bold: true }),
-      );
-      if (finding.rationale) sections.push(body(`판정 사유: ${finding.rationale}`, { indent: true }));
+      sections.push(itemTitleLine(sequence, item.text, finding.status));
+
+      // 웹 카드와 동일: 판정 사유 + 보완 방향을 이어서 한 문단으로
+      const rationaleLine = [finding.rationale, finding.recommendation].filter(Boolean).join(" ");
+      if (rationaleLine) sections.push(body(rationaleLine, { indent: true }));
+
       for (const evidence of finding.evidence) {
-        sections.push(
-          body(`근거: p.${evidence.page} — ${evidence.note}`, { indent: true }),
-        );
+        sections.push(body(`근거: p.${evidence.page} — ${evidence.note}`, { indent: true, color: "64748B" }));
       }
       if (finding.lawRefs.length > 0) {
         sections.push(
@@ -98,12 +133,9 @@ export async function buildSupplementDoc(
             `관련 기준: ${finding.lawRefs
               .map((law) => `${law.title}${law.article ? ` ${law.article}` : ""}`)
               .join(", ")}`,
-            { indent: true },
+            { indent: true, color: "2463B3" },
           ),
         );
-      }
-      if (finding.recommendation) {
-        sections.push(body(`보완 요구: ${finding.recommendation}`, { indent: true, bold: true }));
       }
       const comment = review.comments?.[item.id]?.trim();
       if (comment) {
@@ -112,29 +144,9 @@ export async function buildSupplementDoc(
     }
   }
 
-  // 보완 대상이 아닌 항목(충족 판정)에 남긴 담당자 의견도 별도 절로 포함 —
-  // 화면에서 작성한 의견이 공문 초안에 빠짐없이 옮겨지도록.
-  const extraCommentItems = review.items.filter((item) => {
-    const status = findingsByItemId.get(item.id)?.status;
-    const comment = review.comments?.[item.id]?.trim();
-    return Boolean(comment) && status !== undefined && !TARGET_STATUS_ORDER.includes(status);
-  });
-  if (extraCommentItems.length > 0) {
-    sections.push(
-      heading(`담당자 추가의견 (${extraCommentItems.length}건) — 충족 판정 항목에 대한 별도 의견`, HeadingLevel.HEADING_1),
-    );
-    for (const item of extraCommentItems) {
-      sequence += 1;
-      sections.push(
-        body(`${sequence}. ${item.category ? `[${item.category}] ` : ""}${item.text}`, { bold: true }),
-      );
-      sections.push(body(`담당자 의견: ${review.comments?.[item.id]?.trim() ?? ""}`, { indent: true, bold: true }));
-    }
-  }
-
   if (sequence === 0) {
-    sections.push(heading("보완요구사항", HeadingLevel.HEADING_1));
-    sections.push(body("모든 검토 항목이 충족으로 판정되어 보완요구사항이 없습니다."));
+    sections.push(heading("검토 결과", HeadingLevel.HEADING_1));
+    sections.push(body("표시할 검토 항목이 없습니다."));
   }
 
   sections.push(
