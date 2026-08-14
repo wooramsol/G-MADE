@@ -20,6 +20,8 @@ function resolveBuildReleasePr(): string {
 
 const nextConfig: NextConfig = {
   typedRoutes: true,
+  // 네이티브 모듈은 번들링에서 제외 (선별 줌의 PDF 페이지 렌더링용)
+  serverExternalPackages: ["@napi-rs/canvas"],
   env: {
     NEXT_PUBLIC_RELEASE_PR: resolveBuildReleasePr(),
     NEXT_PUBLIC_RELEASE_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? "",

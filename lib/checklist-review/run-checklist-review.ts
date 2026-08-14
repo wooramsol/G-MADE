@@ -23,6 +23,8 @@ import { extractChecklistItems } from "./extract-items";
 import { extractProjectMetrics } from "./extract-metrics";
 import { hashFileBuffer } from "./file-fingerprint";
 import { addUsage, estimateUsageSummary, mergeUsageByModel, type UsageByModel } from "./usage-cost";
+import { MAX_COST_USD_PER_REVIEW } from "./budget";
+import { runZoomReview } from "./zoom-review";
 import { findChecklistPages } from "./find-checklist-pages";
 import {
   buildFindingsByText,
@@ -302,12 +304,16 @@ export async function runChecklistReview(
       const metricsPromise = extractProjectMetrics(filesForAnalysis);
 
       emitStep(emit, "evaluate");
+      const remainingBudgetUsd = () =>
+        Math.max(0, MAX_COST_USD_PER_REVIEW - estimateUsageSummary(usageByModel).costUsd);
+
       const evaluation = await evaluateChecklistItems({
         files: filesForAnalysis,
         items: itemsNeedingEval,
         checklistPages,
         context,
         getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
+        getRemainingBudgetUsd: remainingBudgetUsd,
         onProgress: (label) => emitStep(emit, "evaluate", label),
       });
 
@@ -336,6 +342,37 @@ export async function runChecklistReview(
       }
 
       const freshFindingsById = new Map(evaluation.findings.map((finding) => [finding.itemId, finding]));
+
+      // 선별 줌: 이번에 새로 평가한 항목 중 판독 불충분(확인불가·부분충족) 항목의 근거
+      // 페이지를 고해상도 타일로 재판독. 남은 예산·시간 안에서만 실행됩니다.
+      try {
+        const zoom = await runZoomReview({
+          files: filesForAnalysis,
+          items: itemsNeedingEval,
+          findings: evaluation.findings,
+          context,
+          getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
+          remainingBudgetUsd: remainingBudgetUsd(),
+        });
+        if (zoom) {
+          mergeUsageByModel(usageByModel, zoom.usageByModel);
+          let refinedCount = 0;
+          for (const refined of zoom.findings) {
+            const before = freshFindingsById.get(refined.itemId);
+            freshFindingsById.set(refined.itemId, refined);
+            if (before && before.status !== refined.status) refinedCount += 1;
+          }
+          if (zoom.zoomedItems > 0) {
+            console.log(`[checklist-review] zoom 판정 변경=${refinedCount}/${zoom.zoomedItems}`);
+          }
+        }
+      } catch (error) {
+        console.warn(
+          "[checklist-review] 선별 줌 실패 — 1차 판정 유지:",
+          error instanceof Error ? error.message : error,
+        );
+      }
+
       findings = items
         .map((item) => reusedFindings.get(item.id) ?? freshFindingsById.get(item.id))
         .filter((finding): finding is ChecklistFinding => Boolean(finding));

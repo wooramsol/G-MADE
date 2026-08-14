@@ -951,3 +951,60 @@ test("isMissingCoreMetrics·mergeMetrics — 핵심 지표 누락 감지와 비�
   assert.equal(merged[0].value, "120대", "텍스트 추출값이 우선돼야 함");
   assert.equal(merged[1].label, "대지면적");
 });
+
+test("selectZoomTargets는 판독 실패 항목의 근거 페이지를 실패 항목 수 순으로 상한까지 고른다", async () => {
+  const { selectZoomTargets } = await import("../lib/checklist-review/zoom-review");
+
+  const items = [
+    { id: "c1", text: "옹벽 단면 치수 표기" },
+    { id: "c2", text: "기단부 입면 분절" },
+    { id: "c3", text: "야간 조명 계획" },
+    { id: "c4", text: "색채 계획" },
+  ];
+  const findings = [
+    { itemId: "c1", status: "확인불가" as const, rationale: "", evidence: [{ fileName: "도서.pdf", page: 12, note: "n" }], lawRefs: [] },
+    { itemId: "c2", status: "부분충족" as const, rationale: "", evidence: [{ fileName: "도서.pdf", page: 12, note: "n" }], lawRefs: [] },
+    { itemId: "c3", status: "부분충족" as const, rationale: "", evidence: [{ fileName: "도서.pdf", page: 30, note: "n" }], lawRefs: [] },
+    // 충족 항목은 줌 대상 아님
+    { itemId: "c4", status: "충족" as const, rationale: "", evidence: [{ fileName: "도서.pdf", page: 5, note: "n" }], lawRefs: [] },
+  ];
+
+  const targets = selectZoomTargets(items, findings, 1);
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0].page, 12, "실패 항목 2개가 걸린 p.12가 우선");
+  assert.deepEqual(targets[0].itemIds.sort(), ["c1", "c2"]);
+
+  const all = selectZoomTargets(items, findings, 8);
+  assert.equal(all.length, 2, "충족 항목의 페이지(p.5)는 포함되지 않아야 함");
+});
+
+test("renderPageTiles는 PDF 페이지를 4개의 PNG 타일로 렌더링한다", async () => {
+  const { renderPageTiles } = await import("../lib/pdf/render-page");
+  const { PDFDocument } = await import("pdf-lib");
+
+  const doc = await PDFDocument.create();
+  doc.addPage([600, 400]);
+  const base64 = Buffer.from(await doc.save()).toString("base64");
+
+  const tiles = await renderPageTiles(base64, 1);
+  assert.ok(tiles);
+  assert.equal(tiles!.length, 4);
+  assert.deepEqual(tiles!.map((tile) => tile.label), ["좌상", "우상", "좌하", "우하"]);
+  for (const tile of tiles!) {
+    const buf = Buffer.from(tile.base64, "base64");
+    assert.equal(buf.subarray(1, 4).toString(), "PNG");
+  }
+
+  assert.equal(await renderPageTiles(base64, 99), null, "범위 밖 페이지는 null");
+});
+
+test("estimateBatchUsd·estimateVisionPagesUsd — 비용 추정 상수 검증", async () => {
+  const { estimateBatchUsd, estimateVisionPagesUsd, MAX_COST_USD_PER_REVIEW } = await import(
+    "../lib/checklist-review/budget"
+  );
+  assert.equal(MAX_COST_USD_PER_REVIEW, 2);
+  // 페이지당 2,000토큰 × $3/M = $0.006
+  assert.ok(Math.abs(estimateVisionPagesUsd(1) - 0.006) < 1e-9);
+  // 60p 문서 1배치(15항목): 입력 $0.36 + 출력 15×480×$15/M = $0.108 -> $0.468
+  assert.ok(Math.abs(estimateBatchUsd(60, 15) - 0.468) < 1e-9);
+});

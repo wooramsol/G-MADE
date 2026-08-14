@@ -14,6 +14,7 @@ import { MAX_UPLOAD_FILE_BYTES } from "@/lib/upload-limits";
 import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock } from "./claude-call";
 import { selectRelevantPagesForBatch } from "./relevant-pages";
 import { addUsage, type UsageByModel } from "./usage-cost";
+import { estimateBatchUsd, MAX_COST_USD_PER_REVIEW } from "./budget";
 import {
   normalizeChecklistStatus,
   type ChecklistEvidence,
@@ -70,7 +71,7 @@ function resolveMaxOutputTokens(itemCount: number): number {
   return Math.min(EVALUATE_MAX_OUTPUT_TOKENS, OUTPUT_TOKENS_BASE + itemCount * OUTPUT_TOKENS_PER_ITEM);
 }
 
-const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의를 보조하는 검토관입니다.
+export const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 심의를 보조하는 검토관입니다.
 제출 문서(도면·조감도·이미지·본문 포함)를 근거로 체크리스트 항목별 충족 여부를 판정합니다.
 
 판정 기준 (배점 없음):
@@ -607,7 +608,7 @@ type RawEvaluationPayload = {
   findings?: RawFinding[];
 };
 
-function parsePayload(raw: string): RawEvaluationPayload | null {
+export function parsePayload(raw: string): RawEvaluationPayload | null {
   const json = extractJsonContent(raw);
   if (!json) return null;
   try {
@@ -801,15 +802,55 @@ export function sanitizeFindings(
   return findings;
 }
 
-function chunkItems(items: ChecklistItem[]): ChecklistItem[][] {
-  if (items.length <= ITEMS_PER_BATCH + 5) return [items];
-  const chunkCount = Math.ceil(items.length / ITEMS_PER_BATCH);
+function chunkItems(items: ChecklistItem[], itemsPerBatch: number = ITEMS_PER_BATCH): ChecklistItem[][] {
+  if (items.length <= itemsPerBatch + 5) return [items];
+  const chunkCount = Math.ceil(items.length / itemsPerBatch);
   const size = Math.ceil(items.length / chunkCount);
   const chunks: ChecklistItem[][] = [];
   for (let index = 0; index < items.length; index += size) {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
+}
+
+/** 출력 토큰 한도(16384) 안에서 잘리지 않는 배치당 최대 항목 수 */
+const MAX_ITEMS_PER_BATCH_HARD = 30;
+
+/**
+ * 남은 비용 예산 안에서 배치 수를 정합니다. 배치마다 문서(비전)를 재전송하므로 배치 수가
+ * 곧 비용의 배수 — 예산 초과가 예상되면 배치 크기를 키워 배치 수를 줄입니다 (경계 판정의
+ * 회차 간 편차가 커지는 트레이드오프를 감수하고 상한을 지킴).
+ */
+function resolveBudgetedBatches(
+  items: ChecklistItem[],
+  estimatedVisionPagesPerBatch: number,
+  remainingUsd: number | undefined,
+  warnings: string[],
+): ChecklistItem[][] {
+  const defaultBatches = chunkItems(items);
+  if (remainingUsd === undefined || defaultBatches.length <= 1) return defaultBatches;
+
+  const perBatchUsd = estimateBatchUsd(
+    estimatedVisionPagesPerBatch,
+    Math.ceil(items.length / defaultBatches.length),
+  );
+  if (perBatchUsd <= 0) return defaultBatches;
+
+  // 예산의 90%만 배치에 배정 (추정 오차·재시도 여유분)
+  const affordable = Math.max(1, Math.floor((remainingUsd * 0.9) / perBatchUsd));
+  // 출력 한도 때문에 배치당 30개를 넘길 수 없음 — 그 이하로는 못 줄임
+  const minBatches = Math.ceil(items.length / MAX_ITEMS_PER_BATCH_HARD);
+  const targetBatches = Math.max(affordable, minBatches);
+  if (targetBatches >= defaultBatches.length) return defaultBatches;
+
+  const budgeted = chunkItems(items, Math.ceil(items.length / targetBatches));
+  const message =
+    `비용 상한($${MAX_COST_USD_PER_REVIEW}) 내에서 검토를 완료하기 위해 평가 배치를 ` +
+    `${defaultBatches.length}개에서 ${budgeted.length}개로 줄였습니다 (배치당 항목 수 확대 — ` +
+    `경계 판정의 회차 간 편차가 다소 커질 수 있습니다).`;
+  warnings.push(message);
+  console.warn(`[checklist-review] ${message} est-per-batch=$${perBatchUsd.toFixed(3)} remaining=$${remainingUsd.toFixed(2)}`);
+  return budgeted;
 }
 
 /**
@@ -823,6 +864,8 @@ export async function evaluateChecklistItems(options: {
   context: EvaluationContext;
   /** 서버 마감까지 남은 시간(ms) — API 호출 타임아웃 산정 */
   getRemainingBudgetMs?: () => number;
+  /** 이 검토의 남은 비용 예산(USD) — 초과 예상 시 배치 수를 줄여 상한 내에서 완료 */
+  getRemainingBudgetUsd?: () => number;
   onProgress?: (label: string) => void;
 }): Promise<EvaluateItemsResult> {
   const { files, context, onProgress } = options;
@@ -987,7 +1030,20 @@ export async function evaluateChecklistItems(options: {
   const manualContextText = buildManualContextText(items.map((item) => item.text));
   const evaluationContextText = manualContextText ? `${contextText}\n\n${manualContextText}` : contextText;
 
-  const batches = chunkItems(items);
+  // 배치당 재전송될 비전 페이지 추정 (페이지 필터링이 적용되면 실제로는 더 적음 — 보수적 상한)
+  const estimatedChunkPages = payloads
+    .filter((payload) => payload.chunk)
+    .reduce((sum, payload) => sum + (payload.chunk!.endPage - payload.chunk!.startPage + 1), 0);
+  const hasFullDocVision = payloads.some((payload) => !payload.chunk && payloadHasVision(payload));
+  const estimatedFullPages = hasFullDocVision
+    ? files.reduce((sum, file) => sum + (file.totalPages ?? 30), 0)
+    : 0;
+  const batches = resolveBudgetedBatches(
+    items,
+    estimatedChunkPages + estimatedFullPages,
+    options.getRemainingBudgetUsd?.(),
+    warnings,
+  );
   const groupCount = Math.max(1, payloads.length);
   onProgress?.(
     batches.length * groupCount > 1
