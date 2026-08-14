@@ -81,6 +81,9 @@ export async function buildSupplementDoc(
   sections.push(body(`사업위치: ${project.location}`));
   sections.push(body(`사업유형 / 심의종류: ${project.projectType} / ${project.reviewType}`));
   sections.push(body(`AI 사전검토 일시: ${reviewedAtLabel} (검토 항목 ${review.items.length}개)`));
+  if (review.files.length > 0) {
+    sections.push(body(`검토 자료: ${review.files.map((file) => file.originalName).join(", ")}`));
+  }
   sections.push(
     body(
       `판정 요약: 충족 ${review.counts.충족} · 부분충족 ${review.counts.부분충족} · 미충족 ${review.counts.미충족} · 확인불가 ${review.counts.확인불가}`,
@@ -164,6 +167,14 @@ export async function buildSupplementDoc(
   );
 
   const doc = new Document({
+    styles: {
+      default: {
+        document: { run: { font: FONT } },
+        title: { run: { font: FONT, color: "15345B" } },
+        heading1: { run: { font: FONT, color: "15345B" } },
+        heading2: { run: { font: FONT, color: "15345B" } },
+      },
+    },
     sections: [{ children: sections }],
   });
 
