@@ -38,6 +38,62 @@ const MIN_TOTAL_SELECTED_PAGES = 8;
  */
 const MIN_TEXT_COVERAGE_RATIO = 0.6;
 
+/**
+ * 항목 원문 키워드로 각 파일에서 관련도 상위 페이지를 고릅니다 — 선별 줌의 확대 대상
+ * 선정용. 비용 절감용 필터링(selectRelevantPagesForBatch)과 달리 안전장치(작은 문서
+ * 생략·텍스트 커버리지 가드 등)를 적용하지 않습니다: 여기서는 "몇 페이지를 확대할지"만
+ * 고르는 것이라 과소 선택이 오히려 손해이기 때문입니다.
+ */
+export function selectTopPagesForItems(
+  files: UploadedFileSummary[],
+  items: ChecklistItem[],
+  topPerItem: number = 2,
+): Array<{ fileName: string; page: number; score: number }> {
+  const results: Array<{ fileName: string; page: number; score: number }> = [];
+
+  for (const file of files) {
+    const slices = parsePageSlices([file]);
+    if (slices.length === 0) continue;
+
+    const pageTokens = new Map<number, Set<string>>();
+    for (const slice of slices) {
+      pageTokens.set(slice.page, new Set(tokenize(slice.text)));
+    }
+    if (pageTokens.size === 0) continue;
+
+    const documentFrequency = new Map<string, number>();
+    for (const tokens of pageTokens.values()) {
+      for (const token of tokens) {
+        documentFrequency.set(token, (documentFrequency.get(token) ?? 0) + 1);
+      }
+    }
+    const tokenWeight = (token: string): number => {
+      const df = documentFrequency.get(token) ?? 0;
+      return df === 0 ? 0 : 1 / Math.log2(2 + df);
+    };
+
+    for (const item of items) {
+      const queryTokens = new Set(tokenize(item.text));
+      if (queryTokens.size === 0) continue;
+
+      const scored = [...pageTokens.entries()]
+        .map(([page, tokens]) => {
+          let score = 0;
+          for (const token of queryTokens) {
+            if (tokens.has(token)) score += tokenWeight(token);
+          }
+          return { fileName: file.originalName, page, score };
+        })
+        .filter((entry) => entry.score > 0)
+        .sort((left, right) => right.score - left.score)
+        .slice(0, topPerItem);
+      results.push(...scored);
+    }
+  }
+
+  return results.sort((left, right) => right.score - left.score);
+}
+
 export type RelevantPageSelection = {
   /** fileName -> 선별된 원본 페이지 번호(오름차순, 중복 없음). 필터링을 적용할 파일만 포함. */
   pagesByFile: Map<string, number[]>;

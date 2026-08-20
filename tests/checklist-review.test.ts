@@ -1077,3 +1077,35 @@ test("tileRegionToPageRegion — 타일 좌표를 원본 페이지 좌표로 변
   // 좌표 누락 시 undefined
   assert.equal(tileRegionToPageRegion({ tile: "좌상", x: 0.2 }), undefined);
 });
+
+test("selectTopPagesForItems는 안전장치 없이 항목 키워드 상위 페이지를 고른다 (줌 대상 선정용)", async () => {
+  const { selectTopPagesForItems } = await import("../lib/checklist-review/relevant-pages");
+  const { buildPdfPageMarkedText } = await import("../lib/ai/page-citation");
+
+  // 텍스트 커버리지가 낮은(3/10p) 도면 위주 문서 — 필터링용 함수라면 가드에 걸리지만
+  // 줌 대상 선정은 가드 없이 후보를 찾아야 함
+  const pageTexts = [
+    "사업 개요",
+    "",
+    "옹벽 구간 단면 상세 및 조경석 쌓기 계획",
+    "",
+    "",
+    "야간 경관 조명 배치 계획",
+    "",
+    "",
+    "",
+    "",
+  ];
+  const file = {
+    originalName: "도면위주.pdf",
+    extractedTextPreview: buildPdfPageMarkedText("도면위주.pdf", pageTexts),
+    totalPages: 10,
+  };
+
+  const results = selectTopPagesForItems([file], [{ id: "c1", text: "옹벽 발생 구간 조경석 쌓기 등 자연친화적 처리" }], 2);
+  assert.ok(results.length >= 1);
+  assert.equal(results[0].page, 3, "옹벽·조경석 키워드가 있는 p.3이 최상위");
+
+  // 키워드가 전혀 없는 항목은 빈 결과
+  assert.equal(selectTopPagesForItems([file], [{ id: "c2", text: "xyz" }], 2).length, 0);
+});

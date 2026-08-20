@@ -1,5 +1,6 @@
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { renderPageTiles } from "@/lib/pdf/render-page";
+import { selectTopPagesForItems } from "./relevant-pages";
 import type { EvaluationContext } from "@/lib/evaluation-context";
 import { callClaude, type ClaudeContentBlock } from "./claude-call";
 import { EVALUATE_SYSTEM_PROMPT, parsePayload, sanitizeFindings } from "./evaluate-items";
@@ -153,7 +154,46 @@ export async function runZoomReview(options: {
   }
 
   const targets = selectZoomTargets(items, findings, maxPages);
-  if (targets.length === 0) return null;
+
+  // 근거 페이지가 없는 미해결 항목(주로 확인불가): 어디를 확대할지 알 수 없어 기존
+  // 대상 선정에서 빠짐 — 항목 원문 키워드로 후보 페이지를 찾아 확대 대상에 추가합니다.
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const evidencelessItems = findings
+    .filter(
+      (finding) =>
+        (finding.status === "확인불가" || finding.status === "부분충족") &&
+        !finding.zoomAttempted &&
+        !finding.unevaluated &&
+        finding.evidence.length === 0 &&
+        itemById.has(finding.itemId),
+    )
+    .map((finding) => itemById.get(finding.itemId)!);
+
+  if (targets.length < maxPages && evidencelessItems.length > 0) {
+    const usedPages = new Set(targets.map((target) => `${target.fileName}#${target.page}`));
+    const candidates = selectTopPagesForItems(files, evidencelessItems, 2);
+    for (const candidate of candidates) {
+      if (targets.length >= maxPages) break;
+      const key = `${candidate.fileName}#${candidate.page}`;
+      if (usedPages.has(key)) continue;
+      usedPages.add(key);
+      targets.push({
+        fileName: candidate.fileName,
+        page: candidate.page,
+        itemIds: evidencelessItems.map((item) => item.id),
+      });
+    }
+    if (candidates.length === 0) {
+      console.log(
+        `[checklist-review] zoom 무근거 항목 ${evidencelessItems.length}개 — 키워드 후보 페이지 없음(텍스트 레이어 부족)`,
+      );
+    }
+  }
+
+  if (targets.length === 0) {
+    console.log("[checklist-review] zoom 생략 — 확대할 대상 없음 (미해결 항목이 없거나 전부 확대 기시도)");
+    return null;
+  }
 
   // 대상 항목 (상한 내)
   const targetItemIds = new Set<string>();
@@ -186,7 +226,10 @@ export async function runZoomReview(options: {
       blocks.push({ type: "image", source: { type: "base64", media_type: "image/png", data: tile.base64 } });
     }
   }
-  if (renderedPages === 0) return null;
+  if (renderedPages === 0) {
+    console.log("[checklist-review] zoom 생략 — 대상 페이지 렌더링 전부 실패");
+    return null;
+  }
 
   const prompt = buildZoomPrompt(
     zoomItems,
