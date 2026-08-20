@@ -69,6 +69,7 @@ function buildZoomPrompt(zoomItems: ChecklistItem[], pages: Array<{ fileName: st
     .map((item) => `- id:${item.id} ${item.category ? `[${item.category}] ` : ""}${item.text}`)
     .join("\n");
   const pageList = pages.map((page) => `p.${page.page}`).join(", ");
+  const fileNames = [...new Set(pages.map((page) => page.fileName))];
 
   return `아래 항목들은 1차 검토에서 도면·문자 판독이 불충분해 "확인불가" 또는 "부분충족"으로 판정된 항목입니다.
 첨부된 이미지는 해당 근거 페이지(${pageList})를 고해상도로 확대해 4분할(좌상/우상/좌하/우하)한 것입니다.
@@ -78,7 +79,11 @@ function buildZoomPrompt(zoomItems: ChecklistItem[], pages: Array<{ fileName: st
 - 페이지 인용은 각 이미지 앞에 안내된 "원본 p.N"의 N을 그대로 기재하세요.
 - 확대본은 문서 "일부"만 담고 있습니다. 확대본에서 근거를 찾지 못했다는 이유로 판정을 낮추지 마세요 — 이 재판정의 목적은 확대로 새 근거를 "발견"해 판정을 올리는 것뿐이며, 근거를 못 찾으면 기존 판정을 그대로 유지하세요. 추측 금지.
 - 확대본에 없는 페이지의 내용은 언급하지 마세요.
+- evidence의 fileName은 반드시 아래 [검토 자료 파일명]을 그대로 기재하세요 (다르게 쓰면 근거가 무효 처리됩니다).
 - 확대본에서 근거를 확인한 evidence에는 반드시 region을 기재하세요: 그 근거가 보이는 "타일"(좌상/우상/좌하/우하)과, 그 타일 이미지 안에서의 정규화 좌표(x,y=좌상단 원점, width,height, 각 0~1). 좌표는 정밀할 필요 없습니다 — 근거가 보이는 대략적 영역이면 충분합니다. 좌표 추정이 어려우면 최소한 tile만이라도 반드시 기재하세요 (그 사분면 전체가 표시 영역이 됩니다).
+
+[검토 자료 파일명]
+${fileNames.map((name) => `- ${name}`).join("\n")}
 
 [재판정 대상 항목]
 ${itemsText}
@@ -283,8 +288,16 @@ export async function runZoomReview(options: {
   const attemptedItemIds = zoomItems.map((item) => item.id);
   const parsed = parsePayload(result.text);
   if (parsed?.findings) {
+    const knownNames = new Set(pdfFiles.map((entry) => normalize(entry.originalName)));
+    const soleFileName = pdfFiles.length === 1 ? pdfFiles[0].originalName : undefined;
     for (const finding of parsed.findings) {
       for (const evidence of finding?.evidence ?? []) {
+        // 모델은 타일 이미지만 보므로 실제 파일명을 모름 — 알 수 없는 파일명은 실제
+        // 파일명으로 교정 (안 하면 isKnownPage 검증에서 근거·좌표가 통째로 버려짐)
+        const cited = String(evidence?.fileName ?? "");
+        if (soleFileName && !knownNames.has(normalize(cited))) {
+          evidence.fileName = soleFileName;
+        }
         const region = evidence?.region as
           | { tile?: string; x?: number; y?: number; width?: number; height?: number }
           | undefined;
@@ -298,8 +311,14 @@ export async function runZoomReview(options: {
   }
 
   const sanitized = sanitizeFindings(parsed.findings ?? [], zoomItems, context, files);
+  const sanitizedEvidence = sanitized.reduce((sum, finding) => sum + finding.evidence.length, 0);
+  const sanitizedRegions = sanitized.reduce(
+    (sum, finding) => sum + finding.evidence.filter((entry) => entry.region).length,
+    0,
+  );
   console.log(
-    `[checklist-review] zoom pages=${renderedPages} items=${zoomItems.length} refined=${sanitized.length}`,
+    `[checklist-review] zoom pages=${renderedPages} items=${zoomItems.length} refined=${sanitized.length} ` +
+      `evidence=${sanitizedEvidence} regions=${sanitizedRegions}`,
   );
   return { findings: sanitized, attemptedItemIds, zoomedPages: renderedPages, zoomedItems: sanitized.length, usageByModel };
 }
