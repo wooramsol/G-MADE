@@ -22,7 +22,34 @@ export async function renderPageTiles(pdfBase64: string, pageNumber: number): Pr
     const { getDocumentProxy, renderPageAsImage } = await import("unpdf");
     const canvasModule = await import("@napi-rs/canvas");
 
-    const pdf = await getDocumentProxy(new Uint8Array(Buffer.from(pdfBase64, "base64")));
+    // unpdf에 번들된 pdf.js의 기본 NodeCanvasFactory는 고장난 스텁이라(호출 즉시
+    // "@napi-rs/canvas is not available in this environment"를 던짐) 패턴·마스크가
+    // 있는 복잡한 도면 페이지 렌더링이 실패한다 — 정상 동작하는 팩토리를 문서에 주입.
+    class NapiCanvasFactory {
+      // pdf.js BaseCanvasFactory 생성자 시그니처 호환용 (인자 무시)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      constructor(_options?: unknown) {}
+      create(width: number, height: number) {
+        const canvas = canvasModule.createCanvas(Math.max(1, Math.ceil(width)), Math.max(1, Math.ceil(height)));
+        return { canvas, context: canvas.getContext("2d") };
+      }
+      reset(entry: { canvas: { width: number; height: number } }, width: number, height: number) {
+        entry.canvas.width = Math.max(1, Math.ceil(width));
+        entry.canvas.height = Math.max(1, Math.ceil(height));
+      }
+      destroy(entry: { canvas: { width: number; height: number } | null; context: unknown }) {
+        if (entry.canvas) {
+          entry.canvas.width = 0;
+          entry.canvas.height = 0;
+        }
+        entry.canvas = null;
+        entry.context = null;
+      }
+    }
+
+    const pdf = await getDocumentProxy(new Uint8Array(Buffer.from(pdfBase64, "base64")), {
+      CanvasFactory: NapiCanvasFactory,
+    } as never);
     if (pageNumber < 1 || pageNumber > pdf.numPages) return null;
 
     // 페이지 크기를 확인해 긴 변 상한 내 최대 배율 결정
