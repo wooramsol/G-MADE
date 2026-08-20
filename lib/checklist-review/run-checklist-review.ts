@@ -126,7 +126,19 @@ async function applyZoomRefinement(options: {
         return { ...refined, zoomAttempted: true };
       }
       discardedDowngrades += 1;
-      return { ...finding, zoomAttempted: true };
+      // 판정은 유지하되, 확대 판독이 짚은 근거 위치(region)만 수확해 같은 페이지의
+      // 기존 근거에 부착 — 강등은 무효지만 "어디를 봤는지"는 유효한 정보.
+      const refinedRegionByPage = new Map(
+        refined.evidence
+          .filter((entry) => entry.region)
+          .map((entry) => [`${entry.fileName.normalize("NFC")}#${entry.page}`, entry.region!]),
+      );
+      const evidence = finding.evidence.map((entry) => {
+        if (entry.region) return entry;
+        const region = refinedRegionByPage.get(`${entry.fileName.normalize("NFC")}#${entry.page}`);
+        return region ? { ...entry, region } : entry;
+      });
+      return { ...finding, evidence, zoomAttempted: true };
     }
     return attempted.has(finding.itemId) ? { ...finding, zoomAttempted: true } : finding;
   });
@@ -500,6 +512,14 @@ export async function runChecklistReview(
       mergeUsageByModel(usageByModel, metricsResult.usageByModel);
       evaluationWarnings = [...reuseNotice, ...evaluation.warnings];
     }
+
+    // 진단: 이번 검토에 근거 위치 좌표(마커)가 몇 개, 어느 항목·페이지에 잡혔는지
+    const regionRefs = findings.flatMap((finding) =>
+      finding.evidence.filter((entry) => entry.region).map((entry) => `${finding.itemId}:p.${entry.page}`),
+    );
+    console.log(
+      `[checklist-review] regions saved=${regionRefs.length}${regionRefs.length > 0 ? ` examples=[${regionRefs.slice(0, 8).join(", ")}]` : ""}`,
+    );
 
     const usageSummary = estimateUsageSummary(usageByModel);
     console.log(
