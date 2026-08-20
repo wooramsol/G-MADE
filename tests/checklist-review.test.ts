@@ -1075,8 +1075,11 @@ test("tileRegionToPageRegion — 타일 좌표를 원본 페이지 좌표로 변
     width: 0.2,
     height: 0.2,
   });
-  // 좌표 누락 시 undefined
-  assert.equal(tileRegionToPageRegion({ tile: "좌상", x: 0.2 }), undefined);
+  // 좌표 없이 타일만 기재 -> 그 사분면 전체를 표시 영역으로 사용
+  assert.deepEqual(tileRegionToPageRegion({ tile: "우상" }), { x: 0.5, y: 0, width: 0.5, height: 0.5 });
+  assert.deepEqual(tileRegionToPageRegion({ tile: "좌상", x: 0.2 }), { x: 0, y: 0, width: 0.5, height: 0.5 });
+  // 타일도 좌표도 없으면 undefined
+  assert.equal(tileRegionToPageRegion({}), undefined);
 });
 
 test("selectTopPagesForItems는 안전장치 없이 항목 키워드 상위 페이지를 고른다 (줌 대상 선정용)", async () => {

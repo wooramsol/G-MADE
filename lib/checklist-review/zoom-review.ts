@@ -78,7 +78,7 @@ function buildZoomPrompt(zoomItems: ChecklistItem[], pages: Array<{ fileName: st
 - 페이지 인용은 각 이미지 앞에 안내된 "원본 p.N"의 N을 그대로 기재하세요.
 - 확대본은 문서 "일부"만 담고 있습니다. 확대본에서 근거를 찾지 못했다는 이유로 판정을 낮추지 마세요 — 이 재판정의 목적은 확대로 새 근거를 "발견"해 판정을 올리는 것뿐이며, 근거를 못 찾으면 기존 판정을 그대로 유지하세요. 추측 금지.
 - 확대본에 없는 페이지의 내용은 언급하지 마세요.
-- 근거를 확인한 위치를 evidence의 region에 기재하세요: 그 근거가 보이는 "타일"(좌상/우상/좌하/우하)과, 그 타일 이미지 안에서의 정규화 좌표(x,y=좌상단 원점, width,height, 각 0~1). 위치가 불확실하면 region을 생략하세요.
+- 확대본에서 근거를 확인한 evidence에는 반드시 region을 기재하세요: 그 근거가 보이는 "타일"(좌상/우상/좌하/우하)과, 그 타일 이미지 안에서의 정규화 좌표(x,y=좌상단 원점, width,height, 각 0~1). 좌표는 정밀할 필요 없습니다 — 근거가 보이는 대략적 영역이면 충분합니다. 좌표 추정이 어려우면 최소한 tile만이라도 반드시 기재하세요 (그 사분면 전체가 표시 영역이 됩니다).
 
 [재판정 대상 항목]
 ${itemsText}
@@ -105,9 +105,14 @@ export function tileRegionToPageRegion(region: {
   const y = Number(region.y);
   const width = Number(region.width);
   const height = Number(region.height);
-  if (![x, y, width, height].every((value) => Number.isFinite(value))) return undefined;
-
   const offset = offsets[String(region.tile ?? "").trim()];
+
+  if (![x, y, width, height].every((value) => Number.isFinite(value))) {
+    // 좌표 없이 타일만 기재된 경우: 그 사분면 전체를 표시 영역으로 사용
+    // (대략적이라도 마커가 있는 편이 "어디를 봤는지" 전달에 훨씬 낫다)
+    return offset ? { x: offset.x, y: offset.y, width: 0.5, height: 0.5 } : undefined;
+  }
+
   // 타일 표기가 없으면 이미 페이지 기준 좌표로 간주 (안전한 폴백)
   if (!offset) return { x, y, width, height };
 
