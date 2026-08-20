@@ -105,15 +105,34 @@ async function applyZoomRefinement(options: {
   const attempted = new Set(zoom.attemptedItemIds);
   const refinedById = new Map(zoom.findings.map((finding) => [finding.itemId, finding]));
 
+  // 심화 판독은 판정을 "올리는"(충족 방향) 변경만 반영합니다. 확대본은 문서 일부(발췌
+  // 페이지)만 담고 있어, 그 안에서 근거를 못 찾았다는 이유로 문서 전체를 보고 내린
+  // 기존 판정을 강등하는 것은 오판입니다 (실사용에서 부분충족이 회차마다 확인불가로
+  // 강등되며 확인불가가 6->16->24로 늘어난 사례 — 프롬프트 지시만으로는 모델이 지키지
+  // 않아 코드로 강제).
+  const STATUS_RANK: Record<ChecklistFinding["status"], number> = { 충족: 3, 부분충족: 2, 미충족: 1, 확인불가: 0 };
+
   let refinedCount = 0;
+  let discardedDowngrades = 0;
   const merged = options.findings.map((finding) => {
     const refined = refinedById.get(finding.itemId);
     if (refined) {
-      if (refined.status !== finding.status) refinedCount += 1;
-      return { ...refined, zoomAttempted: true };
+      if (STATUS_RANK[refined.status] > STATUS_RANK[finding.status]) {
+        refinedCount += 1;
+        return { ...refined, zoomAttempted: true };
+      }
+      if (refined.status === finding.status) {
+        // 판정 동일 — 확대 판독에서 얻은 근거·좌표(region)가 더 구체적이면 채택
+        return { ...refined, zoomAttempted: true };
+      }
+      discardedDowngrades += 1;
+      return { ...finding, zoomAttempted: true };
     }
     return attempted.has(finding.itemId) ? { ...finding, zoomAttempted: true } : finding;
   });
+  if (discardedDowngrades > 0) {
+    console.log(`[checklist-review] zoom 강등 판정 ${discardedDowngrades}건 폐기 (기존 판정 유지)`);
+  }
 
   if (zoom.zoomedItems > 0) {
     console.log(`[checklist-review] zoom 판정 변경=${refinedCount}/${zoom.zoomedItems}`);
