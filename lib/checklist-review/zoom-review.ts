@@ -44,6 +44,7 @@ export function selectZoomTargets(
 
   for (const finding of findings) {
     if (finding.status !== "확인불가" && finding.status !== "부분충족") continue;
+    if (finding.zoomAttempted) continue; // 이미 확대 판독을 시도한 항목 — 반복 과금 방지
     if (!itemById.has(finding.itemId)) continue;
 
     const pages = finding.evidence.map((entry) => ({ fileName: entry.fileName, page: entry.page }));

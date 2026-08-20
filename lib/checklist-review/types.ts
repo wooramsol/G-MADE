@@ -66,6 +66,8 @@ export type ChecklistFinding = {
   reviewFlag?: string;
   /** 서버 시간 한도·호출 실패로 이번 회차에 평가되지 못한 항목 (재분석 시 이 항목만 재평가) */
   unevaluated?: boolean;
+  /** 고해상도 확대(선별 줌) 재판독을 이미 시도한 항목 — 반복 확대 과금 방지 */
+  zoomAttempted?: boolean;
 };
 
 export type ChecklistReviewFile = {
