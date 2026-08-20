@@ -99,12 +99,17 @@ export default function ChecklistReviewResults({
     const pdfFiles = review.files.filter((file) => /\.pdf$/i.test(file.originalName));
     for (const file of pdfFiles) idByName.set(normalize(file.originalName), file.id);
 
-    return (fileName: string, page: number): string | undefined => {
+    return (fileName: string, page: number, region?: { x: number; y: number; width: number; height: number }): string | undefined => {
       // 저장·역직렬화 과정에서 페이지가 문자열로 들어오는 경우가 있어 숫자로 강제 변환
       const pageNumber = Number(page);
       const fileId = idByName.get(normalize(fileName)) ?? (pdfFiles.length === 1 ? pdfFiles[0].id : undefined);
       if (!fileId || !Number.isFinite(pageNumber) || pageNumber < 1) return undefined;
-      return `/api/checklist-reviews/original-file?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}&fileId=${encodeURIComponent(fileId)}#page=${pageNumber}`;
+      const base = `projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}&fileId=${encodeURIComponent(fileId)}`;
+      // AI가 근거 위치(region)를 판독한 경우: 해당 페이지에 빨간 마커 박스가 그려진 PDF를 엽니다
+      if (region) {
+        return `/api/checklist-reviews/evidence-page?${base}&page=${pageNumber}&x=${region.x}&y=${region.y}&w=${region.width}&h=${region.height}`;
+      }
+      return `/api/checklist-reviews/original-file?${base}#page=${pageNumber}`;
     };
   }, [review.files, review.id, projectId]);
 
@@ -362,7 +367,7 @@ function FindingCard({
 }: {
   item: ChecklistItem;
   finding?: ChecklistFinding;
-  pageHref: (fileName: string, page: number) => string | undefined;
+  pageHref: (fileName: string, page: number, region?: { x: number; y: number; width: number; height: number }) => string | undefined;
   comment?: string;
   onSaveComment: (itemId: string, text: string) => Promise<void>;
   /** 직전 회차 대비 변화 (없으면 동일 or 첫 회차) */
@@ -434,7 +439,7 @@ function FindingCard({
       {finding && finding.evidence.length > 0 ? (
         <div className="mt-3 space-y-1.5">
           {finding.evidence.map((evidence, index) => {
-            const href = pageHref(evidence.fileName, evidence.page);
+            const href = pageHref(evidence.fileName, evidence.page, evidence.region);
             return (
               <p className="text-[13px] leading-5 text-[#64748b]" key={`${evidence.fileName}-${evidence.page}-${index}`}>
                 {href ? (
@@ -448,9 +453,10 @@ function FindingCard({
                       textUnderlineOffset: "2px",
                     }}
                     target="_blank"
-                    title="원본 PDF의 해당 페이지 열기"
+                    title={evidence.region ? "근거 위치가 표시된 페이지 열기" : "원본 PDF의 해당 페이지 열기"}
                   >
                     p.{evidence.page}
+                    {evidence.region ? " 📍" : ""}
                   </a>
                 ) : (
                   <span className="font-bold text-[#15345b]">p.{evidence.page}</span>
