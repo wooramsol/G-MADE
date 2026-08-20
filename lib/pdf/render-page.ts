@@ -5,16 +5,21 @@
  * 타일당 유효 해상도가 약 2배가 되어 치수·범례 판독률이 올라갑니다.
  */
 
-/** 렌더링 결과의 긴 변 상한(px) — 메모리·PNG 크기 보호 */
-const MAX_RENDER_LONG_EDGE = 6_000;
-/** 기본 렌더 배율 (72dpi 기준 3배 ≈ 216dpi) */
-const DEFAULT_SCALE = 3;
+/**
+ * 전체 페이지 렌더링의 긴 변 목표(px). Anthropic API는 이미지를 긴 변 ~1,568px로
+ * 처리하므로 타일(절반)이 그 근처가 되도록 잡는다 — 그 이상은 판독률 이득 없이
+ * 요청 용량만 커진다 (8페이지×4타일 PNG가 요청 한도를 초과했던 실측 사례 반영).
+ */
+const TARGET_PAGE_LONG_EDGE = 3_200;
+/** JPEG 품질 — 도면(선·문자)은 80이면 판독에 충분하면서 PNG 대비 수 배 작음 */
+const JPEG_QUALITY = 80;
 
 export type PageTile = {
   /** 사람이 읽는 위치 라벨 (좌상/우상/좌하/우하) */
   label: string;
-  /** PNG base64 */
+  /** JPEG base64 */
   base64: string;
+  mediaType: "image/jpeg";
 };
 
 export async function renderPageTiles(pdfBase64: string, pageNumber: number): Promise<PageTile[] | null> {
@@ -56,7 +61,7 @@ export async function renderPageTiles(pdfBase64: string, pageNumber: number): Pr
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 1 });
     const longEdge = Math.max(viewport.width, viewport.height);
-    const scale = Math.min(DEFAULT_SCALE, MAX_RENDER_LONG_EDGE / longEdge);
+    const scale = Math.max(1, TARGET_PAGE_LONG_EDGE / longEdge);
 
     const rendered = await renderPageAsImage(pdf, pageNumber, {
       scale,
@@ -80,8 +85,12 @@ export async function renderPageTiles(pdfBase64: string, pageNumber: number): Pr
     for (const pos of positions) {
       const canvas = canvasModule.createCanvas(pos.w, pos.h);
       const ctx = canvas.getContext("2d");
+      // JPEG는 알파가 없으므로 흰 배경을 먼저 채움 (투명 영역이 검게 나오는 것 방지)
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, pos.w, pos.h);
       ctx.drawImage(image, pos.x, pos.y, pos.w, pos.h, 0, 0, pos.w, pos.h);
-      tiles.push({ label: pos.label, base64: canvas.toBuffer("image/png").toString("base64") });
+      const encoded = await canvas.encode("jpeg", JPEG_QUALITY);
+      tiles.push({ label: pos.label, base64: Buffer.from(encoded).toString("base64"), mediaType: "image/jpeg" });
     }
     return tiles;
   } catch (error) {

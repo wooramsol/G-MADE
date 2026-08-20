@@ -978,7 +978,7 @@ test("selectZoomTargets는 판독 실패 항목의 근거 페이지를 실패 �
   assert.equal(all.length, 2, "충족 항목의 페이지(p.5)는 포함되지 않아야 함");
 });
 
-test("renderPageTiles는 PDF 페이지를 4개의 PNG 타일로 렌더링한다", async () => {
+test("renderPageTiles는 PDF 페이지를 4개의 JPEG 타일로 렌더링한다", async () => {
   const { renderPageTiles } = await import("../lib/pdf/render-page");
   const { PDFDocument } = await import("pdf-lib");
 
@@ -992,7 +992,8 @@ test("renderPageTiles는 PDF 페이지를 4개의 PNG 타일로 렌더링한다"
   assert.deepEqual(tiles!.map((tile) => tile.label), ["좌상", "우상", "좌하", "우하"]);
   for (const tile of tiles!) {
     const buf = Buffer.from(tile.base64, "base64");
-    assert.equal(buf.subarray(1, 4).toString(), "PNG");
+    assert.deepEqual([...buf.subarray(0, 2)], [0xff, 0xd8], "JPEG 매직 바이트");
+    assert.equal(tile.mediaType, "image/jpeg");
   }
 
   assert.equal(await renderPageTiles(base64, 99), null, "범위 밖 페이지는 null");

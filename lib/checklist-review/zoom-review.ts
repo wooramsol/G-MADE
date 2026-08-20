@@ -221,8 +221,13 @@ export async function runZoomReview(options: {
     return file?.visionAssets?.find((asset) => asset.mediaType === "application/pdf");
   };
 
+  // 요청 용량 상한: 타일 이미지 합계가 이보다 크면 페이지 추가를 중단
+  // (API 요청 한도 초과로 호출 자체가 실패하는 것 방지 — 실측 사례 반영)
+  const MAX_TOTAL_TILE_BYTES = 16 * 1024 * 1024;
+
   const blocks: ClaudeContentBlock[] = [];
   let renderedPages = 0;
+  let totalTileBytes = 0;
   for (const target of targets) {
     const pdfAsset = findPdfAsset(target.fileName);
     if (!pdfAsset) {
@@ -233,13 +238,22 @@ export async function runZoomReview(options: {
     const tiles = await renderPageTiles(pdfAsset.base64, target.page);
     if (!tiles) continue;
 
+    const pageBytes = tiles.reduce((sum, tile) => sum + tile.base64.length, 0);
+    if (renderedPages > 0 && totalTileBytes + pageBytes > MAX_TOTAL_TILE_BYTES) {
+      console.log(
+        `[checklist-review] zoom 용량 상한 도달 — ${renderedPages}페이지까지만 포함 (누적 ${(totalTileBytes / 1024 / 1024).toFixed(1)}MB)`,
+      );
+      break;
+    }
+    totalTileBytes += pageBytes;
+
     renderedPages += 1;
     blocks.push({
       type: "text",
       text: `── 원본 p.${target.page} 고해상도 확대 (아래 4개 이미지: 좌상/우상/좌하/우하 순) ──`,
     });
     for (const tile of tiles) {
-      blocks.push({ type: "image", source: { type: "base64", media_type: "image/png", data: tile.base64 } });
+      blocks.push({ type: "image", source: { type: "base64", media_type: tile.mediaType, data: tile.base64 } });
     }
   }
   if (renderedPages === 0) {
