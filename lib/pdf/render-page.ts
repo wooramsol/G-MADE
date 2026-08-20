@@ -101,3 +101,104 @@ export async function renderPageTiles(pdfBase64: string, pageNumber: number): Pr
     return null;
   }
 }
+
+/** 근거 부위 캡처의 목표 크기(긴 변 px) — 카드 인라인 썸네일 용도 */
+const SNIPPET_TARGET_LONG_EDGE = 900;
+/** 크롭 주변 여백 비율 (근거 주변 맥락이 살짝 보이도록) */
+const SNIPPET_PADDING_RATIO = 0.15;
+
+export type RegionSnippet = {
+  /** JPEG base64 */
+  base64: string;
+  mediaType: "image/jpeg";
+};
+
+/**
+ * 근거 위치(region, 정규화 0~1·좌상단 원점)를 페이지에서 잘라내 빨간 테두리를 그린
+ * 캡처 이미지를 만듭니다 — 결과 카드에서 클릭 없이 근거 부위를 바로 보여주는 용도.
+ */
+export async function renderRegionSnippet(
+  pdfBase64: string,
+  pageNumber: number,
+  region: { x: number; y: number; width: number; height: number },
+): Promise<RegionSnippet | null> {
+  try {
+    const { getDocumentProxy, renderPageAsImage } = await import("unpdf");
+    const canvasModule = await import("@napi-rs/canvas");
+
+    class NapiCanvasFactory {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      constructor(_options?: unknown) {}
+      create(width: number, height: number) {
+        const canvas = canvasModule.createCanvas(Math.max(1, Math.ceil(width)), Math.max(1, Math.ceil(height)));
+        return { canvas, context: canvas.getContext("2d") };
+      }
+      reset(entry: { canvas: { width: number; height: number } }, width: number, height: number) {
+        entry.canvas.width = Math.max(1, Math.ceil(width));
+        entry.canvas.height = Math.max(1, Math.ceil(height));
+      }
+      destroy(entry: { canvas: { width: number; height: number } | null; context: unknown }) {
+        if (entry.canvas) {
+          entry.canvas.width = 0;
+          entry.canvas.height = 0;
+        }
+        entry.canvas = null;
+        entry.context = null;
+      }
+    }
+
+    const pdf = await getDocumentProxy(new Uint8Array(Buffer.from(pdfBase64, "base64")), {
+      CanvasFactory: NapiCanvasFactory,
+    } as never);
+    if (pageNumber < 1 || pageNumber > pdf.numPages) return null;
+
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1 });
+
+    // 크롭(근거 영역)의 긴 변이 목표 크기가 되도록 배율 결정 (전체 페이지 상한도 준수)
+    const regionLongEdgePt = Math.max(region.width * viewport.width, region.height * viewport.height);
+    const pageLongEdgePt = Math.max(viewport.width, viewport.height);
+    const scale = Math.min(
+      Math.max(1, SNIPPET_TARGET_LONG_EDGE / Math.max(regionLongEdgePt, 1)),
+      6_000 / pageLongEdgePt,
+      6,
+    );
+
+    const rendered = await renderPageAsImage(pdf, pageNumber, {
+      scale,
+      canvasImport: () => import("@napi-rs/canvas"),
+    });
+    const image = await canvasModule.loadImage(Buffer.from(rendered));
+
+    // region -> 픽셀 좌표 + 여백
+    const rx = region.x * image.width;
+    const ry = region.y * image.height;
+    const rw = Math.max(8, region.width * image.width);
+    const rh = Math.max(8, region.height * image.height);
+    const pad = Math.max(24, Math.max(rw, rh) * SNIPPET_PADDING_RATIO);
+    const cropX = Math.max(0, Math.floor(rx - pad));
+    const cropY = Math.max(0, Math.floor(ry - pad));
+    const cropW = Math.min(image.width - cropX, Math.ceil(rw + pad * 2));
+    const cropH = Math.min(image.height - cropY, Math.ceil(rh + pad * 2));
+    if (cropW < 8 || cropH < 8) return null;
+
+    const canvas = canvasModule.createCanvas(cropW, cropH);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, cropW, cropH);
+    ctx.drawImage(image, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+    // 근거 영역 빨간 테두리
+    ctx.strokeStyle = "rgba(220,38,38,0.9)";
+    ctx.lineWidth = Math.max(2, cropW / 300);
+    ctx.strokeRect(rx - cropX, ry - cropY, rw, rh);
+
+    const encoded = await canvas.encode("jpeg", 85);
+    return { base64: Buffer.from(encoded).toString("base64"), mediaType: "image/jpeg" };
+  } catch (error) {
+    console.warn(
+      `[checklist-review] 근거 캡처 렌더링 실패 (p.${pageNumber}):`,
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
+}
