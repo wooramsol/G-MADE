@@ -207,12 +207,28 @@ export async function runZoomReview(options: {
   if (zoomItems.length === 0) return null;
 
   // 페이지 렌더링 (파일별 base64는 visionAssets의 PDF에서)
+  // 파일 매칭: macOS 업로드 파일명(NFD)과 모델 출력·저장값(NFC)이 다를 수 있어
+  // 유니코드 정규화 후 비교하고, 검토 자료가 1개뿐이면 그 파일로 폴백합니다
+  // (웹 화면의 페이지 링크와 동일한 방침).
+  const normalize = (name: string) => name.normalize("NFC");
+  const pdfFiles = files.filter((entry) =>
+    entry.visionAssets?.some((asset) => asset.mediaType === "application/pdf"),
+  );
+  const findPdfAsset = (fileName: string) => {
+    const file =
+      pdfFiles.find((entry) => normalize(entry.originalName) === normalize(fileName)) ??
+      (pdfFiles.length === 1 ? pdfFiles[0] : undefined);
+    return file?.visionAssets?.find((asset) => asset.mediaType === "application/pdf");
+  };
+
   const blocks: ClaudeContentBlock[] = [];
   let renderedPages = 0;
   for (const target of targets) {
-    const file = files.find((entry) => entry.originalName === target.fileName);
-    const pdfAsset = file?.visionAssets?.find((asset) => asset.mediaType === "application/pdf");
-    if (!pdfAsset) continue;
+    const pdfAsset = findPdfAsset(target.fileName);
+    if (!pdfAsset) {
+      console.warn(`[checklist-review] zoom 대상 파일 미발견: "${target.fileName}" (보유: ${pdfFiles.map((f) => f.originalName).join(", ")})`);
+      continue;
+    }
 
     const tiles = await renderPageTiles(pdfAsset.base64, target.page);
     if (!tiles) continue;
