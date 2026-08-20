@@ -76,12 +76,45 @@ function buildZoomPrompt(zoomItems: ChecklistItem[], pages: Array<{ fileName: st
 - 페이지 인용은 각 이미지 앞에 안내된 "원본 p.N"의 N을 그대로 기재하세요.
 - 확대본에서도 판독되지 않으면 기존 판정(확인불가/부분충족)을 유지하세요. 추측 금지.
 - 확대본에 없는 페이지의 내용은 언급하지 마세요.
+- 근거를 확인한 위치를 evidence의 region에 기재하세요: 그 근거가 보이는 "타일"(좌상/우상/좌하/우하)과, 그 타일 이미지 안에서의 정규화 좌표(x,y=좌상단 원점, width,height, 각 0~1). 위치가 불확실하면 region을 생략하세요.
 
 [재판정 대상 항목]
 ${itemsText}
 
 출력 형식(JSON만):
-{"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[],"recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
+{"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","region":{"tile":"좌상","x":0.2,"y":0.5,"width":0.3,"height":0.1}}],"lawRefs":[],"recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
+}
+
+/** 타일(2x2 분할) 기준 정규화 좌표 -> 원본 페이지 기준 정규화 좌표 변환 */
+export function tileRegionToPageRegion(region: {
+  tile?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}): { x: number; y: number; width: number; height: number } | undefined {
+  const offsets: Record<string, { x: number; y: number }> = {
+    좌상: { x: 0, y: 0 },
+    우상: { x: 0.5, y: 0 },
+    좌하: { x: 0, y: 0.5 },
+    우하: { x: 0.5, y: 0.5 },
+  };
+  const x = Number(region.x);
+  const y = Number(region.y);
+  const width = Number(region.width);
+  const height = Number(region.height);
+  if (![x, y, width, height].every((value) => Number.isFinite(value))) return undefined;
+
+  const offset = offsets[String(region.tile ?? "").trim()];
+  // 타일 표기가 없으면 이미 페이지 기준 좌표로 간주 (안전한 폴백)
+  if (!offset) return { x, y, width, height };
+
+  return {
+    x: offset.x + x * 0.5,
+    y: offset.y + y * 0.5,
+    width: width * 0.5,
+    height: height * 0.5,
+  };
 }
 
 export type ZoomReviewResult = {
@@ -170,6 +203,16 @@ export async function runZoomReview(options: {
 
   const attemptedItemIds = zoomItems.map((item) => item.id);
   const parsed = parsePayload(result.text);
+  if (parsed?.findings) {
+    for (const finding of parsed.findings) {
+      for (const evidence of finding?.evidence ?? []) {
+        const region = evidence?.region as
+          | { tile?: string; x?: number; y?: number; width?: number; height?: number }
+          | undefined;
+        if (region) evidence.region = tileRegionToPageRegion(region);
+      }
+    }
+  }
   if (!parsed) {
     console.warn("[checklist-review] zoom 응답 해석 실패 — 1차 판정 유지");
     return { findings: [], attemptedItemIds, zoomedPages: renderedPages, zoomedItems: 0, usageByModel };

@@ -1049,3 +1049,31 @@ test("partitionItemsForReuse는 미평가(unevaluated) 판정을 문서가 동�
   assert.ok(needEval.some((item) => item.id === "c2"), "미평가 항목은 문서가 같아도 재평가돼야 함");
   assert.equal(skipReasons.get("c2"), "미평가재분석");
 });
+
+test("tileRegionToPageRegion — 타일 좌표를 원본 페이지 좌표로 변환한다", async () => {
+  const { tileRegionToPageRegion } = await import("../lib/checklist-review/zoom-review");
+
+  // 우하 타일의 중앙(0.5,0.5) -> 페이지 (0.75, 0.75)
+  assert.deepEqual(tileRegionToPageRegion({ tile: "우하", x: 0.5, y: 0.5, width: 0.2, height: 0.1 }), {
+    x: 0.75,
+    y: 0.75,
+    width: 0.1,
+    height: 0.05,
+  });
+  // 좌상 타일은 그대로 절반 축소
+  assert.deepEqual(tileRegionToPageRegion({ tile: "좌상", x: 0.2, y: 0.4, width: 0.5, height: 0.2 }), {
+    x: 0.1,
+    y: 0.2,
+    width: 0.25,
+    height: 0.1,
+  });
+  // 타일 표기 없으면 페이지 기준으로 간주
+  assert.deepEqual(tileRegionToPageRegion({ x: 0.3, y: 0.3, width: 0.2, height: 0.2 }), {
+    x: 0.3,
+    y: 0.3,
+    width: 0.2,
+    height: 0.2,
+  });
+  // 좌표 누락 시 undefined
+  assert.equal(tileRegionToPageRegion({ tile: "좌상", x: 0.2 }), undefined);
+});
