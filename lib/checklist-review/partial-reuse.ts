@@ -418,7 +418,8 @@ export type ReuseSkipReason =
   | "원문불일치" // 기준 검토에 같은 원문의 항목이 없음
   | "비충족재분석" // 문서 변경이 있어 비충족 판정은 재분석 (정상 동작)
   | "근거없음" // 판정에 근거가 없어(주로 확인불가) 항상 재분석
-  | "근거재매핑실패"; // 근거 페이지가 현재 문서에서 확인 안 됨 (삭제·변경 or 파일명 불일치)
+  | "근거재매핑실패" // 근거 페이지가 현재 문서에서 확인 안 됨 (삭제·변경 or 파일명 불일치)
+  | "미평가재분석"; // 이전 회차에서 시간 한도로 평가되지 못한 항목 — 문서가 같아도 재평가
 
 export function partitionItemsForReuse(
   items: ChecklistItem[],
@@ -434,6 +435,12 @@ export function partitionItemsForReuse(
     const baselineFinding = baselineFindingsByText.get(normalizeItemText(item.text));
     if (!baselineFinding) {
       skipReasons.set(item.id, "원문불일치");
+      needEval.push(item);
+      continue;
+    }
+    if (baselineFinding.unevaluated) {
+      // 이전 회차에서 시간 한도로 평가 자체가 안 된 항목 — 문서가 완전히 같아도 재평가
+      skipReasons.set(item.id, "미평가재분석");
       needEval.push(item);
       continue;
     }

@@ -53,6 +53,12 @@ const MIN_PLAUSIBLE_CHECKLIST_ITEMS = 5;
  * 우선순위를 좁혀줍니다. (AI는 참고, 최종 판단은 담당자라는 역할 분담을 UI로 구현)
  */
 function applyReviewFlag(finding: ChecklistFinding, zoomAttemptedItemIds: Set<string>): ChecklistFinding {
+  if (finding.unevaluated) {
+    return {
+      ...finding,
+      reviewFlag: "시간 한도로 이번 회차에 평가되지 않음 — 같은 자료로 재분석하면 이 항목만 재평가됩니다",
+    };
+  }
   if (finding.status === "확인불가") {
     return {
       ...finding,

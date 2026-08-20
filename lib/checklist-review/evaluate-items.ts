@@ -1139,10 +1139,53 @@ export async function evaluateChecklistItems(options: {
   // 실패했다(로그로 확인). 캐싱으로 아낄 수 있는 비용보다 "검토가 아예 안 되는" 쪽이
   // 훨씬 나쁘므로, 신뢰성을 위해 완전 병렬 실행으로 되돌림 — 배치 크기 확대(15→25)로
   // 이미 줄여둔 배치 수만큼은 여전히 절감 효과가 유지된다.
-  const results = await Promise.all(batches.map((batch, index) => evaluateBatch(batch, index)));
+  // 부분 결과 보존: 일부 배치가 시간 한도·호출 실패로 실패해도 성공한 배치의 판정은
+  // 저장합니다 — 전량 폐기하면 이미 쓴 토큰이 헛되고, 실패 배치 항목은 "미평가"로
+  // 표시해 재분석 시 그 항목들만 다시 평가합니다.
+  const settledBatches = await Promise.allSettled(batches.map((batch, index) => evaluateBatch(batch, index)));
+  const results: Array<{ model: string; summary: string; findings: ChecklistFinding[] }> = [];
+  const unevaluatedItems: ChecklistItem[] = [];
+  settledBatches.forEach((entry, index) => {
+    if (entry.status === "fulfilled") {
+      results.push(entry.value);
+    } else {
+      unevaluatedItems.push(...batches[index]);
+      console.warn(
+        `[checklist-review] batch=${index + 1}/${batches.length} 실패 — 항목 ${batches[index].length}개 미평가:`,
+        entry.reason instanceof Error ? entry.reason.message : entry.reason,
+      );
+    }
+  });
+
+  if (results.length === 0) {
+    const firstRejection = settledBatches.find(
+      (entry): entry is PromiseRejectedResult => entry.status === "rejected",
+    );
+    throw firstRejection?.reason ?? new Error("평가 배치가 모두 실패했습니다.");
+  }
+
+  if (unevaluatedItems.length > 0) {
+    warnings.push(
+      `${unevaluatedItems.length}개 항목이 시간 한도·호출 실패로 이번 회차에 평가되지 않았습니다. ` +
+        `같은 자료로 다시 분석하면 미평가 항목만 재평가됩니다.`,
+    );
+    results.push({
+      model: "",
+      summary: "",
+      findings: unevaluatedItems.map((item) => ({
+        itemId: item.id,
+        status: "확인불가" as const,
+        rationale: "시간 한도로 이번 회차에서 평가되지 않음 — 재분석 시 이 항목만 다시 평가됨",
+        evidence: [],
+        lawRefs: [],
+        unevaluated: true,
+      })),
+    });
+  }
+
   const allFindings = results.flatMap((entry) => entry.findings);
   const summaries = results.map((entry) => entry.summary).filter(Boolean);
-  const model = results[results.length - 1]?.model ?? extractionModel;
+  const model = results.map((entry) => entry.model).filter(Boolean).pop() ?? extractionModel;
 
   // 비용 진단용 — 이 검토 1건에 실제로 사용된 토큰 총합. 같은 문서를 재검토했을 때 비용이
   // 회차마다 다르다면, 이 로그의 calls(호출 횟수)·input(재전송 토큰)을 비교해 원인을

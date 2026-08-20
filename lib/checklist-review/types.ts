@@ -64,6 +64,8 @@ export type ChecklistFinding = {
   recommendation?: string;
   /** 담당자가 직접 확인해야 하는 사유 (AI 판정 신뢰도가 낮은 항목 표시) */
   reviewFlag?: string;
+  /** 서버 시간 한도·호출 실패로 이번 회차에 평가되지 못한 항목 (재분석 시 이 항목만 재평가) */
+  unevaluated?: boolean;
 };
 
 export type ChecklistReviewFile = {

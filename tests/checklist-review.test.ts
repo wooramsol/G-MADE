@@ -1008,3 +1008,44 @@ test("estimateBatchUsd·estimateVisionPagesUsd — 비용 추정 상수 검증",
   // 60p 문서 1배치(15항목): 입력 $0.36 + 출력 15×480×$15/M = $0.108 -> $0.468
   assert.ok(Math.abs(estimateBatchUsd(60, 15) - 0.468) < 1e-9);
 });
+
+test("partitionItemsForReuse는 미평가(unevaluated) 판정을 문서가 동일해도 재사용하지 않는다", async () => {
+  const { computeFileAlignments, buildFindingsByText, partitionItemsForReuse } = await import(
+    "../lib/checklist-review/partial-reuse"
+  );
+
+  const items = [
+    { id: "c1", text: "가로변 차폐 조경 계획 반영" },
+    { id: "c2", text: "야간 경관 조명 계획 수립" },
+  ];
+  const findings = [
+    {
+      itemId: "c1",
+      status: "충족" as const,
+      rationale: "확인됨",
+      evidence: [{ fileName: "도서.pdf", page: 3, note: "n" }],
+      lawRefs: [],
+    },
+    {
+      itemId: "c2",
+      status: "확인불가" as const,
+      rationale: "시간 한도로 미평가",
+      evidence: [],
+      lawRefs: [],
+      unevaluated: true,
+    },
+  ];
+
+  const fingerprints = [{ originalName: "도서.pdf", contentHash: "same", pageHashes: ["h1", "h2", "h3"] }];
+  const alignments = computeFileAlignments(fingerprints, fingerprints);
+  const { reused, needEval, skipReasons } = partitionItemsForReuse(
+    items,
+    buildFindingsByText(items, findings),
+    alignments,
+    false, // 문서 완전 동일
+  );
+
+  assert.ok(reused.has("c1"), "정상 평가된 충족 판정은 재사용");
+  assert.ok(needEval.some((item) => item.id === "c2"), "미평가 항목은 문서가 같아도 재평가돼야 함");
+  assert.equal(skipReasons.get("c2"), "미평가재분석");
+});
