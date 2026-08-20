@@ -54,5 +54,8 @@
   "overrides": {
     "@hono/node-server": "1.19.13",
     "postcss": "$postcss"
+  },
+  "optionalDependencies": {
+    "@napi-rs/canvas-linux-x64-gnu": "1.0.6"
   }
 }
