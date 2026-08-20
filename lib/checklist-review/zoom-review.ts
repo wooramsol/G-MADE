@@ -87,6 +87,8 @@ ${itemsText}
 export type ZoomReviewResult = {
   /** 재판정된 판정 (itemId 기준으로 기존 판정을 대체) */
   findings: ChecklistFinding[];
+  /** 확대 재판독을 시도한 항목 id — 재판독 후에도 미해결이면 "확인 필요" 표시에 사용 */
+  attemptedItemIds: string[];
   zoomedPages: number;
   zoomedItems: number;
   usageByModel: UsageByModel;
@@ -166,15 +168,16 @@ export async function runZoomReview(options: {
   });
   addUsage(usageByModel, result.model, result.usage);
 
+  const attemptedItemIds = zoomItems.map((item) => item.id);
   const parsed = parsePayload(result.text);
   if (!parsed) {
     console.warn("[checklist-review] zoom 응답 해석 실패 — 1차 판정 유지");
-    return { findings: [], zoomedPages: renderedPages, zoomedItems: 0, usageByModel };
+    return { findings: [], attemptedItemIds, zoomedPages: renderedPages, zoomedItems: 0, usageByModel };
   }
 
   const sanitized = sanitizeFindings(parsed.findings ?? [], zoomItems, context, files);
   console.log(
     `[checklist-review] zoom pages=${renderedPages} items=${zoomItems.length} refined=${sanitized.length}`,
   );
-  return { findings: sanitized, zoomedPages: renderedPages, zoomedItems: sanitized.length, usageByModel };
+  return { findings: sanitized, attemptedItemIds, zoomedPages: renderedPages, zoomedItems: sanitized.length, usageByModel };
 }

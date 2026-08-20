@@ -48,6 +48,28 @@ import { countFindingStatuses, type ChecklistFinding, type ChecklistReview } fro
  */
 const MIN_PLAUSIBLE_CHECKLIST_ITEMS = 5;
 
+/**
+ * "담당자 직접 확인 필요" 플래그 — AI 판정 신뢰도가 낮은 항목을 표시해 사람이 볼
+ * 우선순위를 좁혀줍니다. (AI는 참고, 최종 판단은 담당자라는 역할 분담을 UI로 구현)
+ */
+function applyReviewFlag(finding: ChecklistFinding, zoomAttemptedItemIds: Set<string>): ChecklistFinding {
+  if (finding.status === "확인불가") {
+    return {
+      ...finding,
+      reviewFlag: zoomAttemptedItemIds.has(finding.itemId)
+        ? "고해상도 확대 판독에도 근거를 찾지 못함 — 도서에서 직접 확인 필요"
+        : "AI가 근거를 찾지 못한 항목 — 도서에서 직접 확인 필요",
+    };
+  }
+  if (finding.status === "부분충족" && zoomAttemptedItemIds.has(finding.itemId)) {
+    return {
+      ...finding,
+      reviewFlag: "고해상도 확대 판독 후에도 근거가 불완전 — 보완요구 전 직접 확인 권장",
+    };
+  }
+  return finding;
+}
+
 export type RunChecklistReviewInput = {
   projectId: string;
   fileRefs: StoredFileRef[];
@@ -283,7 +305,7 @@ export async function runChecklistReview(
     if (items.length > 0 && itemsNeedingEval.length === 0) {
       // 모든 항목의 근거 페이지가 변경되지 않아 전부 재사용 — AI 재호출 없음.
       emitStep(emit, "evaluate", "동일 근거 페이지 확인 — 이전 분석 결과 재사용 중 (AI 재호출 없음)");
-      findings = items.map((item) => reusedFindings.get(item.id)!);
+      findings = items.map((item) => applyReviewFlag(reusedFindings.get(item.id)!, new Set()));
       summary = baselineReview!.summary;
       model = baselineReview!.model;
       metrics = baselineReview!.metrics;
@@ -342,6 +364,7 @@ export async function runChecklistReview(
       }
 
       const freshFindingsById = new Map(evaluation.findings.map((finding) => [finding.itemId, finding]));
+      let zoomAttemptedItemIds = new Set<string>();
 
       // 선별 줌: 이번에 새로 평가한 항목 중 판독 불충분(확인불가·부분충족) 항목의 근거
       // 페이지를 고해상도 타일로 재판독. 남은 예산·시간 안에서만 실행됩니다.
@@ -355,6 +378,7 @@ export async function runChecklistReview(
           remainingBudgetUsd: remainingBudgetUsd(),
         });
         if (zoom) {
+          zoomAttemptedItemIds = new Set(zoom.attemptedItemIds);
           mergeUsageByModel(usageByModel, zoom.usageByModel);
           let refinedCount = 0;
           for (const refined of zoom.findings) {
@@ -375,7 +399,8 @@ export async function runChecklistReview(
 
       findings = items
         .map((item) => reusedFindings.get(item.id) ?? freshFindingsById.get(item.id))
-        .filter((finding): finding is ChecklistFinding => Boolean(finding));
+        .filter((finding): finding is ChecklistFinding => Boolean(finding))
+        .map((finding) => applyReviewFlag(finding, zoomAttemptedItemIds));
       summary = evaluation.summary || baselineReview?.summary || "";
       model = evaluation.model || baselineReview?.model || "";
       const metricsResult = await metricsPromise;

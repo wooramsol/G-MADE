@@ -62,6 +62,8 @@ export type ChecklistFinding = {
   spatialNote?: string;
   /** 미충족·부분충족 시 보완 방향 */
   recommendation?: string;
+  /** 담당자가 직접 확인해야 하는 사유 (AI 판정 신뢰도가 낮은 항목 표시) */
+  reviewFlag?: string;
 };
 
 export type ChecklistReviewFile = {

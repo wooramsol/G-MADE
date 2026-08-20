@@ -115,6 +115,11 @@ export default function ChecklistReviewResults({
   }, [review.findings]);
 
   // 회차 비교 — 직전 회차와 항목 원문(공백 무시) 기준으로 매칭해 상태 변화를 계산
+  const reviewFlagCount = useMemo(
+    () => review.findings.filter((finding) => finding.reviewFlag).length,
+    [review.findings],
+  );
+
   const changesByItemId = useMemo(() => {
     const map = new Map<string, ItemChange>();
     if (!previousReview) return map;
@@ -237,7 +242,7 @@ export default function ChecklistReviewResults({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <FilterChip
           active={filter === "전체"}
           label={`전체 ${review.items.length}`}
@@ -252,6 +257,11 @@ export default function ChecklistReviewResults({
             tone={status}
           />
         ))}
+        {reviewFlagCount > 0 ? (
+          <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800">
+            ⚑ 직접 확인 필요 {reviewFlagCount}
+          </span>
+        ) : null}
       </div>
 
       <div className="space-y-6">
@@ -404,6 +414,14 @@ function FindingCard({
             )
           ) : null}
           <span className={`rounded-full border px-3 py-1 text-xs font-bold ${style.badge}`}>{status}</span>
+          {finding?.reviewFlag ? (
+            <span
+              className="rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-800"
+              title={finding.reviewFlag}
+            >
+              ⚑ 확인 필요
+            </span>
+          ) : null}
         </span>
       </div>
 

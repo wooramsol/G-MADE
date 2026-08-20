@@ -49,14 +49,15 @@ function body(text: string, options?: { bold?: boolean; indent?: boolean; size?:
 }
 
 /** 항목 제목 줄: "N. 항목 원문 — [판정]" (판정은 웹 배지 색과 동일한 색상) */
-function itemTitleLine(sequence: number, text: string, status: ChecklistItemStatus): Paragraph {
-  return new Paragraph({
-    spacing: { before: 160, after: 80 },
-    children: [
-      new TextRun({ text: `${sequence}. ${text}  `, font: FONT, bold: true, size: 20 }),
-      new TextRun({ text: `[${status}]`, font: FONT, bold: true, size: 20, color: STATUS_COLORS[status] }),
-    ],
-  });
+function itemTitleLine(sequence: number, text: string, status: ChecklistItemStatus, flagged?: boolean): Paragraph {
+  const children = [
+    new TextRun({ text: `${sequence}. ${text}  `, font: FONT, bold: true, size: 20 }),
+    new TextRun({ text: `[${status}]`, font: FONT, bold: true, size: 20, color: STATUS_COLORS[status] }),
+  ];
+  if (flagged) {
+    children.push(new TextRun({ text: "  ⚑ 확인 필요", font: FONT, bold: true, size: 20, color: "B45309" }));
+  }
+  return new Paragraph({ spacing: { before: 160, after: 80 }, children });
 }
 
 export async function buildSupplementDoc(
@@ -121,7 +122,7 @@ export async function buildSupplementDoc(
       if (!finding) continue;
       sequence += 1;
 
-      sections.push(itemTitleLine(sequence, item.text, finding.status));
+      sections.push(itemTitleLine(sequence, item.text, finding.status, Boolean(finding.reviewFlag)));
 
       // 웹 카드와 동일: 판정 사유 + 보완 방향을 이어서 한 문단으로
       const rationaleLine = [finding.rationale, finding.recommendation].filter(Boolean).join(" ");
