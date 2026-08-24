@@ -102,8 +102,6 @@ export async function renderPageTiles(pdfBase64: string, pageNumber: number): Pr
   }
 }
 
-/** 근거 부위 캡처의 목표 크기(긴 변 px) — 카드 인라인 썸네일 용도 */
-const SNIPPET_TARGET_LONG_EDGE = 900;
 /** 크롭 주변 여백 비율 (근거 주변 맥락이 살짝 보이도록) */
 const SNIPPET_PADDING_RATIO = 0.15;
 
@@ -120,7 +118,10 @@ export type RegionSnippet = {
 export async function renderRegionSnippet(
   pdfBase64: string,
   pageNumber: number,
-  region: { x: number; y: number; width: number; height: number },
+  /** 근거 영역 — 없으면 페이지 전체를 캡처(박스 없음) */
+  region: { x: number; y: number; width: number; height: number } | null,
+  /** 결과 이미지의 긴 변 목표(px) — 카드 썸네일 ~520, 확대 보기 ~1200 */
+  targetLongEdge: number = 520,
 ): Promise<RegionSnippet | null> {
   try {
     const { getDocumentProxy, renderPageAsImage } = await import("unpdf");
@@ -155,11 +156,13 @@ export async function renderRegionSnippet(
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 1 });
 
-    // 크롭(근거 영역)의 긴 변이 목표 크기가 되도록 배율 결정 (전체 페이지 상한도 준수)
-    const regionLongEdgePt = Math.max(region.width * viewport.width, region.height * viewport.height);
+    // 크롭(근거 영역 또는 페이지 전체)의 긴 변이 목표 크기가 되도록 배율 결정
     const pageLongEdgePt = Math.max(viewport.width, viewport.height);
+    const cropLongEdgePt = region
+      ? Math.max(region.width * viewport.width, region.height * viewport.height)
+      : pageLongEdgePt;
     const scale = Math.min(
-      Math.max(1, SNIPPET_TARGET_LONG_EDGE / Math.max(regionLongEdgePt, 1)),
+      Math.max(0.5, targetLongEdge / Math.max(cropLongEdgePt, 1)),
       6_000 / pageLongEdgePt,
       6,
     );
@@ -170,16 +173,25 @@ export async function renderRegionSnippet(
     });
     const image = await canvasModule.loadImage(Buffer.from(rendered));
 
-    // region -> 픽셀 좌표 + 여백
-    const rx = region.x * image.width;
-    const ry = region.y * image.height;
-    const rw = Math.max(8, region.width * image.width);
-    const rh = Math.max(8, region.height * image.height);
-    const pad = Math.max(24, Math.max(rw, rh) * SNIPPET_PADDING_RATIO);
-    const cropX = Math.max(0, Math.floor(rx - pad));
-    const cropY = Math.max(0, Math.floor(ry - pad));
-    const cropW = Math.min(image.width - cropX, Math.ceil(rw + pad * 2));
-    const cropH = Math.min(image.height - cropY, Math.ceil(rh + pad * 2));
+    let cropX = 0;
+    let cropY = 0;
+    let cropW = image.width;
+    let cropH = image.height;
+    let boxRect: { x: number; y: number; w: number; h: number } | null = null;
+
+    if (region) {
+      // region -> 픽셀 좌표 + 여백
+      const rx = region.x * image.width;
+      const ry = region.y * image.height;
+      const rw = Math.max(8, region.width * image.width);
+      const rh = Math.max(8, region.height * image.height);
+      const pad = Math.max(24, Math.max(rw, rh) * SNIPPET_PADDING_RATIO);
+      cropX = Math.max(0, Math.floor(rx - pad));
+      cropY = Math.max(0, Math.floor(ry - pad));
+      cropW = Math.min(image.width - cropX, Math.ceil(rw + pad * 2));
+      cropH = Math.min(image.height - cropY, Math.ceil(rh + pad * 2));
+      boxRect = { x: rx - cropX, y: ry - cropY, w: rw, h: rh };
+    }
     if (cropW < 8 || cropH < 8) return null;
 
     const canvas = canvasModule.createCanvas(cropW, cropH);
@@ -187,12 +199,14 @@ export async function renderRegionSnippet(
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, cropW, cropH);
     ctx.drawImage(image, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-    // 근거 영역 빨간 테두리
-    ctx.strokeStyle = "rgba(220,38,38,0.9)";
-    ctx.lineWidth = Math.max(2, cropW / 300);
-    ctx.strokeRect(rx - cropX, ry - cropY, rw, rh);
+    if (boxRect) {
+      // 근거 영역 빨간 테두리
+      ctx.strokeStyle = "rgba(220,38,38,0.9)";
+      ctx.lineWidth = Math.max(2, cropW / 300);
+      ctx.strokeRect(boxRect.x, boxRect.y, boxRect.w, boxRect.h);
+    }
 
-    const encoded = await canvas.encode("jpeg", 85);
+    const encoded = await canvas.encode("jpeg", 78);
     return { base64: Buffer.from(encoded).toString("base64"), mediaType: "image/jpeg" };
   } catch (error) {
     console.warn(

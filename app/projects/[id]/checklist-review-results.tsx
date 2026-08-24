@@ -103,21 +103,21 @@ export default function ChecklistReviewResults({
       fileName: string,
       page: number,
       region?: { x: number; y: number; width: number; height: number },
-    ): { href: string; snippetSrc?: string } | undefined => {
+    ): { thumbSrc: string; fullSrc: string } | undefined => {
       // 저장·역직렬화 과정에서 페이지가 문자열로 들어오는 경우가 있어 숫자로 강제 변환
       const pageNumber = Number(page);
       const fileId = idByName.get(normalize(fileName)) ?? (pdfFiles.length === 1 ? pdfFiles[0].id : undefined);
       if (!fileId || !Number.isFinite(pageNumber) || pageNumber < 1) return undefined;
       const base = `projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}&fileId=${encodeURIComponent(fileId)}`;
-      // AI가 근거 위치(region)를 판독한 경우: 마커 PDF 링크 + 인라인 캡처 썸네일 URL
-      if (region) {
-        const coords = `&page=${pageNumber}&x=${region.x}&y=${region.y}&w=${region.width}&h=${region.height}`;
-        return {
-          href: `/api/checklist-reviews/evidence-page?${base}${coords}`,
-          snippetSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}`,
-        };
-      }
-      return { href: `/api/checklist-reviews/original-file?${base}#page=${pageNumber}` };
+      // 근거는 전부 캡처 썸네일로 표시: region이 있으면 부위 크롭(빨간 박스), 없으면 페이지 전체.
+      // 클릭 시 PDF로 이동하는 대신 큰 캡처 이미지를 엽니다 (워크플로우 단순화).
+      const coords = region
+        ? `&page=${pageNumber}&x=${region.x}&y=${region.y}&w=${region.width}&h=${region.height}`
+        : `&page=${pageNumber}`;
+      return {
+        thumbSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}&size=thumb`,
+        fullSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}&size=full`,
+      };
     };
   }, [review.files, review.id, projectId]);
 
@@ -379,7 +379,7 @@ function FindingCard({
     fileName: string,
     page: number,
     region?: { x: number; y: number; width: number; height: number },
-  ) => { href: string; snippetSrc?: string } | undefined;
+  ) => { thumbSrc: string; fullSrc: string } | undefined;
   comment?: string;
   onSaveComment: (itemId: string, text: string) => Promise<void>;
   /** 직전 회차 대비 변화 (없으면 동일 or 첫 회차) */
@@ -451,45 +451,30 @@ function FindingCard({
       {finding && finding.evidence.length > 0 ? (
         <div className="mt-3 space-y-1.5">
           {finding.evidence.map((evidence, index) => {
-            const link = pageHref(evidence.fileName, evidence.page, evidence.region);
+            const snippet = pageHref(evidence.fileName, evidence.page, evidence.region);
             return (
               <div key={`${evidence.fileName}-${evidence.page}-${index}`}>
                 <p className="text-[13px] leading-5 text-[#64748b]">
-                  {link ? (
-                    <a
-                      href={link.href}
-                      rel="noreferrer"
-                      style={{
-                        color: "#2563eb",
-                        fontWeight: 700,
-                        textDecoration: "underline",
-                        textUnderlineOffset: "2px",
-                      }}
-                      target="_blank"
-                      title={evidence.region ? "근거 위치가 표시된 페이지 열기" : "원본 PDF의 해당 페이지 열기"}
-                    >
-                      p.{evidence.page}
-                      {evidence.region ? " 📍" : ""}
-                    </a>
-                  ) : (
-                    <span className="font-bold text-[#15345b]">p.{evidence.page}</span>
-                  )}{" "}
+                  <span className="font-bold text-[#15345b]">
+                    p.{evidence.page}
+                    {evidence.region ? " 📍" : ""}
+                  </span>{" "}
                   — {evidence.note}
                 </p>
-                {link?.snippetSrc ? (
+                {snippet ? (
                   <a
                     className="mt-1.5 inline-block"
-                    href={link.href}
+                    href={snippet.fullSrc}
                     rel="noreferrer"
                     target="_blank"
-                    title="클릭하면 근거 위치가 표시된 페이지 전체가 열립니다"
+                    title="클릭하면 크게 보기"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      alt={`p.${evidence.page} 근거 부위 캡처`}
-                      className="max-h-40 max-w-full rounded-lg border border-[#e2c5c5] shadow-sm"
+                      alt={`p.${evidence.page} 근거 캡처`}
+                      className={`max-h-44 max-w-full rounded-lg border shadow-sm ${evidence.region ? "border-[#e2c5c5]" : "border-[#d7dee8]"}`}
                       loading="lazy"
-                      src={link.snippetSrc}
+                      src={snippet.thumbSrc}
                     />
                   </a>
                 ) : null}

@@ -1,5 +1,8 @@
+import { get, put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
+import { getBlobAccess } from "@/lib/blob-config";
+import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
 import { renderRegionSnippet } from "@/lib/pdf/render-page";
 import { getProjectById } from "@/lib/project-store";
 import { readSavedUploadFile } from "@/lib/save-uploaded-files";
@@ -8,9 +11,13 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
 
+const SIZES = { thumb: 520, full: 1400 } as const;
+
 /**
- * 근거 위치(region) 부위만 잘라 빨간 테두리를 그린 캡처(JPEG)를 반환합니다 —
- * 결과 카드에서 하이퍼링크 클릭 없이 근거 부위를 바로 보여주는 인라인 썸네일용.
+ * 근거 페이지/부위 캡처(JPEG)를 반환합니다 — 결과 카드의 인라인 썸네일용.
+ * - region이 있으면 해당 부위를 잘라 빨간 테두리 표시, 없으면 페이지 전체.
+ * - 속도: 생성한 캡처를 Blob에 결정적 경로로 캐시해, 같은 캡처는 (누가 보든)
+ *   렌더링 없이 즉시 스트리밍됩니다. 브라우저 캐시도 병행.
  */
 export async function GET(request: NextRequest) {
   const authResult = await requireApiSession();
@@ -21,25 +28,23 @@ export async function GET(request: NextRequest) {
   const reviewId = params.get("reviewId")?.trim() ?? "";
   const fileId = params.get("fileId")?.trim() ?? "";
   const page = Number(params.get("page"));
+  const size: keyof typeof SIZES = params.get("size") === "full" ? "full" : "thumb";
   const clamp01 = (value: number) => (Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : NaN);
-  const region = {
+  const rawRegion = {
     x: clamp01(Number(params.get("x"))),
     y: clamp01(Number(params.get("y"))),
     width: clamp01(Number(params.get("w"))),
     height: clamp01(Number(params.get("h"))),
   };
+  const region =
+    [rawRegion.x, rawRegion.y, rawRegion.width, rawRegion.height].every((value) => Number.isFinite(value)) &&
+    rawRegion.width > 0 &&
+    rawRegion.height > 0
+      ? rawRegion
+      : null;
 
-  if (
-    !projectId ||
-    !reviewId ||
-    !fileId ||
-    !Number.isFinite(page) ||
-    page < 1 ||
-    ![region.x, region.y, region.width, region.height].every((value) => Number.isFinite(value)) ||
-    region.width <= 0 ||
-    region.height <= 0
-  ) {
-    return NextResponse.json({ error: "projectId·reviewId·fileId·page·region이 필요합니다." }, { status: 400 });
+  if (!projectId || !reviewId || !fileId || !Number.isFinite(page) || page < 1) {
+    return NextResponse.json({ error: "projectId·reviewId·fileId·page가 필요합니다." }, { status: 400 });
   }
 
   const project = await getProjectById(projectId);
@@ -47,6 +52,29 @@ export async function GET(request: NextRequest) {
   const file = review?.files.find((entry) => entry.id === fileId);
   if (!project || !review || !file) {
     return NextResponse.json({ error: "파일을 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  const jpegHeaders = {
+    "Content-Type": "image/jpeg",
+    // 검토 결과는 불변 — 브라우저 캐시를 길게 (재방문 시 요청 자체가 없음)
+    "Cache-Control": "private, max-age=604800, immutable",
+  };
+
+  // 결정적 캐시 경로 — 같은 캡처는 한 번만 렌더링
+  const regionKey = region
+    ? `${region.x.toFixed(4)}-${region.y.toFixed(4)}-${region.width.toFixed(4)}-${region.height.toFixed(4)}`
+    : "page";
+  const cachePathname = `projects/${projectId}/snippets/${reviewId}/${fileId}-p${page}-${size}-${regionKey}.jpg`;
+
+  if (isBlobStorageEnabled()) {
+    try {
+      const cached = await get(cachePathname, { access: getBlobAccess() });
+      if (cached?.stream) {
+        return new Response(cached.stream, { headers: jpegHeaders });
+      }
+    } catch {
+      // 캐시 미스 — 아래에서 새로 렌더링
+    }
   }
 
   try {
@@ -59,18 +87,27 @@ export async function GET(request: NextRequest) {
       blobUrl: file.blobUrl,
     });
 
-    const snippet = await renderRegionSnippet(Buffer.from(bytes).toString("base64"), page, region);
+    const snippet = await renderRegionSnippet(Buffer.from(bytes).toString("base64"), page, region, SIZES[size]);
     if (!snippet) {
-      return NextResponse.json({ error: "근거 부위 캡처를 생성하지 못했습니다." }, { status: 404 });
+      return NextResponse.json({ error: "근거 캡처를 생성하지 못했습니다." }, { status: 404 });
     }
 
-    return new NextResponse(Buffer.from(snippet.base64, "base64"), {
-      headers: {
-        "Content-Type": snippet.mediaType,
-        // 검토 결과는 불변이므로 브라우저 캐시를 길게 — 같은 카드 재방문 시 재렌더링 없음
-        "Cache-Control": "private, max-age=604800, immutable",
-      },
-    });
+    const buffer = Buffer.from(snippet.base64, "base64");
+
+    if (isBlobStorageEnabled()) {
+      try {
+        await put(cachePathname, buffer, {
+          access: getBlobAccess(),
+          contentType: "image/jpeg",
+          addRandomSuffix: false,
+          allowOverwrite: true,
+        });
+      } catch (error) {
+        console.warn("[checklist-review] 캡처 캐시 저장 실패:", error instanceof Error ? error.message : error);
+      }
+    }
+
+    return new NextResponse(new Uint8Array(buffer), { headers: jpegHeaders });
   } catch (error) {
     const message = error instanceof Error ? error.message : "근거 캡처를 불러오지 못했습니다.";
     return NextResponse.json({ error: message }, { status: 500 });
