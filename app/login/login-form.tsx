@@ -20,7 +20,7 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
         <FormLabel>이메일</FormLabel>
         <input
           autoComplete="email"
-          className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+          className="mt-2 w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
           name="email"
           placeholder="이메일을 입력하세요"
           required
@@ -31,7 +31,7 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
         <FormLabel>비밀번호</FormLabel>
         <input
           autoComplete="current-password"
-          className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+          className="mt-2 w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
           name="password"
           placeholder="비밀번호를 입력하세요"
           required
@@ -39,10 +39,10 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
         />
       </label>
       {state.error ? (
-        <ErrorText className="rounded-xl bg-red-50 px-4 py-3">{state.error}</ErrorText>
+        <ErrorText className="rounded-md bg-red-50 px-4 py-3">{state.error}</ErrorText>
       ) : null}
       <button
-        className="primary-action-blue w-full rounded-xl px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-70"
+        className="primary-action-blue w-full rounded-md px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-70"
         disabled={pending}
         type="submit"
       >

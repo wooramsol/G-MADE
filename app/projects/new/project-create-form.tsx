@@ -88,13 +88,13 @@ export default function ProjectCreateForm() {
 
   return (
     <form className="grid gap-4 lg:grid-cols-2" id="new-project-form" onSubmit={submitProject}>
-      {error ? <ErrorText className="rounded-xl bg-red-50 p-3 lg:col-span-2">{error}</ErrorText> : null}
+      {error ? <ErrorText className="rounded-md bg-red-50 p-3 lg:col-span-2">{error}</ErrorText> : null}
       <Field label="사업명" required placeholder="예: 동부역세권 복합문화시설 경관사전심의" value={form.name} onChange={(value) => updateField("name", value)} />
       <div className="lg:col-span-2">
         <FormLabel as="p">
           사업위치 <span className="text-red-600">*</span>
         </FormLabel>
-        <div className="mt-2 rounded-xl border border-[#d7dee8] bg-white p-4">
+        <div className="mt-2 rounded-md border border-[#d7dee8] bg-white p-4">
           <LocationPicker value={location} onChange={setLocation} disabled={loading} />
         </div>
       </div>
@@ -106,7 +106,7 @@ export default function ProjectCreateForm() {
       <label className="lg:col-span-2">
         <FormLabel>사업개요</FormLabel>
         <textarea
-          className="mt-2 min-h-28 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+          className="mt-2 min-h-28 w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
           placeholder="사업 목적, 주변 현황, 심의 요청사항을 입력하세요."
           value={form.summary}
           onChange={(event) => updateField("summary", event.target.value)}
@@ -146,7 +146,7 @@ function Field({
         {required ? <span className="text-red-600"> *</span> : null}
       </FormLabel>
       <input
-        className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+        className="mt-2 w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
         placeholder={placeholder}
         required={required}
         type={type}
@@ -177,7 +177,7 @@ function SelectField({
         {required ? <span className="text-red-600"> *</span> : null}
       </FormLabel>
       <select
-        className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+        className="mt-2 w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
         required={required}
         value={value}
         onChange={(event) => onChange(event.target.value)}

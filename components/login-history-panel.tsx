@@ -17,7 +17,7 @@ export default function LoginHistoryPanel({ entries }: LoginHistoryPanelProps) {
 
   if (entries.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
+      <div className="rounded-md border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
         아직 기록된 로그인 이력이 없습니다. 다음 로그인부터 누적됩니다.
       </div>
     );
@@ -25,7 +25,7 @@ export default function LoginHistoryPanel({ entries }: LoginHistoryPanelProps) {
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-xl border border-[#d7dee8]">
+      <div className="overflow-hidden rounded-md border border-[#d7dee8]">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-[#eef4fb] text-[#15345b]">
             <tr>

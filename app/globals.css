@@ -1,14 +1,17 @@
 @import "tailwindcss";
+/* Pretendard Variable — 한글 UI 표준 서체 (동적 서브셋: 쓰는 글자만 로드) */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
 
 :root {
-  --background: #f4f7fb;
-  --foreground: #172033;
+  /* 행정문서 톤 — 중립 회색 바탕, 남색 단색 포인트 */
+  --background: #f4f5f7;
+  --foreground: #1c2434;
   --panel: #ffffff;
-  --line: #d7dee8;
-  --muted: #64748b;
+  --line: #d0d5dd;
+  --muted: #667085;
   --primary: #15345b;
   --primary-strong: #2463b3;
-  --primary-soft: #e8f1ff;
+  --primary-soft: #eef2f7;
 }
 
 * {
@@ -19,7 +22,14 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    "Pretendard Variable",
+    Pretendard,
+    -apple-system,
+    "Apple SD Gothic Neo",
+    "Malgun Gothic",
+    sans-serif;
+  letter-spacing: -0.01em;
 }
 
 /* base 레이어 안에 둬야 Tailwind 유틸리티(text-white, text-xs 등)가 덮어쓸 수 있음 —

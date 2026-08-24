@@ -92,7 +92,7 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
       </div>
 
       {status === "error" ? (
-        <div className="flex h-[320px] flex-col items-center justify-center gap-2 rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-6 text-center">
+        <div className="flex h-[320px] flex-col items-center justify-center gap-2 rounded-md border border-[#d7dee8] bg-[#f8fafc] px-6 text-center">
           <p className="text-sm font-semibold text-[#475569]">3D 지도를 표시할 수 없습니다</p>
           <p className="text-xs leading-5 text-[#64748b]">{errorMessage}</p>
           <a
@@ -105,7 +105,7 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
           </a>
         </div>
       ) : (
-        <div className="relative h-[320px] w-full overflow-hidden rounded-xl border border-[#d7dee8] bg-[#0b1220]">
+        <div className="relative h-[320px] w-full overflow-hidden rounded-md border border-[#d7dee8] bg-[#0b1220]">
           <iframe
             className="h-full w-full border-0"
             ref={iframeRef}

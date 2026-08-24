@@ -73,7 +73,7 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
 
   if (trashedProjects.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm text-[#64748b]">
+      <div className="rounded-md border border-dashed border-[#d7dee8] bg-white p-8 text-center text-sm text-[#64748b]">
         휴지통이 비어 있습니다.{" "}
         <Link className="font-bold text-[#2463b3]" href="/projects">
           프로젝트 관리로 이동
@@ -88,7 +88,7 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
         {trashedProjects.map((project) => {
 
           return (
-            <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow" key={project.id}>
+            <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow" key={project.id}>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <Eyebrow>{project.reviewType}</Eyebrow>

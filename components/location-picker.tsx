@@ -27,7 +27,7 @@ type SearchItem = {
 const MapPicker = dynamic(() => import("@/components/location-map-picker"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[280px] items-center justify-center rounded-xl border border-[#d7dee8] bg-[#f8fafc] text-sm text-[#64748b]">
+    <div className="flex h-[280px] items-center justify-center rounded-md border border-[#d7dee8] bg-[#f8fafc] text-sm text-[#64748b]">
       지도 불러오는 중…
     </div>
   ),
@@ -198,7 +198,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-1">
+      <div className="grid grid-cols-3 gap-2 rounded-md border border-[#d7dee8] bg-[#f8fafc] p-1">
         {tabs.map((item) => (
           <button
             key={item.id}
@@ -223,7 +223,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
           </p>
           <div className="flex gap-2">
             <input
-              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+              className="w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
               placeholder="도로명 또는 지번 주소"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -232,7 +232,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
             />
             <button
               type="button"
-              className="shrink-0 rounded-xl border border-[#d7dee8] bg-white px-4 py-3 text-sm font-bold text-[#15345b] hover:bg-[#eef4fb] disabled:opacity-50"
+              className="shrink-0 rounded-md border border-[#d7dee8] bg-white px-4 py-3 text-sm font-bold text-[#15345b] hover:bg-[#eef4fb] disabled:opacity-50"
               onClick={() => runSearch("address")}
               disabled={disabled || searching}
             >
@@ -249,7 +249,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
           </p>
           <div className="flex gap-2">
             <input
-              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+              className="w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
               placeholder="장소·시설·지역명"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -258,7 +258,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
             />
             <button
               type="button"
-              className="shrink-0 rounded-xl border border-[#d7dee8] bg-white px-4 py-3 text-sm font-bold text-[#15345b] hover:bg-[#eef4fb] disabled:opacity-50"
+              className="shrink-0 rounded-md border border-[#d7dee8] bg-white px-4 py-3 text-sm font-bold text-[#15345b] hover:bg-[#eef4fb] disabled:opacity-50"
               onClick={() => runSearch("place")}
               disabled={disabled || searching}
             >
@@ -282,13 +282,13 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
       ) : null}
 
       {searchError ? (
-        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
           {searchError}
         </p>
       ) : null}
 
       {results.length > 0 ? (
-        <ul className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-[#d7dee8] bg-white p-1">
+        <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-[#d7dee8] bg-white p-1">
           {results.map((item) => (
             <li key={item.id}>
               <button
@@ -308,7 +308,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
       ) : null}
 
       {value ? (
-        <div className="rounded-xl border border-[#2463b3]/30 bg-[#e8f1ff]/40 p-4 space-y-2">
+        <div className="rounded-md border border-[#2463b3]/30 bg-[#e8f1ff]/40 p-4 space-y-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <SubsectionTitle className="text-base">선택된 위치</SubsectionTitle>
@@ -346,7 +346,7 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
           위치 보조 설명 <span className="font-normal text-[#64748b]">(선택)</span>
         </FormLabel>
         <input
-          className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+          className="w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
           placeholder="예: 한강변 일원, 예정 부지, 3블록 남측 등"
           value={plannedNote}
           onChange={(e) => updateNote(e.target.value)}

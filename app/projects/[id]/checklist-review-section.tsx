@@ -236,7 +236,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <div className="space-y-4">
-          <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+          <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
             <p className="text-sm font-bold text-[#15345b]">검토 자료 선택</p>
             <Caption className="mt-1 text-[#64748b]">
               체크리스트가 포함된 PDF 1개를 업로드하거나 이전에 올린 자료 1개를 선택하세요. (한 번에 1개만 분석)
@@ -340,7 +340,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
           </div>
 
           {reviews.length > 0 ? (
-            <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
+            <div className="rounded-md border border-[#d7dee8] bg-white p-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-bold text-[#15345b]">검토 이력 {reviews.length}건</p>
                 <button
@@ -419,7 +419,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
           {selectedReview ? (
             <ChecklistReviewResults previousReview={previousReview} projectId={project.id} review={selectedReview} />
           ) : (
-            <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc]">
+            <div className="flex h-full min-h-[280px] items-center justify-center rounded-md border border-dashed border-[#d7dee8] bg-[#f8fafc]">
               <MutedText>
                 아직 검토 기록이 없습니다. 체크리스트가 포함된 PDF를 선택하고 검토를 시작하세요.
               </MutedText>

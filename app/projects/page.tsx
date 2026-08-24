@@ -38,20 +38,20 @@ export default async function ProjectManagementPage({
           </div>
         </div>
 
-        <form action="/projects" className="rounded-2xl border border-[#d7dee8] bg-white p-4 panel-shadow">
+        <form action="/projects" className="rounded-md border border-[#d7dee8] bg-white p-4 panel-shadow">
           <FormLabel as="label" className="block" htmlFor="project-search">
             프로젝트 검색
           </FormLabel>
           <div className="mt-2 grid gap-3 md:grid-cols-[1fr_120px]">
             <input
-              className="w-full rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+              className="w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
               defaultValue={query}
               id="project-search"
               name="q"
               placeholder="사업명, 위치, 시행자, 사업유형, 심의종류를 검색하세요."
               type="search"
             />
-            <button className="primary-action-blue rounded-xl px-4 py-3 text-sm font-bold" type="submit">
+            <button className="primary-action-blue rounded-md px-4 py-3 text-sm font-bold" type="submit">
               검색
             </button>
           </div>

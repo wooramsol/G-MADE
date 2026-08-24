@@ -62,7 +62,7 @@ export default function ConfirmDialog({
       <div
         aria-labelledby="confirm-dialog-title"
         aria-modal="true"
-        className="w-full max-w-md rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow"
+        className="w-full max-w-md rounded-md border border-[#d7dee8] bg-white p-6 panel-shadow"
         role="dialog"
         onClick={(event) => event.stopPropagation()}
       >

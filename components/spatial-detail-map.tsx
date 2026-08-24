@@ -73,7 +73,7 @@ export default function SpatialDetailMap({ point, layerFeatures = [] }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="h-[320px] overflow-hidden rounded-xl border border-[#d7dee8] [&_.leaflet-container]:h-full [&_.leaflet-container]:w-full [&_.leaflet-container]:z-0 [&_.zone-map-label]:rounded-md [&_.zone-map-label]:border [&_.zone-map-label]:border-white/80 [&_.zone-map-label]:bg-white/90 [&_.zone-map-label]:px-1.5 [&_.zone-map-label]:py-0.5 [&_.zone-map-label]:text-[10px] [&_.zone-map-label]:font-bold [&_.zone-map-label]:leading-tight [&_.zone-map-label]:text-[#15345b] [&_.zone-map-label]:shadow-sm">
+      <div className="h-[320px] overflow-hidden rounded-md border border-[#d7dee8] [&_.leaflet-container]:h-full [&_.leaflet-container]:w-full [&_.leaflet-container]:z-0 [&_.zone-map-label]:rounded-md [&_.zone-map-label]:border [&_.zone-map-label]:border-white/80 [&_.zone-map-label]:bg-white/90 [&_.zone-map-label]:px-1.5 [&_.zone-map-label]:py-0.5 [&_.zone-map-label]:text-[10px] [&_.zone-map-label]:font-bold [&_.zone-map-label]:leading-tight [&_.zone-map-label]:text-[#15345b] [&_.zone-map-label]:shadow-sm">
         <MapContainer center={center} zoom={15} scrollWheelZoom>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'

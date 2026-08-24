@@ -43,7 +43,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
 
   if (visibleProjects.length === 0) {
     return (
-      <p className="col-span-full rounded-xl border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
+      <p className="col-span-full rounded-md border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
         {normalizedQuery ? "검색 결과가 없습니다." : "등록된 프로젝트가 없습니다."}
       </p>
     );
@@ -53,7 +53,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
     <>
       {visibleProjects.map((project) => (
         <article
-          className="flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow transition hover:-translate-y-0.5 hover:border-[#2463b3]"
+          className="flex h-full flex-col rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow transition hover:-translate-y-0.5 hover:border-[#2463b3]"
           key={project.id}
         >
           <Link className="flex h-full flex-col" href={`/projects/${project.id}`}>
@@ -70,7 +70,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
               <Info label="사업유형" value={project.projectType} />
               <Info label="접수일" value={project.receivedAt} />
             </dl>
-            <div className="primary-action-blue mt-5 rounded-xl px-4 py-3 text-center text-sm font-bold">
+            <div className="primary-action-blue mt-5 rounded-md px-4 py-3 text-center text-sm font-bold">
               프로젝트 상세 평가로 이동
             </div>
           </Link>

@@ -17,7 +17,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   if (!project) {
     return (
       <main className="min-h-screen bg-[#f4f7fb] px-6 py-8 text-[#172033]">
-        <div className="mx-auto max-w-[1500px] rounded-2xl border border-[#d7dee8] bg-white p-8 panel-shadow">
+        <div className="mx-auto max-w-[1500px] rounded-md border border-[#d7dee8] bg-white p-8 panel-shadow">
           <PageTitle>프로젝트를 찾을 수 없습니다.</PageTitle>
           <MutedText className="mt-2">요청한 프로젝트가 없거나 휴지통으로 이동했습니다.</MutedText>
           <Link className="primary-action-blue mt-5 inline-flex rounded-lg px-4 py-2 text-sm font-bold" href="/projects">
@@ -36,7 +36,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
         >
           ← 프로젝트 목록으로
         </Link>
-        <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
+        <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-3">
@@ -58,7 +58,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
             <ProjectMetadataEditor project={project} />
             <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
               <Info label="사업명" value={project.name} />
-              <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
+              <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
                 <Eyebrow>사업위치</Eyebrow>
                 {project.locationPoint?.adminRegion ? (
                   <p className="mt-2 font-semibold leading-6 text-[#15345b]">{project.locationPoint.adminRegion}</p>
@@ -75,7 +75,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <Info label="접수일" value={project.receivedAt} />
               <Info label="상태" value={project.status} />
               {project.summary ? (
-                <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
+                <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
                   <Eyebrow>사업개요</Eyebrow>
                   <p className="mt-2 whitespace-pre-wrap font-semibold leading-6 text-[#172033]">{project.summary}</p>
                 </div>
@@ -93,7 +93,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
 
 function Panel({ title, action, children }: { title: string; action?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
+    <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-5 flex items-center justify-between gap-4">
         <SubsectionTitle>{title}</SubsectionTitle>
         {action ? <Badge className="bg-[#e8f1ff] text-[#2463b3]">{action}</Badge> : null}
@@ -105,7 +105,7 @@ function Panel({ title, action, children }: { title: string; action?: string; ch
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+    <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
       <Eyebrow>{label}</Eyebrow>
       <p className="mt-2 font-semibold leading-6 text-[#172033]">{value}</p>
     </div>

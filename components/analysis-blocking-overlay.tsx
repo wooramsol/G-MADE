@@ -57,7 +57,7 @@ export default function AnalysisBlockingOverlay({
       className="fixed inset-0 z-[60] flex items-center justify-center bg-[#172033]/50 p-4"
       role="alertdialog"
     >
-      <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-[#d7dee8] bg-white shadow-xl">
+      <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-md border border-[#d7dee8] bg-white shadow-xl">
         <div className="shrink-0 border-b border-[#e2e8f0] p-6 pb-4">
           <div className="flex items-start gap-4">
             <div
@@ -69,7 +69,7 @@ export default function AnalysisBlockingOverlay({
               <MutedText className="mt-1">
                 {statusMessage ?? progress?.label ?? "체크리스트 검토를 준비하고 있습니다."}
               </MutedText>
-              <div className="mt-3 inline-flex rounded-xl bg-[#f8fafc] px-4 py-2">
+              <div className="mt-3 inline-flex rounded-md bg-[#f8fafc] px-4 py-2">
                 <p className="text-sm font-bold text-[#15345b]">
                   남은 예상 시간 {formatRemainingSeconds(remainingSeconds)}
                 </p>

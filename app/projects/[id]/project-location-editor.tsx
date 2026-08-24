@@ -92,7 +92,7 @@ export default function ProjectLocationEditor({
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+    <div className="mt-3 rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
       <LocationPicker value={location} onChange={setLocation} disabled={loading} />
       <div className="mt-3 flex gap-2">
         <button

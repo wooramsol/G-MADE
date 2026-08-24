@@ -18,7 +18,7 @@ export default function DataProcessingPage() {
       </p>
 
       <div className="mt-8 space-y-6">
-        <section className="rounded-xl border border-[#d7dee8] bg-white p-5">
+        <section className="rounded-md border border-[#d7dee8] bg-white p-5">
           <h2 className="text-base font-bold text-[#15345b]">1. 업로드한 심의도서는 어디에 저장되나요?</h2>
           <p className="mt-2 text-sm leading-6 text-[#334155]">
             업로드된 PDF는 서비스 전용 비공개 저장소(Vercel Blob, 접근 시 인증 필요)에 저장됩니다.
@@ -26,7 +26,7 @@ export default function DataProcessingPage() {
           </p>
         </section>
 
-        <section className="rounded-xl border border-[#d7dee8] bg-white p-5">
+        <section className="rounded-md border border-[#d7dee8] bg-white p-5">
           <h2 className="text-base font-bold text-[#15345b]">2. AI 분석 시 문서가 외부로 전송되나요?</h2>
           <p className="mt-2 text-sm leading-6 text-[#334155]">
             체크리스트 검토 시 문서가 Anthropic(Claude) API로 전송되어 분석됩니다. Anthropic의 상용 API
@@ -36,7 +36,7 @@ export default function DataProcessingPage() {
           </p>
         </section>
 
-        <section className="rounded-xl border border-[#d7dee8] bg-white p-5">
+        <section className="rounded-md border border-[#d7dee8] bg-white p-5">
           <h2 className="text-base font-bold text-[#15345b]">3. 데이터는 언제 삭제되나요?</h2>
           <p className="mt-2 text-sm leading-6 text-[#334155]">
             보관 자료와 검토 이력은 담당자가 화면에서 직접 삭제할 수 있으며, 자료 삭제 시 저장소의 실제
@@ -45,7 +45,7 @@ export default function DataProcessingPage() {
           </p>
         </section>
 
-        <section className="rounded-xl border border-[#d7dee8] bg-white p-5">
+        <section className="rounded-md border border-[#d7dee8] bg-white p-5">
           <h2 className="text-base font-bold text-[#15345b]">4. AI 판정의 법적 효력</h2>
           <p className="mt-2 text-sm leading-6 text-[#334155]">
             AI 검토 결과는 담당 공무원의 사전검토를 보조하는 참고 자료이며 법적 효력이 없습니다.
@@ -54,7 +54,7 @@ export default function DataProcessingPage() {
           </p>
         </section>
 
-        <section className="rounded-xl border border-[#d7dee8] bg-white p-5">
+        <section className="rounded-md border border-[#d7dee8] bg-white p-5">
           <h2 className="text-base font-bold text-[#15345b]">5. 문의</h2>
           <p className="mt-2 text-sm leading-6 text-[#334155]">
             데이터 처리·보안에 대한 추가 문의는 G-MADE HIVE 운영지원팀(admin@gmadehive.com)으로

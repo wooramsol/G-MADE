@@ -55,7 +55,7 @@ function itemTitleLine(sequence: number, text: string, status: ChecklistItemStat
     new TextRun({ text: `[${status}]`, font: FONT, bold: true, size: 20, color: STATUS_COLORS[status] }),
   ];
   if (flagged) {
-    children.push(new TextRun({ text: "  ⚑ 확인 필요", font: FONT, bold: true, size: 20, color: "B45309" }));
+    children.push(new TextRun({ text: "  [확인 필요]", font: FONT, bold: true, size: 20, color: "B45309" }));
   }
   return new Paragraph({ spacing: { before: 160, after: 80 }, children });
 }

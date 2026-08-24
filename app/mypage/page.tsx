@@ -24,7 +24,7 @@ export default async function MyPage() {
     >
       <div className="space-y-8">
       <section className="grid items-stretch gap-6 xl:grid-cols-2">
-        <div className="h-full rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
+        <div className="h-full rounded-md border border-[#d7dee8] bg-white p-6 panel-shadow">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e8f1ff] text-2xl font-black text-[#2463b3]">
               {initial}
@@ -44,7 +44,7 @@ export default async function MyPage() {
           <LogoutButton />
         </div>
 
-        <div className="h-full rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
+        <div className="h-full rounded-md border border-[#d7dee8] bg-white p-6 panel-shadow">
           <SubsectionTitle>내부 테스트 안내</SubsectionTitle>
           <p className="type-body-muted mt-3">
             현재는 내부 시범 운영 단계로, 로그인한 모든 사용자가 동일한 프로젝트 목록과 대시보드를 공유합니다. 이메일
@@ -57,7 +57,7 @@ export default async function MyPage() {
               "관리자 계정은 환경 변수 또는 DB 시드로 관리",
             ].map((activity) => (
               <div
-                className="type-body rounded-xl border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 font-semibold"
+                className="type-body rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 font-semibold"
                 key={activity}
               >
                 {activity}
@@ -112,7 +112,7 @@ export default async function MyPage() {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[110px_1fr] gap-4 rounded-xl bg-[#f8fafc] px-4 py-3">
+    <div className="grid grid-cols-[110px_1fr] gap-4 rounded-md bg-[#f8fafc] px-4 py-3">
       <dt className="font-semibold text-[#64748b]">{label}</dt>
       <dd className="text-right font-bold text-[#15345b]">{value}</dd>
     </div>
@@ -121,7 +121,7 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-[#d7dee8] bg-white p-6 panel-shadow">
+    <div className="flex h-full flex-col rounded-md border border-[#d7dee8] bg-white p-6 panel-shadow">
       <SubsectionTitle>{title}</SubsectionTitle>
       <div className="mt-5 flex flex-1 flex-col gap-3">{children}</div>
     </div>

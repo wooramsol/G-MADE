@@ -132,7 +132,7 @@ export default function ProjectMetadataEditor({
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4">
+    <div className="mt-4 rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
       <div className="grid gap-4 lg:grid-cols-2">
         <Field label="사업명" value={form.name} onChange={(value) => updateField("name", value)} />
         <Field label="시행자" value={form.client} onChange={(value) => updateField("client", value)} />
@@ -149,13 +149,13 @@ export default function ProjectMetadataEditor({
         <label className="lg:col-span-2">
           <FormLabel>사업개요</FormLabel>
           <textarea
-            className="mt-2 min-h-24 w-full rounded-xl border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
+            className="mt-2 min-h-24 w-full rounded-md border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
             value={form.summary}
             onChange={(event) => updateField("summary", event.target.value)}
           />
         </label>
       </div>
-      {error ? <ErrorText className="mt-4 rounded-xl bg-red-50 p-3">{error}</ErrorText> : null}
+      {error ? <ErrorText className="mt-4 rounded-md bg-red-50 p-3">{error}</ErrorText> : null}
       <div className="mt-4 flex gap-2">
         <button
           className="primary-action rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50"
@@ -197,7 +197,7 @@ function Field({
     <label>
       <FormLabel>{label}</FormLabel>
       <input
-        className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
+        className="mt-2 w-full rounded-md border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -221,7 +221,7 @@ function SelectField({
     <label>
       <FormLabel>{label}</FormLabel>
       <select
-        className="mt-2 w-full rounded-xl border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
+        className="mt-2 w-full rounded-md border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >

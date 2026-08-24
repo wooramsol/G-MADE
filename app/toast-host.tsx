@@ -37,7 +37,7 @@ export default function ToastHost() {
     <div className="pointer-events-none fixed bottom-6 left-1/2 z-[70] w-[min(92vw,420px)] -translate-x-1/2">
       <div
         aria-live="polite"
-        className={`rounded-2xl border px-5 py-4 text-center text-sm font-semibold leading-6 shadow-lg ${toneClassName[tone]}`}
+        className={`rounded-md border px-5 py-4 text-center text-sm font-semibold leading-6 shadow-lg ${toneClassName[tone]}`}
         role="status"
       >
         {toast.message}

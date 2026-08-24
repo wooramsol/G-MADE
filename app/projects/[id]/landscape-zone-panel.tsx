@@ -11,7 +11,7 @@ import Vworld3DView from "./vworld-3d-view";
 const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[320px] items-center justify-center rounded-xl border border-[#d7dee8] bg-[#f8fafc] text-sm text-[#64748b]">
+    <div className="flex h-[320px] items-center justify-center rounded-md border border-[#d7dee8] bg-[#f8fafc] text-sm text-[#64748b]">
       지도 불러오는 중…
     </div>
   ),
@@ -132,7 +132,7 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
   const zoneGroups = buildZoneGroups(result);
 
   return (
-    <div className="rounded-2xl border border-[#d7dee8] bg-white p-5 panel-shadow">
+    <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <SubsectionTitle>공간정보 (브이월드)</SubsectionTitle>
@@ -141,11 +141,11 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
       </div>
 
       {loading ? (
-        <p className="rounded-xl bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">공간정보를 조회하는 중입니다...</p>
+        <p className="rounded-md bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">공간정보를 조회하는 중입니다...</p>
       ) : null}
 
       {!loading && error ? (
-        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{error}</p>
+        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{error}</p>
       ) : null}
 
       {!loading && result && locationPoint ? (
@@ -206,7 +206,7 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
                 const expanded = expandedGroups[group.id] ?? false;
 
                 return (
-                  <div className="rounded-xl border border-[#d7dee8] bg-[#f8fafc] p-4" key={group.id}>
+                  <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4" key={group.id}>
                     <p className="text-sm font-bold text-[#15345b]">
                       {group.label} <span className="text-[#64748b]">({group.items.length}건)</span>
                     </p>
@@ -232,7 +232,7 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
               })}
             </div>
           ) : (
-            <p className="rounded-xl bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
+            <p className="rounded-md bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
               조회 반경 내 경관지구·용도지역 정보가 없습니다. 지도 마커 위치를 기준으로 표시됩니다.
             </p>
           )}
@@ -298,7 +298,7 @@ function countZoneItems(groups: ZoneGroup[]): number {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-[#f8fafc] px-4 py-3 text-sm">
+    <div className="rounded-md bg-[#f8fafc] px-4 py-3 text-sm">
       <p className="font-semibold text-[#64748b]">{label}</p>
       <p className="mt-1 font-bold text-[#15345b]">{value}</p>
     </div>

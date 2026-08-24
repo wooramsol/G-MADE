@@ -12,26 +12,27 @@ import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { buildArticleJumpUrl } from "@/lib/reference-links";
 
+// 행정문서 톤 — 카드는 흰 바탕 + 좌측 상태색 실선, 뱃지는 각진 외곽선 태그
 const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string; card: string }> = {
   충족: {
-    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    dot: "bg-emerald-500",
-    card: "border-emerald-200 bg-emerald-50/50",
+    badge: "bg-white text-emerald-700 border-emerald-400",
+    dot: "bg-emerald-600",
+    card: "border-[#d0d5dd] border-l-[3px] border-l-emerald-600 bg-white",
   },
   부분충족: {
-    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    badge: "bg-white text-amber-700 border-amber-400",
     dot: "bg-amber-500",
-    card: "border-amber-200 bg-amber-50/50",
+    card: "border-[#d0d5dd] border-l-[3px] border-l-amber-500 bg-white",
   },
   미충족: {
-    badge: "bg-red-50 text-red-700 border-red-200",
-    dot: "bg-red-500",
-    card: "border-red-200 bg-red-50/50",
+    badge: "bg-white text-red-700 border-red-400",
+    dot: "bg-red-600",
+    card: "border-[#d0d5dd] border-l-[3px] border-l-red-600 bg-white",
   },
   확인불가: {
-    badge: "bg-slate-100 text-slate-600 border-slate-200",
+    badge: "bg-white text-slate-600 border-slate-300",
     dot: "bg-slate-400",
-    card: "border-slate-200 bg-slate-50/60",
+    card: "border-[#d0d5dd] border-l-[3px] border-l-slate-400 bg-white",
   },
 };
 
@@ -210,7 +211,7 @@ export default function ChecklistReviewResults({
       </div>
 
       {previousReview && (changeSummary.improved > 0 || changeSummary.regressed > 0 || changeSummary.added > 0) ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#d7dee8] bg-white px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-[#d7dee8] bg-white px-4 py-2.5">
           <span className="text-[13px] font-bold text-[#15345b]">이전 회차 대비</span>
           {changeSummary.improved > 0 ? (
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
@@ -218,7 +219,7 @@ export default function ChecklistReviewResults({
             </span>
           ) : null}
           {changeSummary.regressed > 0 ? (
-            <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
+            <span className="rounded-[3px] border border-red-300 bg-white px-2.5 py-0.5 text-xs font-bold text-red-700">
               ▼ 하락 {changeSummary.regressed}
             </span>
           ) : null}
@@ -234,7 +235,7 @@ export default function ChecklistReviewResults({
       ) : null}
 
       {review.metrics && review.metrics.length > 0 ? (
-        <div className="rounded-xl border border-[#d7dee8] bg-white p-4">
+        <div className="rounded-md border border-[#d7dee8] bg-white p-4">
           <p className="text-sm font-bold text-[#15345b]">사업 규모 (문서에서 자동 인식)</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {review.metrics.map((metric) => (
@@ -271,8 +272,8 @@ export default function ChecklistReviewResults({
           />
         ))}
         {reviewFlagCount > 0 ? (
-          <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800">
-            ⚑ 직접 확인 필요 {reviewFlagCount}
+          <span className="ml-1 inline-flex items-center gap-1 rounded-[4px] border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-800">
+            직접 확인 필요 {reviewFlagCount}
           </span>
         ) : null}
       </div>
@@ -302,7 +303,7 @@ export default function ChecklistReviewResults({
       </div>
 
       {review.warnings.length > 0 ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
           <p className="text-xs font-bold text-amber-800">검토 참고</p>
           <ul className="mt-1.5 space-y-1 text-[13px] leading-5 text-amber-800">
             {review.warnings.map((warning) => (
@@ -313,7 +314,7 @@ export default function ChecklistReviewResults({
       ) : null}
 
       {review.referenceLaws.length > 0 ? (
-        <details className="rounded-xl border border-[#d7dee8] bg-white p-4">
+        <details className="rounded-md border border-[#d7dee8] bg-white p-4">
           <summary className="cursor-pointer text-sm font-bold text-[#15345b]">
             검토에 참조한 법령·지침 {review.referenceLaws.length}건 (국가법령정보센터)
           </summary>
@@ -351,7 +352,7 @@ function FilterChip({
 }) {
   return (
     <button
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+      className={`inline-flex items-center gap-1.5 rounded-[4px] border px-3 py-1.5 text-xs font-bold transition ${
         active
           ? "border-[#2463b3] bg-[#2463b3] text-white"
           : "border-[#d7dee8] bg-white text-[#475569] hover:bg-[#f8fafc]"
@@ -413,7 +414,7 @@ function FindingCard({
   };
 
   return (
-    <li className={`rounded-xl border p-4 ${style.card}`}>
+    <li className={`rounded-md border p-4 ${style.card}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-sm font-bold leading-6 text-[#172033]">{item.text}</p>
         <span className="flex shrink-0 items-center gap-1.5">
@@ -423,20 +424,20 @@ function FindingCard({
                 ▲ {change.from}→
               </span>
             ) : change.kind === "하락" ? (
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700" title={`이전 회차: ${change.from}`}>
+              <span className="rounded-[3px] border border-red-300 bg-white px-2 py-0.5 text-[11px] font-bold text-red-700" title={`이전 회차: ${change.from}`}>
                 ▼ {change.from}→
               </span>
             ) : (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">신규</span>
+              <span className="rounded-[3px] border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-500">신규</span>
             )
           ) : null}
-          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${style.badge}`}>{status}</span>
+          <span className={`rounded-[3px] border px-2.5 py-0.5 text-xs font-bold ${style.badge}`}>{status}</span>
           {finding?.reviewFlag ? (
             <span
-              className="rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-800"
+              className="rounded-[3px] border border-amber-400 bg-white px-2 py-0.5 text-[11px] font-bold text-amber-800"
               title={finding.reviewFlag}
             >
-              ⚑ 확인 필요
+              확인 필요
             </span>
           ) : null}
         </span>
@@ -457,7 +458,6 @@ function FindingCard({
                 <p className="text-[13px] leading-5 text-[#64748b]">
                   <span className="font-bold text-[#15345b]">
                     p.{evidence.page}
-                    {evidence.region ? " 📍" : ""}
                   </span>{" "}
                   — {evidence.note}
                 </p>
@@ -481,7 +481,7 @@ function FindingCard({
           {(finding?.lawRefs ?? []).map((law) =>
             law.sourceUrl ? (
               <a
-                className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-xs font-bold text-[#2463b3] hover:underline"
+                className="rounded-[3px] border border-[#c9d6e6] bg-white px-2.5 py-0.5 text-xs font-bold text-[#2463b3] hover:underline"
                 href={buildArticleJumpUrl(law.sourceUrl, law.article) ?? law.sourceUrl}
                 key={`${law.title}-${law.article ?? ""}`}
                 rel="noreferrer"
@@ -492,7 +492,7 @@ function FindingCard({
               </a>
             ) : (
               <span
-                className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-xs font-bold text-[#2463b3]"
+                className="rounded-[3px] border border-[#c9d6e6] bg-white px-2.5 py-0.5 text-xs font-bold text-[#2463b3]"
                 key={`${law.title}-${law.article ?? ""}`}
               >
                 {law.title}
@@ -502,7 +502,7 @@ function FindingCard({
           )}
           {!editing && !comment ? (
             <button
-              className="ml-auto rounded-full bg-[#eef4fb] px-2.5 py-1 text-xs font-bold text-[#2463b3] hover:bg-[#dcebfb]"
+              className="ml-auto rounded-[3px] border border-[#c9d6e6] bg-white px-2.5 py-0.5 text-xs font-bold text-[#2463b3] hover:bg-[#dcebfb]"
               onClick={startEditing}
               type="button"
             >
