@@ -216,3 +216,26 @@ export async function renderRegionSnippet(
     return null;
   }
 }
+
+/** JPEG를 긴 변 기준으로 축소 재인코딩합니다 (썸네일 파생용 — PDF 재파싱 없이). */
+export async function downscaleJpeg(base64: string, targetLongEdge: number): Promise<RegionSnippet | null> {
+  try {
+    const canvasModule = await import("@napi-rs/canvas");
+    const image = await canvasModule.loadImage(Buffer.from(base64, "base64"));
+    const longEdge = Math.max(image.width, image.height);
+    if (longEdge <= targetLongEdge) {
+      return { base64, mediaType: "image/jpeg" };
+    }
+    const scale = targetLongEdge / longEdge;
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = canvasModule.createCanvas(width, height);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(image, 0, 0, width, height);
+    const encoded = await canvas.encode("jpeg", 78);
+    return { base64: Buffer.from(encoded).toString("base64"), mediaType: "image/jpeg" };
+  } catch (error) {
+    console.warn("[checklist-review] 썸네일 축소 실패:", error instanceof Error ? error.message : error);
+    return null;
+  }
+}

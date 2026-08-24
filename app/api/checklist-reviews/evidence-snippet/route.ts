@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { getBlobAccess } from "@/lib/blob-config";
 import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
-import { renderRegionSnippet } from "@/lib/pdf/render-page";
+import { downscaleJpeg, renderRegionSnippet } from "@/lib/pdf/render-page";
 import { getProjectById } from "@/lib/project-store";
 import { readSavedUploadFile } from "@/lib/save-uploaded-files";
 
@@ -64,11 +64,12 @@ export async function GET(request: NextRequest) {
   const regionKey = region
     ? `${region.x.toFixed(4)}-${region.y.toFixed(4)}-${region.width.toFixed(4)}-${region.height.toFixed(4)}`
     : "page";
-  const cachePathname = `projects/${projectId}/snippets/${reviewId}/${fileId}-p${page}-${size}-${regionKey}.jpg`;
+  const cachePathFor = (variant: keyof typeof SIZES) =>
+    `projects/${projectId}/snippets/${reviewId}/${fileId}-p${page}-${variant}-${regionKey}.jpg`;
 
   if (isBlobStorageEnabled()) {
     try {
-      const cached = await get(cachePathname, { access: getBlobAccess() });
+      const cached = await get(cachePathFor(size), { access: getBlobAccess() });
       if (cached?.stream) {
         return new Response(cached.stream, { headers: jpegHeaders });
       }
@@ -87,27 +88,35 @@ export async function GET(request: NextRequest) {
       blobUrl: file.blobUrl,
     });
 
-    const snippet = await renderRegionSnippet(Buffer.from(bytes).toString("base64"), page, region, SIZES[size]);
-    if (!snippet) {
+    // 캐시 미스 시 고해상도(full)로 한 번만 렌더링하고 썸네일은 축소로 파생 —
+    // 카드가 보인 시점(썸네일 요청)에 확대본까지 캐시돼, 라이트박스 클릭이 즉시 뜸.
+    const fullSnippet = await renderRegionSnippet(Buffer.from(bytes).toString("base64"), page, region, SIZES.full);
+    if (!fullSnippet) {
       return NextResponse.json({ error: "근거 캡처를 생성하지 못했습니다." }, { status: 404 });
     }
-
-    const buffer = Buffer.from(snippet.base64, "base64");
+    const thumbSnippet = await downscaleJpeg(fullSnippet.base64, SIZES.thumb);
 
     if (isBlobStorageEnabled()) {
-      try {
-        await put(cachePathname, buffer, {
-          access: getBlobAccess(),
-          contentType: "image/jpeg",
-          addRandomSuffix: false,
-          allowOverwrite: true,
-        });
-      } catch (error) {
-        console.warn("[checklist-review] 캡처 캐시 저장 실패:", error instanceof Error ? error.message : error);
-      }
+      const saves: Array<{ pathname: string; base64: string }> = [
+        { pathname: cachePathFor("full"), base64: fullSnippet.base64 },
+      ];
+      if (thumbSnippet) saves.push({ pathname: cachePathFor("thumb"), base64: thumbSnippet.base64 });
+      await Promise.all(
+        saves.map((entry) =>
+          put(entry.pathname, Buffer.from(entry.base64, "base64"), {
+            access: getBlobAccess(),
+            contentType: "image/jpeg",
+            addRandomSuffix: false,
+            allowOverwrite: true,
+          }).catch((error: unknown) => {
+            console.warn("[checklist-review] 캡처 캐시 저장 실패:", error instanceof Error ? error.message : error);
+          }),
+        ),
+      );
     }
 
-    return new NextResponse(new Uint8Array(buffer), { headers: jpegHeaders });
+    const chosen = size === "thumb" && thumbSnippet ? thumbSnippet : fullSnippet;
+    return new NextResponse(new Uint8Array(Buffer.from(chosen.base64, "base64")), { headers: jpegHeaders });
   } catch (error) {
     const message = error instanceof Error ? error.message : "근거 캡처를 불러오지 못했습니다.";
     return NextResponse.json({ error: message }, { status: 500 });

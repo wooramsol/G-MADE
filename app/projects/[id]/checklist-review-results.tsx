@@ -637,13 +637,26 @@ function EvidenceSnippet({
         src={thumbSrc}
       />
       </button>
-      {lightboxOpen ? <SnippetLightbox alt={alt} onClose={() => setLightboxOpen(false)} src={fullSrc} /> : null}
+      {lightboxOpen ? (
+        <SnippetLightbox alt={alt} onClose={() => setLightboxOpen(false)} placeholderSrc={thumbSrc} src={fullSrc} />
+      ) : null}
     </>
   );
 }
 
 /** 캡처 확대 보기 — 배경을 어둡게 깔고 화면 위에 띄우는 라이트박스 (ESC·배경 클릭으로 닫힘) */
-function SnippetLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+function SnippetLightbox({
+  src,
+  placeholderSrc,
+  alt,
+  onClose,
+}: {
+  src: string;
+  /** 고해상도 로딩 동안 즉시 보여줄 저해상도(이미 캐시된 썸네일) */
+  placeholderSrc: string;
+  alt: string;
+  onClose: () => void;
+}) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -670,17 +683,28 @@ function SnippetLightbox({ src, alt, onClose }: { src: string; alt: string; onCl
       role="dialog"
     >
       {!loaded ? (
-        <span className="absolute flex flex-col items-center gap-2 text-white/90">
-          <span className="h-1 w-32 overflow-hidden rounded-full bg-white/25">
-            <span className="block h-full w-1/3 animate-[snippet-loading_1.1s_ease-in-out_infinite] rounded-full bg-white" />
+        <>
+          {/* 이미 캐시된 썸네일을 즉시 확대 표시 — 고해상도 도착 시 교체 */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt=""
+            aria-hidden
+            className="max-h-[92vh] max-w-[94vw] cursor-default rounded-lg opacity-90 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+            src={placeholderSrc}
+          />
+          <span className="pointer-events-none absolute bottom-8 flex flex-col items-center gap-1.5 text-white/90">
+            <span className="h-1 w-32 overflow-hidden rounded-full bg-white/25">
+              <span className="block h-full w-1/3 animate-[snippet-loading_1.1s_ease-in-out_infinite] rounded-full bg-white" />
+            </span>
+            <span className="text-xs font-semibold">고해상도 불러오는 중...</span>
           </span>
-          <span className="text-xs font-semibold">고해상도 캡처 불러오는 중...</span>
-        </span>
+        </>
       ) : null}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         alt={alt}
-        className={`max-h-[92vh] max-w-[94vw] cursor-default rounded-lg shadow-2xl transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`max-h-[92vh] max-w-[94vw] cursor-default rounded-lg shadow-2xl transition-opacity duration-200 ${loaded ? "opacity-100" : "absolute h-0 w-0 opacity-0"}`}
         onClick={(event) => event.stopPropagation()}
         onLoad={() => setLoaded(true)}
         ref={(node) => {
