@@ -160,6 +160,7 @@ export async function GET(request: NextRequest) {
     // bytes를 그대로 전달 (base64 문자열 변환은 대용량 파일에서 메모리를 배로 씀)
     const fullSnippet = await renderRegionSnippet(bytes, page, region, SIZES.full);
     if (!fullSnippet) {
+      console.warn(`[checklist-review] 캡처 생성 실패(null) file=${fileId} p=${page} region=${regionKey}`);
       return NextResponse.json({ error: "근거 캡처를 생성하지 못했습니다." }, { status: 404 });
     }
     const thumbSnippet = await downscaleJpeg(fullSnippet.base64, SIZES.thumb);
@@ -176,6 +177,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(new Uint8Array(Buffer.from(chosen.base64, "base64")), { headers: jpegHeaders });
   } catch (error) {
     const message = error instanceof Error ? error.message : "근거 캡처를 불러오지 못했습니다.";
+    console.error(`[checklist-review] 캡처 라우트 오류 file=${fileId} p=${page}:`, message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

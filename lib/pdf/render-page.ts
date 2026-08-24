@@ -54,6 +54,7 @@ export async function renderPageTiles(pdfBase64: string, pageNumber: number): Pr
 
     const pdf = await getDocumentProxy(new Uint8Array(Buffer.from(pdfBase64, "base64")), {
       CanvasFactory: NapiCanvasFactory,
+      wasmUrl: resolvePdfjsWasmUrl(),
     } as never);
     if (pageNumber < 1 || pageNumber > pdf.numPages) return null;
 
@@ -114,6 +115,28 @@ const SNIPPET_PAGE_RENDER_CAP = 4_000;
  * 초과(instance killed)로 죽는 실측 사례가 있어 순차화합니다.
  */
 const MAX_CONCURRENT_RENDERS = 2;
+
+/**
+ * pdf.js가 JPEG2000(JPX)·JBIG2 이미지를 디코딩할 때 필요한 WASM 디렉터리 URL.
+ * 스캔 장비 PDF에 흔한 JPX 이미지가 이 설정 없이는 "OpenJPEG failed to initialize"로
+ * 디코딩에 실패해 해당 페이지 캡처가 깨지거나 실패합니다 (실측 사례).
+ */
+function resolvePdfjsWasmUrl(): string | undefined {
+  try {
+    const resolved = import.meta.resolve("pdfjs-dist/package.json");
+    return new URL("./wasm/", resolved).href;
+  } catch {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const nodePath = require("node:path") as typeof import("node:path");
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { pathToFileURL } = require("node:url") as typeof import("node:url");
+      return `${pathToFileURL(nodePath.join(process.cwd(), "node_modules/pdfjs-dist/wasm")).href}/`;
+    } catch {
+      return undefined;
+    }
+  }
+}
 let activeRenders = 0;
 const renderWaiters: Array<() => void> = [];
 
@@ -187,6 +210,7 @@ async function renderRegionSnippetInner(
       typeof pdfInput === "string" ? new Uint8Array(Buffer.from(pdfInput, "base64")) : new Uint8Array(pdfInput);
     const pdf = await getDocumentProxy(pdfBytes, {
       CanvasFactory: NapiCanvasFactory,
+      wasmUrl: resolvePdfjsWasmUrl(),
     } as never);
     if (pageNumber < 1 || pageNumber > pdf.numPages) return null;
 

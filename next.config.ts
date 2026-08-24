@@ -28,6 +28,14 @@ const nextConfig: NextConfig = {
     "/api/checklist-reviews": [
       "./node_modules/@napi-rs/canvas/**",
       "./node_modules/@napi-rs/canvas-linux-x64-gnu/**",
+      "./node_modules/pdfjs-dist/wasm/**",
+      "./node_modules/pdfjs-dist/standard_fonts/**",
+    ],
+    "/api/checklist-reviews/evidence-snippet": [
+      "./node_modules/@napi-rs/canvas/**",
+      "./node_modules/@napi-rs/canvas-linux-x64-gnu/**",
+      "./node_modules/pdfjs-dist/wasm/**",
+      "./node_modules/pdfjs-dist/standard_fonts/**",
     ],
   },
   env: {
