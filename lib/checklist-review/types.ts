@@ -38,6 +38,8 @@ export type ChecklistEvidence = {
   page: number;
   /** 해당 페이지에서 확인된 내용 (도면·이미지·본문) */
   note: string;
+  /** 페이지 원문에서 그대로 인용한 짧은 문구 — PDF 글자 좌표 탐색으로 정확한 위치 표시에 사용 */
+  anchorText?: string;
   /** 근거가 도면·이미지의 특정 위치일 때의 대략적 영역 (AI 추정, 근사치) */
   region?: EvidenceRegion;
 };

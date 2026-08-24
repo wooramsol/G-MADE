@@ -4,6 +4,7 @@ import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
 import { isR2Configured, r2GetObject, r2HeadObject, r2PutObject } from "@/lib/r2-storage";
 import { downscaleJpeg, renderRegionSnippet } from "@/lib/pdf/render-page";
 import type { ChecklistFinding, EvidenceRegion } from "./types";
+import { anchorCacheSuffix, buildEvidenceAnchors } from "./evidence-anchors";
 
 /**
  * 근거 캡처(JPEG) 캐시 공통 모듈.
@@ -143,7 +144,12 @@ export async function readSnippetCache(pathname: string): Promise<Buffer | null>
 const MAX_PREWARM_CAPTURES = 200;
 const PREWARM_MIN_REMAINING_MS = 8_000;
 
-type PrewarmTarget = { page: number; region: EvidenceRegion | null; regionKey: string };
+type PrewarmTarget = {
+  page: number;
+  region: EvidenceRegion | null;
+  regionKey: string;
+  anchors: string[];
+};
 
 /**
  * 검토 결과의 모든 근거 캡처(썸네일+확대본)를 미리 생성해 Blob에 캐시한다.
@@ -170,11 +176,12 @@ export async function prewarmEvidenceSnippets(options: {
     for (const evidence of finding.evidence) {
       if (!Number.isFinite(evidence.page) || evidence.page < 1) continue;
       const region = evidence.region ?? null;
-      const regionKey = snippetRegionKey(region);
+      const anchors = buildEvidenceAnchors(evidence);
+      const regionKey = `${snippetRegionKey(region)}${anchorCacheSuffix(anchors)}`;
       const key = `${evidence.page}#${regionKey}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      targets.push({ page: evidence.page, region, regionKey });
+      targets.push({ page: evidence.page, region, regionKey, anchors });
       if (targets.length >= MAX_PREWARM_CAPTURES) break;
     }
     if (targets.length >= MAX_PREWARM_CAPTURES) break;
@@ -196,7 +203,13 @@ export async function prewarmEvidenceSnippets(options: {
       continue;
     }
     try {
-      const full = await renderRegionSnippet(pdfBytes, target.page, target.region, SNIPPET_SIZES.full);
+      const full = await renderRegionSnippet(
+        pdfBytes,
+        target.page,
+        target.region,
+        SNIPPET_SIZES.full,
+        target.anchors,
+      );
       if (!full) {
         failed += 1;
         continue;

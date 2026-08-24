@@ -173,8 +173,10 @@ export async function renderRegionSnippet(
   region: { x: number; y: number; width: number; height: number } | null,
   /** 결과 이미지의 긴 변 목표(px) — 카드 썸네일 ~520, 확대 보기 ~1200 */
   targetLongEdge: number = 520,
+  /** 원문 인용구 — PDF 글자 좌표에서 찾으면 그 위치에 정확한 박스를 그림 */
+  anchors?: string[],
 ): Promise<RegionSnippet | null> {
-  return withRenderSlot(() => renderRegionSnippetInner(pdfInput, pageNumber, region, targetLongEdge));
+  return withRenderSlot(() => renderRegionSnippetInner(pdfInput, pageNumber, region, targetLongEdge, anchors));
 }
 
 async function renderRegionSnippetInner(
@@ -182,6 +184,7 @@ async function renderRegionSnippetInner(
   pageNumber: number,
   region: { x: number; y: number; width: number; height: number } | null,
   targetLongEdge: number,
+  anchors?: string[],
 ): Promise<RegionSnippet | null> {
   try {
     const { getDocumentProxy, renderPageAsImage } = await import("unpdf");
@@ -219,6 +222,16 @@ async function renderRegionSnippetInner(
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 1 });
 
+    // 앵커(원문 인용구)가 있으면 글자 좌표에서 정확한 위치를 찾는다.
+    // 찾으면: 그 위치를 크롭 중심으로 쓰고 빨간 박스를 그림 (정밀 좌표라 신뢰 가능).
+    // 못 찾으면(스캔본·불일치): AI 추정 영역 크롭, 박스 없음 — 기존 동작.
+    let anchorRegion: { x: number; y: number; width: number; height: number } | null = null;
+    if (anchors && anchors.length > 0) {
+      const { locateAnchorRegion } = await import("./text-locate");
+      anchorRegion = await locateAnchorRegion(page, anchors, region);
+      if (anchorRegion) region = anchorRegion;
+    }
+
     // 크롭(근거 영역 또는 페이지 전체)의 긴 변이 목표 크기가 되도록 배율 결정
     const pageLongEdgePt = Math.max(viewport.width, viewport.height);
     const cropLongEdgePt = region
@@ -248,7 +261,9 @@ async function renderRegionSnippetInner(
       const ry = region.y * image.height;
       const rw = Math.max(8, region.width * image.width);
       const rh = Math.max(8, region.height * image.height);
-      const pad = Math.max(24, Math.max(rw, rh) * SNIPPET_PADDING_RATIO);
+      const pad = anchorRegion
+        ? Math.max(48, rh * 4, rw * 0.35)
+        : Math.max(24, Math.max(rw, rh) * SNIPPET_PADDING_RATIO);
       cropX = Math.max(0, Math.floor(rx - pad));
       cropY = Math.max(0, Math.floor(ry - pad));
       cropW = Math.min(image.width - cropX, Math.ceil(rw + pad * 2));
@@ -262,9 +277,14 @@ async function renderRegionSnippetInner(
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, cropW, cropH);
     ctx.drawImage(image, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-    // 빨간 박스는 그리지 않음 — AI 추정 좌표의 오차가 그대로 노출돼 오히려
-    // 신뢰를 해침 (실측 피드백). 크롭 자체가 "이 부분을 보라"는 역할을 한다.
-    void boxRect;
+    // 박스는 "글자 좌표로 정확히 찾은" 경우에만 그린다 — AI 추정 좌표는 근사치라
+    // 박스를 그리면 오차가 그대로 노출돼 신뢰를 해침 (실측 피드백).
+    if (boxRect && anchorRegion) {
+      ctx.strokeStyle = "rgba(220,38,38,0.9)";
+      ctx.lineWidth = Math.max(2, cropW / 300);
+      const inflate = Math.max(3, boxRect.h * 0.2);
+      ctx.strokeRect(boxRect.x - inflate, boxRect.y - inflate, boxRect.w + inflate * 2, boxRect.h + inflate * 2);
+    }
 
     const encoded = await canvas.encode("jpeg", 78);
     return { base64: Buffer.from(encoded).toString("base64"), mediaType: "image/jpeg" };

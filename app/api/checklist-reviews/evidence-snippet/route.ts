@@ -8,6 +8,7 @@ import {
   snippetCachePath,
   snippetRegionKey,
 } from "@/lib/checklist-review/snippet-cache";
+import { anchorCacheSuffix } from "@/lib/checklist-review/evidence-anchors";
 import { downscaleJpeg, renderRegionSnippet } from "@/lib/pdf/render-page";
 import { getProjectById } from "@/lib/project-store";
 import { readSavedUploadFile } from "@/lib/save-uploaded-files";
@@ -109,8 +110,15 @@ export async function GET(request: NextRequest) {
     "Cache-Control": "private, max-age=604800, immutable",
   };
 
-  // 결정적 캐시 경로 — 같은 파일·페이지·영역이면 회차가 바뀌어도 같은 캡처
-  const regionKey = snippetRegionKey(region);
+  // 원문 인용구(앵커) — 글자 좌표 탐색으로 정확한 위치 표시 (|로 구분, 최대 3개)
+  const anchors = (params.get("anchors") ?? "")
+    .split("|")
+    .map((value) => value.trim())
+    .filter((value) => value.length >= 2 && value.length <= 60)
+    .slice(0, 3);
+
+  // 결정적 캐시 경로 — 같은 파일·페이지·영역·앵커면 회차가 바뀌어도 같은 캡처
+  const regionKey = `${snippetRegionKey(region)}${anchorCacheSuffix(anchors)}`;
   const cachePathFor = (variant: keyof typeof SIZES) =>
     snippetCachePath(projectId, fileId, page, variant, regionKey);
 
@@ -146,7 +154,7 @@ export async function GET(request: NextRequest) {
     // 캐시 미스 시 고해상도(full)로 한 번만 렌더링하고 썸네일은 축소로 파생 —
     // 카드가 보인 시점(썸네일 요청)에 확대본까지 캐시돼, 라이트박스 클릭이 즉시 뜸.
     // bytes를 그대로 전달 (base64 문자열 변환은 대용량 파일에서 메모리를 배로 씀)
-    const fullSnippet = await renderRegionSnippet(bytes, page, region, SIZES.full);
+    const fullSnippet = await renderRegionSnippet(bytes, page, region, SIZES.full, anchors);
     if (!fullSnippet) {
       console.warn(`[checklist-review] 캡처 생성 실패(null) file=${fileId} p=${page} region=${regionKey}`);
       return NextResponse.json({ error: "근거 캡처를 생성하지 못했습니다." }, { status: 404 });

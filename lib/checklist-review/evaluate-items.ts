@@ -91,6 +91,7 @@ export const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 
 - 도면의 치수·수치·축척은 문서에서 숫자를 명확히 판독한 경우에만 근거로 사용합니다. 축소·저해상도로 숫자가 불명확하면 추정하지 말고 "확인불가"로 판정하고 rationale에 판독 불가 사실을 밝힙니다.
 - "미충족"·"부분충족" 항목에는 구체적인 보완 방향(recommendation)을 제시합니다.
 - 간결하게 씁니다: rationale은 2문장 이내, evidence는 항목당 최대 2개(note는 60자 이내), recommendation은 1~2문장.
+- evidence의 anchorText: 근거를 확인한 그 페이지 원문에서 "그대로 복사한" 짧은 문구(2~40자)를 기재합니다. 이 문구로 PDF에서 글자 위치를 찾아 화면에 표시하므로 철자·띄어쓰기까지 원문과 일치해야 합니다. 도면이면 해당 부위의 라벨·명칭 텍스트(예: "주동 입면도", "옥상조경")를 기재합니다. 원문 표기를 확실히 모르면 생략합니다.
 - 서술(summary·rationale·note·recommendation)에 파일명을 쓰지 않습니다 — 검토 대상 문서는 1개이므로 페이지 번호만으로 충분합니다 (예: "p.12 배치도에서 확인됨"). evidence의 fileName 필드에는 계속 기재합니다.
 - 문체 통일: summary·rationale·note·recommendation 등 모든 서술은 개조식 명사형 종결("~함", "~됨", "~임", "~필요", "~확인")로 작성합니다. "~합니다/~했습니다/~있다" 같은 서술형 종결은 사용하지 않습니다. (예: "배치도 p.12에서 차폐 조경 확인됨", "야간 조명 계획 보완 필요")
 - 반드시 JSON만 출력합니다.`;
@@ -568,7 +569,7 @@ ${itemsJson}
 
 위 항목 각각에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 판정하세요.
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
+{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","anchorText":"원문 인용(선택)"}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
 }
 
 function buildVisionExtractAndEvaluatePrompt(projectLabel: string, contextText: string): string {
@@ -581,7 +582,7 @@ ${contextText}
 2. 각 항목에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 충족 여부를 판정하세요.
 
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용"}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}
+{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","anchorText":"원문 인용(선택)"}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}
 
 체크리스트 페이지를 찾지 못하면 {"summary":"...","checklistPages":[],"items":[],"findings":[]} 형태로 출력하세요.`;
 }
@@ -594,6 +595,7 @@ type RawFinding = {
     fileName?: string;
     page?: number;
     note?: string;
+    anchorText?: string;
     region?: { x?: number; y?: number; width?: number; height?: number };
   }>;
   lawRefs?: Array<{ title?: string; article?: string } | string>;
@@ -748,6 +750,7 @@ export function sanitizeFindings(
         fileName: String(entry?.fileName ?? "").trim(),
         page: Number(entry?.page) || 0,
         note: String(entry?.note ?? "").trim(),
+        anchorText: String(entry?.anchorText ?? "").trim().slice(0, 60) || undefined,
         region: sanitizeEvidenceRegion(entry?.region),
       }))
       .filter((entry) => entry.note && isKnownPage(entry.fileName, entry.page))

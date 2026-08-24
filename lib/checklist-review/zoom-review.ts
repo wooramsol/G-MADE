@@ -80,6 +80,7 @@ function buildZoomPrompt(zoomItems: ChecklistItem[], pages: Array<{ fileName: st
 - 확대본은 문서 "일부"만 담고 있습니다. 확대본에서 근거를 찾지 못했다는 이유로 판정을 낮추지 마세요 — 이 재판정의 목적은 확대로 새 근거를 "발견"해 판정을 올리는 것뿐이며, 근거를 못 찾으면 기존 판정을 그대로 유지하세요. 추측 금지.
 - 확대본에 없는 페이지의 내용은 언급하지 마세요.
 - evidence의 fileName은 반드시 아래 [검토 자료 파일명]을 그대로 기재하세요 (다르게 쓰면 근거가 무효 처리됩니다).
+- evidence의 anchorText: 확대본에서 실제로 읽은 텍스트(라벨·표기)를 원문 그대로 짧게(2~40자) 기재하세요 — 글자 위치 탐색에 사용되므로 철자까지 정확해야 하며, 확실치 않으면 생략합니다.
 - 확대본에서 근거를 확인한 evidence에는 반드시 region을 기재하세요: 그 근거가 보이는 "타일"(좌상/우상/좌하/우하)과, 그 타일 이미지 안에서의 정규화 좌표(x,y=좌상단 원점, width,height, 각 0~1). 좌표는 정밀할 필요 없습니다 — 근거가 보이는 대략적 영역이면 충분합니다. 좌표 추정이 어려우면 최소한 tile만이라도 반드시 기재하세요 (그 사분면 전체가 표시 영역이 됩니다).
 
 [검토 자료 파일명]
@@ -89,7 +90,7 @@ ${fileNames.map((name) => `- ${name}`).join("\n")}
 ${itemsText}
 
 출력 형식(JSON만):
-{"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","region":{"tile":"좌상","x":0.2,"y":0.5,"width":0.3,"height":0.1}}],"lawRefs":[],"recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
+{"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","anchorText":"원문 인용(선택)","region":{"tile":"좌상","x":0.2,"y":0.5,"width":0.3,"height":0.1}}],"lawRefs":[],"recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
 }
 
 /** 타일(2x2 분할) 기준 정규화 좌표 -> 원본 페이지 기준 정규화 좌표 변환 */

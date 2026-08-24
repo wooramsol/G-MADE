@@ -11,6 +11,7 @@ import type {
 import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { buildArticleJumpUrl } from "@/lib/reference-links";
+import { buildEvidenceAnchors } from "@/lib/checklist-review/evidence-anchors";
 
 // 행정문서 톤 — 흰 카드에 판정색 테두리(전체 스트로크), 뱃지는 각진 외곽선 태그
 const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string; card: string }> = {
@@ -104,6 +105,7 @@ export default function ChecklistReviewResults({
       fileName: string,
       page: number,
       region?: { x: number; y: number; width: number; height: number },
+      anchors?: string[],
     ): { thumbSrc: string; fullSrc: string } | undefined => {
       // 저장·역직렬화 과정에서 페이지가 문자열로 들어오는 경우가 있어 숫자로 강제 변환
       const pageNumber = Number(page);
@@ -115,9 +117,12 @@ export default function ChecklistReviewResults({
       const coords = region
         ? `&page=${pageNumber}&x=${region.x}&y=${region.y}&w=${region.width}&h=${region.height}`
         : `&page=${pageNumber}`;
+      // 원문 인용구(앵커) — 서버가 PDF 글자 좌표에서 찾아 정확한 위치에 박스를 그림
+      const anchorParam =
+        anchors && anchors.length > 0 ? `&anchors=${encodeURIComponent(anchors.join("|"))}` : "";
       return {
-        thumbSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}&size=thumb`,
-        fullSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}&size=full`,
+        thumbSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}${anchorParam}&size=thumb`,
+        fullSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}${anchorParam}&size=full`,
       };
     };
   }, [review.files, review.id, projectId]);
@@ -380,6 +385,7 @@ function FindingCard({
     fileName: string,
     page: number,
     region?: { x: number; y: number; width: number; height: number },
+    anchors?: string[],
   ) => { thumbSrc: string; fullSrc: string } | undefined;
   comment?: string;
   onSaveComment: (itemId: string, text: string) => Promise<void>;
@@ -452,7 +458,12 @@ function FindingCard({
       {finding && finding.evidence.length > 0 ? (
         <div className="mt-3 space-y-1.5">
           {finding.evidence.map((evidence, index) => {
-            const snippet = pageHref(evidence.fileName, evidence.page, evidence.region);
+            const snippet = pageHref(
+              evidence.fileName,
+              evidence.page,
+              evidence.region,
+              buildEvidenceAnchors(evidence),
+            );
             return (
               <div key={`${evidence.fileName}-${evidence.page}-${index}`}>
                 <p className="text-[13px] leading-5 text-[#64748b]">
