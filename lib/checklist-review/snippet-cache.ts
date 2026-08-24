@@ -34,7 +34,8 @@ export function snippetCachePath(
   variant: SnippetVariant,
   regionKey: string,
 ): string {
-  return `projects/${projectId}/snippets/${fileId}-p${page}-${variant}-${regionKey}.jpg`;
+  // v2: 빨간 박스 제거 + 여백 확대 — 이전 렌더링과 구분해 낡은 캐시를 자연 폐기
+  return `projects/${projectId}/snippets/${fileId}-p${page}-${variant}-${regionKey}-v2.jpg`;
 }
 
 /**

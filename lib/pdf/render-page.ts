@@ -104,7 +104,9 @@ export async function renderPageTiles(pdfBase64: string, pageNumber: number): Pr
 }
 
 /** 크롭 주변 여백 비율 (근거 주변 맥락이 살짝 보이도록) */
-const SNIPPET_PADDING_RATIO = 0.15;
+// AI가 추정한 근거 좌표는 근사치 — 정밀한 척 박스를 그리는 대신, 추정 위치
+// 주변을 넉넉히 잘라 보여준다 (여백을 크게 잡아 실제 근거가 화면 안에 들어오도록).
+const SNIPPET_PADDING_RATIO = 0.6;
 
 /** 스니펫 렌더링 시 전체 페이지 상한(px) — 메모리 보호 (6000px 렌더는 ~100MB RAM) */
 const SNIPPET_PAGE_RENDER_CAP = 4_000;
@@ -260,12 +262,9 @@ async function renderRegionSnippetInner(
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, cropW, cropH);
     ctx.drawImage(image, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-    if (boxRect) {
-      // 근거 영역 빨간 테두리
-      ctx.strokeStyle = "rgba(220,38,38,0.9)";
-      ctx.lineWidth = Math.max(2, cropW / 300);
-      ctx.strokeRect(boxRect.x, boxRect.y, boxRect.w, boxRect.h);
-    }
+    // 빨간 박스는 그리지 않음 — AI 추정 좌표의 오차가 그대로 노출돼 오히려
+    // 신뢰를 해침 (실측 피드백). 크롭 자체가 "이 부분을 보라"는 역할을 한다.
+    void boxRect;
 
     const encoded = await canvas.encode("jpeg", 78);
     return { base64: Buffer.from(encoded).toString("base64"), mediaType: "image/jpeg" };
