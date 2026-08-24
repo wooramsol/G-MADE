@@ -89,13 +89,35 @@ export async function readPersistedUploadFile(file: PersistedUploadFile): Promis
     // Fall through to public URL fetch.
   }
 
-  const metadata = await head(file.storageKey);
-  const response = await fetch(metadata.url);
-  if (!response.ok) {
-    throw new Error(`저장된 파일을 불러오지 못했습니다: ${file.originalName}`);
+  // head의 downloadUrl(다운로드 토큰 포함)을 우선 사용 — private 성격의 blob도 fetch 가능
+  const attempts: string[] = [];
+  try {
+    const metadata = await head(file.storageKey);
+    for (const url of [metadata.downloadUrl, metadata.url]) {
+      if (!url) continue;
+      const response = await fetch(url);
+      if (response.ok) {
+        return Buffer.from(await response.arrayBuffer());
+      }
+      attempts.push(`head-url ${response.status}`);
+    }
+  } catch (error) {
+    attempts.push(`head 실패: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  return Buffer.from(await response.arrayBuffer());
+  // 업로드 당시 기록된 원본 URL — 저장소 설정이 바뀐 과거 파일의 최종 폴백
+  if (file.blobUrl) {
+    const response = await fetch(file.blobUrl);
+    if (response.ok) {
+      return Buffer.from(await response.arrayBuffer());
+    }
+    attempts.push(`blobUrl ${response.status}`);
+  }
+
+  console.error(
+    `[blob] 파일 읽기 실패 key=${file.storageKey} name=${file.originalName} 시도=[${attempts.join(", ")}]`,
+  );
+  throw new Error(`저장된 파일을 불러오지 못했습니다: ${file.originalName}`);
 }
 
 export async function deletePersistedUploadFiles(files: PersistedUploadFile[]): Promise<void> {
