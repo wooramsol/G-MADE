@@ -186,3 +186,13 @@ body {
     font-size: 16px;
   }
 }
+
+/* 근거 캡처 썸네일 로딩 바 (indeterminate) */
+@keyframes snippet-loading {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}

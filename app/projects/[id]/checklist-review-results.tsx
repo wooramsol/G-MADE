@@ -462,21 +462,12 @@ function FindingCard({
                   — {evidence.note}
                 </p>
                 {snippet ? (
-                  <a
-                    className="mt-1.5 inline-block"
-                    href={snippet.fullSrc}
-                    rel="noreferrer"
-                    target="_blank"
-                    title="클릭하면 크게 보기"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      alt={`p.${evidence.page} 근거 캡처`}
-                      className={`max-h-44 max-w-full rounded-lg border shadow-sm ${evidence.region ? "border-[#e2c5c5]" : "border-[#d7dee8]"}`}
-                      loading="lazy"
-                      src={snippet.thumbSrc}
-                    />
-                  </a>
+                  <EvidenceSnippet
+                    alt={`p.${evidence.page} 근거 캡처`}
+                    fullSrc={snippet.fullSrc}
+                    hasRegion={Boolean(evidence.region)}
+                    thumbSrc={snippet.thumbSrc}
+                  />
                 ) : null}
               </div>
             );
@@ -581,5 +572,61 @@ function FindingCard({
         </div>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * 근거 캡처 썸네일 — 첫 생성은 서버 렌더링(1~2초)이 걸리므로 로딩 중에는
+ * 스켈레톤 + 진행 바를 보여주고, 완료되면 이미지를 페이드 인합니다.
+ */
+function EvidenceSnippet({
+  thumbSrc,
+  fullSrc,
+  alt,
+  hasRegion,
+}: {
+  thumbSrc: string;
+  fullSrc: string;
+  alt: string;
+  hasRegion: boolean;
+}) {
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
+
+  if (status === "error") {
+    return (
+      <p className="mt-1.5 rounded-lg border border-dashed border-[#d7dee8] bg-[#f8fafc] px-3 py-2 text-xs text-[#94a3b8]">
+        캡처를 불러오지 못했습니다
+      </p>
+    );
+  }
+
+  return (
+    <a
+      className="relative mt-1.5 inline-block"
+      href={fullSrc}
+      rel="noreferrer"
+      target="_blank"
+      title="클릭하면 크게 보기"
+    >
+      {status === "loading" ? (
+        <span className="flex h-32 w-56 flex-col items-center justify-center gap-2 rounded-lg border border-[#d7dee8] bg-[#f1f5f9]">
+          <span className="h-1 w-28 overflow-hidden rounded-full bg-[#dbe4ee]">
+            <span className="block h-full w-1/3 animate-[snippet-loading_1.1s_ease-in-out_infinite] rounded-full bg-[#2463b3]" />
+          </span>
+          <span className="text-[11px] font-semibold text-[#94a3b8]">캡처 불러오는 중...</span>
+        </span>
+      ) : null}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={alt}
+        className={`max-h-44 max-w-full rounded-lg border shadow-sm transition-opacity duration-300 ${
+          hasRegion ? "border-[#e2c5c5]" : "border-[#d7dee8]"
+        } ${status === "loaded" ? "opacity-100" : "absolute h-0 w-0 opacity-0"}`}
+        loading="lazy"
+        onError={() => setStatus("error")}
+        onLoad={() => setStatus("loaded")}
+        src={thumbSrc}
+      />
+    </a>
   );
 }
