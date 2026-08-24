@@ -68,6 +68,12 @@ export default function ChecklistReviewSection({ project }: { project: Project }
     setSelectedReviewIds(new Set());
   }
 
+  function toggleSelectAllReviews() {
+    setSelectedReviewIds((current) =>
+      current.size === reviews.length ? new Set<string>() : new Set(reviews.map((review) => review.id)),
+    );
+  }
+
   function toggleReviewChecked(reviewId: string) {
     setSelectedReviewIds((current) => {
       const next = new Set(current);
@@ -147,10 +153,18 @@ export default function ChecklistReviewSection({ project }: { project: Project }
     setNewFiles([]);
   }
 
+  const [dragActive, setDragActive] = useState(false);
+
   function handleFileInput(list: FileList | null) {
     if (!list || list.length === 0) return;
     // 검토 자료는 한 번에 1개만 — 새 업로드는 기존 업로드·보관 자료 선택을 대체합니다.
     const incoming = [list[0]];
+    // 드래그앤드롭은 input의 accept 제한을 우회하므로 확장자를 직접 검증
+    const extension = incoming[0].name.split(".").pop()?.toLowerCase() ?? "";
+    if (!["pdf", "png", "jpg", "jpeg"].includes(extension)) {
+      showToast({ message: "PDF 또는 이미지(PNG·JPG) 파일만 업로드할 수 있습니다.", tone: "error" });
+      return;
+    }
     const oversized = getOversizedUploadFiles(incoming);
     if (oversized.length > 0) {
       showToast({ message: buildOversizedUploadMessage(oversized, getMaxUploadFileLabel()), tone: "error" });
@@ -236,7 +250,24 @@ export default function ChecklistReviewSection({ project }: { project: Project }
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <div className="space-y-4">
-          <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
+          <div
+            className={`rounded-md border p-4 transition-colors ${
+              dragActive ? "border-[#2463b3] bg-[#f0f7ff]" : "border-[#d7dee8] bg-[#f8fafc]"
+            }`}
+            onDragLeave={(event) => {
+              // 자식 요소로의 이동은 무시 — 영역을 실제로 벗어날 때만 해제
+              if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragActive(false);
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragActive(true);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragActive(false);
+              handleFileInput(event.dataTransfer.files);
+            }}
+          >
             <p className="text-sm font-bold text-[#15345b]">검토 자료 선택</p>
             <Caption className="mt-1 text-[#64748b]">
               체크리스트가 포함된 PDF 1개를 업로드하거나 이전에 올린 자료 1개를 선택하세요. (한 번에 1개만 분석)
@@ -247,7 +278,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
               onClick={() => fileInputRef.current?.click()}
               type="button"
             >
-              + PDF·이미지 업로드 (최대 {getMaxUploadFileLabel()})
+              {dragActive ? "여기에 놓으면 업로드됩니다" : `+ PDF·이미지 업로드 또는 드래그 (최대 ${getMaxUploadFileLabel()})`}
             </button>
             <input
               accept=".pdf,.png,.jpg,.jpeg"
@@ -354,7 +385,15 @@ export default function ChecklistReviewSection({ project }: { project: Project }
 
               {managementMode ? (
                 <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-[#f8fafc] px-3 py-2">
-                  <span className="text-xs font-semibold text-[#475569]">{selectedReviewIds.size}건 선택됨</span>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#475569]">
+                    <input
+                      checked={reviews.length > 0 && selectedReviewIds.size === reviews.length}
+                      onChange={toggleSelectAllReviews}
+                      type="checkbox"
+                    />
+                    전체선택
+                    <span className="text-[#94a3b8]">{selectedReviewIds.size}건 선택됨</span>
+                  </label>
                   <button
                     className="rounded-lg px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={selectedReviewIds.size === 0 || bulkDeleting}
