@@ -78,15 +78,22 @@ export async function readPersistedUploadFile(file: PersistedUploadFile): Promis
     throw new Error("파일 저장소를 사용할 수 없습니다. Vercel Blob 스토어 연결을 확인해 주세요.");
   }
 
-  // private blob은 인증된 get()으로 읽는다. 과거 public으로 업로드된 blob은
-  // get(access) 불일치로 실패할 수 있으므로 head+fetch로 한 번 더 시도한다.
-  try {
-    const result = await get(file.storageKey, { access: getBlobAccess() });
-    if (result?.stream) {
-      return Buffer.from(await new Response(result.stream).arrayBuffer());
+  // private blob은 인증된 get()으로 읽는다. 스토어/blob 접근 모드 불일치
+  // ("Cannot use ... access on a ... store")면 반대 모드로 재시도한다.
+  const getAttempts: string[] = [];
+  const primaryAccess = getBlobAccess();
+  const accessModes: ("public" | "private")[] =
+    primaryAccess === "private" ? ["private", "public"] : ["public", "private"];
+  for (const access of accessModes) {
+    try {
+      const result = await get(file.storageKey, { access });
+      if (result?.stream) {
+        return Buffer.from(await new Response(result.stream).arrayBuffer());
+      }
+      getAttempts.push(`get(${access}) 빈 응답`);
+    } catch (error) {
+      getAttempts.push(`get(${access}): ${error instanceof Error ? error.message : String(error)}`);
     }
-  } catch {
-    // Fall through to public URL fetch.
   }
 
   // head의 downloadUrl을 우선 사용하고, 비공개 blob(직접 접근 403)은 스토어 토큰을
@@ -103,9 +110,10 @@ export async function readPersistedUploadFile(file: PersistedUploadFile): Promis
     return plain.status;
   };
 
-  const attempts: string[] = [];
+  const attempts: string[] = [...getAttempts];
   try {
     const metadata = await head(file.storageKey);
+    attempts.push(`head-url=${metadata.downloadUrl ?? metadata.url ?? "(없음)"}`);
     for (const url of [metadata.downloadUrl, metadata.url]) {
       if (!url) continue;
       const result = await fetchBlob(url);
