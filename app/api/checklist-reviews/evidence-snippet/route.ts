@@ -1,8 +1,13 @@
-import { head, put } from "@vercel/blob";
+import { head } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
-import { getBlobAccess } from "@/lib/blob-config";
 import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
+import {
+  putSnippetCache,
+  SNIPPET_SIZES,
+  snippetCachePath,
+  snippetRegionKey,
+} from "@/lib/checklist-review/snippet-cache";
 import { downscaleJpeg, renderRegionSnippet } from "@/lib/pdf/render-page";
 import { getProjectById } from "@/lib/project-store";
 import { readSavedUploadFile } from "@/lib/save-uploaded-files";
@@ -11,14 +16,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-const SIZES = { thumb: 520, full: 1400 } as const;
-
-/**
- * 스토어 실제 접근 모드 기억 — BLOB_DEFAULT_ACCESS 설정(private)과 실제 스토어(public)가
- * 어긋나면 put이 실패하므로("Cannot use private access on a public store" 실측),
- * 실패 시 public으로 재시도하고 성공한 모드를 기억합니다.
- */
-let resolvedBlobAccess: "public" | "private" | null = null;
+const SIZES = SNIPPET_SIZES;
 
 /**
  * 파일 읽기 in-flight 공유 — 결과 화면 첫 조회 때 썸네일 수십 개가 동시에 같은
@@ -39,37 +37,28 @@ function readFileShared(key: string, reader: () => Promise<Buffer>): Promise<Buf
   return promise;
 }
 
-async function putSnippetCache(pathname: string, buffer: Buffer): Promise<void> {
-  const attempt = async (access: "public" | "private") => {
-    await put(pathname, buffer, {
-      access: access as "public",
-      contentType: "image/jpeg",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-    });
-    resolvedBlobAccess = access;
-  };
+/**
+ * 원본 PDF 다운로드 회로 차단기 — 캡처는 분석 직후 선생성돼 캐시에서만 읽는 것이
+ * 정상 경로이므로, 이 라우트에서의 원본 다운로드는 예외적(과거 검토·선생성 누락분)
+ * 이어야 한다. 캐시가 고장 나도 파일당 10분에 3회를 넘는 원본 다운로드를 차단해
+ * 전송량 폭주(요금 한도 초과)를 원천 방지한다.
+ */
+const ORIGINAL_DOWNLOAD_WINDOW_MS = 10 * 60_000;
+const MAX_ORIGINAL_DOWNLOADS_PER_WINDOW = 3;
+const originalDownloadLog = new Map<string, number[]>();
 
-  const first = resolvedBlobAccess ?? getBlobAccess();
-  try {
-    await attempt(first);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const fallback: "public" | "private" = first === "private" ? "public" : "private";
-    if (/access on a (public|private) store/i.test(message)) {
-      try {
-        await attempt(fallback);
-        return;
-      } catch (retryError) {
-        console.warn(
-          "[checklist-review] 캡처 캐시 저장 실패(재시도 포함):",
-          retryError instanceof Error ? retryError.message : retryError,
-        );
-        return;
-      }
-    }
-    console.warn("[checklist-review] 캡처 캐시 저장 실패:", message);
+function tryReserveOriginalDownload(fileKey: string): boolean {
+  const now = Date.now();
+  const recent = (originalDownloadLog.get(fileKey) ?? []).filter(
+    (at) => now - at < ORIGINAL_DOWNLOAD_WINDOW_MS,
+  );
+  if (recent.length >= MAX_ORIGINAL_DOWNLOADS_PER_WINDOW) {
+    originalDownloadLog.set(fileKey, recent);
+    return false;
   }
+  recent.push(now);
+  originalDownloadLog.set(fileKey, recent);
+  return true;
 }
 
 /**
@@ -119,14 +108,10 @@ export async function GET(request: NextRequest) {
     "Cache-Control": "private, max-age=604800, immutable",
   };
 
-  // 결정적 캐시 경로 — 같은 캡처는 한 번만 렌더링
-  const regionKey = region
-    ? `${region.x.toFixed(4)}-${region.y.toFixed(4)}-${region.width.toFixed(4)}-${region.height.toFixed(4)}`
-    : "page";
-  // reviewId를 캐시 키에 넣지 않음: 같은 파일·페이지·영역이면 회차가 바뀌어도 같은
-  // 캡처이므로 재분석 후에도 캐시가 그대로 재사용됨 (파일 내용이 다르면 fileId가 다름)
+  // 결정적 캐시 경로 — 같은 파일·페이지·영역이면 회차가 바뀌어도 같은 캡처
+  const regionKey = snippetRegionKey(region);
   const cachePathFor = (variant: keyof typeof SIZES) =>
-    `projects/${projectId}/snippets/${fileId}-p${page}-${variant}-${regionKey}.jpg`;
+    snippetCachePath(projectId, fileId, page, variant, regionKey);
 
   if (isBlobStorageEnabled()) {
     try {
@@ -149,8 +134,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // 캐시 미스 → 원본이 필요. 인스턴스에 이미 읽어둔 게 없다면 다운로드 횟수 제한 확인.
+  const fileKey = `${projectId}/${fileId}`;
+  if (!inflightFileReads.has(fileKey) && !tryReserveOriginalDownload(fileKey)) {
+    console.warn(`[checklist-review] 원본 다운로드 제한 발동 file=${fileId} (10분 3회 초과)`);
+    return NextResponse.json(
+      { error: "캡처 생성 요청이 몰려 잠시 제한 중입니다. 잠시 후 다시 시도해 주세요." },
+      { status: 503, headers: { "Retry-After": "300" } },
+    );
+  }
+
   try {
-    const bytes = await readFileShared(`${projectId}/${fileId}`, () =>
+    const bytes = await readFileShared(fileKey, () =>
       readSavedUploadFile({
         id: file.id,
         originalName: file.originalName,

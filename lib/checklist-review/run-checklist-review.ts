@@ -25,6 +25,7 @@ import { hashFileBuffer } from "./file-fingerprint";
 import { addUsage, estimateUsageSummary, mergeUsageByModel, type UsageByModel } from "./usage-cost";
 import { MAX_COST_USD_PER_REVIEW } from "./budget";
 import { runZoomReview } from "./zoom-review";
+import { prewarmEvidenceSnippets } from "./snippet-cache";
 import { findChecklistPages } from "./find-checklist-pages";
 import {
   buildFindingsByText,
@@ -233,9 +234,13 @@ export async function runChecklistReview(
     emitStep(emit, "extract");
     const { extractDocumentContent } = await import("@/lib/document-content");
     const extractionWarnings: string[] = [];
+    // 원본 버퍼 보관 — 검토 저장 후 근거 캡처를 "추가 다운로드 없이" 미리 생성하는 데 사용.
+    // (과거 캡처 조회 시마다 원본을 재다운로드해 전송량 한도를 초과한 사고의 구조적 방지)
+    const fileBuffers = new Map<string, Buffer>();
     const filesForAnalysis: UploadedFileSummary[] = await Promise.all(
       savedFiles.map(async (file) => {
         const buffer = await readSavedUploadFile(file);
+        if (file.originalName.toLowerCase().endsWith(".pdf")) fileBuffers.set(file.id, buffer);
         const content = await extractDocumentContent(buffer, file.originalName);
         extractionWarnings.push(...content.warnings);
         const pdfAsset = content.visionAssets?.find((asset) => asset.mediaType === "application/pdf");
@@ -572,6 +577,30 @@ export async function runChecklistReview(
       }));
 
     newlySavedFiles = [];
+
+    // 근거 캡처 선생성 — 분석에 쓴 버퍼 그대로 사용(원본 재다운로드 0회). 남은 서버
+    // 시간 안에서 화면 표시 순서대로 생성하며, 실패해도 검토 결과에는 영향 없음.
+    emitStep(emit, "save");
+    try {
+      for (const file of savedFiles) {
+        const bytes = fileBuffers.get(file.id);
+        if (!bytes) continue;
+        await prewarmEvidenceSnippets({
+          projectId,
+          fileId: file.id,
+          pdfBytes: bytes,
+          findings,
+          getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
+        });
+      }
+    } catch (error) {
+      console.warn(
+        "[checklist-review] 캡처 선생성 건너뜀:",
+        error instanceof Error ? error.message : error,
+      );
+    } finally {
+      fileBuffers.clear();
+    }
 
     return { review, project: updatedProject, warnings: review.warnings };
   } catch (error) {
