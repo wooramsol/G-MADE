@@ -12,27 +12,27 @@ import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { buildArticleJumpUrl } from "@/lib/reference-links";
 
-// 행정문서 톤 — 카드는 흰 바탕 + 좌측 상태색 실선, 뱃지는 각진 외곽선 태그
+// 행정문서 톤 — 카드는 전부 동일한 흰 카드, 판정은 각진 외곽선 태그로만 표시
 const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string; card: string }> = {
   충족: {
     badge: "bg-white text-emerald-700 border-emerald-400",
     dot: "bg-emerald-600",
-    card: "border-[#d0d5dd] border-l-[3px] border-l-emerald-600 bg-white",
+    card: "border-[#d0d5dd] bg-white",
   },
   부분충족: {
     badge: "bg-white text-amber-700 border-amber-400",
     dot: "bg-amber-500",
-    card: "border-[#d0d5dd] border-l-[3px] border-l-amber-500 bg-white",
+    card: "border-[#d0d5dd] bg-white",
   },
   미충족: {
     badge: "bg-white text-red-700 border-red-400",
     dot: "bg-red-600",
-    card: "border-[#d0d5dd] border-l-[3px] border-l-red-600 bg-white",
+    card: "border-[#d0d5dd] bg-white",
   },
   확인불가: {
     badge: "bg-white text-slate-600 border-slate-300",
     dot: "bg-slate-400",
-    card: "border-[#d0d5dd] border-l-[3px] border-l-slate-400 bg-white",
+    card: "border-[#d0d5dd] bg-white",
   },
 };
 
