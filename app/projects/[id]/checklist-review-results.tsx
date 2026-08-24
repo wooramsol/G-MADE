@@ -625,6 +625,14 @@ function EvidenceSnippet({
         loading="lazy"
         onError={() => setStatus("error")}
         onLoad={() => setStatus("loaded")}
+        ref={(node) => {
+          // 브라우저 캐시에서 즉시 로드된 이미지는 onLoad가 핸들러 부착 전에 끝나
+          // 이벤트가 오지 않음 — 마운트 시점에 완료 여부를 직접 확인 (새로고침 시
+          // 로더가 계속 돌던 버그의 원인)
+          if (node?.complete) {
+            setStatus(node.naturalWidth > 0 ? "loaded" : "error");
+          }
+        }}
         src={thumbSrc}
       />
     </a>
