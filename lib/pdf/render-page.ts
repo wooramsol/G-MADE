@@ -141,18 +141,19 @@ export type RegionSnippet = {
  * 캡처 이미지를 만듭니다 — 결과 카드에서 클릭 없이 근거 부위를 바로 보여주는 용도.
  */
 export async function renderRegionSnippet(
-  pdfBase64: string,
+  /** PDF 바이트 또는 base64 문자열 — 대용량 파일은 바이트를 그대로 넘기는 편이 메모리에 유리 */
+  pdfInput: Uint8Array | string,
   pageNumber: number,
   /** 근거 영역 — 없으면 페이지 전체를 캡처(박스 없음) */
   region: { x: number; y: number; width: number; height: number } | null,
   /** 결과 이미지의 긴 변 목표(px) — 카드 썸네일 ~520, 확대 보기 ~1200 */
   targetLongEdge: number = 520,
 ): Promise<RegionSnippet | null> {
-  return withRenderSlot(() => renderRegionSnippetInner(pdfBase64, pageNumber, region, targetLongEdge));
+  return withRenderSlot(() => renderRegionSnippetInner(pdfInput, pageNumber, region, targetLongEdge));
 }
 
 async function renderRegionSnippetInner(
-  pdfBase64: string,
+  pdfInput: Uint8Array | string,
   pageNumber: number,
   region: { x: number; y: number; width: number; height: number } | null,
   targetLongEdge: number,
@@ -182,7 +183,9 @@ async function renderRegionSnippetInner(
       }
     }
 
-    const pdf = await getDocumentProxy(new Uint8Array(Buffer.from(pdfBase64, "base64")), {
+    const pdfBytes =
+      typeof pdfInput === "string" ? new Uint8Array(Buffer.from(pdfInput, "base64")) : new Uint8Array(pdfInput);
+    const pdf = await getDocumentProxy(pdfBytes, {
       CanvasFactory: NapiCanvasFactory,
     } as never);
     if (pageNumber < 1 || pageNumber > pdf.numPages) return null;

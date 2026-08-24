@@ -8,7 +8,7 @@ import { getProjectById } from "@/lib/project-store";
 import { readSavedUploadFile } from "@/lib/save-uploaded-files";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 const SIZES = { thumb: 520, full: 1400 } as const;
@@ -19,6 +19,25 @@ const SIZES = { thumb: 520, full: 1400 } as const;
  * 실패 시 public으로 재시도하고 성공한 모드를 기억합니다.
  */
 let resolvedBlobAccess: "public" | "private" | null = null;
+
+/**
+ * 파일 읽기 in-flight 공유 — 결과 화면 첫 조회 때 썸네일 수십 개가 동시에 같은
+ * 원본 PDF(수십 MB)를 각자 다운로드하던 것을 인스턴스당 1회로 합칩니다.
+ * 완료 후 짧게 유지했다가 정리(대용량 버퍼를 오래 붙들지 않도록).
+ */
+const inflightFileReads = new Map<string, Promise<Buffer>>();
+const FILE_READ_LINGER_MS = 30_000;
+
+function readFileShared(key: string, reader: () => Promise<Buffer>): Promise<Buffer> {
+  const existing = inflightFileReads.get(key);
+  if (existing) return existing;
+  const promise = reader();
+  inflightFileReads.set(key, promise);
+  promise
+    .then(() => setTimeout(() => inflightFileReads.delete(key), FILE_READ_LINGER_MS))
+    .catch(() => inflightFileReads.delete(key));
+  return promise;
+}
 
 async function putSnippetCache(pathname: string, buffer: Buffer): Promise<void> {
   const attempt = async (access: "public" | "private") => {
@@ -104,8 +123,10 @@ export async function GET(request: NextRequest) {
   const regionKey = region
     ? `${region.x.toFixed(4)}-${region.y.toFixed(4)}-${region.width.toFixed(4)}-${region.height.toFixed(4)}`
     : "page";
+  // reviewId를 캐시 키에 넣지 않음: 같은 파일·페이지·영역이면 회차가 바뀌어도 같은
+  // 캡처이므로 재분석 후에도 캐시가 그대로 재사용됨 (파일 내용이 다르면 fileId가 다름)
   const cachePathFor = (variant: keyof typeof SIZES) =>
-    `projects/${projectId}/snippets/${reviewId}/${fileId}-p${page}-${variant}-${regionKey}.jpg`;
+    `projects/${projectId}/snippets/${fileId}-p${page}-${variant}-${regionKey}.jpg`;
 
   if (isBlobStorageEnabled()) {
     try {
@@ -123,18 +144,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const bytes = await readSavedUploadFile({
-      id: file.id,
-      originalName: file.originalName,
-      fileType: file.fileType,
-      sizeBytes: file.sizeBytes,
-      storageKey: file.storageKey ?? "",
-      blobUrl: file.blobUrl,
-    });
+    const bytes = await readFileShared(`${projectId}/${fileId}`, () =>
+      readSavedUploadFile({
+        id: file.id,
+        originalName: file.originalName,
+        fileType: file.fileType,
+        sizeBytes: file.sizeBytes,
+        storageKey: file.storageKey ?? "",
+        blobUrl: file.blobUrl,
+      }),
+    );
 
     // 캐시 미스 시 고해상도(full)로 한 번만 렌더링하고 썸네일은 축소로 파생 —
     // 카드가 보인 시점(썸네일 요청)에 확대본까지 캐시돼, 라이트박스 클릭이 즉시 뜸.
-    const fullSnippet = await renderRegionSnippet(Buffer.from(bytes).toString("base64"), page, region, SIZES.full);
+    // bytes를 그대로 전달 (base64 문자열 변환은 대용량 파일에서 메모리를 배로 씀)
+    const fullSnippet = await renderRegionSnippet(bytes, page, region, SIZES.full);
     if (!fullSnippet) {
       return NextResponse.json({ error: "근거 캡처를 생성하지 못했습니다." }, { status: 404 });
     }
