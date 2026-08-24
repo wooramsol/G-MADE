@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Caption, Eyebrow, MutedText, SubsectionTitle } from "@/components/typography";
 import type {
   ChecklistFinding,
@@ -591,6 +591,7 @@ function EvidenceSnippet({
   hasRegion: boolean;
 }) {
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   if (status === "error") {
     return (
@@ -601,13 +602,13 @@ function EvidenceSnippet({
   }
 
   return (
-    <a
-      className="relative mt-1.5 inline-block"
-      href={fullSrc}
-      rel="noreferrer"
-      target="_blank"
-      title="클릭하면 크게 보기"
-    >
+    <>
+      <button
+        className="relative mt-1.5 inline-block cursor-zoom-in text-left"
+        onClick={() => setLightboxOpen(true)}
+        title="클릭하면 크게 보기"
+        type="button"
+      >
       {status === "loading" ? (
         <span className="flex h-32 w-56 flex-col items-center justify-center gap-2 rounded-lg border border-[#d7dee8] bg-[#f1f5f9]">
           <span className="h-1 w-28 overflow-hidden rounded-full bg-[#dbe4ee]">
@@ -635,6 +636,69 @@ function EvidenceSnippet({
         }}
         src={thumbSrc}
       />
-    </a>
+      </button>
+      {lightboxOpen ? <SnippetLightbox alt={alt} onClose={() => setLightboxOpen(false)} src={fullSrc} /> : null}
+    </>
+  );
+}
+
+/** 캡처 확대 보기 — 배경을 어둡게 깔고 화면 위에 띄우는 라이트박스 (ESC·배경 클릭으로 닫힘) */
+function SnippetLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-[100] flex cursor-zoom-out items-center justify-center bg-black/75 p-4 sm:p-8"
+      onClick={(event) => {
+        event.stopPropagation();
+        onClose();
+      }}
+      role="dialog"
+    >
+      {!loaded ? (
+        <span className="absolute flex flex-col items-center gap-2 text-white/90">
+          <span className="h-1 w-32 overflow-hidden rounded-full bg-white/25">
+            <span className="block h-full w-1/3 animate-[snippet-loading_1.1s_ease-in-out_infinite] rounded-full bg-white" />
+          </span>
+          <span className="text-xs font-semibold">고해상도 캡처 불러오는 중...</span>
+        </span>
+      ) : null}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={alt}
+        className={`max-h-[92vh] max-w-[94vw] cursor-default rounded-lg shadow-2xl transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
+        onClick={(event) => event.stopPropagation()}
+        onLoad={() => setLoaded(true)}
+        ref={(node) => {
+          if (node?.complete && node.naturalWidth > 0) setLoaded(true);
+        }}
+        src={src}
+      />
+      <button
+        aria-label="닫기"
+        className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-xl font-bold text-white hover:bg-white/30"
+        onClick={(event) => {
+          event.stopPropagation();
+          onClose();
+        }}
+        type="button"
+      >
+        ×
+      </button>
+    </div>
   );
 }
