@@ -137,7 +137,9 @@ export async function readSnippetCache(pathname: string): Promise<Buffer | null>
   }
 }
 
-const MAX_PREWARM_CAPTURES = 60;
+// 사실상 전량 선생성 — 실측 60개 상한이 모자라 일부 캡처가 조회 시 생성으로 밀렸음.
+// 시간 예산 가드(PREWARM_MIN_REMAINING_MS)가 안전판 역할을 한다.
+const MAX_PREWARM_CAPTURES = 200;
 const PREWARM_MIN_REMAINING_MS = 8_000;
 
 type PrewarmTarget = { page: number; region: EvidenceRegion | null; regionKey: string };

@@ -44,7 +44,8 @@ function readFileShared(key: string, reader: () => Promise<Buffer>): Promise<Buf
  * 전송량 폭주(요금 한도 초과)를 원천 방지한다.
  */
 const ORIGINAL_DOWNLOAD_WINDOW_MS = 10 * 60_000;
-const MAX_ORIGINAL_DOWNLOADS_PER_WINDOW = 3;
+// R2 전환으로 다운로드 전송료가 없어져 제한 목적은 메모리 보호로 축소 — 10회로 완화
+const MAX_ORIGINAL_DOWNLOADS_PER_WINDOW = 10;
 const originalDownloadLog = new Map<string, number[]>();
 
 function tryReserveOriginalDownload(fileKey: string): boolean {

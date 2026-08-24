@@ -592,6 +592,17 @@ function EvidenceSnippet({
 }) {
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  // 일시적 실패(서버 생성 대기·순간 제한) 자동 회복 — 6초 후 최대 2회 재시도
+  useEffect(() => {
+    if (status !== "error" || retryCount >= 2) return;
+    const timer = setTimeout(() => {
+      setRetryCount((count) => count + 1);
+      setStatus("loading");
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [status, retryCount]);
 
   if (status === "error") {
     return (
@@ -634,7 +645,7 @@ function EvidenceSnippet({
             setStatus(node.naturalWidth > 0 ? "loaded" : "error");
           }
         }}
-        src={thumbSrc}
+        src={retryCount > 0 ? `${thumbSrc}&retry=${retryCount}` : thumbSrc}
       />
       </button>
       {lightboxOpen ? (
