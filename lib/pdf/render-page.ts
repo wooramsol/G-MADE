@@ -105,6 +105,31 @@ export async function renderPageTiles(pdfBase64: string, pageNumber: number): Pr
 /** 크롭 주변 여백 비율 (근거 주변 맥락이 살짝 보이도록) */
 const SNIPPET_PADDING_RATIO = 0.15;
 
+/** 스니펫 렌더링 시 전체 페이지 상한(px) — 메모리 보호 (6000px 렌더는 ~100MB RAM) */
+const SNIPPET_PAGE_RENDER_CAP = 4_000;
+
+/**
+ * 인스턴스당 동시 렌더링 제한 — 결과 화면이 열리면 썸네일 수십 개가 동시에 요청되는데,
+ * Fluid Compute에서 한 인스턴스가 여러 요청을 받으면 대형 PDF 렌더링이 겹쳐 메모리
+ * 초과(instance killed)로 죽는 실측 사례가 있어 순차화합니다.
+ */
+const MAX_CONCURRENT_RENDERS = 2;
+let activeRenders = 0;
+const renderWaiters: Array<() => void> = [];
+
+async function withRenderSlot<T>(fn: () => Promise<T>): Promise<T> {
+  while (activeRenders >= MAX_CONCURRENT_RENDERS) {
+    await new Promise<void>((resolve) => renderWaiters.push(resolve));
+  }
+  activeRenders += 1;
+  try {
+    return await fn();
+  } finally {
+    activeRenders -= 1;
+    renderWaiters.shift()?.();
+  }
+}
+
 export type RegionSnippet = {
   /** JPEG base64 */
   base64: string;
@@ -122,6 +147,15 @@ export async function renderRegionSnippet(
   region: { x: number; y: number; width: number; height: number } | null,
   /** 결과 이미지의 긴 변 목표(px) — 카드 썸네일 ~520, 확대 보기 ~1200 */
   targetLongEdge: number = 520,
+): Promise<RegionSnippet | null> {
+  return withRenderSlot(() => renderRegionSnippetInner(pdfBase64, pageNumber, region, targetLongEdge));
+}
+
+async function renderRegionSnippetInner(
+  pdfBase64: string,
+  pageNumber: number,
+  region: { x: number; y: number; width: number; height: number } | null,
+  targetLongEdge: number,
 ): Promise<RegionSnippet | null> {
   try {
     const { getDocumentProxy, renderPageAsImage } = await import("unpdf");
@@ -163,7 +197,7 @@ export async function renderRegionSnippet(
       : pageLongEdgePt;
     const scale = Math.min(
       Math.max(0.5, targetLongEdge / Math.max(cropLongEdgePt, 1)),
-      6_000 / pageLongEdgePt,
+      SNIPPET_PAGE_RENDER_CAP / pageLongEdgePt,
       6,
     );
 

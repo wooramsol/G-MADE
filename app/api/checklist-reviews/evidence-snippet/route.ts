@@ -1,4 +1,4 @@
-import { get, put } from "@vercel/blob";
+import { head, put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { getBlobAccess } from "@/lib/blob-config";
@@ -12,6 +12,46 @@ export const maxDuration = 30;
 export const dynamic = "force-dynamic";
 
 const SIZES = { thumb: 520, full: 1400 } as const;
+
+/**
+ * 스토어 실제 접근 모드 기억 — BLOB_DEFAULT_ACCESS 설정(private)과 실제 스토어(public)가
+ * 어긋나면 put이 실패하므로("Cannot use private access on a public store" 실측),
+ * 실패 시 public으로 재시도하고 성공한 모드를 기억합니다.
+ */
+let resolvedBlobAccess: "public" | "private" | null = null;
+
+async function putSnippetCache(pathname: string, buffer: Buffer): Promise<void> {
+  const attempt = async (access: "public" | "private") => {
+    await put(pathname, buffer, {
+      access: access as "public",
+      contentType: "image/jpeg",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    });
+    resolvedBlobAccess = access;
+  };
+
+  const first = resolvedBlobAccess ?? getBlobAccess();
+  try {
+    await attempt(first);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const fallback: "public" | "private" = first === "private" ? "public" : "private";
+    if (/access on a (public|private) store/i.test(message)) {
+      try {
+        await attempt(fallback);
+        return;
+      } catch (retryError) {
+        console.warn(
+          "[checklist-review] 캡처 캐시 저장 실패(재시도 포함):",
+          retryError instanceof Error ? retryError.message : retryError,
+        );
+        return;
+      }
+    }
+    console.warn("[checklist-review] 캡처 캐시 저장 실패:", message);
+  }
+}
 
 /**
  * 근거 페이지/부위 캡처(JPEG)를 반환합니다 — 결과 카드의 인라인 썸네일용.
@@ -69,9 +109,13 @@ export async function GET(request: NextRequest) {
 
   if (isBlobStorageEnabled()) {
     try {
-      const cached = await get(cachePathFor(size), { access: getBlobAccess() });
-      if (cached?.stream) {
-        return new Response(cached.stream, { headers: jpegHeaders });
+      // head는 public/private 스토어 모두에서 동작 — URL을 얻어 스트리밍
+      const cached = await head(cachePathFor(size));
+      if (cached?.url) {
+        const upstream = await fetch(cached.downloadUrl ?? cached.url);
+        if (upstream.ok && upstream.body) {
+          return new Response(upstream.body, { headers: jpegHeaders });
+        }
       }
     } catch {
       // 캐시 미스 — 아래에서 새로 렌더링
@@ -101,18 +145,7 @@ export async function GET(request: NextRequest) {
         { pathname: cachePathFor("full"), base64: fullSnippet.base64 },
       ];
       if (thumbSnippet) saves.push({ pathname: cachePathFor("thumb"), base64: thumbSnippet.base64 });
-      await Promise.all(
-        saves.map((entry) =>
-          put(entry.pathname, Buffer.from(entry.base64, "base64"), {
-            access: getBlobAccess(),
-            contentType: "image/jpeg",
-            addRandomSuffix: false,
-            allowOverwrite: true,
-          }).catch((error: unknown) => {
-            console.warn("[checklist-review] 캡처 캐시 저장 실패:", error instanceof Error ? error.message : error);
-          }),
-        ),
-      );
+      await Promise.all(saves.map((entry) => putSnippetCache(entry.pathname, Buffer.from(entry.base64, "base64"))));
     }
 
     const chosen = size === "thumb" && thumbSnippet ? thumbSnippet : fullSnippet;
