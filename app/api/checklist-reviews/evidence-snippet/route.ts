@@ -130,10 +130,16 @@ export async function GET(request: NextRequest) {
 
   if (isBlobStorageEnabled()) {
     try {
-      // head는 public/private 스토어 모두에서 동작 — URL을 얻어 스트리밍
+      // head는 public/private 스토어 모두에서 동작 — URL을 얻어 스트리밍.
+      // 비공개 blob(직접 접근 403)은 스토어 토큰을 실어 재시도.
       const cached = await head(cachePathFor(size));
       if (cached?.url) {
-        const upstream = await fetch(cached.downloadUrl ?? cached.url);
+        const url = cached.downloadUrl ?? cached.url;
+        let upstream = await fetch(url);
+        const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+        if (!upstream.ok && (upstream.status === 401 || upstream.status === 403) && token) {
+          upstream = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+        }
         if (upstream.ok && upstream.body) {
           return new Response(upstream.body, { headers: jpegHeaders });
         }

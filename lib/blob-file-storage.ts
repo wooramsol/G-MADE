@@ -89,17 +89,28 @@ export async function readPersistedUploadFile(file: PersistedUploadFile): Promis
     // Fall through to public URL fetch.
   }
 
-  // head의 downloadUrl(다운로드 토큰 포함)을 우선 사용 — private 성격의 blob도 fetch 가능
+  // head의 downloadUrl을 우선 사용하고, 비공개 blob(직접 접근 403)은 스토어 토큰을
+  // Authorization 헤더에 실어 재시도합니다 — 비공개 저장 파일의 확실한 읽기 경로.
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  const fetchBlob = async (url: string): Promise<Buffer | number> => {
+    const plain = await fetch(url);
+    if (plain.ok) return Buffer.from(await plain.arrayBuffer());
+    if ((plain.status === 401 || plain.status === 403) && token) {
+      const authed = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+      if (authed.ok) return Buffer.from(await authed.arrayBuffer());
+      return authed.status;
+    }
+    return plain.status;
+  };
+
   const attempts: string[] = [];
   try {
     const metadata = await head(file.storageKey);
     for (const url of [metadata.downloadUrl, metadata.url]) {
       if (!url) continue;
-      const response = await fetch(url);
-      if (response.ok) {
-        return Buffer.from(await response.arrayBuffer());
-      }
-      attempts.push(`head-url ${response.status}`);
+      const result = await fetchBlob(url);
+      if (Buffer.isBuffer(result)) return result;
+      attempts.push(`head-url ${result}`);
     }
   } catch (error) {
     attempts.push(`head 실패: ${error instanceof Error ? error.message : String(error)}`);
@@ -107,11 +118,9 @@ export async function readPersistedUploadFile(file: PersistedUploadFile): Promis
 
   // 업로드 당시 기록된 원본 URL — 저장소 설정이 바뀐 과거 파일의 최종 폴백
   if (file.blobUrl) {
-    const response = await fetch(file.blobUrl);
-    if (response.ok) {
-      return Buffer.from(await response.arrayBuffer());
-    }
-    attempts.push(`blobUrl ${response.status}`);
+    const result = await fetchBlob(file.blobUrl);
+    if (Buffer.isBuffer(result)) return result;
+    attempts.push(`blobUrl ${result}`);
   }
 
   console.error(
