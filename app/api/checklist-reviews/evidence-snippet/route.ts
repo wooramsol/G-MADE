@@ -1,9 +1,9 @@
-import { head } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
 import {
   putSnippetCache,
+  readSnippetCache,
   SNIPPET_SIZES,
   snippetCachePath,
   snippetRegionKey,
@@ -114,23 +114,9 @@ export async function GET(request: NextRequest) {
     snippetCachePath(projectId, fileId, page, variant, regionKey);
 
   if (isBlobStorageEnabled()) {
-    try {
-      // head는 public/private 스토어 모두에서 동작 — URL을 얻어 스트리밍.
-      // 비공개 blob(직접 접근 403)은 스토어 토큰을 실어 재시도.
-      const cached = await head(cachePathFor(size));
-      if (cached?.url) {
-        const url = cached.downloadUrl ?? cached.url;
-        let upstream = await fetch(url);
-        const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
-        if (!upstream.ok && (upstream.status === 401 || upstream.status === 403) && token) {
-          upstream = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
-        }
-        if (upstream.ok && upstream.body) {
-          return new Response(upstream.body, { headers: jpegHeaders });
-        }
-      }
-    } catch {
-      // 캐시 미스 — 아래에서 새로 렌더링
+    const cached = await readSnippetCache(cachePathFor(size));
+    if (cached) {
+      return new NextResponse(new Uint8Array(cached), { headers: jpegHeaders });
     }
   }
 

@@ -1,6 +1,7 @@
 import { head, put } from "@vercel/blob";
-import { getBlobAccess } from "@/lib/blob-config";
+import { getBlobAccess, isBlobStorageConfigured } from "@/lib/blob-config";
 import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
+import { isR2Configured, r2GetObject, r2HeadObject, r2PutObject } from "@/lib/r2-storage";
 import { downscaleJpeg, renderRegionSnippet } from "@/lib/pdf/render-page";
 import type { ChecklistFinding, EvidenceRegion } from "./types";
 
@@ -43,6 +44,20 @@ export function snippetCachePath(
 let resolvedBlobAccess: "public" | "private" | null = null;
 
 export async function putSnippetCache(pathname: string, buffer: Buffer): Promise<boolean> {
+  if (isR2Configured()) {
+    try {
+      await r2PutObject(pathname, buffer, "image/jpeg");
+      return true;
+    } catch (error) {
+      console.warn(
+        "[checklist-review] 캡처 캐시 저장 실패(R2):",
+        error instanceof Error ? error.message : error,
+      );
+      return false;
+    }
+  }
+  if (!isBlobStorageConfigured()) return false;
+
   const attempt = async (access: "public" | "private") => {
     await put(pathname, buffer, {
       access: access as "public",
@@ -74,6 +89,51 @@ export async function putSnippetCache(pathname: string, buffer: Buffer): Promise
     }
     console.warn("[checklist-review] 캡처 캐시 저장 실패:", message);
     return false;
+  }
+}
+
+/** 캐시된 캡처 존재 여부 — R2 우선, 레거시 Vercel Blob 차선. */
+export async function hasSnippetCache(pathname: string): Promise<boolean> {
+  if (isR2Configured()) {
+    try {
+      return await r2HeadObject(pathname);
+    } catch {
+      return false;
+    }
+  }
+  if (!isBlobStorageConfigured()) return false;
+  try {
+    await head(pathname);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 캐시된 캡처 읽기 — R2 우선, 레거시 Vercel Blob(head+fetch) 차선. 없으면 null. */
+export async function readSnippetCache(pathname: string): Promise<Buffer | null> {
+  if (isR2Configured()) {
+    try {
+      const bytes = await r2GetObject(pathname);
+      if (bytes) return bytes;
+    } catch {
+      // 레거시 폴백으로
+    }
+  }
+  if (!isBlobStorageConfigured()) return null;
+  try {
+    const cached = await head(pathname);
+    const url = cached.downloadUrl ?? cached.url;
+    if (!url) return null;
+    let upstream = await fetch(url);
+    const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+    if (!upstream.ok && (upstream.status === 401 || upstream.status === 403) && token) {
+      upstream = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+    }
+    if (!upstream.ok) return null;
+    return Buffer.from(await upstream.arrayBuffer());
+  } catch {
+    return null;
   }
 }
 
@@ -127,13 +187,10 @@ export async function prewarmEvidenceSnippets(options: {
     const target = targets[index];
     const thumbPath = snippetCachePath(projectId, fileId, target.page, "thumb", target.regionKey);
     const fullPath = snippetCachePath(projectId, fileId, target.page, "full", target.regionKey);
-    try {
-      // 이미 캐시돼 있으면 건너뜀 (재분석 시 같은 파일이면 전부 이 경로)
-      await head(thumbPath);
+    // 이미 캐시돼 있으면 건너뜀 (재분석 시 같은 파일이면 전부 이 경로)
+    if (await hasSnippetCache(thumbPath)) {
       skipped += 1;
       continue;
-    } catch {
-      // 캐시 미스 — 생성
     }
     try {
       const full = await renderRegionSnippet(pdfBytes, target.page, target.region, SNIPPET_SIZES.full);

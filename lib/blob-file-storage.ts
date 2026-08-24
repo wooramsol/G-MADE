@@ -2,6 +2,7 @@ import { del, get, head, put } from "@vercel/blob";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { getBlobAccess, isBlobStorageConfigured } from "./blob-config";
+import { isR2Configured, r2DeleteObject, r2GetObject, r2PutObject } from "./r2-storage";
 import { getWritableStoragePath } from "./runtime-storage";
 import {
   buildProjectBlobPathname,
@@ -22,7 +23,7 @@ export type PersistedUploadFile = {
 };
 
 export function isBlobStorageEnabled(): boolean {
-  return isBlobStorageConfigured();
+  return isR2Configured() || isBlobStorageConfigured();
 }
 
 export async function uploadBufferToProjectBlob(
@@ -35,6 +36,17 @@ export async function uploadBufferToProjectBlob(
 
   const id = `${Date.now()}-${crypto.randomUUID()}`;
   const pathname = buildProjectBlobPathname(projectId, id, fileName);
+
+  if (isR2Configured()) {
+    await r2PutObject(pathname, buffer, inferUploadContentType(fileName, contentType));
+    return {
+      id,
+      originalName: fileName,
+      fileType: formatStoredFileType(fileName, contentType ?? ""),
+      sizeBytes: buffer.byteLength,
+      storageKey: pathname,
+    };
+  }
 
   if (isBlobStorageEnabled()) {
     const blob = await put(pathname, buffer, {
@@ -78,9 +90,34 @@ export async function readPersistedUploadFile(file: PersistedUploadFile): Promis
     throw new Error("파일 저장소를 사용할 수 없습니다. Vercel Blob 스토어 연결을 확인해 주세요.");
   }
 
+  const attemptsR2: string[] = [];
+  // R2 우선 — 새로 저장되는 파일은 모두 여기 있다.
+  if (isR2Configured()) {
+    try {
+      const bytes = await r2GetObject(file.storageKey);
+      if (bytes) return bytes;
+      attemptsR2.push("r2 미존재");
+    } catch (error) {
+      attemptsR2.push(`r2 오류: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // ---- 이하 Vercel Blob 레거시(이전 파일) 읽기 폴백 ----
   // private blob은 인증된 get()으로 읽는다. 스토어/blob 접근 모드 불일치
   // ("Cannot use ... access on a ... store")면 반대 모드로 재시도한다.
-  const getAttempts: string[] = [];
+  const getAttempts: string[] = [...attemptsR2];
+  if (!isBlobStorageConfigured()) {
+    // Vercel Blob 토큰이 없으면 업로드 당시 기록된 공개 URL만 시도 가능
+    if (file.blobUrl) {
+      const response = await fetch(file.blobUrl);
+      if (response.ok) return Buffer.from(await response.arrayBuffer());
+      getAttempts.push(`blobUrl ${response.status}`);
+    }
+    console.error(
+      `[blob] 파일 읽기 실패 key=${file.storageKey} name=${file.originalName} 시도=[${getAttempts.join(", ")}]`,
+    );
+    throw new Error(`저장된 파일을 불러오지 못했습니다: ${file.originalName}`);
+  }
   const primaryAccess = getBlobAccess();
   const accessModes: ("public" | "private")[] =
     primaryAccess === "private" ? ["private", "public"] : ["public", "private"];
@@ -145,7 +182,10 @@ export async function deletePersistedUploadFiles(files: PersistedUploadFile[]): 
         return;
       }
 
-      if (isBlobStorageEnabled()) {
+      if (isR2Configured()) {
+        await r2DeleteObject(file.storageKey).catch(() => undefined);
+      }
+      if (isBlobStorageConfigured()) {
         await del(file.storageKey).catch(() => undefined);
       }
     }),

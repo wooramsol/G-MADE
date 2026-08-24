@@ -55,6 +55,34 @@ async function uploadWithStatus(
       : undefined,
   } as const;
 
+  // R2 presigned: 서버에서 서명 URL을 받아 브라우저가 R2로 직접 PUT (진행률 표시)
+  if (status.mode === "r2-presigned") {
+    const contentType = file.type || "application/octet-stream";
+    const presignResponse = await clientFetchWithTimeout(`/api/projects/${projectId}/files/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pathname, contentType, sizeBytes: file.size }),
+    });
+    const presignPayload = (await presignResponse.json().catch(() => ({}))) as {
+      url?: string;
+      error?: string;
+    };
+    if (!presignResponse.ok || !presignPayload.url) {
+      throw new Error(extractApiErrorMessage(presignPayload, "업로드 URL 발급에 실패했습니다."));
+    }
+
+    await putFileWithProgress(presignPayload.url, file, contentType, onProgress);
+
+    return {
+      id,
+      originalName: file.name,
+      fileType: file.name.split(".").pop()?.toUpperCase() ?? "FILE",
+      sizeBytes: file.size,
+      storageKey: pathname,
+      uploadedAt: new Date().toISOString(),
+    };
+  }
+
   const uploadFn = status.mode === "oidc-presigned" ? uploadPresigned : upload;
 
   let blob;
@@ -74,6 +102,31 @@ async function uploadWithStatus(
     blobUrl: blob.url,
     uploadedAt: new Date().toISOString(),
   };
+}
+
+/** XHR PUT — fetch와 달리 업로드 진행률 이벤트를 제공한다. */
+function putFileWithProgress(
+  url: string,
+  file: File,
+  contentType: string,
+  onProgress?: (loadedRatio: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) onProgress?.(event.loaded / event.total);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`파일 업로드에 실패했습니다 (HTTP ${xhr.status}).`));
+    };
+    xhr.onerror = () => reject(new Error("파일 업로드 중 네트워크 오류가 발생했습니다."));
+    xhr.ontimeout = () => reject(new Error("파일 업로드가 시간 초과됐습니다."));
+    xhr.timeout = 10 * 60_000;
+    xhr.send(file);
+  });
 }
 
 export async function uploadProjectFileToBlob(

@@ -1,5 +1,6 @@
 import { handleUpload, handleUploadPresigned, type HandleUploadBody, type HandleUploadPresignedBody } from "@vercel/blob/client";
 import { issueSignedToken } from "@vercel/blob";
+import { r2PresignPutUrl } from "@/lib/r2-storage";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { getBlobUploadStatus } from "@/lib/blob-upload-status";
@@ -69,9 +70,35 @@ export async function POST(
     );
   }
 
-  const body = (await request.json()) as HandleUploadBody | HandleUploadPresignedBody;
+  const body = (await request.json()) as
+    | HandleUploadBody
+    | HandleUploadPresignedBody
+    | { pathname?: string; contentType?: string; sizeBytes?: number };
 
   try {
+    // R2 presigned 업로드: 브라우저가 R2로 직접 PUT — 서버·전송량 부담 없음.
+    // 크기·형식을 서명에 포함해 선언한 그대로만 업로드 가능.
+    if (status.mode === "r2-presigned") {
+      const { pathname, contentType, sizeBytes } = body as {
+        pathname?: string;
+        contentType?: string;
+        sizeBytes?: number;
+      };
+      if (!pathname || !contentType || !Number.isFinite(sizeBytes)) {
+        return NextResponse.json({ error: "pathname·contentType·sizeBytes가 필요합니다." }, { status: 400 });
+      }
+      if (!allowedContentTypes.includes(contentType)) {
+        return NextResponse.json({ error: "허용되지 않은 파일 형식입니다." }, { status: 400 });
+      }
+      if ((sizeBytes as number) <= 0 || (sizeBytes as number) > MAX_UPLOAD_BYTES) {
+        return NextResponse.json({ error: "파일 크기가 허용 범위를 벗어났습니다." }, { status: 400 });
+      }
+      validateProjectUploadPath(projectId, pathname);
+
+      const url = await r2PresignPutUrl(pathname, contentType, sizeBytes as number);
+      return NextResponse.json({ url, pathname });
+    }
+
     if (status.mode === "oidc-presigned") {
       const jsonResponse = await handleUploadPresigned({
         body: body as HandleUploadPresignedBody,
