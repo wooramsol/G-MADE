@@ -2,6 +2,11 @@ import { isTocPageText, parsePageSlices, type PageSlice } from "@/lib/ai/page-ci
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 
 const CHECKLIST_PATTERN = /체\s*크\s*리\s*스\s*트|check\s*list/i;
+
+/** 문서 텍스트에 체크리스트 언급이 있는지 — 사전 차단(문서 오업로드) 판단용 */
+export function mentionsChecklist(text: string): boolean {
+  return CHECKLIST_PATTERN.test(text);
+}
 /** 경관·공공디자인 분야 표기 */
 const LANDSCAPE_PATTERN = /경\s*관|공\s*공\s*디\s*자\s*인/;
 /** 경관 심의와 무관한 타 분야 체크리스트 표기 (제목부 기준) */

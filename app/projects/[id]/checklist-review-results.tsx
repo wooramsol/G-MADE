@@ -261,6 +261,29 @@ export default function ChecklistReviewResults({
         </div>
       ) : null}
 
+      {previousReview ? (
+        <p className="rounded-[4px] border border-[#d0d5dd] bg-white px-3 py-2 text-xs text-[#475569]">
+          <span className="mr-2 font-bold text-[#15345b]">이전 회차 대비</span>
+          {CHECKLIST_ITEM_STATUSES.map((statusName, index) => {
+            const before = previousReview.counts[statusName] ?? 0;
+            const after = review.counts[statusName] ?? 0;
+            const delta = after - before;
+            return (
+              <span key={statusName}>
+                {index > 0 ? <span className="mx-1.5 text-[#cbd5e1]">·</span> : null}
+                {statusName} {before}→{after}
+                {delta !== 0 ? (
+                  <span className={`ml-0.5 font-bold ${delta > 0 ? "text-[#2463b3]" : "text-[#667085]"}`}>
+                    ({delta > 0 ? "+" : ""}
+                    {delta})
+                  </span>
+                ) : null}
+              </span>
+            );
+          })}
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <FilterChip
           active={filter === "전체"}

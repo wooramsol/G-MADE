@@ -26,7 +26,7 @@ import { addUsage, estimateUsageSummary, mergeUsageByModel, type UsageByModel } 
 import { MAX_COST_USD_PER_REVIEW } from "./budget";
 import { runZoomReview } from "./zoom-review";
 import { prewarmEvidenceSnippets } from "./snippet-cache";
-import { findChecklistPages } from "./find-checklist-pages";
+import { findChecklistPages, mentionsChecklist } from "./find-checklist-pages";
 import {
   buildFindingsByText,
   partitionItemsForReuse,
@@ -349,6 +349,29 @@ export async function runChecklistReview(
             .map((file) => `${file.originalName}:${file.totalPages ?? "?"}p/text${(file.extractedTextPreview ?? "").length}자`)
             .join(", "),
       );
+
+      // 사전 차단: 텍스트가 충분히 추출되는 문서인데 '체크리스트' 언급이 전혀 없으면
+      // 경관 체크리스트가 없는 문서(오업로드)로 판단하고, 비싼 비전 추출·평가로 넘어가기
+      // 전에 명확히 안내하며 중단합니다. 텍스트가 빈약한 문서(스캔본·이미지 표)는
+      // 텍스트만으로 단정할 수 없으므로 기존대로 비전 경로를 허용합니다.
+      if (checklistSlices.length === 0) {
+        const totalChars = filesForAnalysis.reduce(
+          (sum, file) => sum + (file.extractedTextPreview ?? "").length,
+          0,
+        );
+        const totalPages = filesForAnalysis.reduce((sum, file) => sum + (file.totalPages ?? 0), 0);
+        const richTextLayer = totalChars >= 20_000 || (totalPages > 0 && totalChars / totalPages >= 300);
+        const mentioned = filesForAnalysis.some((file) => mentionsChecklist(file.extractedTextPreview ?? ""));
+        if (richTextLayer && !mentioned) {
+          console.warn(
+            `[checklist-review] 사전 차단 — 텍스트 ${totalChars}자/${totalPages}p 추출됐으나 체크리스트 언급 없음`,
+          );
+          throw new Error(
+            "업로드한 문서에서 경관·공공디자인 체크리스트를 찾지 못했습니다. " +
+              "체크리스트 페이지가 포함된 심의도서(사전검토 체크리스트 양식 포함)인지 확인한 뒤 다시 업로드해 주세요.",
+          );
+        }
+      }
 
       let extractedItems: ChecklistReview["items"] = [];
       if (checklistSlices.length > 0) {
