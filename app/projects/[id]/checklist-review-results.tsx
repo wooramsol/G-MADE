@@ -261,6 +261,25 @@ export default function ChecklistReviewResults({
         </div>
       ) : null}
 
+      {review.drawingIndex && review.drawingIndex.length > 0 ? (
+        <details className="rounded-[4px] border border-[#d0d5dd] bg-white px-4 py-2.5">
+          <summary className="cursor-pointer select-none text-xs font-bold text-[#15345b]">
+            인식된 도면 목차 <span className="font-semibold text-[#667085]">{review.drawingIndex.length}면 — 펼쳐 보기</span>
+          </summary>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-[#eceef1] pt-2 text-xs text-[#475569]">
+            {review.drawingIndex.map((entry) => (
+              <span key={`${entry.page}-${entry.types.join(".")}`} className="whitespace-nowrap">
+                <span className="font-bold text-[#15345b]">p.{entry.page}</span> {entry.types.join("·")}
+                {entry.scale ? <span className="text-[#94a3b8]"> ({entry.scale})</span> : null}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-4 text-[#94a3b8]">
+            각 페이지 표제란에서 자동 인식한 결과로, AI가 항목별 확인 도면을 고르는 데에도 사용됩니다.
+          </p>
+        </details>
+      ) : null}
+
       {previousReview ? (
         <p className="rounded-[4px] border border-[#d0d5dd] bg-white px-3 py-2 text-xs text-[#475569]">
           <span className="mr-2 font-bold text-[#15345b]">이전 회차 대비</span>

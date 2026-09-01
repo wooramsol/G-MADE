@@ -104,6 +104,8 @@ export type ChecklistReview = {
   items: ChecklistItem[];
   findings: ChecklistFinding[];
   counts: ChecklistStatusCounts;
+  /** 표제란 기반 도면 목차 — 결과 화면 '인식된 도면' 표시용 (과거 검토에는 없음) */
+  drawingIndex?: Array<{ page: number; types: string[]; scale?: string }>;
   /** 문서에서 자동 추출한 사업 규모 지표 */
   metrics?: ChecklistReviewMetric[];
   /** 전체 총평 */

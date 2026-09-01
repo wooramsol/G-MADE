@@ -590,6 +590,9 @@ export async function runChecklistReview(
       items,
       findings,
       counts: countFindingStatuses(findings),
+      drawingIndex: drawingIndex
+        .slice(0, 200)
+        .map((entry) => ({ page: entry.page, types: entry.types, scale: entry.scale })),
       metrics,
       summary,
       referenceLaws: context.referenceLaws.slice(0, 12).map((law) => ({
