@@ -14,7 +14,17 @@ function createPrismaClient(): PrismaClient {
     throw new Error("Postgres connection string is not configured");
   }
 
-  const pool = globalForPrisma.prismaPool ?? new Pool({ connectionString });
+  // 서버리스에서는 인스턴스가 수십 개까지 늘어나므로 인스턴스당 연결을 작게 유지해야
+  // 합산이 DB 연결 한도를 넘지 않는다 (기본 max=10이 캡처 썸네일 버스트 때
+  // "too many connections"를 유발한 실측 사례).
+  const pool =
+    globalForPrisma.prismaPool ??
+    new Pool({
+      connectionString,
+      max: 2,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
+    });
   globalForPrisma.prismaPool = pool;
 
   const adapter = new PrismaPg(pool);

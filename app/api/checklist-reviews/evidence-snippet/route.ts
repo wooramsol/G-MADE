@@ -11,6 +11,23 @@ import {
 import { anchorCacheSuffix } from "@/lib/checklist-review/evidence-anchors";
 import { downscaleJpeg, renderRegionSnippet } from "@/lib/pdf/render-page";
 import { getProjectById } from "@/lib/project-store";
+
+/**
+ * 프로젝트 조회 인스턴스 캐시 — 결과 화면이 열리면 썸네일 수십 개가 동시에 이
+ * 라우트를 호출하는데, 매 요청이 DB를 조회하면 연결 한도 초과("too many
+ * connections")로 다른 화면까지 마비된다(실측). 짧은 TTL로 부담을 흡수한다.
+ */
+const PROJECT_CACHE_TTL_MS = 45_000;
+const projectCache = new Map<string, { at: number; value: Awaited<ReturnType<typeof getProjectById>> }>();
+
+async function getProjectCached(projectId: string): Promise<Awaited<ReturnType<typeof getProjectById>>> {
+  const cached = projectCache.get(projectId);
+  if (cached && Date.now() - cached.at < PROJECT_CACHE_TTL_MS) return cached.value;
+  const value = await getProjectById(projectId);
+  // 실패(null)는 캐시하지 않음 — 일시 오류가 45초간 404로 고정되지 않도록
+  if (value) projectCache.set(projectId, { at: Date.now(), value });
+  return value;
+}
 import { readSavedUploadFile } from "@/lib/save-uploaded-files";
 
 export const runtime = "nodejs";
@@ -97,7 +114,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "projectId·reviewId·fileId·page가 필요합니다." }, { status: 400 });
   }
 
-  const project = await getProjectById(projectId);
+  const project = await getProjectCached(projectId);
   const review = (project?.checklistReviews ?? []).find((entry) => entry.id === reviewId);
   const file = review?.files.find((entry) => entry.id === fileId);
   if (!project || !review || !file) {
