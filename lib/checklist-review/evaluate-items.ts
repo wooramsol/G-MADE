@@ -865,6 +865,8 @@ export async function evaluateChecklistItems(options: {
   items: ChecklistItem[];
   checklistPages: ChecklistSourcePage[];
   context: EvaluationContext;
+  /** 표제란 기반 도면 목차 텍스트 — 항목별로 봐야 할 도면 페이지 안내 (비어 있으면 생략) */
+  drawingIndexText?: string;
   /** 서버 마감까지 남은 시간(ms) — API 호출 타임아웃 산정 */
   getRemainingBudgetMs?: () => number;
   /** 이 검토의 남은 비용 예산(USD) — 초과 예상 시 배치 수를 줄여 상한 내에서 완료 */
@@ -895,7 +897,10 @@ export async function evaluateChecklistItems(options: {
   const projectLabel = context.project
     ? `[사업 개요] ${context.project.name} / ${context.project.projectType} / ${context.project.reviewType} / 위치: ${context.project.location}`
     : "[사업 개요] 정보 없음";
-  const contextText = buildContextText(context);
+  const drawingIndexSection = options.drawingIndexText
+    ? `\n[도면 목차 — 각 페이지 표제란에서 자동 인식]\n${options.drawingIndexText}\n항목을 판정할 때 관련 도면 페이지를 우선 확인하고, 근거 페이지 인용에 활용하세요.`
+    : "";
+  const contextText = buildContextText(context) + drawingIndexSection;
 
   // 비용 진단용 — 이 검토(리뷰) 한 건 안의 모든 Claude 호출(체크리스트 추출 + 배치 평가)
   // 토큰 사용량을 합산합니다. 회차마다 비용이 크게 달라지는 원인(배치 수 변동·페이지

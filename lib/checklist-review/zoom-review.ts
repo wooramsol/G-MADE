@@ -4,6 +4,7 @@ import { selectTopPagesForItems } from "./relevant-pages";
 import type { EvaluationContext } from "@/lib/evaluation-context";
 import { callClaude, type ClaudeContentBlock } from "./claude-call";
 import { EVALUATE_SYSTEM_PROMPT, parsePayload, sanitizeFindings } from "./evaluate-items";
+import { selectDrawingPagesForItem, type DrawingIndexEntry } from "./drawing-index";
 import { estimateVisionPagesUsd } from "./budget";
 import type { ChecklistFinding, ChecklistItem } from "./types";
 import { addUsage, type UsageByModel } from "./usage-cost";
@@ -147,6 +148,8 @@ export async function runZoomReview(options: {
   context: EvaluationContext;
   getRemainingBudgetMs: () => number;
   remainingBudgetUsd: number;
+  /** 표제란 기반 도면 인덱스 — 무근거 항목의 확대 페이지 선정에 사용 */
+  drawingIndex?: DrawingIndexEntry[];
 }): Promise<ZoomReviewResult | null> {
   const { files, items, findings, context } = options;
   const usageByModel: UsageByModel = new Map();
@@ -182,6 +185,20 @@ export async function runZoomReview(options: {
 
   if (targets.length < maxPages && evidencelessItems.length > 0) {
     const usedPages = new Set(targets.map((target) => `${target.fileName}#${target.page}`));
+    // 1순위: 도면 인덱스 — 항목 주제에 맞는 도면 유형의 페이지 (표제란 기반, 정확)
+    if (options.drawingIndex && options.drawingIndex.length > 0) {
+      for (const item of evidencelessItems) {
+        if (targets.length >= maxPages) break;
+        for (const candidate of selectDrawingPagesForItem(item.text, options.drawingIndex, 2)) {
+          if (targets.length >= maxPages) break;
+          const key = `${candidate.fileName}#${candidate.page}`;
+          if (usedPages.has(key)) continue;
+          usedPages.add(key);
+          targets.push({ fileName: candidate.fileName, page: candidate.page, itemIds: [item.id] });
+        }
+      }
+    }
+    // 2순위: 항목 원문 키워드로 본문 페이지 탐색 (기존 방식)
     const candidates = selectTopPagesForItems(files, evidencelessItems, 2);
     for (const candidate of candidates) {
       if (targets.length >= maxPages) break;

@@ -27,6 +27,7 @@ import { MAX_COST_USD_PER_REVIEW } from "./budget";
 import { runZoomReview } from "./zoom-review";
 import { prewarmEvidenceSnippets } from "./snippet-cache";
 import { findChecklistPages, mentionsChecklist } from "./find-checklist-pages";
+import { buildDrawingIndex, formatDrawingIndex } from "./drawing-index";
 import {
   buildFindingsByText,
   partitionItemsForReuse,
@@ -91,6 +92,7 @@ async function applyZoomRefinement(options: {
   startedAt: number;
   remainingBudgetUsd: number;
   usageByModel: UsageByModel;
+  drawingIndex?: import("./drawing-index").DrawingIndexEntry[];
 }): Promise<{ findings: ChecklistFinding[]; attempted: Set<string>; refinedCount: number }> {
   const zoom = await runZoomReview({
     files: options.files,
@@ -99,6 +101,7 @@ async function applyZoomRefinement(options: {
     context: options.context,
     getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - options.startedAt)),
     remainingBudgetUsd: options.remainingBudgetUsd,
+    drawingIndex: options.drawingIndex,
   });
   if (!zoom) return { findings: options.findings, attempted: new Set(), refinedCount: 0 };
 
@@ -327,6 +330,16 @@ export async function runChecklistReview(
     const usageByModel: UsageByModel = new Map();
     let evaluationWarnings: string[];
 
+    // 도면 인덱스(표제란 기반) — 평가 프롬프트의 [도면 목차]와 심화 판독 페이지 선정에
+    // 사용. 텍스트 레이어만 쓰므로 비용 없음.
+    const drawingIndex = buildDrawingIndex(filesForAnalysis);
+    if (drawingIndex.length > 0) {
+      console.log(
+        `[checklist-review] drawing-index pages=${drawingIndex.length} ` +
+          drawingIndex.slice(0, 12).map((entry) => `p.${entry.page}:${entry.types.join("·")}`).join(" "),
+      );
+    }
+
     if (
       remappedBaselineChecklistPages &&
       baselineReview &&
@@ -431,6 +444,7 @@ export async function runChecklistReview(
           items,
           findings: reusedList,
           context,
+          drawingIndex,
           startedAt,
           remainingBudgetUsd: Math.max(0, MAX_COST_USD_PER_REVIEW - estimateUsageSummary(usageByModel).costUsd),
           usageByModel,
@@ -476,6 +490,7 @@ export async function runChecklistReview(
         items: itemsNeedingEval,
         checklistPages,
         context,
+        drawingIndexText: formatDrawingIndex(drawingIndex),
         getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
         getRemainingBudgetUsd: remainingBudgetUsd,
         onProgress: (label) => emitStep(emit, "evaluate", label),
@@ -515,6 +530,7 @@ export async function runChecklistReview(
           items: itemsNeedingEval,
           findings: evaluationFindings,
           context,
+          drawingIndex,
           startedAt,
           remainingBudgetUsd: remainingBudgetUsd(),
           usageByModel,
