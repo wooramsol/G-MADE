@@ -28,6 +28,7 @@ import { runZoomReview } from "./zoom-review";
 import { prewarmEvidenceSnippets } from "./snippet-cache";
 import { findChecklistPages, mentionsChecklist } from "./find-checklist-pages";
 import { buildDrawingIndex, formatDrawingIndex } from "./drawing-index";
+import { verifyNumericCitations } from "./numeric-verification";
 import {
   buildFindingsByText,
   partitionItemsForReuse,
@@ -555,6 +556,15 @@ export async function runChecklistReview(
       metrics = metricsResult.metrics;
       mergeUsageByModel(usageByModel, metricsResult.usageByModel);
       evaluationWarnings = [...reuseNotice, ...evaluation.warnings];
+    }
+
+    // 수치 인용 검증 — 인용된 치수·수치가 해당 페이지 원문 텍스트에 실제로 있는지
+    // 대조하고, 없으면 "확인 필요" 플래그를 단다 (판정은 바꾸지 않음 — 오류 최소화).
+    const numericCheck = verifyNumericCitations(findings, filesForAnalysis);
+    if (numericCheck.checked > 0) {
+      console.log(
+        `[checklist-review] numeric-verify checked=${numericCheck.checked} flagged=${numericCheck.flagged}`,
+      );
     }
 
     // 진단: 이번 검토에 근거 위치 좌표(마커)가 몇 개, 어느 항목·페이지에 잡혔는지
