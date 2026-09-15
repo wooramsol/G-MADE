@@ -39,7 +39,7 @@ export async function getTerrainData(
   for (let row = 0; row < GRID; row += 1) {
     for (let col = 0; col < GRID; col += 1) {
       locations.push(
-        `${(point.y + (row - half) * latStep).toFixed(6)},${(point.x + (col - half) * lngStep).toFixed(6)}`,
+        `${(point.y + (row - half) * latStep).toFixed(5)},${(point.x + (col - half) * lngStep).toFixed(5)}`,
       );
     }
   }
@@ -47,10 +47,10 @@ export async function getTerrainData(
   const pLatStep = PROFILE_SPACING_M / 111_000;
   const pLngStep = PROFILE_SPACING_M / (111_000 * Math.cos((point.y * Math.PI) / 180));
   for (let index = 0; index < PROFILE_POINTS; index += 1) {
-    locations.push(`${point.y.toFixed(6)},${(point.x + (index - profileHalf) * pLngStep).toFixed(6)}`);
+    locations.push(`${point.y.toFixed(5)},${(point.x + (index - profileHalf) * pLngStep).toFixed(5)}`);
   }
   for (let index = 0; index < PROFILE_POINTS; index += 1) {
-    locations.push(`${(point.y + (index - profileHalf) * pLatStep).toFixed(6)},${point.x.toFixed(6)}`);
+    locations.push(`${(point.y + (index - profileHalf) * pLatStep).toFixed(5)},${point.x.toFixed(5)}`);
   }
 
   const values = await fetchElevations(locations);
@@ -76,10 +76,9 @@ async function fetchElevations(locations: string[]): Promise<number[]> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const response = await fetch(ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locations: locations.join("|") }),
+      // 공개 API가 POST를 거부(HTTP 400, 실측) — GET 사용. 91지점 좌표(소수 5자리,
+      // 약 1m 정밀도)로 URL ~1.8KB — 한도 내.
+      const response = await fetch(`${ENDPOINT}?locations=${locations.join("|")}`, {
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`지형 API HTTP ${response.status}`);
@@ -150,7 +149,7 @@ export async function getTerrainStats(point: GeoPoint): Promise<TerrainStats | n
     for (let col = 0; col < GRID; col += 1) {
       const lat = point.y + (row - half) * latStep;
       const lng = point.x + (col - half) * lngStep;
-      locations.push(`${lat.toFixed(6)},${lng.toFixed(6)}`);
+      locations.push(`${lat.toFixed(5)},${lng.toFixed(5)}`);
     }
   }
 
@@ -241,11 +240,11 @@ export async function getTerrainProfiles(point: GeoPoint): Promise<TerrainProfil
   const locations: string[] = [];
   // 서→동
   for (let index = 0; index < PROFILE_POINTS; index += 1) {
-    locations.push(`${point.y.toFixed(6)},${(point.x + (index - half) * lngStep).toFixed(6)}`);
+    locations.push(`${point.y.toFixed(5)},${(point.x + (index - half) * lngStep).toFixed(5)}`);
   }
   // 남→북
   for (let index = 0; index < PROFILE_POINTS; index += 1) {
-    locations.push(`${(point.y + (index - half) * latStep).toFixed(6)},${point.x.toFixed(6)}`);
+    locations.push(`${(point.y + (index - half) * latStep).toFixed(5)},${point.x.toFixed(5)}`);
   }
 
   const controller = new AbortController();
