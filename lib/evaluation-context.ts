@@ -120,7 +120,7 @@ async function loadSpatialContext(
       ? { x: project.locationPoint.x, y: project.locationPoint.y, crs: "EPSG:4326" as const }
       : await geocodeAddress(project.location);
 
-    const [result, nearbyBuildings, terrain, terrainProfiles] = await Promise.all([
+    const [result, nearbyBuildings, terrainData] = await Promise.all([
       lookupLandscapeZoneByAddress(project.location, point) as Promise<LandscapeZoneLookupResult>,
       import("./vworld/nearby-buildings")
         .then((mod) => mod.getNearbyBuildingStats(point))
@@ -131,16 +131,13 @@ async function loadSpatialContext(
           return null;
         }),
       import("./terrain/terrain-stats")
-        .then((mod) => mod.getTerrainStats(point))
+        .then((mod) => mod.getTerrainData(point))
         .catch((error) => {
-          warnings.push(
-            `대상지 지형(경사·표고) 조회 실패 — 평가에 반영되지 않았습니다 (${error instanceof Error ? error.message : String(error)})`,
-          );
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(`[terrain] 대상지 지형 조회 최종 실패: ${message}`);
+          warnings.push(`대상지 지형(경사·표고) 조회 실패 — 평가에 반영되지 않았습니다 (${message})`);
           return null;
         }),
-      import("./terrain/terrain-stats")
-        .then((mod) => mod.getTerrainProfiles(point))
-        .catch(() => null),
     ]);
 
     if (result.failedLayerLabels.length > 0) {
@@ -178,8 +175,8 @@ async function loadSpatialContext(
       })),
       nearbyFeatures,
       nearbyBuildings: nearbyBuildings ?? undefined,
-      terrain: terrain ?? undefined,
-      terrainProfiles: terrainProfiles ?? undefined,
+      terrain: terrainData?.stats ?? undefined,
+      terrainProfiles: terrainData?.profiles ?? undefined,
       disclaimer: result.disclaimer,
     };
   } catch (error) {

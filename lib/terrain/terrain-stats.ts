@@ -22,10 +22,122 @@ export type TerrainStats = {
   source: "copernicus-glo30";
 };
 
-const GRID = 9;
-const SPACING_M = 25;
+const GRID = 7;
+const SPACING_M = 30;
 const TIMEOUT_MS = 7_000;
 const ENDPOINT = "https://api.opentopodata.org/v1/cop30";
+
+/** 통계 격자 + 단면을 "한 번의" API 호출로 — 공개 API 속도 제한(초당 1회) 대응 */
+export async function getTerrainData(
+  point: GeoPoint,
+): Promise<{ stats: TerrainStats; profiles: TerrainProfiles } | null> {
+  const half = (GRID - 1) / 2;
+  const latStep = SPACING_M / 111_000;
+  const lngStep = SPACING_M / (111_000 * Math.cos((point.y * Math.PI) / 180));
+
+  const locations: string[] = [];
+  for (let row = 0; row < GRID; row += 1) {
+    for (let col = 0; col < GRID; col += 1) {
+      locations.push(
+        `${(point.y + (row - half) * latStep).toFixed(6)},${(point.x + (col - half) * lngStep).toFixed(6)}`,
+      );
+    }
+  }
+  const profileHalf = (PROFILE_POINTS - 1) / 2;
+  const pLatStep = PROFILE_SPACING_M / 111_000;
+  const pLngStep = PROFILE_SPACING_M / (111_000 * Math.cos((point.y * Math.PI) / 180));
+  for (let index = 0; index < PROFILE_POINTS; index += 1) {
+    locations.push(`${point.y.toFixed(6)},${(point.x + (index - profileHalf) * pLngStep).toFixed(6)}`);
+  }
+  for (let index = 0; index < PROFILE_POINTS; index += 1) {
+    locations.push(`${(point.y + (index - profileHalf) * pLatStep).toFixed(6)},${point.x.toFixed(6)}`);
+  }
+
+  const values = await fetchElevations(locations);
+  const gridValues = values.slice(0, GRID * GRID);
+  const ew = values.slice(GRID * GRID, GRID * GRID + PROFILE_POINTS);
+  const ns = values.slice(GRID * GRID + PROFILE_POINTS);
+
+  return {
+    stats: computeStats(gridValues),
+    profiles: {
+      spacingM: PROFILE_SPACING_M,
+      halfSpanM: profileHalf * PROFILE_SPACING_M,
+      ew,
+      ns,
+      source: "copernicus-glo30",
+    },
+  };
+}
+
+/** 표고 일괄 조회 — 429(속도 제한) 시 1.2초 뒤 1회 재시도, 실패 원인 로그 */
+async function fetchElevations(locations: string[]): Promise<number[]> {
+  const attempt = async (): Promise<number[]> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locations: locations.join("|") }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`지형 API HTTP ${response.status}`);
+      const payload = (await response.json()) as {
+        status?: string;
+        results?: Array<{ elevation?: number | null }>;
+      };
+      if (payload.status !== "OK" || !Array.isArray(payload.results) || payload.results.length !== locations.length) {
+        throw new Error(`지형 API 응답 이상 (status=${payload.status ?? "?"})`);
+      }
+      return payload.results.map((entry) => {
+        if (typeof entry?.elevation !== "number" || !Number.isFinite(entry.elevation)) {
+          throw new Error("지형 API 표고 값 누락");
+        }
+        return Math.round(entry.elevation * 10) / 10;
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  try {
+    return await attempt();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[terrain] 1차 조회 실패 (${message}) — 1.2초 후 재시도`);
+    await new Promise((resolve) => setTimeout(resolve, 1_200));
+    return attempt();
+  }
+}
+
+function computeStats(flatGrid: number[]): TerrainStats {
+  const grid: number[][] = [];
+  for (let row = 0; row < GRID; row += 1) {
+    grid.push(flatGrid.slice(row * GRID, (row + 1) * GRID));
+  }
+  const slopes: number[] = [];
+  for (let row = 1; row < GRID - 1; row += 1) {
+    for (let col = 1; col < GRID - 1; col += 1) {
+      const dzdx = (grid[row][col + 1] - grid[row][col - 1]) / (2 * SPACING_M);
+      const dzdy = (grid[row + 1][col] - grid[row - 1][col]) / (2 * SPACING_M);
+      slopes.push((Math.atan(Math.hypot(dzdx, dzdy)) * 180) / Math.PI);
+    }
+  }
+  const elevMin = Math.min(...flatGrid);
+  const elevMax = Math.max(...flatGrid);
+  const round1 = (value: number) => Math.round(value * 10) / 10;
+  return {
+    gridSize: GRID,
+    spacingM: SPACING_M,
+    elevMinM: round1(elevMin),
+    elevMaxM: round1(elevMax),
+    reliefM: round1(elevMax - elevMin),
+    avgSlopeDeg: round1(slopes.reduce((a, b) => a + b, 0) / slopes.length),
+    maxSlopeDeg: round1(Math.max(...slopes)),
+    source: "copernicus-glo30",
+  };
+}
 
 export async function getTerrainStats(point: GeoPoint): Promise<TerrainStats | null> {
   // 9×9 격자 (±100m) — 위도/경도 보정
