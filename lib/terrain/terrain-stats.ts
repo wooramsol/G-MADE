@@ -25,7 +25,9 @@ export type TerrainStats = {
 const GRID = 7;
 const SPACING_M = 30;
 const TIMEOUT_MS = 7_000;
-const ENDPOINT = "https://api.opentopodata.org/v1/cop30";
+// Open-Meteo Elevation — Copernicus DEM 기반, 키 불필요, 요청당 100지점.
+// (기존 OpenTopoData는 GET/POST 모두 HTTP 400 반환 — 실측 후 교체)
+const ENDPOINT = "https://api.open-meteo.com/v1/elevation";
 
 export type TerrainProfiles = {
   /** 샘플 간격(m) */
@@ -91,24 +93,24 @@ async function fetchElevations(locations: string[]): Promise<number[]> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      // 공개 API가 POST를 거부(HTTP 400, 실측) — GET 사용. 91지점 좌표(소수 5자리,
-      // 약 1m 정밀도)로 URL ~1.8KB — 한도 내.
-      const response = await fetch(`${ENDPOINT}?locations=${locations.join("|")}`, {
+      const lats = locations.map((loc) => loc.split(",")[0]).join(",");
+      const lngs = locations.map((loc) => loc.split(",")[1]).join(",");
+      const response = await fetch(`${ENDPOINT}?latitude=${lats}&longitude=${lngs}`, {
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`지형 API HTTP ${response.status}`);
-      const payload = (await response.json()) as {
-        status?: string;
-        results?: Array<{ elevation?: number | null }>;
-      };
-      if (payload.status !== "OK" || !Array.isArray(payload.results) || payload.results.length !== locations.length) {
-        throw new Error(`지형 API 응답 이상 (status=${payload.status ?? "?"})`);
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`지형 API HTTP ${response.status}${body ? ` — ${body.slice(0, 160)}` : ""}`);
       }
-      return payload.results.map((entry) => {
-        if (typeof entry?.elevation !== "number" || !Number.isFinite(entry.elevation)) {
+      const payload = (await response.json()) as { elevation?: unknown };
+      if (!Array.isArray(payload.elevation) || payload.elevation.length !== locations.length) {
+        throw new Error(`지형 API 응답 이상 (elevation 길이 ${Array.isArray(payload.elevation) ? payload.elevation.length : "?"})`);
+      }
+      return payload.elevation.map((value) => {
+        if (typeof value !== "number" || !Number.isFinite(value)) {
           throw new Error("지형 API 표고 값 누락");
         }
-        return Math.round(entry.elevation * 10) / 10;
+        return Math.round(value * 10) / 10;
       });
     } finally {
       clearTimeout(timer);
