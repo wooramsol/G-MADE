@@ -38,6 +38,8 @@ export type EvaluationSpatialContext = {
   nearbyBuildings?: import("./vworld/nearby-buildings").NearbyBuildingStats;
   /** 대상지 지형 통계 (위성 DEM 근사값) — 구릉지·옹벽 계열 판단 참고 */
   terrain?: import("./terrain/terrain-stats").TerrainStats;
+  /** 대상지 동서·남북 지형 단면 (위성 DEM 근사값) — 결과 화면 차트용 */
+  terrainProfiles?: import("./terrain/terrain-stats").TerrainProfiles;
   disclaimer: string;
 };
 
@@ -118,7 +120,7 @@ async function loadSpatialContext(
       ? { x: project.locationPoint.x, y: project.locationPoint.y, crs: "EPSG:4326" as const }
       : await geocodeAddress(project.location);
 
-    const [result, nearbyBuildings, terrain] = await Promise.all([
+    const [result, nearbyBuildings, terrain, terrainProfiles] = await Promise.all([
       lookupLandscapeZoneByAddress(project.location, point) as Promise<LandscapeZoneLookupResult>,
       import("./vworld/nearby-buildings")
         .then((mod) => mod.getNearbyBuildingStats(point))
@@ -136,6 +138,9 @@ async function loadSpatialContext(
           );
           return null;
         }),
+      import("./terrain/terrain-stats")
+        .then((mod) => mod.getTerrainProfiles(point))
+        .catch(() => null),
     ]);
 
     if (result.failedLayerLabels.length > 0) {
@@ -174,6 +179,7 @@ async function loadSpatialContext(
       nearbyFeatures,
       nearbyBuildings: nearbyBuildings ?? undefined,
       terrain: terrain ?? undefined,
+      terrainProfiles: terrainProfiles ?? undefined,
       disclaimer: result.disclaimer,
     };
   } catch (error) {

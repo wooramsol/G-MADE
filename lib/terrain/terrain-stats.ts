@@ -102,6 +102,75 @@ export async function getTerrainStats(point: GeoPoint): Promise<TerrainStats | n
   };
 }
 
+export type TerrainProfiles = {
+  /** 샘플 간격(m) */
+  spacingM: number;
+  /** 중심 기준 반경(m) — 단면 길이는 2×halfSpanM */
+  halfSpanM: number;
+  /** 서→동 표고열 (m) */
+  ew: number[];
+  /** 남→북 표고열 (m) */
+  ns: number[];
+  source: "copernicus-glo30";
+};
+
+const PROFILE_POINTS = 21; // ±250m, 25m 간격
+const PROFILE_SPACING_M = 25;
+
+/**
+ * 대상지 중심 동서·남북 지형 단면 — 심의 참고용 시각 자료.
+ * 한 번의 API 호출(42지점)로 두 단면을 함께 샘플링한다.
+ */
+export async function getTerrainProfiles(point: GeoPoint): Promise<TerrainProfiles | null> {
+  const half = (PROFILE_POINTS - 1) / 2;
+  const latStep = PROFILE_SPACING_M / 111_000;
+  const lngStep = PROFILE_SPACING_M / (111_000 * Math.cos((point.y * Math.PI) / 180));
+
+  const locations: string[] = [];
+  // 서→동
+  for (let index = 0; index < PROFILE_POINTS; index += 1) {
+    locations.push(`${point.y.toFixed(6)},${(point.x + (index - half) * lngStep).toFixed(6)}`);
+  }
+  // 남→북
+  for (let index = 0; index < PROFILE_POINTS; index += 1) {
+    locations.push(`${(point.y + (index - half) * latStep).toFixed(6)},${point.x.toFixed(6)}`);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let payload: { status?: string; results?: Array<{ elevation?: number | null }> };
+  try {
+    const response = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locations: locations.join("|") }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`지형 API HTTP ${response.status}`);
+    payload = await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (payload.status !== "OK" || !Array.isArray(payload.results) || payload.results.length !== PROFILE_POINTS * 2) {
+    throw new Error(`지형 단면 API 응답 이상 (status=${payload.status ?? "?"})`);
+  }
+  const values = payload.results.map((entry) => {
+    if (typeof entry?.elevation !== "number" || !Number.isFinite(entry.elevation)) {
+      throw new Error("지형 단면 표고 값 누락");
+    }
+    return Math.round(entry.elevation * 10) / 10;
+  });
+
+  return {
+    spacingM: PROFILE_SPACING_M,
+    halfSpanM: half * PROFILE_SPACING_M,
+    ew: values.slice(0, PROFILE_POINTS),
+    ns: values.slice(PROFILE_POINTS),
+    source: "copernicus-glo30",
+  };
+}
+
 /** 프롬프트·화면 공용 요약 문장 — 근사값임을 항상 명시 */
 export function formatTerrainStats(stats: TerrainStats): string {
   return (
