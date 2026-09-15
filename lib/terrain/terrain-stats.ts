@@ -27,6 +27,21 @@ const SPACING_M = 30;
 const TIMEOUT_MS = 7_000;
 const ENDPOINT = "https://api.opentopodata.org/v1/cop30";
 
+export type TerrainProfiles = {
+  /** 샘플 간격(m) */
+  spacingM: number;
+  /** 중심 기준 반경(m) — 단면 길이는 2×halfSpanM */
+  halfSpanM: number;
+  /** 서→동 표고열 (m) */
+  ew: number[];
+  /** 남→북 표고열 (m) */
+  ns: number[];
+  source: "copernicus-glo30";
+};
+
+const PROFILE_POINTS = 21; // ±250m, 25m 간격
+const PROFILE_SPACING_M = 25;
+
 /** 통계 격자 + 단면을 "한 번의" API 호출로 — 공개 API 속도 제한(초당 1회) 대응 */
 export async function getTerrainData(
   point: GeoPoint,
@@ -134,150 +149,6 @@ function computeStats(flatGrid: number[]): TerrainStats {
     reliefM: round1(elevMax - elevMin),
     avgSlopeDeg: round1(slopes.reduce((a, b) => a + b, 0) / slopes.length),
     maxSlopeDeg: round1(Math.max(...slopes)),
-    source: "copernicus-glo30",
-  };
-}
-
-export async function getTerrainStats(point: GeoPoint): Promise<TerrainStats | null> {
-  // 9×9 격자 (±100m) — 위도/경도 보정
-  const latStep = SPACING_M / 111_000;
-  const lngStep = SPACING_M / (111_000 * Math.cos((point.y * Math.PI) / 180));
-  const half = (GRID - 1) / 2;
-
-  const locations: string[] = [];
-  for (let row = 0; row < GRID; row += 1) {
-    for (let col = 0; col < GRID; col += 1) {
-      const lat = point.y + (row - half) * latStep;
-      const lng = point.x + (col - half) * lngStep;
-      locations.push(`${lat.toFixed(5)},${lng.toFixed(5)}`);
-    }
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let payload: { status?: string; results?: Array<{ elevation?: number | null }> };
-  try {
-    const response = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locations: locations.join("|") }),
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`지형 API HTTP ${response.status}`);
-    payload = await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (payload.status !== "OK" || !Array.isArray(payload.results) || payload.results.length !== GRID * GRID) {
-    throw new Error(`지형 API 응답 이상 (status=${payload.status ?? "?"})`);
-  }
-
-  const grid: number[][] = [];
-  for (let row = 0; row < GRID; row += 1) {
-    const line: number[] = [];
-    for (let col = 0; col < GRID; col += 1) {
-      const elevation = payload.results[row * GRID + col]?.elevation;
-      if (typeof elevation !== "number" || !Number.isFinite(elevation)) {
-        throw new Error("지형 API 표고 값 누락");
-      }
-      line.push(elevation);
-    }
-    grid.push(line);
-  }
-
-  // 중앙차분 기울기 → 경사각 (내부 격자점 기준)
-  const slopes: number[] = [];
-  for (let row = 1; row < GRID - 1; row += 1) {
-    for (let col = 1; col < GRID - 1; col += 1) {
-      const dzdx = (grid[row][col + 1] - grid[row][col - 1]) / (2 * SPACING_M);
-      const dzdy = (grid[row + 1][col] - grid[row - 1][col]) / (2 * SPACING_M);
-      slopes.push((Math.atan(Math.hypot(dzdx, dzdy)) * 180) / Math.PI);
-    }
-  }
-
-  const flat = grid.flat();
-  const elevMin = Math.min(...flat);
-  const elevMax = Math.max(...flat);
-  const round1 = (value: number) => Math.round(value * 10) / 10;
-
-  return {
-    gridSize: GRID,
-    spacingM: SPACING_M,
-    elevMinM: round1(elevMin),
-    elevMaxM: round1(elevMax),
-    reliefM: round1(elevMax - elevMin),
-    avgSlopeDeg: round1(slopes.reduce((a, b) => a + b, 0) / slopes.length),
-    maxSlopeDeg: round1(Math.max(...slopes)),
-    source: "copernicus-glo30",
-  };
-}
-
-export type TerrainProfiles = {
-  /** 샘플 간격(m) */
-  spacingM: number;
-  /** 중심 기준 반경(m) — 단면 길이는 2×halfSpanM */
-  halfSpanM: number;
-  /** 서→동 표고열 (m) */
-  ew: number[];
-  /** 남→북 표고열 (m) */
-  ns: number[];
-  source: "copernicus-glo30";
-};
-
-const PROFILE_POINTS = 21; // ±250m, 25m 간격
-const PROFILE_SPACING_M = 25;
-
-/**
- * 대상지 중심 동서·남북 지형 단면 — 심의 참고용 시각 자료.
- * 한 번의 API 호출(42지점)로 두 단면을 함께 샘플링한다.
- */
-export async function getTerrainProfiles(point: GeoPoint): Promise<TerrainProfiles | null> {
-  const half = (PROFILE_POINTS - 1) / 2;
-  const latStep = PROFILE_SPACING_M / 111_000;
-  const lngStep = PROFILE_SPACING_M / (111_000 * Math.cos((point.y * Math.PI) / 180));
-
-  const locations: string[] = [];
-  // 서→동
-  for (let index = 0; index < PROFILE_POINTS; index += 1) {
-    locations.push(`${point.y.toFixed(5)},${(point.x + (index - half) * lngStep).toFixed(5)}`);
-  }
-  // 남→북
-  for (let index = 0; index < PROFILE_POINTS; index += 1) {
-    locations.push(`${(point.y + (index - half) * latStep).toFixed(5)},${point.x.toFixed(5)}`);
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let payload: { status?: string; results?: Array<{ elevation?: number | null }> };
-  try {
-    const response = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locations: locations.join("|") }),
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`지형 API HTTP ${response.status}`);
-    payload = await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (payload.status !== "OK" || !Array.isArray(payload.results) || payload.results.length !== PROFILE_POINTS * 2) {
-    throw new Error(`지형 단면 API 응답 이상 (status=${payload.status ?? "?"})`);
-  }
-  const values = payload.results.map((entry) => {
-    if (typeof entry?.elevation !== "number" || !Number.isFinite(entry.elevation)) {
-      throw new Error("지형 단면 표고 값 누락");
-    }
-    return Math.round(entry.elevation * 10) / 10;
-  });
-
-  return {
-    spacingM: PROFILE_SPACING_M,
-    halfSpanM: half * PROFILE_SPACING_M,
-    ew: values.slice(0, PROFILE_POINTS),
-    ns: values.slice(PROFILE_POINTS),
     source: "copernicus-glo30",
   };
 }
