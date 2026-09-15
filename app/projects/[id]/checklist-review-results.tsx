@@ -291,6 +291,17 @@ export default function ChecklistReviewResults({
         </p>
       ) : null}
 
+      {review.spatialContext?.terrain ? (
+        <p className="rounded-[4px] border border-[#d0d5dd] bg-white px-3 py-2 text-xs text-[#475569]">
+          <span className="mr-2 font-bold text-[#15345b]">대상지 지형</span>
+          표고 약 {review.spatialContext.terrain.elevMinM}~{review.spatialContext.terrain.elevMaxM}m
+          · 고저차 약 {review.spatialContext.terrain.reliefM}m
+          · 평균경사 약 {review.spatialContext.terrain.avgSlopeDeg}°
+          · 최대 약 {review.spatialContext.terrain.maxSlopeDeg}°
+          <span className="ml-1.5 text-[#94a3b8]">— 위성 DEM(30m 격자) 근사 참고값</span>
+        </p>
+      ) : null}
+
       {previousReview ? (
         <p className="rounded-[4px] border border-[#d0d5dd] bg-white px-3 py-2 text-xs text-[#475569]">
           <span className="mr-2 font-bold text-[#15345b]">이전 회차 대비</span>

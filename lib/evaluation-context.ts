@@ -36,6 +36,8 @@ export type EvaluationSpatialContext = {
   nearbyFeatures?: Array<{ layerLabel: string; name: string }>;
   /** 주변 건축물 층수 통계 (브이월드 건물통합정보, 반경 250m) — 조화·규모 판단 참고 */
   nearbyBuildings?: import("./vworld/nearby-buildings").NearbyBuildingStats;
+  /** 대상지 지형 통계 (위성 DEM 근사값) — 구릉지·옹벽 계열 판단 참고 */
+  terrain?: import("./terrain/terrain-stats").TerrainStats;
   disclaimer: string;
 };
 
@@ -116,13 +118,21 @@ async function loadSpatialContext(
       ? { x: project.locationPoint.x, y: project.locationPoint.y, crs: "EPSG:4326" as const }
       : await geocodeAddress(project.location);
 
-    const [result, nearbyBuildings] = await Promise.all([
+    const [result, nearbyBuildings, terrain] = await Promise.all([
       lookupLandscapeZoneByAddress(project.location, point) as Promise<LandscapeZoneLookupResult>,
       import("./vworld/nearby-buildings")
         .then((mod) => mod.getNearbyBuildingStats(point))
         .catch((error) => {
           warnings.push(
             `주변 건축물 현황 조회 실패 — 평가에 반영되지 않았습니다 (${error instanceof Error ? error.message : String(error)})`,
+          );
+          return null;
+        }),
+      import("./terrain/terrain-stats")
+        .then((mod) => mod.getTerrainStats(point))
+        .catch((error) => {
+          warnings.push(
+            `대상지 지형(경사·표고) 조회 실패 — 평가에 반영되지 않았습니다 (${error instanceof Error ? error.message : String(error)})`,
           );
           return null;
         }),
@@ -163,6 +173,7 @@ async function loadSpatialContext(
       })),
       nearbyFeatures,
       nearbyBuildings: nearbyBuildings ?? undefined,
+      terrain: terrain ?? undefined,
       disclaimer: result.disclaimer,
     };
   } catch (error) {

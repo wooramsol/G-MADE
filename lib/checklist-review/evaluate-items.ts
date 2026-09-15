@@ -15,6 +15,7 @@ import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock } from 
 import { selectRelevantPagesForBatch } from "./relevant-pages";
 import { addUsage, type UsageByModel } from "./usage-cost";
 import { formatNearbyBuildingStats } from "@/lib/vworld/nearby-buildings";
+import { formatTerrainStats } from "@/lib/terrain/terrain-stats";
 import { estimateBatchUsd, MAX_COST_USD_PER_REVIEW } from "./budget";
 import {
   normalizeChecklistStatus,
@@ -126,6 +127,12 @@ export function buildContextText(context: EvaluationContext): string {
     parts.push(
       `[공간정보 (브이월드)]\n주소: ${context.spatial.address}\n경관지구 해당: ${context.spatial.inLandscapeZone ? "예" : "아니오"}\n관련 구역: ${zones}\n인접 공간정보(용도지역·문화재 등): ${nearby}`,
     );
+
+    if (context.spatial.terrain) {
+      parts.push(
+        `[대상지 지형 현황 (위성 DEM — 근사 참고값)]\n${formatTerrainStats(context.spatial.terrain)}\n"구릉지 지형 순응 배치·옹벽 지양·스카이라인" 계열 항목에서 대상지가 경사지인지 판단하는 참고로 사용하세요. 30m 격자 근사값이므로 인용할 때는 반드시 "약"을 붙이고 출처(위성 DEM 참고값)를 밝히며, 이 수치로 단독 판정하지 말고 도면 내용과 함께 판단하세요.`,
+      );
+    }
 
     if (context.spatial.nearbyBuildings && context.spatial.nearbyBuildings.withFloorData > 0) {
       const stats = context.spatial.nearbyBuildings;
