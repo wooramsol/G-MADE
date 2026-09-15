@@ -280,6 +280,17 @@ export default function ChecklistReviewResults({
         </details>
       ) : null}
 
+      {review.spatialContext?.nearbyBuildings && review.spatialContext.nearbyBuildings.withFloorData > 0 ? (
+        <p className="rounded-[4px] border border-[#d0d5dd] bg-white px-3 py-2 text-xs text-[#475569]">
+          <span className="mr-2 font-bold text-[#15345b]">주변 건축물 현황</span>
+          반경 {review.spatialContext.nearbyBuildings.radiusM}m · 총 {review.spatialContext.nearbyBuildings.count}동
+          · 평균 지상 {review.spatialContext.nearbyBuildings.avgFloors}층 · 최고 {review.spatialContext.nearbyBuildings.maxFloors}층
+          <span className="ml-1.5 text-[#94a3b8]">
+            (1~2층 {review.spatialContext.nearbyBuildings.buckets.low} · 3~5층 {review.spatialContext.nearbyBuildings.buckets.mid} · 6~10층 {review.spatialContext.nearbyBuildings.buckets.high} · 11층+ {review.spatialContext.nearbyBuildings.buckets.tower}) — 브이월드 참고자료
+          </span>
+        </p>
+      ) : null}
+
       {previousReview ? (
         <p className="rounded-[4px] border border-[#d0d5dd] bg-white px-3 py-2 text-xs text-[#475569]">
           <span className="mr-2 font-bold text-[#15345b]">이전 회차 대비</span>

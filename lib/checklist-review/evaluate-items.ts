@@ -14,6 +14,7 @@ import { MAX_UPLOAD_FILE_BYTES } from "@/lib/upload-limits";
 import { callClaude, ClaudePayloadTooLargeError, type ClaudeContentBlock } from "./claude-call";
 import { selectRelevantPagesForBatch } from "./relevant-pages";
 import { addUsage, type UsageByModel } from "./usage-cost";
+import { formatNearbyBuildingStats } from "@/lib/vworld/nearby-buildings";
 import { estimateBatchUsd, MAX_COST_USD_PER_REVIEW } from "./budget";
 import {
   normalizeChecklistStatus,
@@ -125,6 +126,13 @@ export function buildContextText(context: EvaluationContext): string {
     parts.push(
       `[공간정보 (브이월드)]\n주소: ${context.spatial.address}\n경관지구 해당: ${context.spatial.inLandscapeZone ? "예" : "아니오"}\n관련 구역: ${zones}\n인접 공간정보(용도지역·문화재 등): ${nearby}`,
     );
+
+    if (context.spatial.nearbyBuildings && context.spatial.nearbyBuildings.withFloorData > 0) {
+      const stats = context.spatial.nearbyBuildings;
+      parts.push(
+        `[주변 건축물 현황 (브이월드 건물통합정보 — 실데이터)]\n${formatNearbyBuildingStats(stats)}\n"주변 건축물과의 조화·연속성·스카이라인·규모" 계열 항목을 판정할 때 이 층수 분포를 계획 규모와 비교하는 근거로 사용하세요. 인용 시 note에 수치를 그대로 쓰고 출처(주변 건축물 현황)를 밝히세요.`,
+      );
+    }
   }
 
   const laws = context.referenceLaws.slice(0, 12);

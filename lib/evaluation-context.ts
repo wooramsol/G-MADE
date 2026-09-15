@@ -34,6 +34,8 @@ export type EvaluationSpatialContext = {
   }>;
   /** 경관지구 외 조회된 인접 공간정보 (용도지역·문화재 등) */
   nearbyFeatures?: Array<{ layerLabel: string; name: string }>;
+  /** 주변 건축물 층수 통계 (브이월드 건물통합정보, 반경 250m) — 조화·규모 판단 참고 */
+  nearbyBuildings?: import("./vworld/nearby-buildings").NearbyBuildingStats;
   disclaimer: string;
 };
 
@@ -114,7 +116,17 @@ async function loadSpatialContext(
       ? { x: project.locationPoint.x, y: project.locationPoint.y, crs: "EPSG:4326" as const }
       : await geocodeAddress(project.location);
 
-    const result: LandscapeZoneLookupResult = await lookupLandscapeZoneByAddress(project.location, point);
+    const [result, nearbyBuildings] = await Promise.all([
+      lookupLandscapeZoneByAddress(project.location, point) as Promise<LandscapeZoneLookupResult>,
+      import("./vworld/nearby-buildings")
+        .then((mod) => mod.getNearbyBuildingStats(point))
+        .catch((error) => {
+          warnings.push(
+            `주변 건축물 현황 조회 실패 — 평가에 반영되지 않았습니다 (${error instanceof Error ? error.message : String(error)})`,
+          );
+          return null;
+        }),
+    ]);
 
     if (result.failedLayerLabels.length > 0) {
       warnings.push(
@@ -150,6 +162,7 @@ async function loadSpatialContext(
         designationYear: zone.designationYear,
       })),
       nearbyFeatures,
+      nearbyBuildings: nearbyBuildings ?? undefined,
       disclaimer: result.disclaimer,
     };
   } catch (error) {
