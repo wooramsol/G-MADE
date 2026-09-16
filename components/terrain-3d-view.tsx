@@ -114,23 +114,8 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const surface = new THREE.Mesh(geometry, material);
         scene.add(surface);
 
-        // ── 절단면 커튼 (프로파일 아래 채움) + 상단 외곽선 ──
+        // ── 절단면 상단 외곽선 (채움 없음 — 외곽선과 치수만) ──
         const SAMPLES = 141;
-        const curtainPositions = new Float32Array(SAMPLES * 2 * 3);
-        const curtainIndex: number[] = [];
-        for (let s = 0; s < SAMPLES - 1; s += 1) {
-          const a = s * 2;
-          curtainIndex.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-        }
-        const curtainGeometry = new THREE.BufferGeometry();
-        curtainGeometry.setAttribute("position", new THREE.BufferAttribute(curtainPositions, 3));
-        curtainGeometry.setIndex(curtainIndex);
-        const curtain = new THREE.Mesh(
-          curtainGeometry,
-          new THREE.MeshBasicMaterial({ color: 0x15345b, transparent: true, opacity: 0.32, side: THREE.DoubleSide }),
-        );
-        scene.add(curtain);
-
         const outlinePositions = new Float32Array(SAMPLES * 3);
         const outlineGeometry = new THREE.BufferGeometry();
         outlineGeometry.setAttribute("position", new THREE.BufferAttribute(outlinePositions, 3));
@@ -205,16 +190,8 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
             outlinePositions[index * 3] = x;
             outlinePositions[index * 3 + 1] = y + 1.5;
             outlinePositions[index * 3 + 2] = z;
-            const a = index * 2 * 3;
-            curtainPositions[a] = x;
-            curtainPositions[a + 1] = y;
-            curtainPositions[a + 2] = z;
-            curtainPositions[a + 3] = x;
-            curtainPositions[a + 4] = -relief * 0.15 * currentExaggeration;
-            curtainPositions[a + 5] = z;
           }
           outlineGeometry.attributes.position.needsUpdate = true;
-          curtainGeometry.attributes.position.needsUpdate = true;
 
           peakWorld.set(
             rx * peakT * reach,
@@ -283,7 +260,6 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           cancelAnimationFrame(frame);
           controls.dispose();
           geometry.dispose();
-          curtainGeometry.dispose();
           outlineGeometry.dispose();
           material.dispose();
           renderer.dispose();
