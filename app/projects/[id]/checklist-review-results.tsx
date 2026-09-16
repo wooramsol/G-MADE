@@ -262,9 +262,9 @@ export default function ChecklistReviewResults({
       ) : null}
 
       {review.drawingIndex && review.drawingIndex.length > 0 ? (
-        <details className="rounded-[4px] border border-[#d0d5dd] bg-white px-4 py-2.5">
+        <details className="rounded-[4px] border border-[#d0d5dd] bg-white px-4 py-2.5" open>
           <summary className="cursor-pointer select-none text-xs font-bold text-[#15345b]">
-            인식된 도면 목차 <span className="font-semibold text-[#667085]">{review.drawingIndex.length}면 — 펼쳐 보기</span>
+            인식된 도면 목차 <span className="font-semibold text-[#667085]">{review.drawingIndex.length}면</span>
           </summary>
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-[#eceef1] pt-2 text-xs text-[#475569]">
             {review.drawingIndex.map((entry) => (
@@ -303,9 +303,9 @@ export default function ChecklistReviewResults({
       ) : null}
 
       {review.spatialContext?.terrainProfiles ? (
-        <details className="rounded-[4px] border border-[#d0d5dd] bg-white px-4 py-2.5">
+        <details className="rounded-[4px] border border-[#d0d5dd] bg-white px-4 py-2.5" open>
           <summary className="cursor-pointer select-none text-xs font-bold text-[#15345b]">
-            지형 단면 <span className="font-semibold text-[#667085]">동서·남북 ±{review.spatialContext.terrainProfiles.halfSpanM}m — 펼쳐 보기</span>
+            지형 단면 <span className="font-semibold text-[#667085]">동서·남북 ±{review.spatialContext.terrainProfiles.halfSpanM}m</span>
           </summary>
           <div className="mt-2 grid gap-4 border-t border-[#eceef1] pt-3 sm:grid-cols-2">
             <TerrainProfileChart
