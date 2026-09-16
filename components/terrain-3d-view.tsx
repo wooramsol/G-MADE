@@ -273,14 +273,19 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           marker.scale.set(pixelWorld / 2, lineHeight, pixelWorld / 2); // 지름 = 화면상 약 1px
           marker.position.set(0, baseY + lineHeight / 2, 0);
           markerWorld.set(0, baseY + lineHeight + 3, 0);
-          const midY = relief * 0.5 * factor;
+          // 세로 콘텐츠: 지반(0) ~ 마커 선 꼭대기. 중심을 그 가운데로 잡아 상하 대칭.
+          const contentTop = relief * factor + lineHeight + 6;
+          const midY = contentTop / 2;
           controls.target.set(0, midY, 0);
 
           // 회전 중 최대 투영 폭(대각 √2배) — 이 폭이 화면 가로에 딱 차도록 유지
           const worldWidth = sizeM * Math.SQRT2 * 1.06;
-          // 보여야 하는 세로 범위: 기복×과장 + 현재위치 선 + 라벨 여유
-          const contentHeight = relief * factor * 1.2 + lineHeight + 14;
-          height = Math.max(140, Math.min(480, Math.round((width * contentHeight) / worldWidth)));
+          // 캔버스 높이 = 콘텐츠 세로(월드) 환산 픽셀 + '현재위치' HTML 라벨 몫(고정 px)
+          const LABEL_HEADROOM_PX = 30;
+          height = Math.max(
+            150,
+            Math.min(500, Math.round((width * contentTop * 1.06) / worldWidth) + LABEL_HEADROOM_PX),
+          );
           renderer.setSize(width, height);
           camera.aspect = width / height;
           camera.updateProjectionMatrix();
