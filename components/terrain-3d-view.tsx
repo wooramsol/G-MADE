@@ -18,6 +18,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
   const labelPeakRef = useRef<HTMLSpanElement | null>(null);
   const labelStartRef = useRef<HTMLSpanElement | null>(null);
   const labelEndRef = useRef<HTMLSpanElement | null>(null);
+  const labelHereRef = useRef<HTMLSpanElement | null>(null);
   const applyExaggerationRef = useRef<((value: number) => void) | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -139,13 +140,15 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const outline = new THREE.Line(outlineGeometry, new THREE.LineBasicMaterial({ color: 0xc1121f }));
         scene.add(outline);
 
-        // 대상지 마커
-        const markerHeight = relief * 2 + 20;
+        // 대상지 마커 — 아래를 가리키는 빨간 화살표 (지표 위에 떠 있음)
+        const arrowHeight = Math.max(18, sizeM * 0.045);
         const marker = new THREE.Mesh(
-          new THREE.CylinderGeometry(2.5, 2.5, markerHeight, 12),
+          new THREE.ConeGeometry(arrowHeight * 0.38, arrowHeight, 16),
           new THREE.MeshBasicMaterial({ color: 0xc1121f }),
         );
+        marker.rotation.x = Math.PI; // 꼭짓점이 아래(지면)를 향하도록
         scene.add(marker);
+        const markerWorld = new THREE.Vector3();
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
         const sun = new THREE.DirectionalLight(0xffffff, 0.85);
@@ -259,7 +262,9 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           position.needsUpdate = true;
           geometry.computeVertexNormals();
           const centerBase = elevationAt(0, 0) - elevMin;
-          marker.position.set(0, centerBase * factor + markerHeight / 2, 0);
+          const hover = arrowHeight * 0.35;
+          marker.position.set(0, centerBase * factor + hover + arrowHeight / 2, 0);
+          markerWorld.set(0, centerBase * factor + hover + arrowHeight + 4, 0);
           const midY = relief * 0.5 * factor;
           controls.target.set(0, midY, 0);
           if (camera.position.lengthSq() < 1) {
@@ -292,6 +297,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           placeLabel(labelPeakRef.current, peakWorld);
           placeLabel(labelStartRef.current, startWorld);
           placeLabel(labelEndRef.current, endWorld);
+          placeLabel(labelHereRef.current, markerWorld);
         };
         animate();
 
@@ -323,12 +329,12 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   const labelClass =
-    "pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-[3px] bg-white/85 px-1 py-0.5 text-[10px] font-bold text-[#c1121f] transition-opacity";
+    "pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-[3px] bg-white/90 px-1.5 py-0.5 text-[13px] font-bold text-[#c1121f] shadow-sm transition-opacity";
 
   return (
     <div className="mt-2">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs font-bold text-[#15345b]" ref={readoutRef}>
+        <span className="text-sm font-bold text-[#15345b]" ref={readoutRef}>
           단면 계산 중...
         </span>
         <label className="ml-auto flex items-center gap-1.5 text-[11px] text-[#667085]">
@@ -362,6 +368,9 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         <span className={labelClass} ref={labelPeakRef} style={{ opacity: 0 }} />
         <span className={labelClass} ref={labelStartRef} style={{ opacity: 0 }} />
         <span className={labelClass} ref={labelEndRef} style={{ opacity: 0 }} />
+        <span className={labelClass} ref={labelHereRef} style={{ opacity: 0 }}>
+          현재위치
+        </span>
       </div>
       {status === "ready" ? (
         <p className="mt-1.5 text-[11px] leading-4 text-[#94a3b8]">
