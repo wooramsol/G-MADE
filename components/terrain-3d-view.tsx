@@ -173,6 +173,9 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
 
         let currentExaggeration = 1.5;
         let lastAzimuth = Number.POSITIVE_INFINITY;
+        // 최고점이 단면 끝점과 사실상 같으면 끝 라벨을 숨기고 ▲ 하나로 통합
+        let hideStartLabel = false;
+        let hideEndLabel = false;
         // 라벨 위치 계산용 월드 포인트
         const peakWorld = new THREE.Vector3();
         const startWorld = new THREE.Vector3();
@@ -234,11 +237,13 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           startWorld.set(-rx * reach, (elevationAt(-rx * reach, -rz * reach) - elevMin) * currentExaggeration + 4, -rz * reach);
           endWorld.set(rx * reach, (elevationAt(rx * reach, rz * reach) - elevMin) * currentExaggeration + 4, rz * reach);
 
+          const startElevation = elevationAt(-rx * reach, -rz * reach);
+          const endElevation = elevationAt(rx * reach, rz * reach);
+          hideStartLabel = Math.abs(startElevation - sectionMax) < 0.05 && peakT < -0.85;
+          hideEndLabel = Math.abs(endElevation - sectionMax) < 0.05 && peakT > 0.85;
           if (labelPeakRef.current) labelPeakRef.current.textContent = `▲ ${sectionMax.toFixed(1)}m`;
-          if (labelStartRef.current)
-            labelStartRef.current.textContent = `${elevationAt(-rx * reach, -rz * reach).toFixed(1)}m`;
-          if (labelEndRef.current)
-            labelEndRef.current.textContent = `${elevationAt(rx * reach, rz * reach).toFixed(1)}m`;
+          if (labelStartRef.current) labelStartRef.current.textContent = `${startElevation.toFixed(1)}m`;
+          if (labelEndRef.current) labelEndRef.current.textContent = `${endElevation.toFixed(1)}m`;
 
           const bearing = (Math.atan2(rx, -rz) * 180) / Math.PI;
           if (readoutRef.current) {
@@ -337,8 +342,10 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           renderer.render(scene, camera);
           placedRects.length = 0;
           placeLabel(labelPeakRef.current, peakWorld);
-          placeLabel(labelStartRef.current, startWorld);
-          placeLabel(labelEndRef.current, endWorld);
+          if (hideStartLabel && labelStartRef.current) labelStartRef.current.style.opacity = "0";
+          else placeLabel(labelStartRef.current, startWorld);
+          if (hideEndLabel && labelEndRef.current) labelEndRef.current.style.opacity = "0";
+          else placeLabel(labelEndRef.current, endWorld);
           placeLabel(labelHereRef.current, markerWorld);
         };
         animate();
