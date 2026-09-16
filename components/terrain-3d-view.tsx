@@ -46,7 +46,8 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const spacingM = payload.spacingM ?? 22;
         const container = containerRef.current;
         const width = container.clientWidth || container.parentElement?.clientWidth || 640;
-        const height = 400;
+        // 화면에 꽉 차게 — 뷰포트 높이의 62% (제목·라벨 여백 감안), 과대·과소 방지
+        const height = Math.max(340, Math.min(680, Math.round(window.innerHeight * 0.62)));
 
         const elevMin = Math.min(...elevations);
         const elevMax = Math.max(...elevations);
@@ -114,8 +115,24 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const surface = new THREE.Mesh(geometry, material);
         scene.add(surface);
 
-        // ── 절단면 상단 외곽선 (채움 없음 — 외곽선과 치수만) ──
+        // ── 절단면: 외곽선 아래를 불투명하게 채워 "단면"임을 표현 ──
+        // (절단으로 드러나는 내부의 어두운 이면도 이 면이 가린다)
         const SAMPLES = 141;
+        const curtainPositions = new Float32Array(SAMPLES * 2 * 3);
+        const curtainIndex: number[] = [];
+        for (let s = 0; s < SAMPLES - 1; s += 1) {
+          const a = s * 2;
+          curtainIndex.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+        const curtainGeometry = new THREE.BufferGeometry();
+        curtainGeometry.setAttribute("position", new THREE.BufferAttribute(curtainPositions, 3));
+        curtainGeometry.setIndex(curtainIndex);
+        const curtain = new THREE.Mesh(
+          curtainGeometry,
+          new THREE.MeshBasicMaterial({ color: 0xd9cfc0, side: THREE.DoubleSide }),
+        );
+        scene.add(curtain);
+
         const outlinePositions = new Float32Array(SAMPLES * 3);
         const outlineGeometry = new THREE.BufferGeometry();
         outlineGeometry.setAttribute("position", new THREE.BufferAttribute(outlinePositions, 3));
@@ -190,8 +207,16 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
             outlinePositions[index * 3] = x;
             outlinePositions[index * 3 + 1] = y + 1.5;
             outlinePositions[index * 3 + 2] = z;
+            const a = index * 2 * 3;
+            curtainPositions[a] = x;
+            curtainPositions[a + 1] = y;
+            curtainPositions[a + 2] = z;
+            curtainPositions[a + 3] = x;
+            curtainPositions[a + 4] = 0;
+            curtainPositions[a + 5] = z;
           }
           outlineGeometry.attributes.position.needsUpdate = true;
+          curtainGeometry.attributes.position.needsUpdate = true;
 
           peakWorld.set(
             rx * peakT * reach,
@@ -260,6 +285,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           cancelAnimationFrame(frame);
           controls.dispose();
           geometry.dispose();
+          curtainGeometry.dispose();
           outlineGeometry.dispose();
           material.dispose();
           renderer.dispose();
