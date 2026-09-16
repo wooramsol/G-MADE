@@ -12,6 +12,7 @@ import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { buildArticleJumpUrl } from "@/lib/reference-links";
 import { buildEvidenceAnchors } from "@/lib/checklist-review/evidence-anchors";
+import { Terrain3DView } from "@/components/terrain-3d-view";
 
 // 행정문서 톤 — 흰 카드에 판정색 테두리(전체 스트로크), 뱃지는 각진 외곽선 태그
 const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string; card: string }> = {
@@ -326,6 +327,7 @@ export default function ChecklistReviewResults({
           <p className="mt-2 text-[11px] leading-4 text-[#94a3b8]">
             대상지 중심(▼) 기준 위성 DEM(30m 격자) 근사 단면 — 수직은 과장 표시되며 참고용입니다.
           </p>
+          <Terrain3DView projectId={projectId} />
         </details>
       ) : null}
 

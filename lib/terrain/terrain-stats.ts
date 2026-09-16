@@ -87,8 +87,8 @@ export async function getTerrainData(
   };
 }
 
-/** 표고 일괄 조회 — 429(속도 제한) 시 1.2초 뒤 1회 재시도, 실패 원인 로그 */
-async function fetchElevations(locations: string[]): Promise<number[]> {
+/** 표고 일괄 조회 — 429(속도 제한) 시 1.2초 뒤 1회 재시도, 실패 원인 로그. 호출당 최대 100지점. */
+export async function fetchElevations(locations: string[]): Promise<number[]> {
   const attempt = async (): Promise<number[]> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
