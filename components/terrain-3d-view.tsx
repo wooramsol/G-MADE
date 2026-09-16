@@ -92,20 +92,24 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         }
         geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
+        // 표면 메시(PlaneGeometry)와 "동일한" 삼각형 분할 보간 — 이중선형과의 미세한
+        // 차이가 절단면과 커튼 사이 틈으로 보이던 문제를 원천 제거한다.
+        const vertexElevation = (ix: number, iy: number): number =>
+          elevations[(n - 1 - iy) * n + ix];
         const elevationAt = (x: number, z: number): number => {
-          const colF = Math.min(Math.max((x + half) / spacingM, 0), n - 1);
-          const rowGeomF = Math.min(Math.max((z + half) / spacingM, 0), n - 1);
-          const rowF = n - 1 - rowGeomF;
-          const c0 = Math.floor(colF);
-          const r0 = Math.floor(rowF);
-          const c1 = Math.min(c0 + 1, n - 1);
-          const r1 = Math.min(r0 + 1, n - 1);
-          const tc = colF - c0;
-          const tr = rowF - r0;
-          return (
-            (elevations[r0 * n + c0] * (1 - tc) + elevations[r0 * n + c1] * tc) * (1 - tr) +
-            (elevations[r1 * n + c0] * (1 - tc) + elevations[r1 * n + c1] * tc) * tr
-          );
+          const fx = Math.min(Math.max((x + half) / spacingM, 0), n - 1 - 1e-9);
+          const fz = Math.min(Math.max((z + half) / spacingM, 0), n - 1 - 1e-9);
+          const ix = Math.floor(fx);
+          const iy = Math.floor(fz);
+          const u = fx - ix;
+          const v = fz - iy;
+          const eA = vertexElevation(ix, iy);
+          const eB = vertexElevation(ix, iy + 1);
+          const eC = vertexElevation(ix + 1, iy + 1);
+          const eD = vertexElevation(ix + 1, iy);
+          // PlaneGeometry 삼각형: (a,b,d)=u+v≤1, (b,c,d)=u+v≥1
+          if (u + v <= 1) return eA + (eD - eA) * u + (eB - eA) * v;
+          return eC + (eB - eC) * (1 - u) + (eD - eC) * (1 - v);
         };
 
         const material = new THREE.MeshLambertMaterial({
@@ -118,7 +122,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
 
         // ── 절단면: 외곽선 아래를 불투명하게 채워 "단면"임을 표현 ──
         // (절단으로 드러나는 내부의 어두운 이면도 이 면이 가린다)
-        const SAMPLES = 141;
+        const SAMPLES = 281;
         const curtainPositions = new Float32Array(SAMPLES * 2 * 3);
         const curtainIndex: number[] = [];
         for (let s = 0; s < SAMPLES - 1; s += 1) {
@@ -265,7 +269,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           // 화면상 2px 두께: 카메라 거리에서 1px에 해당하는 월드 길이 × 2 (지름)
           const cameraDistance = camera.position.distanceTo(controls.target) || sizeM;
           const pixelWorld = (2 * cameraDistance * Math.tan(((camera.fov * Math.PI) / 180) / 2)) / height;
-          marker.scale.set(pixelWorld, lineHeight, pixelWorld);
+          marker.scale.set(pixelWorld / 2, lineHeight, pixelWorld / 2); // 지름 = 화면상 약 1px
           marker.position.set(0, baseY + lineHeight / 2, 0);
           markerWorld.set(0, baseY + lineHeight + 3, 0);
           const midY = relief * 0.5 * factor;
