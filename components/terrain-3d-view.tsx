@@ -238,7 +238,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           }
         };
 
-        const placeLabel = (element: HTMLSpanElement | null, world: THREE.Vector3) => {
+        const placeLabel = (element: HTMLSpanElement | null, world: typeof peakWorld) => {
           if (!element) return;
           projected.copy(world).project(camera);
           const x = (projected.x * 0.5 + 0.5) * width;
