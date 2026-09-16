@@ -140,12 +140,10 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const outline = new THREE.Line(outlineGeometry, new THREE.LineBasicMaterial({ color: 0xc1121f }));
         scene.add(outline);
 
-        // 대상지 마커 — 지표에서 위로 뻗는 얇은 빨간 선 (시야를 가리지 않게)
+        // 대상지 마커 — 지표에서 위로 뻗는 선 (화면상 약 2px 두께의 얇은 원기둥)
         const lineHeight = Math.max(28, sizeM * 0.07);
-        const markerGeometry = new THREE.BufferGeometry();
-        const markerPositions = new Float32Array(6);
-        markerGeometry.setAttribute("position", new THREE.BufferAttribute(markerPositions, 3));
-        const marker = new THREE.Line(markerGeometry, new THREE.LineBasicMaterial({ color: 0xc1121f }));
+        const markerGeometry = new THREE.CylinderGeometry(1, 1, 1, 8);
+        const marker = new THREE.Mesh(markerGeometry, new THREE.MeshBasicMaterial({ color: 0xc1121f }));
         scene.add(marker);
         const markerWorld = new THREE.Vector3();
 
@@ -183,6 +181,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
 
           const dx = Math.sin(azimuth);
           const dz = Math.cos(azimuth);
+          const edgeEpsilon = sizeM * 0.0015;
           // 카메라 쪽 절반 제거: 법선이 카메라 반대 방향
           clipPlane.normal.set(-dx, 0, -dz);
           clipPlane.constant = 0.01;
@@ -207,9 +206,10 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
             }
             sectionMin = Math.min(sectionMin, elevation);
             const y = (elevation - elevMin) * currentExaggeration;
-            outlinePositions[index * 3] = x;
-            outlinePositions[index * 3 + 1] = y + 1.5;
-            outlinePositions[index * 3 + 2] = z;
+            // 경계에 딱 맞게: 수직 오프셋 없이, z-파이팅 방지를 위해 카메라 쪽으로만 미세 이동
+            outlinePositions[index * 3] = x + dx * edgeEpsilon;
+            outlinePositions[index * 3 + 1] = y;
+            outlinePositions[index * 3 + 2] = z + dz * edgeEpsilon;
             const a = index * 2 * 3;
             curtainPositions[a] = x;
             curtainPositions[a + 1] = y;
@@ -262,9 +262,11 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           geometry.computeVertexNormals();
           const centerBase = elevationAt(0, 0) - elevMin;
           const baseY = centerBase * factor + 1;
-          markerPositions[1] = baseY;
-          markerPositions[4] = baseY + lineHeight;
-          markerGeometry.attributes.position.needsUpdate = true;
+          // 화면상 2px 두께: 카메라 거리에서 1px에 해당하는 월드 길이 × 2 (지름)
+          const cameraDistance = camera.position.distanceTo(controls.target) || sizeM;
+          const pixelWorld = (2 * cameraDistance * Math.tan(((camera.fov * Math.PI) / 180) / 2)) / height;
+          marker.scale.set(pixelWorld, lineHeight, pixelWorld);
+          marker.position.set(0, baseY + lineHeight / 2, 0);
           markerWorld.set(0, baseY + lineHeight + 3, 0);
           const midY = relief * 0.5 * factor;
           controls.target.set(0, midY, 0);
