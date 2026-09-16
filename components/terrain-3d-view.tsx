@@ -46,8 +46,8 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const spacingM = payload.spacingM ?? 22;
         const container = containerRef.current;
         const width = container.clientWidth || container.parentElement?.clientWidth || 640;
-        // 화면에 꽉 차게 — 뷰포트 높이의 62% (제목·라벨 여백 감안), 과대·과소 방지
-        const height = Math.max(340, Math.min(680, Math.round(window.innerHeight * 0.62)));
+        // 단면은 넓고 낮은 형상 — 가로 비례(32%)로 세로 여백 최소화
+        const height = Math.max(240, Math.min(380, Math.round(width * 0.32)));
 
         const elevMin = Math.min(...elevations);
         const elevMax = Math.max(...elevations);
@@ -263,7 +263,18 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           const midY = relief * 0.5 * factor;
           controls.target.set(0, midY, 0);
           if (camera.position.lengthSq() < 1) {
-            camera.position.set(sizeM * 0.35, midY + sizeM * 0.12, sizeM * 1.15);
+            // 화면 가로에 지형 폭(여유 8%)이 딱 차는 거리 계산
+            const vFov = (camera.fov * Math.PI) / 180;
+            const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+            const distance = (sizeM * 0.54) / Math.tan(hFov / 2);
+            const polar = Math.PI * 0.46;
+            camera.position.set(
+              Math.sin(polar) * Math.sin(0.5) * distance,
+              midY + Math.cos(polar) * distance,
+              Math.sin(polar) * Math.cos(0.5) * distance,
+            );
+            controls.minDistance = distance * 0.45;
+            controls.maxDistance = distance * 1.7;
           }
           updateSection(true);
         };
