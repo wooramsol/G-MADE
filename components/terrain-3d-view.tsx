@@ -185,10 +185,11 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           clipPlane.normal.set(-dx, 0, -dz);
           clipPlane.constant = 0.01;
 
-          const reach = half * 0.98;
           // 단면의 좌우가 화면과 일치하도록: 화면 오른쪽 = 시선 방향의 오른손 수평 벡터
           const rx = Math.sin(azimuth + Math.PI / 2);
           const rz = Math.cos(azimuth + Math.PI / 2);
+          // 지형(정사각형) 경계까지 정확히 닿는 길이 — 대각 방향에선 모서리까지
+          const reach = half / Math.max(Math.abs(rx), Math.abs(rz), 1e-6);
 
           let sectionMin = Number.POSITIVE_INFINITY;
           let sectionMax = Number.NEGATIVE_INFINITY;
