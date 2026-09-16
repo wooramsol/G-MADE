@@ -140,13 +140,12 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const outline = new THREE.Line(outlineGeometry, new THREE.LineBasicMaterial({ color: 0xc1121f }));
         scene.add(outline);
 
-        // 대상지 마커 — 아래를 가리키는 빨간 화살표 (지표 위에 떠 있음)
-        const arrowHeight = Math.max(18, sizeM * 0.045);
-        const marker = new THREE.Mesh(
-          new THREE.ConeGeometry(arrowHeight * 0.38, arrowHeight, 16),
-          new THREE.MeshBasicMaterial({ color: 0xc1121f }),
-        );
-        marker.rotation.x = Math.PI; // 꼭짓점이 아래(지면)를 향하도록
+        // 대상지 마커 — 지표에서 위로 뻗는 얇은 빨간 선 (시야를 가리지 않게)
+        const lineHeight = Math.max(28, sizeM * 0.07);
+        const markerGeometry = new THREE.BufferGeometry();
+        const markerPositions = new Float32Array(6);
+        markerGeometry.setAttribute("position", new THREE.BufferAttribute(markerPositions, 3));
+        const marker = new THREE.Line(markerGeometry, new THREE.LineBasicMaterial({ color: 0xc1121f }));
         scene.add(marker);
         const markerWorld = new THREE.Vector3();
 
@@ -262,9 +261,11 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           position.needsUpdate = true;
           geometry.computeVertexNormals();
           const centerBase = elevationAt(0, 0) - elevMin;
-          const hover = arrowHeight * 0.35;
-          marker.position.set(0, centerBase * factor + hover + arrowHeight / 2, 0);
-          markerWorld.set(0, centerBase * factor + hover + arrowHeight + 4, 0);
+          const baseY = centerBase * factor + 1;
+          markerPositions[1] = baseY;
+          markerPositions[4] = baseY + lineHeight;
+          markerGeometry.attributes.position.needsUpdate = true;
+          markerWorld.set(0, baseY + lineHeight + 3, 0);
           const midY = relief * 0.5 * factor;
           controls.target.set(0, midY, 0);
           if (camera.position.lengthSq() < 1) {
@@ -305,6 +306,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           cancelAnimationFrame(frame);
           controls.dispose();
           geometry.dispose();
+          markerGeometry.dispose();
           curtainGeometry.dispose();
           outlineGeometry.dispose();
           material.dispose();
