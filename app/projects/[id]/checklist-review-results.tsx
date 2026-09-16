@@ -303,30 +303,11 @@ export default function ChecklistReviewResults({
         </p>
       ) : null}
 
-      {review.spatialContext?.terrainProfiles ? (
+      {review.spatialContext?.terrain ? (
         <details className="rounded-[4px] border border-[#d0d5dd] bg-white px-4 py-2.5" open>
           <summary className="cursor-pointer select-none text-xs font-bold text-[#15345b]">
-            지형 단면 <span className="font-semibold text-[#667085]">동서·남북 ±{review.spatialContext.terrainProfiles.halfSpanM}m</span>
+            3D 지형 <span className="font-semibold text-[#667085]">±220m — 회전하면 해당 방향 단면 높이 표시</span>
           </summary>
-          <div className="mt-2 grid gap-4 border-t border-[#eceef1] pt-3 sm:grid-cols-2">
-            <TerrainProfileChart
-              elevations={review.spatialContext.terrainProfiles.ew}
-              endLabel="동"
-              spacingM={review.spatialContext.terrainProfiles.spacingM}
-              startLabel="서"
-              title="동서 단면"
-            />
-            <TerrainProfileChart
-              elevations={review.spatialContext.terrainProfiles.ns}
-              endLabel="북"
-              spacingM={review.spatialContext.terrainProfiles.spacingM}
-              startLabel="남"
-              title="남북 단면"
-            />
-          </div>
-          <p className="mt-2 text-[11px] leading-4 text-[#94a3b8]">
-            대상지 중심(▼) 기준 위성 DEM(30m 격자) 근사 단면 — 수직은 과장 표시되며 참고용입니다.
-          </p>
           <Terrain3DView projectId={projectId} />
         </details>
       ) : null}
@@ -433,67 +414,6 @@ export default function ChecklistReviewResults({
           </ul>
         </details>
       ) : null}
-    </div>
-  );
-}
-
-/** 지형 단면 미니 차트 — 표고열을 SVG 폴리라인으로 (수직 자동 과장) */
-function TerrainProfileChart({
-  title,
-  elevations,
-  spacingM,
-  startLabel,
-  endLabel,
-}: {
-  title: string;
-  elevations: number[];
-  spacingM: number;
-  startLabel: string;
-  endLabel: string;
-}) {
-  const width = 300;
-  const height = 96;
-  const padX = 8;
-  const padTop = 12;
-  const padBottom = 18;
-  const min = Math.min(...elevations);
-  const max = Math.max(...elevations);
-  const range = Math.max(max - min, 1);
-  const plotW = width - padX * 2;
-  const plotH = height - padTop - padBottom;
-  const pointAt = (index: number, value: number) => ({
-    x: padX + (index / (elevations.length - 1)) * plotW,
-    y: padTop + (1 - (value - min) / range) * plotH,
-  });
-  const points = elevations.map((value, index) => pointAt(index, value));
-  const line = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  const area = `${padX},${height - padBottom} ${line} ${width - padX},${height - padBottom}`;
-  const center = points[Math.floor(points.length / 2)];
-  const lengthM = (elevations.length - 1) * spacingM;
-
-  return (
-    <div>
-      <p className="text-[11px] font-bold text-[#475569]">
-        {title} <span className="font-semibold text-[#94a3b8]">({lengthM}m · 기복 {(max - min).toFixed(1)}m)</span>
-      </p>
-      <svg className="mt-1 w-full" role="img" viewBox={`0 0 ${width} ${height}`}>
-        <polygon fill="#eef2f7" points={area} />
-        <polyline fill="none" points={line} stroke="#15345b" strokeWidth="1.6" />
-        <line stroke="#d0d5dd" strokeWidth="0.8" x1={padX} x2={width - padX} y1={height - padBottom} y2={height - padBottom} />
-        <path d={`M${center.x - 4} ${center.y - 9} L${center.x + 4} ${center.y - 9} L${center.x} ${center.y - 3} Z`} fill="#c1121f" />
-        <text fill="#94a3b8" fontSize="9" x={padX} y={height - 6}>
-          {startLabel}
-        </text>
-        <text fill="#94a3b8" fontSize="9" textAnchor="end" x={width - padX} y={height - 6}>
-          {endLabel}
-        </text>
-        <text fill="#667085" fontSize="9" x={padX} y={padTop - 3}>
-          {max.toFixed(0)}m
-        </text>
-        <text fill="#667085" fontSize="9" x={padX} y={height - padBottom - 3}>
-          {min.toFixed(0)}m
-        </text>
-      </svg>
     </div>
   );
 }
