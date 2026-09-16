@@ -41,7 +41,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const { n, elevations } = payload;
         const spacingM = payload.spacingM ?? 16;
         const container = containerRef.current;
-        const width = container.clientWidth;
+        const width = container.clientWidth || container.parentElement?.clientWidth || 640;
         const height = 380;
 
         const elevMin = Math.min(...elevations);
@@ -213,7 +213,10 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           {errorMessage}
         </p>
       ) : null}
-      <div className={status === "ready" ? "mt-2 overflow-hidden rounded-[4px] border border-[#d0d5dd]" : "hidden"} ref={containerRef} />
+      <div
+        className={`mt-2 overflow-hidden rounded-[4px] ${status === "ready" ? "border border-[#d0d5dd]" : ""}`}
+        ref={containerRef}
+      />
       {status === "ready" ? (
         <p className="mt-1.5 text-[11px] leading-4 text-[#94a3b8]">
           드래그 회전 · 휠 확대 · 빨간 기둥이 대상지 — 위성 DEM(30m 격자) 근사 지형, 참고용입니다.
