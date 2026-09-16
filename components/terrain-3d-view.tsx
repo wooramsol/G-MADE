@@ -47,8 +47,8 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const spacingM = payload.spacingM ?? 22;
         const container = containerRef.current;
         const width = container.clientWidth || container.parentElement?.clientWidth || 640;
-        // 단면은 넓고 낮은 형상 — 가로 비례(22%)로 세로 여백 최소화
-        const height = Math.max(190, Math.min(290, Math.round(width * 0.22)));
+        // 단면은 넓고 낮은 형상 — 가로 비례(15%)로 세로 여백 최소화
+        const height = Math.max(150, Math.min(220, Math.round(width * 0.15)));
 
         const elevMin = Math.min(...elevations);
         const elevMax = Math.max(...elevations);
