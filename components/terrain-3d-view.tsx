@@ -3,13 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * 3D 지형 뷰 — 위성 DEM 격자를 Three.js 표면으로 렌더링. 기본 표시(자동 로드).
+ * 3D 지형 단면 뷰 — 측면 시점 고정, 수평 360° 회전.
  *
- * 조작 구조(사용자 요구):
- * - 위아래 피봇 없음 — 수평 360° 회전만 (시점 고도 고정)
- * - 회전해 놓으면 그 방향으로 대상지를 지나는 "단면"이 지형 위에 빨간 선으로
- *   그려지고, 그 단면의 표고 범위·기복이 방위와 함께 실시간 표시됨
- *   (기존 동서·남북 고정 단면을 대체 — 회전이 곧 단면 방향 선택)
+ * 회전하면 카메라 쪽 절반 지형을 클리핑으로 잘라내 "실제 단면"이 드러나고,
+ * 절단면은 남색 커튼 + 상단 외곽선(빨강)으로 단면 차트처럼 표시된다.
+ * 최고점·양끝 표고와 기복 치수를 외곽선 위에 라벨로 직접 표기.
  */
 export function Terrain3DView({ projectId }: { projectId: string }) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -17,6 +15,9 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
   const [exaggeration, setExaggeration] = useState(1.5);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const readoutRef = useRef<HTMLSpanElement | null>(null);
+  const labelPeakRef = useRef<HTMLSpanElement | null>(null);
+  const labelStartRef = useRef<HTMLSpanElement | null>(null);
+  const labelEndRef = useRef<HTMLSpanElement | null>(null);
   const applyExaggerationRef = useRef<((value: number) => void) | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -56,15 +57,18 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xf4f5f7);
 
-        const camera = new THREE.PerspectiveCamera(46, width / height, 1, 10_000);
-        camera.position.set(sizeM * 0.72, sizeM * 0.5, sizeM * 0.72);
+        const camera = new THREE.PerspectiveCamera(42, width / height, 1, 10_000);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(width, height);
+        renderer.localClippingEnabled = true;
         container.appendChild(renderer.domElement);
 
-        // ── 지형 표면 (표고별 색: 저지대 연녹 → 고지대 갈색) ──
+        // 카메라 쪽 절반을 잘라내는 클리핑 평면 (회전 시 법선 갱신)
+        const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0.01);
+
+        // ── 지형 표면 ──
         const geometry = new THREE.PlaneGeometry(sizeM, sizeM, n - 1, n - 1);
         geometry.rotateX(-Math.PI / 2);
         const position = geometry.attributes.position;
@@ -73,7 +77,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const highColor = new THREE.Color(0x8a6f4d);
         const baseHeights = new Float32Array(position.count);
         for (let index = 0; index < position.count; index += 1) {
-          // 회전 후 세계좌표: -z=북, +x=동. elevations는 남→북 행 순서라 행을 뒤집는다.
+          // 세계좌표: -z=북, +x=동. elevations는 남→북 행 순서라 행을 뒤집는다.
           const row = Math.floor(index / n);
           const col = index % n;
           const elevation = elevations[(n - 1 - row) * n + col];
@@ -86,35 +90,54 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         }
         geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-        // 세계좌표(x,z) → 원 표고(m) 이중선형 보간 — 단면 높이값 계산용
         const elevationAt = (x: number, z: number): number => {
           const colF = Math.min(Math.max((x + half) / spacingM, 0), n - 1);
           const rowGeomF = Math.min(Math.max((z + half) / spacingM, 0), n - 1);
-          const rowF = n - 1 - rowGeomF; // 남→북 행 배열 기준
+          const rowF = n - 1 - rowGeomF;
           const c0 = Math.floor(colF);
           const r0 = Math.floor(rowF);
           const c1 = Math.min(c0 + 1, n - 1);
           const r1 = Math.min(r0 + 1, n - 1);
           const tc = colF - c0;
           const tr = rowF - r0;
-          const e00 = elevations[r0 * n + c0];
-          const e01 = elevations[r0 * n + c1];
-          const e10 = elevations[r1 * n + c0];
-          const e11 = elevations[r1 * n + c1];
-          return (e00 * (1 - tc) + e01 * tc) * (1 - tr) + (e10 * (1 - tc) + e11 * tc) * tr;
+          return (
+            (elevations[r0 * n + c0] * (1 - tc) + elevations[r0 * n + c1] * tc) * (1 - tr) +
+            (elevations[r1 * n + c0] * (1 - tc) + elevations[r1 * n + c1] * tc) * tr
+          );
         };
 
-        const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+        const material = new THREE.MeshLambertMaterial({
+          vertexColors: true,
+          side: THREE.DoubleSide,
+          clippingPlanes: [clipPlane],
+        });
         const surface = new THREE.Mesh(geometry, material);
         scene.add(surface);
 
-        const wire = new THREE.LineSegments(
-          new THREE.WireframeGeometry(geometry),
-          new THREE.LineBasicMaterial({ color: 0x5a6b7a, transparent: true, opacity: 0.1 }),
+        // ── 절단면 커튼 (프로파일 아래 채움) + 상단 외곽선 ──
+        const SAMPLES = 141;
+        const curtainPositions = new Float32Array(SAMPLES * 2 * 3);
+        const curtainIndex: number[] = [];
+        for (let s = 0; s < SAMPLES - 1; s += 1) {
+          const a = s * 2;
+          curtainIndex.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+        const curtainGeometry = new THREE.BufferGeometry();
+        curtainGeometry.setAttribute("position", new THREE.BufferAttribute(curtainPositions, 3));
+        curtainGeometry.setIndex(curtainIndex);
+        const curtain = new THREE.Mesh(
+          curtainGeometry,
+          new THREE.MeshBasicMaterial({ color: 0x15345b, transparent: true, opacity: 0.32, side: THREE.DoubleSide }),
         );
-        surface.add(wire);
+        scene.add(curtain);
 
-        // 대상지 마커 — 중심 빨간 기둥
+        const outlinePositions = new Float32Array(SAMPLES * 3);
+        const outlineGeometry = new THREE.BufferGeometry();
+        outlineGeometry.setAttribute("position", new THREE.BufferAttribute(outlinePositions, 3));
+        const outline = new THREE.Line(outlineGeometry, new THREE.LineBasicMaterial({ color: 0xc1121f }));
+        scene.add(outline);
+
+        // 대상지 마커
         const markerHeight = relief * 2 + 20;
         const marker = new THREE.Mesh(
           new THREE.CylinderGeometry(2.5, 2.5, markerHeight, 12),
@@ -122,70 +145,107 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         );
         scene.add(marker);
 
-        // ── 단면 선 (카메라 방위에 따라 갱신) ──
-        const SECTION_SAMPLES = 121;
-        const sectionPositions = new Float32Array(SECTION_SAMPLES * 3);
-        const sectionGeometry = new THREE.BufferGeometry();
-        sectionGeometry.setAttribute("position", new THREE.BufferAttribute(sectionPositions, 3));
-        const sectionLine = new THREE.Line(
-          sectionGeometry,
-          new THREE.LineBasicMaterial({ color: 0xc1121f, linewidth: 2 }),
-        );
-        scene.add(sectionLine);
-
-        scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-        const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-        sun.position.set(sizeM, sizeM * 0.8, sizeM * 0.4);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+        sun.position.set(sizeM, sizeM * 0.9, sizeM * 0.3);
         scene.add(sun);
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, relief * 0.75, 0);
         controls.enableDamping = true;
         controls.enablePan = false;
-        // 위아래 피봇 고정 — 수평 회전만
-        const POLAR = Math.PI * 0.34;
+        // 측면 시점 고정 — 수평 회전만
+        const POLAR = Math.PI * 0.46;
         controls.minPolarAngle = POLAR;
         controls.maxPolarAngle = POLAR;
-        controls.maxDistance = sizeM * 2;
-        controls.minDistance = sizeM * 0.3;
+        controls.maxDistance = sizeM * 2.4;
+        controls.minDistance = sizeM * 0.5;
 
         const COMPASS = ["북", "북동", "동", "남동", "남", "남서", "서", "북서"];
-        const compassOf = (bearingDeg: number) => COMPASS[Math.round(((bearingDeg % 360) + 360) % 360 / 45) % 8];
+        const compassOf = (bearingDeg: number) =>
+          COMPASS[Math.round((((bearingDeg % 360) + 360) % 360) / 45) % 8];
 
         let currentExaggeration = 1.5;
         let lastAzimuth = Number.POSITIVE_INFINITY;
+        // 라벨 위치 계산용 월드 포인트
+        const peakWorld = new THREE.Vector3();
+        const startWorld = new THREE.Vector3();
+        const endWorld = new THREE.Vector3();
+        const projected = new THREE.Vector3();
 
         const updateSection = (force = false) => {
           const azimuth = controls.getAzimuthalAngle();
-          if (!force && Math.abs(azimuth - lastAzimuth) < 0.008) return;
+          if (!force && Math.abs(azimuth - lastAzimuth) < 0.006) return;
           lastAzimuth = azimuth;
 
-          // 카메라 방위의 수평 방향 벡터 — 이 방향으로 중심을 지나는 단면
           const dx = Math.sin(azimuth);
           const dz = Math.cos(azimuth);
+          // 카메라 쪽 절반 제거: 법선이 카메라 반대 방향
+          clipPlane.normal.set(-dx, 0, -dz);
+          clipPlane.constant = 0.01;
+
           const reach = half * 0.98;
+          // 단면의 좌우가 화면과 일치하도록: 화면 오른쪽 = 시선 방향의 오른손 수평 벡터
+          const rx = Math.sin(azimuth + Math.PI / 2);
+          const rz = Math.cos(azimuth + Math.PI / 2);
+
           let sectionMin = Number.POSITIVE_INFINITY;
           let sectionMax = Number.NEGATIVE_INFINITY;
-          for (let index = 0; index < SECTION_SAMPLES; index += 1) {
-            const t = (index / (SECTION_SAMPLES - 1)) * 2 - 1; // -1..1
-            const x = dx * t * reach;
-            const z = dz * t * reach;
+          let peakT = 0;
+          for (let index = 0; index < SAMPLES; index += 1) {
+            const t = (index / (SAMPLES - 1)) * 2 - 1;
+            const x = rx * t * reach;
+            const z = rz * t * reach;
             const elevation = elevationAt(x, z);
+            if (elevation > sectionMax) {
+              sectionMax = elevation;
+              peakT = t;
+            }
             sectionMin = Math.min(sectionMin, elevation);
-            sectionMax = Math.max(sectionMax, elevation);
-            sectionPositions[index * 3] = x;
-            sectionPositions[index * 3 + 1] = (elevation - elevMin) * currentExaggeration + 2;
-            sectionPositions[index * 3 + 2] = z;
+            const y = (elevation - elevMin) * currentExaggeration;
+            outlinePositions[index * 3] = x;
+            outlinePositions[index * 3 + 1] = y + 1.5;
+            outlinePositions[index * 3 + 2] = z;
+            const a = index * 2 * 3;
+            curtainPositions[a] = x;
+            curtainPositions[a + 1] = y;
+            curtainPositions[a + 2] = z;
+            curtainPositions[a + 3] = x;
+            curtainPositions[a + 4] = -relief * 0.15 * currentExaggeration;
+            curtainPositions[a + 5] = z;
           }
-          sectionGeometry.attributes.position.needsUpdate = true;
+          outlineGeometry.attributes.position.needsUpdate = true;
+          curtainGeometry.attributes.position.needsUpdate = true;
 
-          // 방위: 세계 -z=북, +x=동 → bearing = atan2(dx, -dz)
-          const bearing = (Math.atan2(dx, -dz) * 180) / Math.PI;
+          peakWorld.set(
+            rx * peakT * reach,
+            (sectionMax - elevMin) * currentExaggeration + 4,
+            rz * peakT * reach,
+          );
+          startWorld.set(-rx * reach, (elevationAt(-rx * reach, -rz * reach) - elevMin) * currentExaggeration + 4, -rz * reach);
+          endWorld.set(rx * reach, (elevationAt(rx * reach, rz * reach) - elevMin) * currentExaggeration + 4, rz * reach);
+
+          if (labelPeakRef.current) labelPeakRef.current.textContent = `▲ ${sectionMax.toFixed(1)}m`;
+          if (labelStartRef.current)
+            labelStartRef.current.textContent = `${elevationAt(-rx * reach, -rz * reach).toFixed(1)}m`;
+          if (labelEndRef.current)
+            labelEndRef.current.textContent = `${elevationAt(rx * reach, rz * reach).toFixed(1)}m`;
+
+          const bearing = (Math.atan2(rx, -rz) * 180) / Math.PI;
           if (readoutRef.current) {
             readoutRef.current.textContent =
-              `${compassOf(bearing + 180)}→${compassOf(bearing)} 단면 · ` +
+              `${compassOf(bearing + 180)}→${compassOf(bearing)} 단면 (${Math.round(reach * 2)}m) · ` +
               `표고 ${sectionMin.toFixed(1)}~${sectionMax.toFixed(1)}m · 기복 ${(sectionMax - sectionMin).toFixed(1)}m`;
           }
+        };
+
+        const placeLabel = (element: HTMLSpanElement | null, world: THREE.Vector3) => {
+          if (!element) return;
+          projected.copy(world).project(camera);
+          const x = (projected.x * 0.5 + 0.5) * width;
+          const y = (-projected.y * 0.5 + 0.5) * height;
+          const visible = projected.z < 1 && x > -40 && x < width + 40;
+          element.style.transform = `translate(-50%, -100%) translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
+          element.style.opacity = visible ? "1" : "0";
         };
 
         const applyExaggeration = (factor: number) => {
@@ -195,8 +255,13 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           }
           position.needsUpdate = true;
           geometry.computeVertexNormals();
-          const centerElevation = elevationAt(0, 0) - elevMin;
-          marker.position.set(0, centerElevation * factor + markerHeight / 2, 0);
+          const centerBase = elevationAt(0, 0) - elevMin;
+          marker.position.set(0, centerBase * factor + markerHeight / 2, 0);
+          const midY = relief * 0.5 * factor;
+          controls.target.set(0, midY, 0);
+          if (camera.position.lengthSq() < 1) {
+            camera.position.set(sizeM * 0.35, midY + sizeM * 0.12, sizeM * 1.15);
+          }
           updateSection(true);
         };
         applyExaggeration(1.5);
@@ -208,6 +273,9 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           controls.update();
           updateSection();
           renderer.render(scene, camera);
+          placeLabel(labelPeakRef.current, peakWorld);
+          placeLabel(labelStartRef.current, startWorld);
+          placeLabel(labelEndRef.current, endWorld);
         };
         animate();
 
@@ -215,7 +283,8 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           cancelAnimationFrame(frame);
           controls.dispose();
           geometry.dispose();
-          sectionGeometry.dispose();
+          curtainGeometry.dispose();
+          outlineGeometry.dispose();
           material.dispose();
           renderer.dispose();
           renderer.domElement.remove();
@@ -237,13 +306,13 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
     };
   }, [projectId]);
 
+  const labelClass =
+    "pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-[3px] bg-white/85 px-1 py-0.5 text-[10px] font-bold text-[#c1121f] transition-opacity";
+
   return (
     <div className="mt-2">
       <div className="flex flex-wrap items-center gap-3">
-        <span
-          className="text-xs font-bold text-[#15345b]"
-          ref={readoutRef}
-        >
+        <span className="text-xs font-bold text-[#15345b]" ref={readoutRef}>
           단면 계산 중...
         </span>
         <label className="ml-auto flex items-center gap-1.5 text-[11px] text-[#667085]">
@@ -272,13 +341,15 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           {errorMessage}
         </p>
       ) : null}
-      <div
-        className={`mt-2 overflow-hidden rounded-[4px] ${status === "ready" ? "border border-[#d0d5dd]" : ""}`}
-        ref={containerRef}
-      />
+      <div className={`relative mt-2 overflow-hidden rounded-[4px] ${status === "ready" ? "border border-[#d0d5dd]" : ""}`}>
+        <div ref={containerRef} />
+        <span className={labelClass} ref={labelPeakRef} style={{ opacity: 0 }} />
+        <span className={labelClass} ref={labelStartRef} style={{ opacity: 0 }} />
+        <span className={labelClass} ref={labelEndRef} style={{ opacity: 0 }} />
+      </div>
       {status === "ready" ? (
         <p className="mt-1.5 text-[11px] leading-4 text-[#94a3b8]">
-          드래그로 회전하면 그 방향의 단면(빨간 선) 높이값이 위에 표시됩니다 · 휠 확대 · 기둥이 대상지 —
+          드래그로 회전하면 그 방향 단면이 잘려 보이고 외곽선에 표고가 표시됩니다 · 휠 확대 · 기둥이 대상지 —
           위성 DEM(30m 격자) 근사 지형, 참고용입니다.
         </p>
       ) : null}
