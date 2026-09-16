@@ -16,8 +16,10 @@ export const dynamic = "force-dynamic";
  * 응답: { n, spacingM, elevations } — elevations는 남→북(행), 서→동(열)
  * 순서의 행우선 배열.
  */
-const GRID_N = 31; // 홀수 — 중심점이 정확히 대상지
-const SPACING_M = 16;
+// 21×21=441지점 — Open-Meteo 분당 한도(~600지점, 실측 429) 이내로 유지.
+// 지형은 R2 영구 캐시되므로 대상지당 첫 1회만 호출된다.
+const GRID_N = 21; // 홀수 — 중심점이 정확히 대상지
+const SPACING_M = 22;
 const BATCH = 100;
 
 export async function GET(request: NextRequest) {
@@ -84,6 +86,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "지형 격자 조회에 실패했습니다.";
     console.warn(`[terrain] 3D 격자 조회 실패: ${message}`);
+    if (message.includes("429")) {
+      return NextResponse.json(
+        { error: "지형 API 사용량이 일시적으로 몰렸습니다. 1분 뒤 다시 시도해 주세요." },
+        { status: 429, headers: { "Retry-After": "60" } },
+      );
+    }
     return NextResponse.json({ error: `지형 데이터를 불러오지 못했습니다. ${message}` }, { status: 502 });
   }
 }

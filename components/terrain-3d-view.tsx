@@ -174,7 +174,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
   return (
     <div className="mt-2">
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-[11px] font-bold text-[#475569]">3D 지형 (±240m)</p>
+        <p className="text-[11px] font-bold text-[#475569]">3D 지형 (±220m)</p>
         <label className="flex items-center gap-1.5 text-[11px] text-[#667085]">
           수직 과장 {exaggeration.toFixed(1)}×
           <input
