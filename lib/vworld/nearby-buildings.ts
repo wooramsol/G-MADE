@@ -120,6 +120,75 @@ export async function getNearbyBuildingStats(point: GeoPoint): Promise<NearbyBui
   };
 }
 
+export type BuildingFootprint = {
+  /** 지상층수 (정보 없으면 1로 간주) */
+  floors: number;
+  /** 대상지 기준 로컬 좌표(m) 외곽 링 — x=동(+), z=남(+) (Three.js 월드와 일치) */
+  ring: Array<[number, number]>;
+};
+
+/**
+ * 3D 지형 뷰용 — 반경 내 건물의 "외곽 형상 + 층수"를 대상지 기준 로컬
+ * 좌표(m)로 변환해 반환한다.
+ */
+export async function getNearbyBuildingFootprints(
+  point: GeoPoint,
+  radiusM: number,
+  maxCount = 500,
+): Promise<BuildingFootprint[]> {
+  const key = getVWorldApiKey();
+  if (!key) return [];
+
+  const radiusDeg = radiusM / 111_000;
+  const bbox = [point.y - radiusDeg, point.x - radiusDeg, point.y + radiusDeg, point.x + radiusDeg].join(",");
+  const params = buildVWorldParams({
+    service: "WFS",
+    request: "GetFeature",
+    version: "1.1.0",
+    typename: "lt_c_spbd",
+    srsname: "EPSG:4326",
+    bbox,
+    output: "application/json",
+    maxfeatures: String(Math.min(maxCount * 2, 1000)),
+    key,
+  });
+
+  const result = await vworldGetJson<{
+    features?: Array<{
+      properties?: Record<string, unknown>;
+      geometry?: { type?: string; coordinates?: unknown };
+    }>;
+  }>(`https://api.vworld.kr/req/wfs?${params.toString()}`, "건물형상(WFS)");
+  if (!result.ok) throw new Error(result.error);
+  const vworldError = extractVWorldError(result.data);
+  if (vworldError) throw new Error(vworldError);
+
+  const metersPerLng = 111_000 * Math.cos((point.y * Math.PI) / 180);
+  const toLocal = (lng: number, lat: number): [number, number] => [
+    Math.round((lng - point.x) * metersPerLng * 10) / 10,
+    Math.round((point.y - lat) * 111_000 * 10) / 10, // z=남(+) — Three.js에서 -z=북과 일치
+  ];
+
+  const footprints: BuildingFootprint[] = [];
+  for (const feature of result.data.features ?? []) {
+    if (footprints.length >= maxCount) break;
+    const geometry = feature.geometry;
+    if (!geometry?.coordinates) continue;
+    // Polygon: [ring][pt][lng,lat] / MultiPolygon: [poly][ring][pt] — 첫 외곽 링만 사용
+    const raw =
+      geometry.type === "MultiPolygon"
+        ? (geometry.coordinates as number[][][][])[0]?.[0]
+        : (geometry.coordinates as number[][][])[0];
+    if (!Array.isArray(raw) || raw.length < 3) continue;
+    const ring = raw
+      .filter((pt) => Array.isArray(pt) && pt.length >= 2)
+      .map((pt) => toLocal(pt[0], pt[1]));
+    if (ring.length < 3) continue;
+    footprints.push({ floors: readFloors(feature.properties ?? {}) ?? 1, ring });
+  }
+  return footprints;
+}
+
 /** 프롬프트·화면 공용 요약 문장 */
 export function formatNearbyBuildingStats(stats: NearbyBuildingStats): string {
   if (stats.count === 0) return `반경 ${stats.radiusM}m 내 등록 건물 없음`;

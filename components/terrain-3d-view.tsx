@@ -27,13 +27,23 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
 
     (async () => {
       try {
-        const response = await fetch(`/api/spatial/terrain-mesh?projectId=${encodeURIComponent(projectId)}`);
+        const [response, buildingsResponse] = await Promise.all([
+          fetch(`/api/spatial/terrain-mesh?projectId=${encodeURIComponent(projectId)}`),
+          fetch(`/api/spatial/terrain-buildings?projectId=${encodeURIComponent(projectId)}`).catch(() => null),
+        ]);
         const payload = (await response.json().catch(() => ({}))) as {
           n?: number;
           spacingM?: number;
           elevations?: number[];
           error?: string;
         };
+        const buildingsPayload =
+          buildingsResponse && buildingsResponse.ok
+            ? ((await buildingsResponse.json().catch(() => ({}))) as {
+                buildings?: Array<{ floors: number; ring: Array<[number, number]> }>;
+              })
+            : {};
+        const buildings = buildingsPayload.buildings ?? [];
         if (!response.ok || !payload.n || !payload.elevations) {
           throw new Error(payload.error ?? "지형 데이터를 불러오지 못했습니다.");
         }
@@ -144,6 +154,45 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         outlineGeometry.setAttribute("position", new THREE.BufferAttribute(outlinePositions, 3));
         const outline = new THREE.Line(outlineGeometry, new THREE.LineBasicMaterial({ color: 0xc1121f }));
         scene.add(outline);
+
+        // ── 주변 건물 (브이월드 형상 + 층수×3m 압출, 지형과 동일한 과장·절단) ──
+        const FLOOR_HEIGHT_M = 3;
+        const buildingMaterial = new THREE.MeshLambertMaterial({
+          color: 0xb6bcc6,
+          clippingPlanes: [clipPlane],
+        });
+        const buildingMeshes: Array<{ mesh: InstanceType<typeof THREE.Mesh>; baseElevation: number }> = [];
+        const buildingsGroup = new THREE.Group();
+        for (const building of buildings) {
+          try {
+            const shape = new THREE.Shape();
+            building.ring.forEach(([bx, bz], index) => {
+              // Shape(XY) → rotateX(-90°) 후 (x, z=-y)가 되므로 py = -z 로 넣는다
+              if (index === 0) shape.moveTo(bx, -bz);
+              else shape.lineTo(bx, -bz);
+            });
+            shape.closePath();
+            const floors = Math.max(1, Math.min(80, building.floors));
+            const extrude = new THREE.ExtrudeGeometry(shape, {
+              depth: floors * FLOOR_HEIGHT_M,
+              bevelEnabled: false,
+            });
+            extrude.rotateX(-Math.PI / 2);
+            extrude.computeBoundingBox(); // 첫 캔버스 크기 계산에서 건물 높이 반영
+            const mesh = new THREE.Mesh(extrude, buildingMaterial);
+            // 바닥 기준 표고: 외곽 중심점의 지형 높이
+            const cx = building.ring.reduce((sum, pt) => sum + pt[0], 0) / building.ring.length;
+            const cz = building.ring.reduce((sum, pt) => sum + pt[1], 0) / building.ring.length;
+            const half2 = sizeM / 2;
+            if (Math.abs(cx) > half2 || Math.abs(cz) > half2) continue; // 지형 밖 제외
+            const baseElevation = elevationAt(cx, cz) - elevMin;
+            buildingMeshes.push({ mesh, baseElevation });
+            buildingsGroup.add(mesh);
+          } catch {
+            // 형상 이상 건물은 건너뜀
+          }
+        }
+        scene.add(buildingsGroup);
 
         // 대상지 마커 — 지표에서 위로 뻗는 선 (화면상 약 2px 두께의 얇은 원기둥)
         const lineHeight = Math.max(28, sizeM * 0.07);
@@ -287,6 +336,11 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           }
           position.needsUpdate = true;
           geometry.computeVertexNormals();
+          for (const entry of buildingMeshes) {
+            entry.mesh.scale.y = factor;
+            entry.mesh.position.y = entry.baseElevation * factor;
+          }
+
           const centerBase = elevationAt(0, 0) - elevMin;
           const baseY = centerBase * factor + 1;
           // 화면상 2px 두께: 카메라 거리에서 1px에 해당하는 월드 길이 × 2 (지름)
@@ -295,8 +349,13 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           marker.scale.set(pixelWorld / 2, lineHeight, pixelWorld / 2); // 지름 = 화면상 약 1px
           marker.position.set(0, baseY + lineHeight / 2, 0);
           markerWorld.set(0, baseY + lineHeight + 3, 0);
-          // 세로 콘텐츠: 지반(0) ~ 마커 선 꼭대기. 중심을 그 가운데로 잡아 상하 대칭.
-          const contentTop = relief * factor + lineHeight + 6;
+          // 세로 콘텐츠: 지반(0) ~ max(마커 꼭대기, 최고 건물 꼭대기)
+          const tallestBuildingTop = buildingMeshes.reduce(
+            (max, entry) =>
+              Math.max(max, entry.baseElevation * factor + (entry.mesh.geometry.boundingBox?.max.y ?? 0) * factor),
+            0,
+          );
+          const contentTop = Math.max(relief * factor + lineHeight + 6, tallestBuildingTop + 8);
           const midY = contentTop / 2;
           controls.target.set(0, midY, 0);
 
@@ -353,6 +412,8 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         cleanupRef.current = () => {
           cancelAnimationFrame(frame);
           controls.dispose();
+          for (const entry of buildingMeshes) entry.mesh.geometry.dispose();
+          buildingMaterial.dispose();
           geometry.dispose();
           markerGeometry.dispose();
           curtainGeometry.dispose();
@@ -424,8 +485,8 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
       </div>
       {status === "ready" ? (
         <p className="mt-1.5 text-[11px] leading-4 text-[#94a3b8]">
-          드래그로 회전하면 그 방향 단면이 잘려 보이고 외곽선에 표고가 표시됩니다 · 휠 확대 · 기둥이 대상지 —
-          위성 DEM(30m 격자) 근사 지형, 참고용입니다.
+          드래그로 회전하면 그 방향 단면이 잘려 보이고 외곽선에 표고가 표시됩니다 · 휠 확대 — 회색 건물은
+          브이월드 실제 층수(층당 3m 가정), 지형은 위성 DEM(30m 격자) 근사, 참고용입니다.
         </p>
       ) : null}
     </div>
