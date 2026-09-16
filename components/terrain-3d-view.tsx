@@ -248,13 +248,30 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           }
         };
 
+        // 라벨 배치 + 겹침 회피: 앞서 놓인 라벨과 겹치면 위로 한 칸(22px)씩 쌓는다
+        const LABEL_W = 76;
+        const LABEL_H = 22;
+        const placedRects: Array<{ x: number; y: number }> = [];
         const placeLabel = (element: HTMLSpanElement | null, world: typeof peakWorld) => {
           if (!element) return;
           projected.copy(world).project(camera);
           const x = (projected.x * 0.5 + 0.5) * width;
-          const y = (-projected.y * 0.5 + 0.5) * height;
+          let y = (-projected.y * 0.5 + 0.5) * height;
           const visible = projected.z < 1 && x > -40 && x < width + 40;
-          element.style.transform = `translate(-50%, -100%) translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
+          if (visible) {
+            let moved = true;
+            while (moved) {
+              moved = false;
+              for (const rect of placedRects) {
+                if (Math.abs(rect.x - x) < LABEL_W && Math.abs(rect.y - y) < LABEL_H) {
+                  y = rect.y - LABEL_H; // 세로로 나란히 (위로 쌓기)
+                  moved = true;
+                }
+              }
+            }
+            placedRects.push({ x, y });
+          }
+          element.style.transform = `translate(-50%, -100%) translate(${x.toFixed(0)}px, ${Math.max(LABEL_H, y).toFixed(0)}px)`;
           element.style.opacity = visible ? "1" : "0";
         };
 
@@ -318,6 +335,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           controls.update();
           updateSection();
           renderer.render(scene, camera);
+          placedRects.length = 0;
           placeLabel(labelPeakRef.current, peakWorld);
           placeLabel(labelStartRef.current, startWorld);
           placeLabel(labelEndRef.current, endWorld);
