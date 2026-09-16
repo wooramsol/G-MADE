@@ -263,10 +263,12 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           const midY = relief * 0.5 * factor;
           controls.target.set(0, midY, 0);
           if (camera.position.lengthSq() < 1) {
-            // 화면 가로에 지형 폭(여유 8%)이 딱 차는 거리 계산
+            // 회전 중 투영 폭이 최대가 되는 대각 방향(√2배) 기준으로 거리 계산 —
+            // 어느 방향에서도 좌우가 잘리지 않음 (여유 6%)
             const vFov = (camera.fov * Math.PI) / 180;
             const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
-            const distance = (sizeM * 0.54) / Math.tan(hFov / 2);
+            const maxHalfWidth = (sizeM * Math.SQRT2) / 2;
+            const distance = (maxHalfWidth * 1.06) / Math.tan(hFov / 2);
             const polar = Math.PI * 0.46;
             camera.position.set(
               Math.sin(polar) * Math.sin(0.5) * distance,
