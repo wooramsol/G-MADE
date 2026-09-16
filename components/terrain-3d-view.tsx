@@ -47,8 +47,9 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const spacingM = payload.spacingM ?? 22;
         const container = containerRef.current;
         const width = container.clientWidth || container.parentElement?.clientWidth || 640;
-        // 단면은 넓고 낮은 형상 — 가로 비례(15%)로 세로 여백 최소화
-        const height = Math.max(150, Math.min(220, Math.round(width * 0.15)));
+        // 캔버스 높이는 지형의 실제 세로 크기(기복×과장)에 비례해 동적 산정 —
+        // 평탄지는 낮게, 기복 큰 지형은 높게 (크롭 방지). 과장 변경 시 재계산.
+        let height = 200; // applyExaggeration에서 즉시 재계산됨
 
         const elevMin = Math.min(...elevations);
         const elevMax = Math.max(...elevations);
@@ -274,22 +275,33 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           markerWorld.set(0, baseY + lineHeight + 3, 0);
           const midY = relief * 0.5 * factor;
           controls.target.set(0, midY, 0);
+
+          // 회전 중 최대 투영 폭(대각 √2배) — 이 폭이 화면 가로에 딱 차도록 유지
+          const worldWidth = sizeM * Math.SQRT2 * 1.06;
+          // 보여야 하는 세로 범위: 기복×과장 + 현재위치 선 + 라벨 여유
+          const contentHeight = relief * factor * 1.2 + lineHeight + 14;
+          height = Math.max(140, Math.min(480, Math.round((width * contentHeight) / worldWidth)));
+          renderer.setSize(width, height);
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+
+          const vFov = (camera.fov * Math.PI) / 180;
+          const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+          const distance = (worldWidth / 2) / Math.tan(hFov / 2);
           if (camera.position.lengthSq() < 1) {
-            // 회전 중 투영 폭이 최대가 되는 대각 방향(√2배) 기준으로 거리 계산 —
-            // 어느 방향에서도 좌우가 잘리지 않음 (여유 6%)
-            const vFov = (camera.fov * Math.PI) / 180;
-            const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
-            const maxHalfWidth = (sizeM * Math.SQRT2) / 2;
-            const distance = (maxHalfWidth * 1.06) / Math.tan(hFov / 2);
             const polar = Math.PI * 0.46;
             camera.position.set(
               Math.sin(polar) * Math.sin(0.5) * distance,
               midY + Math.cos(polar) * distance,
               Math.sin(polar) * Math.cos(0.5) * distance,
             );
-            controls.minDistance = distance * 0.45;
-            controls.maxDistance = distance * 1.7;
+          } else {
+            // 방향 유지, 거리만 재적용
+            const direction = camera.position.clone().sub(controls.target).normalize();
+            camera.position.copy(controls.target).addScaledVector(direction, distance);
           }
+          controls.minDistance = distance * 0.45;
+          controls.maxDistance = distance * 1.7;
           updateSection(true);
         };
         applyExaggeration(1.5);
