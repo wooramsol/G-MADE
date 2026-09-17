@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { Caption, Eyebrow, MutedText, SubsectionTitle } from "@/components/typography";
+import { Caption, MutedText, SubsectionTitle } from "@/components/typography";
 import type {
   ChecklistFinding,
   ChecklistItem,
@@ -352,11 +352,9 @@ export default function ChecklistReviewResults({
       <ul className="grid items-start gap-3 xl:grid-cols-2">
         {groupedItems.map(([category, items]) => (
           <Fragment key={category}>
-            <li className="mt-3 list-none first:mt-0 xl:col-span-2">
-              <Eyebrow>{category}</Eyebrow>
-            </li>
             {items.map((item) => (
               <FindingCard
+                category={category}
                 change={changesByItemId.get(item.id)}
                 comment={comments[item.id]}
                 finding={findingsByItemId.get(item.id)}
@@ -441,6 +439,7 @@ function FilterTab({
 }
 
 function FindingCard({
+  category,
   item,
   finding,
   pageHref,
@@ -448,6 +447,8 @@ function FindingCard({
   onSaveComment,
   change,
 }: {
+  /** 카드 상단에 표시할 카테고리 경로 (그리드 흐름을 끊지 않기 위해 카드 내부 표기) */
+  category?: string;
   item: ChecklistItem;
   finding?: ChecklistFinding;
   pageHref: (
@@ -490,6 +491,9 @@ function FindingCard({
 
   return (
     <li className={`rounded-md border p-4 ${style.card}`}>
+      {category ? (
+        <p className="mb-1.5 text-[11px] font-semibold leading-4 text-[#94a3b8]">{category}</p>
+      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-sm font-bold leading-6 text-[#172033]">{item.text}</p>
         <span className="flex shrink-0 items-center gap-1.5">
