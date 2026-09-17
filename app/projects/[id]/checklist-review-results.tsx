@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Caption, Eyebrow, MutedText, SubsectionTitle } from "@/components/typography";
 import type {
   ChecklistFinding,
@@ -347,29 +347,33 @@ export default function ChecklistReviewResults({
         ) : null}
       </div>
 
-      <div className="space-y-6">
+      {/* 카테고리 제목은 전체 폭(col-span), 카드들은 하나의 2열 그리드로 이어 흐름 —
+          항목 1개짜리 카테고리 때문에 열이 비어 보이지 않게 */}
+      <ul className="grid items-start gap-3 xl:grid-cols-2">
         {groupedItems.map(([category, items]) => (
-          <div key={category}>
-            <Eyebrow>{category}</Eyebrow>
-            <ul className="mt-2 grid items-start gap-3 xl:grid-cols-2">
-              {items.map((item) => (
-                <FindingCard
-                  change={changesByItemId.get(item.id)}
-                  comment={comments[item.id]}
-                  finding={findingsByItemId.get(item.id)}
-                  item={item}
-                  key={item.id}
-                  onSaveComment={saveComment}
-                  pageHref={pageHref}
-                />
-              ))}
-            </ul>
-          </div>
+          <Fragment key={category}>
+            <li className="mt-3 list-none first:mt-0 xl:col-span-2">
+              <Eyebrow>{category}</Eyebrow>
+            </li>
+            {items.map((item) => (
+              <FindingCard
+                change={changesByItemId.get(item.id)}
+                comment={comments[item.id]}
+                finding={findingsByItemId.get(item.id)}
+                item={item}
+                key={item.id}
+                onSaveComment={saveComment}
+                pageHref={pageHref}
+              />
+            ))}
+          </Fragment>
         ))}
         {groupedItems.length === 0 ? (
-          <MutedText>해당 상태의 항목이 없습니다.</MutedText>
+          <li className="list-none xl:col-span-2">
+            <MutedText>해당 상태의 항목이 없습니다.</MutedText>
+          </li>
         ) : null}
-      </div>
+      </ul>
 
       {review.warnings.length > 0 ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
