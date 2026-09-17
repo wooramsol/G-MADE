@@ -131,6 +131,7 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
   const zoneGroups = buildZoneGroups(result);
 
   return (
+    <>
     <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -148,22 +149,12 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
       ) : null}
 
       {!loading && result && locationPoint ? (
-        <div className="mb-4 space-y-4">
-          <div>
-            <p className="mb-1.5 text-xs font-bold text-[#475569]">평면 지도 (지구·지역 경계)</p>
-            <SpatialDetailMap
-              point={{ x: locationPoint.x, y: locationPoint.y }}
-              layerFeatures={result.layerFeatures ?? []}
-            />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-bold text-[#475569]">3D 입체 (조감·투시)</p>
-            <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-bold text-[#475569]">단면도 (지형·주변 건물 — 회전하면 해당 방향 단면)</p>
-            <Terrain3DView projectId={projectId} />
-          </div>
+        <div className="mb-4">
+          <p className="mb-1.5 text-xs font-bold text-[#475569]">평면 지도 (지구·지역 경계)</p>
+          <SpatialDetailMap
+            point={{ x: locationPoint.x, y: locationPoint.y }}
+            layerFeatures={result.layerFeatures ?? []}
+          />
         </div>
       ) : null}
 
@@ -221,6 +212,26 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
         </div>
       ) : null}
     </div>
+
+    {!loading && result && locationPoint ? (
+      <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow lg:col-span-2">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <SubsectionTitle>입체 지형 (브이월드 · 위성 DEM)</SubsectionTitle>
+          <Badge className="bg-[#e8f1ff] text-[#2463b3]">조감·투시·단면</Badge>
+        </div>
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <div>
+            <p className="mb-1.5 text-xs font-bold text-[#475569]">3D 입체 (조감·투시)</p>
+            <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-bold text-[#475569]">단면도 (지형·주변 건물 — 회전하면 해당 방향 단면)</p>
+            <Terrain3DView projectId={projectId} />
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }
 
