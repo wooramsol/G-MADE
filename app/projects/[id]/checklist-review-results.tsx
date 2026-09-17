@@ -325,14 +325,14 @@ export default function ChecklistReviewResults({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterChip
+      <div className="flex flex-wrap items-end gap-1 border-b border-[#c9d2dd] px-1">
+        <FilterTab
           active={filter === "전체"}
           label={`전체 ${review.items.length}`}
           onClick={() => setFilter("전체")}
         />
         {CHECKLIST_ITEM_STATUSES.map((status) => (
-          <FilterChip
+          <FilterTab
             active={filter === status}
             key={status}
             label={`${status} ${review.counts[status] ?? 0}`}
@@ -341,7 +341,7 @@ export default function ChecklistReviewResults({
           />
         ))}
         {reviewFlagCount > 0 ? (
-          <span className="ml-1 inline-flex items-center gap-1 rounded-[4px] border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-800">
+          <span className="mb-1.5 ml-auto inline-flex items-center gap-1 rounded-[4px] border border-amber-400 bg-white px-3 py-1 text-xs font-bold text-amber-800">
             직접 확인 필요 {reviewFlagCount}
           </span>
         ) : null}
@@ -408,7 +408,8 @@ export default function ChecklistReviewResults({
   );
 }
 
-function FilterChip({
+/** 상태 필터 탭 — 활성 탭은 하단 기준선과 이어져 현재 페이지가 명확히 드러난다 */
+function FilterTab({
   active,
   label,
   onClick,
@@ -421,10 +422,10 @@ function FilterChip({
 }) {
   return (
     <button
-      className={`inline-flex items-center gap-1.5 rounded-[4px] border px-3 py-1.5 text-xs font-bold transition ${
+      className={`-mb-px inline-flex items-center gap-1.5 rounded-t-[6px] border px-3.5 py-2 text-xs font-bold transition ${
         active
-          ? "border-[#2463b3] bg-[#2463b3] text-white"
-          : "border-[#d7dee8] bg-white text-[#475569] hover:bg-[#f8fafc]"
+          ? "border-[#c9d2dd] border-b-white bg-white text-[#15345b]"
+          : "border-transparent bg-transparent text-[#667085] hover:bg-[#eef1f5] hover:text-[#334155]"
       }`}
       onClick={onClick}
       type="button"
