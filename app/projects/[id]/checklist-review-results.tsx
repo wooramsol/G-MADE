@@ -272,29 +272,6 @@ export default function ChecklistReviewResults({
         </p>
       ) : null}
 
-      {previousReview ? (
-        <p className="rounded-[4px] border border-[#d0d5dd] bg-white px-3 py-2 text-xs text-[#475569]">
-          <span className="mr-2 font-bold text-[#15345b]">이전 회차 대비</span>
-          {CHECKLIST_ITEM_STATUSES.map((statusName, index) => {
-            const before = previousReview.counts[statusName] ?? 0;
-            const after = review.counts[statusName] ?? 0;
-            const delta = after - before;
-            return (
-              <span key={statusName}>
-                {index > 0 ? <span className="mx-1.5 text-[#cbd5e1]">·</span> : null}
-                {statusName} {before}→{after}
-                {delta !== 0 ? (
-                  <span className={`ml-0.5 font-bold ${delta > 0 ? "text-[#2463b3]" : "text-[#667085]"}`}>
-                    ({delta > 0 ? "+" : ""}
-                    {delta})
-                  </span>
-                ) : null}
-              </span>
-            );
-          })}
-        </p>
-      ) : null}
-
       <div className="flex flex-wrap items-end gap-1 border-b border-[#c9d2dd] px-1">
         <FilterTab
           active={filter === "전체"}
@@ -304,6 +281,11 @@ export default function ChecklistReviewResults({
         {CHECKLIST_ITEM_STATUSES.map((status) => (
           <FilterTab
             active={filter === status}
+            delta={
+              previousReview
+                ? (review.counts[status] ?? 0) - (previousReview.counts[status] ?? 0)
+                : 0
+            }
             key={status}
             label={`${status} ${review.counts[status] ?? 0}`}
             onClick={() => setFilter(status)}
@@ -386,11 +368,14 @@ function FilterTab({
   label,
   onClick,
   tone,
+  delta = 0,
 }: {
   active: boolean;
   label: string;
   onClick: () => void;
   tone?: ChecklistItemStatus;
+  /** 이전 회차 대비 증감 — 0이 아니면 ▲/▼와 함께 표시 */
+  delta?: number;
 }) {
   return (
     <button
@@ -404,6 +389,12 @@ function FilterTab({
     >
       {tone ? <span className={`h-2 w-2 rounded-full ${STATUS_STYLES[tone].dot}`} /> : null}
       {label}
+      {delta !== 0 ? (
+        <span className={`text-[11px] font-bold ${delta > 0 ? "text-[#2463b3]" : "text-[#94a3b8]"}`}>
+          {delta > 0 ? "▲" : "▼"}
+          {Math.abs(delta)}
+        </span>
+      ) : null}
     </button>
   );
 }
