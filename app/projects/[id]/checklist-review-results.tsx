@@ -351,7 +351,7 @@ export default function ChecklistReviewResults({
         {groupedItems.map(([category, items]) => (
           <div key={category}>
             <Eyebrow>{category}</Eyebrow>
-            <ul className="mt-2 space-y-3">
+            <ul className="mt-2 grid items-start gap-3 xl:grid-cols-2">
               {items.map((item) => (
                 <FindingCard
                   change={changesByItemId.get(item.id)}
