@@ -81,7 +81,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
 
               {/* 2행: 사업위치 · 시행자 · 사업유형 · 심의종류 */}
               <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
+                <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4 lg:col-span-2">
                   <Eyebrow>사업위치</Eyebrow>
                   {project.locationPoint?.adminRegion ? (
                     <p className="mt-2 text-sm font-semibold leading-5 text-[#15345b]">{project.locationPoint.adminRegion}</p>
@@ -92,7 +92,6 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                   <ProjectLocationEditor project={project} />
                 </div>
                 <Info label="시행자" value={project.client} />
-                <Info label="사업유형" value={project.projectType} />
                 <Info label="심의종류" value={project.reviewType} />
               </div>
             </div>
