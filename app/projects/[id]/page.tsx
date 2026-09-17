@@ -55,30 +55,36 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
         <section id="project-management" className="space-y-5">
           <Panel title="프로젝트 개요" action="프로젝트 정보">
             <ProjectMetadataEditor project={project} />
-            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-              <Info label="사업명" value={project.name} />
-              <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
-                <Eyebrow>사업위치</Eyebrow>
-                {project.locationPoint?.adminRegion ? (
-                  <p className="mt-2 font-semibold leading-6 text-[#15345b]">{project.locationPoint.adminRegion}</p>
-                ) : null}
-                <p className={`font-semibold leading-6 text-[#172033] ${project.locationPoint?.adminRegion ? "mt-1 text-sm" : "mt-2"}`}>
-                  {project.location}
-                </p>
-                <ProjectLocationEditor project={project} />
+            <div className="mt-4">
+              {/* 1행: 사업명 (접수일) (상태) */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <p className="text-lg font-bold leading-7 text-[#15345b]">{project.name}</p>
+                <span className="rounded-[3px] border border-[#d0d5dd] bg-white px-2 py-0.5 text-xs font-semibold text-[#475569]">
+                  접수 {project.receivedAt}
+                </span>
+                <span className="rounded-[3px] border border-[#c9d6e6] bg-white px-2 py-0.5 text-xs font-bold text-[#2463b3]">
+                  {project.status}
+                </span>
               </div>
-              <Info label="시행자" value={project.client} />
-              <Info label="설계자" value={project.designer} />
-              <Info label="사업유형" value={project.projectType} />
-              <Info label="심의종류" value={project.reviewType} />
-              <Info label="접수일" value={project.receivedAt} />
-              <Info label="상태" value={project.status} />
-              {project.summary ? (
-                <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4 sm:col-span-2">
-                  <Eyebrow>사업개요</Eyebrow>
-                  <p className="mt-2 whitespace-pre-wrap font-semibold leading-6 text-[#172033]">{project.summary}</p>
+
+              <div className="my-4 border-t border-[#eceef1]" />
+
+              {/* 2행: 사업위치 · 시행자 · 사업유형 · 심의종류 */}
+              <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
+                  <Eyebrow>사업위치</Eyebrow>
+                  {project.locationPoint?.adminRegion ? (
+                    <p className="mt-2 text-sm font-semibold leading-5 text-[#15345b]">{project.locationPoint.adminRegion}</p>
+                  ) : null}
+                  <p className={`text-sm font-semibold leading-5 text-[#172033] ${project.locationPoint?.adminRegion ? "mt-1" : "mt-2"}`}>
+                    {project.location}
+                  </p>
+                  <ProjectLocationEditor project={project} />
                 </div>
-              ) : null}
+                <Info label="시행자" value={project.client} />
+                <Info label="사업유형" value={project.projectType} />
+                <Info label="심의종류" value={project.reviewType} />
+              </div>
             </div>
           </Panel>
           <div className="grid items-start gap-5 lg:grid-cols-2">
