@@ -54,7 +54,9 @@ export async function GET(request: NextRequest) {
     return false;
   };
 
-  var current = { preset: "birds", heading: 0 };
+  // 초기 시점: 평면도 — 부모 UI 디폴트와 일치 (엔진 초기화가 늦게 덮어써
+  // 사시도로 바뀌던 문제 방지)
+  var current = { preset: "top", heading: 0 };
 
   function camera() {
     var preset = PRESETS[current.preset];
