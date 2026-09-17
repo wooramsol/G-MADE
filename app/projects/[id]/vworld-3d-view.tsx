@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from "react";
 type CameraPreset = "birds" | "persp" | "top";
 
 const PRESET_LABELS: Record<CameraPreset, string> = {
-  birds: "사시도",
   top: "평면도",
+  birds: "사시도",
 } as Record<CameraPreset, string>;
 
 /**
@@ -19,7 +19,7 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
-  const [preset, setPreset] = useState<CameraPreset>("birds");
+  const [preset, setPreset] = useState<CameraPreset>("top");
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -27,6 +27,11 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
       const data = (event.data ?? {}) as { type?: string; message?: string };
       if (data.type === "vworld3d-ready") {
         setStatus("ready");
+        // 디폴트 시점: 평면도 (엔진 내부 기본은 조감이므로 준비 직후 전환)
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: "vworld3d-preset", preset: "top" },
+          window.location.origin,
+        );
       } else if (data.type === "vworld3d-error") {
         setErrorMessage(data.message ?? "3D 지도를 불러오지 못했습니다.");
         setStatus("error");
@@ -57,8 +62,12 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
   }
 
   function goHome() {
-    setPreset("birds");
+    setPreset("top");
     iframeRef.current?.contentWindow?.postMessage({ type: "vworld3d-home" }, window.location.origin);
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "vworld3d-preset", preset: "top" },
+      window.location.origin,
+    );
   }
 
   return (

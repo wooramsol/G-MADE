@@ -9,7 +9,6 @@ import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 const reviewTypes = ["경관사전심의", "경관심의", "공공디자인심의"];
 const projectTypes = ["복합문화시설", "공공공간", "생활SOC", "업무시설", "공동주택", "기반시설"];
-const statusOptions: Project["status"][] = ["접수", "심사 진행중", "완료"];
 
 type FormState = {
   name: string;
@@ -135,16 +134,10 @@ export default function ProjectMetadataEditor({
     <div className="mt-4 rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
       {/* 표시 레이아웃과 동일한 순서: 1행 사업명·접수일·상태 → 사업개요 → 2행 항목들 */}
       <div className="grid gap-4 lg:grid-cols-4">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <Field label="사업명" value={form.name} onChange={(value) => updateField("name", value)} />
         </div>
         <Field label="접수일" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
-        <SelectField
-          label="상태"
-          options={statusOptions}
-          value={form.status}
-          onChange={(value) => updateField("status", value as Project["status"])}
-        />
         <label className="lg:col-span-4">
           <FormLabel>사업개요</FormLabel>
           <textarea
