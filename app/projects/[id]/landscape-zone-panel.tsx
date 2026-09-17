@@ -160,16 +160,7 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
 
       {!loading && result ? (
         <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Info label="행정구역" value={result.adminRegion || "확인 중"} />
-            <Info label="전체 주소" value={result.address} />
-            <Info label="좌표" value={`${result.point.y.toFixed(6)}, ${result.point.x.toFixed(6)}`} />
-            <Info
-              label="경관지구 해당"
-              value={result.inLandscapeZone ? "해당 가능" : "인근 조회 결과 없음"}
-            />
-            <Info label="총 매칭" value={`${countZoneItems(zoneGroups)}건`} />
-          </div>
+          <Info label="주소" value={result.address || result.adminRegion || "확인 중"} />
 
           {zoneGroups.length > 0 ? (
             <div className="space-y-3">
@@ -283,9 +274,7 @@ function buildZoneGroups(result: LandscapeZoneResponse | null): ZoneGroup[] {
   return [...groups, ...Array.from(layerGroups.values())];
 }
 
-function countZoneItems(groups: ZoneGroup[]): number {
-  return groups.reduce((sum, group) => sum + group.items.length, 0);
-}
+
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
