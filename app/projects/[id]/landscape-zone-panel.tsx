@@ -150,7 +150,6 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
 
       {!loading && result && locationPoint ? (
         <div className="mb-4">
-          <p className="mb-1.5 text-xs font-bold text-[#475569]">평면 지도</p>
           <SpatialDetailMap
             point={{ x: locationPoint.x, y: locationPoint.y }}
             layerFeatures={result.layerFeatures ?? []}
@@ -212,11 +211,9 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
         </div>
         <div className="space-y-5">
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#475569]">3D 입체</p>
             <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#475569]">단면도 — 회전하면 해당 방향 단면</p>
             <Terrain3DView projectId={projectId} />
           </div>
         </div>
