@@ -520,7 +520,7 @@ function FindingCard({
       ) : null}
 
       {finding && finding.evidence.length > 0 ? (
-        <div className="mt-3 space-y-1.5">
+        <div className="mt-3 flex flex-wrap items-start gap-x-4 gap-y-3">
           {finding.evidence.map((evidence, index) => {
             const snippet = pageHref(
               evidence.fileName,
@@ -529,7 +529,10 @@ function FindingCard({
               buildEvidenceAnchors(evidence),
             );
             return (
-              <div key={`${evidence.fileName}-${evidence.page}-${index}`}>
+              <div
+                className="min-w-[240px] max-w-[360px] flex-1"
+                key={`${evidence.fileName}-${evidence.page}-${index}`}
+              >
                 <p className="text-[13px] leading-5 text-[#64748b]">
                   <span className="font-bold text-[#15345b]">
                     p.{evidence.page}
