@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
 (function () {
   var x = ${JSON.stringify(x)};
   var y = ${JSON.stringify(y)};
-  var PRESETS = { birds: { h: 600, t: -45 }, persp: { h: 200, t: -15 }, top: { h: 800, t: -90 } };
+  // top 고도 1500m — 좌측 평면 지도(줌 15, 세로 약 1.2km 범위)와 보이는 영역을 맞춤
+  var PRESETS = { birds: { h: 600, t: -45 }, persp: { h: 200, t: -15 }, top: { h: 1500, t: -90 } };
   var map = null;
   var startedAt = Date.now();
   var scriptErrors = [];
