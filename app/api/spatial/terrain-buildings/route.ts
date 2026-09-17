@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "사업 위치 좌표가 설정되지 않았습니다." }, { status: 422 });
   }
 
-  const cacheKey = `terrain-buildings/${point.y.toFixed(5)}_${point.x.toFixed(5)}-r${RADIUS_M}-v1.json`;
+  const cacheKey = `terrain-buildings/${point.y.toFixed(5)}_${point.x.toFixed(5)}-r${RADIUS_M}-v2.json`;
   if (isR2Configured()) {
     try {
       const cached = await r2GetObject(cacheKey);
