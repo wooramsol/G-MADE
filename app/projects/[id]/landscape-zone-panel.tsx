@@ -135,9 +135,9 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
     <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <SubsectionTitle>공간정보 (브이월드)</SubsectionTitle>
+          <SubsectionTitle>대상지 현황</SubsectionTitle>
         </div>
-        <Badge className="bg-[#e8f1ff] text-[#2463b3]">경관지구·용도지역·문화재</Badge>
+        <Badge className="bg-[#e8f1ff] text-[#2463b3]">브이월드 · 경관지구·용도지역·문화재</Badge>
       </div>
 
       {loading ? (
@@ -150,7 +150,7 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
 
       {!loading && result && locationPoint ? (
         <div className="mb-4">
-          <p className="mb-1.5 text-xs font-bold text-[#475569]">평면 지도 (지구·지역 경계)</p>
+          <p className="mb-1.5 text-xs font-bold text-[#475569]">평면 지도</p>
           <SpatialDetailMap
             point={{ x: locationPoint.x, y: locationPoint.y }}
             layerFeatures={result.layerFeatures ?? []}
@@ -207,16 +207,16 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
     {!loading && result && locationPoint ? (
       <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <SubsectionTitle>입체 지형 (브이월드 · 위성 DEM)</SubsectionTitle>
-          <Badge className="bg-[#e8f1ff] text-[#2463b3]">조감·투시·단면</Badge>
+          <SubsectionTitle>지형 분석</SubsectionTitle>
+          <Badge className="bg-[#e8f1ff] text-[#2463b3]">브이월드 · 위성 DEM</Badge>
         </div>
         <div className="space-y-5">
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#475569]">3D 입체 (조감·투시)</p>
+            <p className="mb-1.5 text-xs font-bold text-[#475569]">3D 입체</p>
             <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-bold text-[#475569]">단면도 (지형·주변 건물 — 회전하면 해당 방향 단면)</p>
+            <p className="mb-1.5 text-xs font-bold text-[#475569]">단면도 — 회전하면 해당 방향 단면</p>
             <Terrain3DView projectId={projectId} />
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { MapMouseHint } from "@/components/map-mouse-hint";
 
 /**
  * 3D 지형 단면 뷰 — 측면 시점 고정, 수평 360° 회전.
@@ -525,12 +526,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
             ⌂
           </button>
         ) : null}
-        {status === "ready" ? (
-          <div className="pointer-events-none absolute bottom-2 left-2 z-[500] flex flex-wrap gap-x-3 gap-y-0.5 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-semibold leading-4 text-white backdrop-blur-sm">
-            <span>🖱 드래그: 회전 (해당 방향 단면 표시)</span>
-            <span>휠: 확대·축소</span>
-          </div>
-        ) : null}
+        {status === "ready" ? <MapMouseHint variant="orbit" /> : null}
         {status === "ready" ? (
           <div className="pointer-events-none absolute bottom-2.5 right-2.5 h-14 w-14 rounded-full border border-[#c4ccd6] bg-white/90 shadow-sm">
             <div className="absolute inset-0" ref={compassRef}>

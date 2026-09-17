@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { MapMouseHint } from "@/components/map-mouse-hint";
 
 type CameraPreset = "birds" | "persp" | "top";
 
@@ -127,13 +128,7 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
               ⌂
             </button>
           ) : null}
-          {status === "ready" ? (
-            <div className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap gap-x-3 gap-y-0.5 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-semibold leading-4 text-white backdrop-blur-sm">
-              <span>🖱 드래그: 이동</span>
-              <span>휠: 확대·축소</span>
-              <span>휠 클릭+드래그: 회전·기울기</span>
-            </div>
-          ) : null}
+          {status === "ready" ? <MapMouseHint variant="orbit" /> : null}
         </div>
       )}
     </div>
