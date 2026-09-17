@@ -419,6 +419,12 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           }
           controls.minDistance = distance * 0.45;
           controls.maxDistance = distance * 1.7;
+          // 콘텐츠 중앙(midY)이 화면 세로 중앙에 오도록 프러스텀을 위로 시프트.
+          // 홈 거리 기준 픽셀 고정 — 줌 시 오프셋이 변하지 않아 줌 수렴점이
+          // 정확히 타겟(현재위치 지표면 점)에 남는다.
+          const homeVisibleH = 2 * distance * Math.tan(((camera.fov * Math.PI) / 180) / 2);
+          const shiftPx = ((frameCenterY - frameBaseY) / homeVisibleH) * height;
+          camera.setViewOffset(width, height, 0, -shiftPx, width, height);
           updateSection(true);
         };
         applyExaggeration(1.5);
@@ -428,12 +434,6 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const animate = () => {
           frame = requestAnimationFrame(animate);
           controls.update();
-          // 타겟(지면 점)보다 위에 있는 콘텐츠 중앙이 화면 세로 중앙에 오도록
-          // 프러스텀을 위로 시프트 — 줌 거리에 따라 픽셀 환산이 달라져 매 프레임 갱신
-          const viewDistance = camera.position.distanceTo(controls.target) || 1;
-          const visibleWorldH = 2 * viewDistance * Math.tan(((camera.fov * Math.PI) / 180) / 2);
-          const shiftPx = ((frameCenterY - frameBaseY) / visibleWorldH) * height;
-          camera.setViewOffset(width, height, 0, -shiftPx, width, height);
           updateSection();
           renderer.render(scene, camera);
           if (compassRef.current) {
