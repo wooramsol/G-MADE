@@ -163,6 +163,13 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           color: 0xb6bcc6,
           clippingPlanes: [clipPlane],
         });
+        // 절단 내부 채움 — 잘린 건물 속이 비어 보이지 않도록 내부(뒷면)를
+        // 지형 단면과 같은 종이톤 단색(무조명)으로 렌더링
+        const buildingCutMaterial = new THREE.MeshBasicMaterial({
+          color: 0xd9cfc0,
+          side: THREE.BackSide,
+          clippingPlanes: [clipPlane],
+        });
         const buildingMeshes: Array<{ mesh: InstanceType<typeof THREE.Mesh>; baseElevation: number }> = [];
         const buildingsGroup = new THREE.Group();
         for (const building of buildings) {
@@ -186,6 +193,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
             extrude.rotateX(-Math.PI / 2);
             extrude.computeBoundingBox(); // 첫 캔버스 크기 계산에서 건물 높이 반영
             const mesh = new THREE.Mesh(extrude, buildingMaterial);
+            const cutFill = new THREE.Mesh(extrude, buildingCutMaterial);
             // 바닥 기준 표고: 외곽 중심점의 지형 높이
             const cx = building.ring.reduce((sum, pt) => sum + pt[0], 0) / building.ring.length;
             const cz = building.ring.reduce((sum, pt) => sum + pt[1], 0) / building.ring.length;
@@ -193,7 +201,9 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
             if (Math.abs(cx) > half2 || Math.abs(cz) > half2) continue; // 지형 밖 제외
             const baseElevation = elevationAt(cx, cz) - elevMin;
             buildingMeshes.push({ mesh, baseElevation });
+            buildingMeshes.push({ mesh: cutFill, baseElevation });
             buildingsGroup.add(mesh);
+            buildingsGroup.add(cutFill);
           } catch {
             // 형상 이상 건물은 건너뜀
           }
@@ -434,6 +444,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           controls.dispose();
           for (const entry of buildingMeshes) entry.mesh.geometry.dispose();
           buildingMaterial.dispose();
+          buildingCutMaterial.dispose();
           geometry.dispose();
           markerGeometry.dispose();
           curtainGeometry.dispose();
