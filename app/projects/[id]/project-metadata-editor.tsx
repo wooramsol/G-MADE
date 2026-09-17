@@ -133,20 +133,19 @@ export default function ProjectMetadataEditor({
 
   return (
     <div className="mt-4 rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Field label="사업명" value={form.name} onChange={(value) => updateField("name", value)} />
-        <Field label="시행자" value={form.client} onChange={(value) => updateField("client", value)} />
-        <Field label="설계자" value={form.designer} onChange={(value) => updateField("designer", value)} />
-        <SelectField label="사업유형" options={projectTypes} value={form.projectType} onChange={(value) => updateField("projectType", value)} />
-        <SelectField label="심의종류" options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
+      {/* 표시 레이아웃과 동일한 순서: 1행 사업명·접수일·상태 → 사업개요 → 2행 항목들 */}
+      <div className="grid gap-4 lg:grid-cols-4">
+        <div className="lg:col-span-2">
+          <Field label="사업명" value={form.name} onChange={(value) => updateField("name", value)} />
+        </div>
         <Field label="접수일" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
         <SelectField
-          label="프로젝트 상태"
+          label="상태"
           options={statusOptions}
           value={form.status}
           onChange={(value) => updateField("status", value as Project["status"])}
         />
-        <label className="lg:col-span-2">
+        <label className="lg:col-span-4">
           <FormLabel>사업개요</FormLabel>
           <textarea
             className="mt-2 min-h-24 w-full rounded-md border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
@@ -154,6 +153,10 @@ export default function ProjectMetadataEditor({
             onChange={(event) => updateField("summary", event.target.value)}
           />
         </label>
+        <Field label="시행자" value={form.client} onChange={(value) => updateField("client", value)} />
+        <Field label="설계자" value={form.designer} onChange={(value) => updateField("designer", value)} />
+        <SelectField label="사업유형" options={projectTypes} value={form.projectType} onChange={(value) => updateField("projectType", value)} />
+        <SelectField label="심의종류" options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
       </div>
       {error ? <ErrorText className="mt-4 rounded-md bg-red-50 p-3">{error}</ErrorText> : null}
       <div className="mt-4 flex gap-2">

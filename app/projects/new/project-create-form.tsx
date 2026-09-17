@@ -90,6 +90,16 @@ export default function ProjectCreateForm() {
     <form className="grid gap-4 lg:grid-cols-2" id="new-project-form" onSubmit={submitProject}>
       {error ? <ErrorText className="rounded-md bg-red-50 p-3 lg:col-span-2">{error}</ErrorText> : null}
       <Field label="사업명" required placeholder="예: 동부역세권 복합문화시설 경관사전심의" value={form.name} onChange={(value) => updateField("name", value)} />
+      <Field label="접수일 (기본: 오늘)" required placeholder="예: 2026-06-04" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
+      <label className="lg:col-span-2">
+        <FormLabel>사업개요</FormLabel>
+        <textarea
+          className="mt-2 min-h-28 w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
+          placeholder="사업 목적, 주변 현황, 심의 요청사항을 입력하세요."
+          value={form.summary}
+          onChange={(event) => updateField("summary", event.target.value)}
+        />
+      </label>
       <div className="lg:col-span-2">
         <FormLabel as="p">
           사업위치 <span className="text-red-600">*</span>
@@ -102,16 +112,6 @@ export default function ProjectCreateForm() {
       <Field label="설계자" required placeholder="예: GMA 도시건축사사무소" value={form.designer} onChange={(value) => updateField("designer", value)} />
       <SelectField label="사업유형" required options={projectTypes} value={form.projectType} onChange={(value) => updateField("projectType", value)} />
       <SelectField label="심의종류" required options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
-      <Field label="접수일" required placeholder="예: 2026-06-04" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
-      <label className="lg:col-span-2">
-        <FormLabel>사업개요</FormLabel>
-        <textarea
-          className="mt-2 min-h-28 w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3 text-sm outline-none focus:border-[#2463b3] focus:bg-white"
-          placeholder="사업 목적, 주변 현황, 심의 요청사항을 입력하세요."
-          value={form.summary}
-          onChange={(event) => updateField("summary", event.target.value)}
-        />
-      </label>
       <div className="flex flex-wrap gap-3 lg:col-span-2">
         <button className="primary-action rounded-lg px-5 py-3 text-sm font-bold shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" disabled={loading} type="submit">
           {loading ? "프로젝트 생성 중..." : "프로젝트 생성하기"}

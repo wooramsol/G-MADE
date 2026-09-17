@@ -67,6 +67,16 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                 </span>
               </div>
 
+              {/* 사업개요 — 없으면 공란으로 두되 칸은 유지 */}
+              <div className="mt-3 rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
+                <Eyebrow>사업개요</Eyebrow>
+                {project.summary ? (
+                  <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#172033]">{project.summary}</p>
+                ) : (
+                  <p className="mt-2 text-sm text-[#94a3b8]">미입력 — 프로젝트 정보 수정에서 입력할 수 있습니다.</p>
+                )}
+              </div>
+
               <div className="my-4 border-t border-[#eceef1]" />
 
               {/* 2행: 사업위치 · 시행자 · 사업유형 · 심의종류 */}
