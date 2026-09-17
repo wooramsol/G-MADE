@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
       current.heading = (current.heading + data.delta + 360) % 360;
       moveCamera();
     } else if (data.type === "vworld3d-home") {
-      current.preset = "birds";
+      current.preset = "top";
       current.heading = 0;
       moveCamera();
     }
