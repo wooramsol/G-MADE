@@ -142,7 +142,7 @@ export async function buildSupplementDoc(
 
   sections.push(body(`사 업 명: ${project.name}`, { bold: true }));
   sections.push(body(`사업위치: ${project.location}`));
-  sections.push(body(`사업유형 / 심의종류: ${project.projectType} / ${project.reviewType}`));
+  sections.push(body(project.projectType ? `사업유형 / 심의종류: ${project.projectType} / ${project.reviewType}` : `심의종류: ${project.reviewType}`));
   sections.push(body(`AI 사전검토 일시: ${reviewedAtLabel} (검토 항목 ${review.items.length}개)`));
   if (review.files.length > 0) {
     sections.push(body(`검토 자료: ${review.files.map((file) => file.originalName).join(", ")}`));

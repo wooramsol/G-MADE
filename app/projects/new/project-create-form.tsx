@@ -12,7 +12,6 @@ import { showToast } from "../../toast";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 const reviewTypes = ["경관사전심의", "경관심의", "공공디자인심의"];
-const projectTypes = ["복합문화시설", "공공공간", "생활SOC", "업무시설", "공동주택", "기반시설"];
 
 const initialState = {
   name: "",
@@ -29,10 +28,8 @@ function validateForm(form: typeof initialState, location: LocationSelection | n
   if (!form.name.trim()) return "사업명을 입력해 주세요.";
   if (!location) return "사업위치를 검색하거나 지도에서 선택해 주세요.";
   if (!form.client.trim()) return "시행자를 입력해 주세요.";
-  if (!form.designer.trim()) return "설계자를 입력해 주세요.";
-  if (!form.projectType) return "사업유형을 선택해 주세요.";
   if (!form.reviewType) return "심의종류를 선택해 주세요.";
-  if (!form.receivedAt.trim()) return "접수일을 입력해 주세요.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.receivedAt.trim())) return "접수일을 연-월-일 형식으로 입력해 주세요. (예: 2026-09-17)";
   return "";
 }
 
@@ -90,7 +87,7 @@ export default function ProjectCreateForm() {
     <form className="grid gap-4 lg:grid-cols-2" id="new-project-form" onSubmit={submitProject}>
       {error ? <ErrorText className="rounded-md bg-red-50 p-3 lg:col-span-2">{error}</ErrorText> : null}
       <Field label="사업명" required placeholder="예: 동부역세권 복합문화시설 경관사전심의" value={form.name} onChange={(value) => updateField("name", value)} />
-      <Field label="접수일 (기본: 오늘)" required placeholder="예: 2026-06-04" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
+      <Field label="접수일 (기본: 오늘)" required placeholder="연-월-일 (예: 2026-09-17)" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
       <label className="lg:col-span-2">
         <FormLabel>사업개요</FormLabel>
         <textarea
@@ -109,8 +106,6 @@ export default function ProjectCreateForm() {
         </div>
       </div>
       <Field label="시행자" required placeholder="예: 서울도시개발공사" value={form.client} onChange={(value) => updateField("client", value)} />
-      <Field label="설계자" required placeholder="예: GMA 도시건축사사무소" value={form.designer} onChange={(value) => updateField("designer", value)} />
-      <SelectField label="사업유형" required options={projectTypes} value={form.projectType} onChange={(value) => updateField("projectType", value)} />
       <SelectField label="심의종류" required options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
       <div className="flex flex-wrap gap-3 lg:col-span-2">
         <button className="primary-action rounded-lg px-5 py-3 text-sm font-bold shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" disabled={loading} type="submit">

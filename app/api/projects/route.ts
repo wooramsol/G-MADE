@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const payload = await request.json();
-    const requiredFields = ["name", "location", "client", "designer", "projectType", "reviewType", "receivedAt"];
+    const requiredFields = ["name", "location", "client", "reviewType", "receivedAt"];
 
     for (const field of requiredFields) {
       if (!String(payload[field] ?? "").trim()) {
@@ -57,9 +57,9 @@ export async function POST(request: NextRequest) {
         adminRegion: String(locationPoint?.adminRegion ?? "").trim() || undefined,
       },
       client: String(payload.client).trim(),
-      designer: String(payload.designer).trim(),
-      projectType: String(payload.projectType).trim(),
-      scale: String(payload.scale).trim(),
+      designer: String(payload.designer ?? "").trim(),
+      projectType: String(payload.projectType ?? "").trim(),
+      scale: String(payload.scale ?? "").trim(),
       reviewType: String(payload.reviewType).trim(),
       receivedAt: String(payload.receivedAt).trim(),
       summary: String(payload.summary ?? "").trim() || undefined,

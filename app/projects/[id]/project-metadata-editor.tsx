@@ -8,7 +8,6 @@ import { showToast } from "../../toast";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 const reviewTypes = ["경관사전심의", "경관심의", "공공디자인심의"];
-const projectTypes = ["복합문화시설", "공공공간", "생활SOC", "업무시설", "공동주택", "기반시설"];
 
 type FormState = {
   name: string;
@@ -39,10 +38,8 @@ function toFormState(project: Project): FormState {
 function validateForm(form: FormState): string {
   if (!form.name.trim()) return "사업명을 입력해 주세요.";
   if (!form.client.trim()) return "시행자를 입력해 주세요.";
-  if (!form.designer.trim()) return "설계자를 입력해 주세요.";
-  if (!form.projectType) return "사업유형을 선택해 주세요.";
   if (!form.reviewType) return "심의종류를 선택해 주세요.";
-  if (!form.receivedAt.trim()) return "접수일을 입력해 주세요.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.receivedAt.trim())) return "접수일을 연-월-일 형식으로 입력해 주세요. (예: 2026-09-17)";
   return "";
 }
 
@@ -137,7 +134,7 @@ export default function ProjectMetadataEditor({
         <div className="lg:col-span-3">
           <Field label="사업명" value={form.name} onChange={(value) => updateField("name", value)} />
         </div>
-        <Field label="접수일" type="date" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
+        <Field label="접수일" placeholder="연-월-일 (예: 2026-09-17)" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
         <label className="lg:col-span-4">
           <FormLabel>사업개요</FormLabel>
           <textarea
@@ -147,8 +144,6 @@ export default function ProjectMetadataEditor({
           />
         </label>
         <Field label="시행자" value={form.client} onChange={(value) => updateField("client", value)} />
-        <Field label="설계자" value={form.designer} onChange={(value) => updateField("designer", value)} />
-        <SelectField label="사업유형" options={projectTypes} value={form.projectType} onChange={(value) => updateField("projectType", value)} />
         <SelectField label="심의종류" options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
       </div>
       {error ? <ErrorText className="mt-4 rounded-md bg-red-50 p-3">{error}</ErrorText> : null}
@@ -181,11 +176,13 @@ export default function ProjectMetadataEditor({
 function Field({
   label,
   type = "text",
+  placeholder,
   value,
   onChange,
 }: {
   label: string;
   type?: string;
+  placeholder?: string;
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -194,6 +191,7 @@ function Field({
       <FormLabel>{label}</FormLabel>
       <input
         className="mt-2 w-full rounded-md border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
+        placeholder={placeholder}
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}

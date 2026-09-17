@@ -19,7 +19,6 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
   const labelPeakRef = useRef<HTMLSpanElement | null>(null);
   const labelStartRef = useRef<HTMLSpanElement | null>(null);
   const labelEndRef = useRef<HTMLSpanElement | null>(null);
-  const labelHereRef = useRef<HTMLSpanElement | null>(null);
   const compassRef = useRef<HTMLDivElement | null>(null);
   const applyExaggerationRef = useRef<((value: number) => void) | null>(null);
   const resetViewRef = useRef<(() => void) | null>(null);
@@ -216,7 +215,6 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const markerGeometry = new THREE.CylinderGeometry(1, 1, 1, 8);
         const marker = new THREE.Mesh(markerGeometry, new THREE.MeshBasicMaterial({ color: 0xc1121f }));
         scene.add(marker);
-        const markerWorld = new THREE.Vector3();
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
         const sun = new THREE.DirectionalLight(0xffffff, 0.85);
@@ -238,6 +236,8 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           COMPASS[Math.round((((bearingDeg % 360) + 360) % 360) / 45) % 8];
 
         let currentExaggeration = 1.5;
+        let frameCenterY = 0; // 화면 세로 중앙에 둘 월드 y (콘텐츠 중앙)
+        let frameBaseY = 0; // 궤도 기준점(현재위치 지표면)의 월드 y
         let lastAzimuth = Number.POSITIVE_INFINITY;
         // 최고점이 단면 끝점과 사실상 같으면 끝 라벨을 숨기고 ▲ 하나로 통합
         let hideStartLabel = false;
@@ -365,7 +365,6 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           const pixelWorld = (2 * cameraDistance * Math.tan(((camera.fov * Math.PI) / 180) / 2)) / height;
           marker.scale.set(pixelWorld / 2, lineHeight, pixelWorld / 2); // 지름 = 화면상 약 1px
           marker.position.set(0, baseY + lineHeight / 2, 0);
-          markerWorld.set(0, baseY + lineHeight + 3, 0);
           // 세로 콘텐츠: 지반(0) ~ max(마커 꼭대기, 최고 건물 꼭대기)
           const tallestBuildingTop = buildingMeshes.reduce(
             (max, entry) =>
@@ -374,7 +373,12 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           );
           const contentTop = Math.max(relief * factor + lineHeight + 6, tallestBuildingTop + 8);
           const midY = contentTop / 2;
-          controls.target.set(0, midY, 0);
+          // 궤도·줌(돌리) 기준점은 현재위치의 지표면 점 — 높은 건물이 있어도
+          // 확대/축소가 항상 대상지 지면으로 수렴한다. 화면 세로 구도(콘텐츠
+          // 중앙 배치)는 매 프레임 카메라 뷰 오프셋으로 보정.
+          frameCenterY = midY;
+          frameBaseY = baseY;
+          controls.target.set(0, baseY, 0);
 
           // 회전 중 최대 투영 폭(대각 √2배) — 이 폭이 화면 가로에 딱 차도록 유지
           const worldWidth = sizeM * Math.SQRT2 * 1.06;
@@ -405,7 +409,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
             const polar = Math.PI * 0.46;
             camera.position.set(
               Math.sin(polar) * Math.sin(0.5) * distance,
-              midY + Math.cos(polar) * distance,
+              controls.target.y + Math.cos(polar) * distance,
               Math.sin(polar) * Math.cos(0.5) * distance,
             );
           } else {
@@ -424,6 +428,12 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const animate = () => {
           frame = requestAnimationFrame(animate);
           controls.update();
+          // 타겟(지면 점)보다 위에 있는 콘텐츠 중앙이 화면 세로 중앙에 오도록
+          // 프러스텀을 위로 시프트 — 줌 거리에 따라 픽셀 환산이 달라져 매 프레임 갱신
+          const viewDistance = camera.position.distanceTo(controls.target) || 1;
+          const visibleWorldH = 2 * viewDistance * Math.tan(((camera.fov * Math.PI) / 180) / 2);
+          const shiftPx = ((frameCenterY - frameBaseY) / visibleWorldH) * height;
+          camera.setViewOffset(width, height, 0, -shiftPx, width, height);
           updateSection();
           renderer.render(scene, camera);
           if (compassRef.current) {
@@ -436,7 +446,6 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           else placeLabel(labelStartRef.current, startWorld);
           if (hideEndLabel && labelEndRef.current) labelEndRef.current.style.opacity = "0";
           else placeLabel(labelEndRef.current, endWorld);
-          placeLabel(labelHereRef.current, markerWorld);
         };
         animate();
 
@@ -512,9 +521,6 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         <span className={labelClass} ref={labelPeakRef} style={{ opacity: 0 }} />
         <span className={labelClass} ref={labelStartRef} style={{ opacity: 0 }} />
         <span className={labelClass} ref={labelEndRef} style={{ opacity: 0 }} />
-        <span className={labelClass} ref={labelHereRef} style={{ opacity: 0 }}>
-          현재위치
-        </span>
         {status === "ready" ? (
           <button
             aria-label="처음 위치로"
