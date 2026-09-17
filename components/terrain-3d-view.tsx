@@ -42,7 +42,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         const buildingsPayload =
           buildingsResponse && buildingsResponse.ok
             ? ((await buildingsResponse.json().catch(() => ({}))) as {
-                buildings?: Array<{ floors: number; ring: Array<[number, number]> }>;
+                buildings?: Array<{ floors: number; heightM?: number; ring: Array<[number, number]> }>;
               })
             : {};
         const buildings = buildingsPayload.buildings ?? [];
@@ -174,9 +174,13 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
               else shape.lineTo(bx, -bz);
             });
             shape.closePath();
+            // 실제 높이(m)가 있으면 사용 — 3D 입체(브이월드 엔진)와 높이 싱크.
+            // 없으면 층수×3m 가정 폴백.
             const floors = Math.max(1, Math.min(80, building.floors));
+            const buildingHeight =
+              building.heightM && building.heightM > 2 ? Math.min(building.heightM, 400) : floors * FLOOR_HEIGHT_M;
             const extrude = new THREE.ExtrudeGeometry(shape, {
-              depth: floors * FLOOR_HEIGHT_M,
+              depth: buildingHeight,
               bevelEnabled: false,
             });
             extrude.rotateX(-Math.PI / 2);

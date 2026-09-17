@@ -123,9 +123,23 @@ export async function getNearbyBuildingStats(point: GeoPoint): Promise<NearbyBui
 export type BuildingFootprint = {
   /** 지상층수 (정보 없으면 1로 간주) */
   floors: number;
+  /** 실제 건물 높이(m) — 데이터에 있으면 층수 가정 대신 사용 (3D 입체와 싱크) */
+  heightM?: number;
   /** 대상지 기준 로컬 좌표(m) 외곽 링 — x=동(+), z=남(+) (Three.js 월드와 일치) */
   ring: Array<[number, number]>;
 };
+
+/** 건물 높이(m) 속성 후보 키 — 브이월드 응답 스키마 변형 대응 */
+const HEIGHT_KEYS = ["buld_hg", "BULD_HG", "height", "HEIGHT", "bd_hgt", "hg"];
+
+function readHeightM(properties: Record<string, unknown>): number | null {
+  for (const key of HEIGHT_KEYS) {
+    const raw = properties[key];
+    const value = typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : NaN;
+    if (Number.isFinite(value) && value > 2 && value < 600) return Math.round(value * 10) / 10;
+  }
+  return null;
+}
 
 /**
  * 3D 지형 뷰용 — 반경 내 건물의 "외곽 형상 + 층수"를 대상지 기준 로컬
@@ -184,7 +198,19 @@ export async function getNearbyBuildingFootprints(
       .filter((pt) => Array.isArray(pt) && pt.length >= 2)
       .map((pt) => toLocal(pt[0], pt[1]));
     if (ring.length < 3) continue;
-    footprints.push({ floors: readFloors(feature.properties ?? {}) ?? 1, ring });
+    const properties = feature.properties ?? {};
+    footprints.push({
+      floors: readFloors(properties) ?? 1,
+      heightM: readHeightM(properties) ?? undefined,
+      ring,
+    });
+  }
+  // 진단: 높이 속성이 전혀 안 잡히면 스키마 확인용으로 키 목록 1회 기록
+  if (footprints.length > 0 && footprints.every((fp) => fp.heightM === undefined)) {
+    const sample = result.data.features?.[0]?.properties;
+    if (sample) {
+      console.warn(`[vworld] 건물 높이 속성 미발견 — keys=${Object.keys(sample).slice(0, 24).join(",")}`);
+    }
   }
   return footprints;
 }
