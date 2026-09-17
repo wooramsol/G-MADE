@@ -19,6 +19,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
   const labelStartRef = useRef<HTMLSpanElement | null>(null);
   const labelEndRef = useRef<HTMLSpanElement | null>(null);
   const labelHereRef = useRef<HTMLSpanElement | null>(null);
+  const compassRef = useRef<HTMLDivElement | null>(null);
   const applyExaggerationRef = useRef<((value: number) => void) | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -399,6 +400,10 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           controls.update();
           updateSection();
           renderer.render(scene, camera);
+          if (compassRef.current) {
+            // 화면 위쪽이 북쪽과 이루는 각 = 카메라 방위각 (시계방향 CSS 회전과 부호 일치)
+            compassRef.current.style.transform = `rotate(${controls.getAzimuthalAngle()}rad)`;
+          }
           placedRects.length = 0;
           placeLabel(labelPeakRef.current, peakWorld);
           if (hideStartLabel && labelStartRef.current) labelStartRef.current.style.opacity = "0";
@@ -482,6 +487,21 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         <span className={labelClass} ref={labelHereRef} style={{ opacity: 0 }}>
           현재위치
         </span>
+        {status === "ready" ? (
+          <div className="pointer-events-none absolute bottom-2.5 right-2.5 h-14 w-14 rounded-full border border-[#c4ccd6] bg-white/90 shadow-sm">
+            <div className="absolute inset-0" ref={compassRef}>
+              <span className="absolute left-1/2 top-0.5 -translate-x-1/2 text-[11px] font-bold leading-none text-[#c1121f]">북</span>
+              <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[10px] font-semibold leading-none text-[#94a3b8]">남</span>
+              <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] font-semibold leading-none text-[#94a3b8]">동</span>
+              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] font-semibold leading-none text-[#94a3b8]">서</span>
+              <svg className="absolute inset-0" viewBox="0 0 56 56">
+                <polygon fill="#c1121f" points="28,14 31,28 28,26 25,28" />
+                <polygon fill="#c4ccd6" points="28,42 31,28 28,30 25,28" />
+                <circle cx="28" cy="28" fill="#15345b" r="1.6" />
+              </svg>
+            </div>
+          </div>
+        ) : null}
       </div>
       {status === "ready" ? (
         <p className="mt-1.5 text-[11px] leading-4 text-[#94a3b8]">
