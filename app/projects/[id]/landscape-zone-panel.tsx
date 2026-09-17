@@ -214,12 +214,12 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
     </div>
 
     {!loading && result && locationPoint ? (
-      <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow lg:col-span-2">
+      <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <SubsectionTitle>입체 지형 (브이월드 · 위성 DEM)</SubsectionTitle>
           <Badge className="bg-[#e8f1ff] text-[#2463b3]">조감·투시·단면</Badge>
         </div>
-        <div className="grid items-start gap-5 lg:grid-cols-2">
+        <div className="space-y-5">
           <div>
             <p className="mb-1.5 text-xs font-bold text-[#475569]">3D 입체 (조감·투시)</p>
             <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
