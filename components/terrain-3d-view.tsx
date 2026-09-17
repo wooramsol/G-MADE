@@ -21,6 +21,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
   const labelHereRef = useRef<HTMLSpanElement | null>(null);
   const compassRef = useRef<HTMLDivElement | null>(null);
   const applyExaggerationRef = useRef<((value: number) => void) | null>(null);
+  const resetViewRef = useRef<(() => void) | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -375,6 +376,16 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           const vFov = (camera.fov * Math.PI) / 180;
           const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
           const distance = (worldWidth / 2) / Math.tan(hFov / 2);
+          const INITIAL_AZIMUTH = 0.5;
+          resetViewRef.current = () => {
+            camera.position.set(
+              Math.sin(POLAR) * Math.sin(INITIAL_AZIMUTH) * distance,
+              controls.target.y + Math.cos(POLAR) * distance,
+              Math.sin(POLAR) * Math.cos(INITIAL_AZIMUTH) * distance,
+            );
+            controls.update();
+            updateSection(true);
+          };
           if (camera.position.lengthSq() < 1) {
             const polar = Math.PI * 0.46;
             camera.position.set(
@@ -441,6 +452,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
       cleanupRef.current?.();
       cleanupRef.current = null;
       applyExaggerationRef.current = null;
+      resetViewRef.current = null;
     };
   }, [projectId]);
 
@@ -488,6 +500,23 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           현재위치
         </span>
         {status === "ready" ? (
+          <button
+            aria-label="처음 위치로"
+            className="absolute right-2 top-2 z-[500] flex h-8 w-8 items-center justify-center rounded-md border border-[#c4ccd6] bg-white/90 text-base font-bold text-[#2463b3] shadow-sm hover:bg-white"
+            onClick={() => resetViewRef.current?.()}
+            title="처음 방향·배율로 되돌아갑니다"
+            type="button"
+          >
+            ⌂
+          </button>
+        ) : null}
+        {status === "ready" ? (
+          <div className="pointer-events-none absolute bottom-2 left-2 z-[500] flex flex-wrap gap-x-3 gap-y-0.5 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-semibold leading-4 text-white backdrop-blur-sm">
+            <span>🖱 드래그: 회전 (해당 방향 단면 표시)</span>
+            <span>휠: 확대·축소</span>
+          </div>
+        ) : null}
+        {status === "ready" ? (
           <div className="pointer-events-none absolute bottom-2.5 right-2.5 h-14 w-14 rounded-full border border-[#c4ccd6] bg-white/90 shadow-sm">
             <div className="absolute inset-0" ref={compassRef}>
               <span className="absolute left-1/2 top-0.5 -translate-x-1/2 text-[11px] font-bold leading-none text-[#c1121f]">북</span>
@@ -505,8 +534,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
       </div>
       {status === "ready" ? (
         <p className="mt-1.5 text-[11px] leading-4 text-[#94a3b8]">
-          드래그로 회전하면 그 방향 단면이 잘려 보이고 외곽선에 표고가 표시됩니다 · 휠 확대 — 회색 건물은
-          브이월드 실제 층수(층당 3m 가정), 지형은 위성 DEM(30m 격자) 근사, 참고용입니다.
+          회색 건물은 브이월드 실제 층수(층당 3m 가정), 지형은 위성 DEM(30m 격자) 근사, 참고용입니다.
         </p>
       ) : null}
     </div>
