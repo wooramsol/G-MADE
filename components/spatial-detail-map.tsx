@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { GeoJSON, MapContainer, Marker, TileLayer } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -38,6 +38,7 @@ function shortenLabel(name: string, max = 14): string {
 }
 
 export default function SpatialDetailMap({ point, layerFeatures = [] }: Props) {
+  const mapRef = useRef<L.Map | null>(null);
   useEffect(() => {
     delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
     L.Icon.Default.mergeOptions({
@@ -73,8 +74,19 @@ export default function SpatialDetailMap({ point, layerFeatures = [] }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="h-[320px] overflow-hidden rounded-md border border-[#d7dee8] [&_.leaflet-container]:h-full [&_.leaflet-container]:w-full [&_.leaflet-container]:z-0 [&_.zone-map-label]:rounded-md [&_.zone-map-label]:border [&_.zone-map-label]:border-white/80 [&_.zone-map-label]:bg-white/90 [&_.zone-map-label]:px-1.5 [&_.zone-map-label]:py-0.5 [&_.zone-map-label]:text-[10px] [&_.zone-map-label]:font-bold [&_.zone-map-label]:leading-tight [&_.zone-map-label]:text-[#15345b] [&_.zone-map-label]:shadow-sm">
-        <MapContainer center={center} zoom={15} scrollWheelZoom>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          aria-label="처음 위치로"
+          className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3] hover:bg-[#dcebfb]"
+          onClick={() => mapRef.current?.setView([point.y, point.x], 15)}
+          title="사업지 처음 위치로 되돌아갑니다"
+          type="button"
+        >
+          ⌂ 처음 위치
+        </button>
+      </div>
+      <div className="relative h-[320px] overflow-hidden rounded-md border border-[#d7dee8] [&_.leaflet-container]:h-full [&_.leaflet-container]:w-full [&_.leaflet-container]:z-0 [&_.zone-map-label]:rounded-md [&_.zone-map-label]:border [&_.zone-map-label]:border-white/80 [&_.zone-map-label]:bg-white/90 [&_.zone-map-label]:px-1.5 [&_.zone-map-label]:py-0.5 [&_.zone-map-label]:text-[10px] [&_.zone-map-label]:font-bold [&_.zone-map-label]:leading-tight [&_.zone-map-label]:text-[#15345b] [&_.zone-map-label]:shadow-sm">
+        <MapContainer center={center} ref={mapRef} zoom={15} scrollWheelZoom>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -101,6 +113,10 @@ export default function SpatialDetailMap({ point, layerFeatures = [] }: Props) {
             />
           ))}
         </MapContainer>
+        <div className="pointer-events-none absolute bottom-2 left-2 z-[500] flex flex-wrap gap-x-3 gap-y-0.5 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-semibold leading-4 text-white backdrop-blur-sm">
+          <span>🖱 드래그: 이동</span>
+          <span>휠: 확대·축소</span>
+        </div>
       </div>
       {layerSummary.length > 0 ? (
         <div className="flex flex-wrap gap-2 text-xs">
