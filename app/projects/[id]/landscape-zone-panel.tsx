@@ -7,6 +7,7 @@ import { Badge, SubsectionTitle } from "@/components/typography";
 import type { ProjectLocationPoint } from "@/lib/types";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 import Vworld3DView from "./vworld-3d-view";
+import { Terrain3DView } from "@/components/terrain-3d-view";
 
 const SpatialDetailMap = dynamic(() => import("@/components/spatial-detail-map"), {
   ssr: false,
@@ -51,6 +52,7 @@ type LandscapeZoneErrorResponse = {
 };
 
 type LandscapeZonePanelProps = {
+  projectId: string;
   address: string;
   locationPoint?: ProjectLocationPoint;
 };
@@ -61,14 +63,11 @@ const LAYER_CHIP_COLORS: Record<string, string> = {
   "cultural-heritage": "bg-[#fef2f2] text-[#b91c1c]",
 };
 
-export default function LandscapeZonePanel({ address, locationPoint }: LandscapeZonePanelProps) {
+export default function LandscapeZonePanel({ projectId, address, locationPoint }: LandscapeZonePanelProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [result, setResult] = useState<LandscapeZoneResponse | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-  const [mapView, setMapView] = useState<"2d" | "3d">("2d");
-  /** 3D 엔진은 무거워서 최초 열람 후에는 언마운트하지 않고 숨겨서 세션을 유지합니다. */
-  const [threeDMounted, setThreeDMounted] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,41 +148,22 @@ export default function LandscapeZonePanel({ address, locationPoint }: Landscape
       ) : null}
 
       {!loading && result && locationPoint ? (
-        <div className="mb-4">
-          <div className="mb-2 flex items-center gap-1.5">
-            <button
-              className={`rounded-full px-3 py-1 text-xs font-bold ${
-                mapView === "2d" ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dcebfb]"
-              }`}
-              onClick={() => setMapView("2d")}
-              type="button"
-            >
-              평면 지도 (지구·지역 경계)
-            </button>
-            <button
-              className={`rounded-full px-3 py-1 text-xs font-bold ${
-                mapView === "3d" ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dcebfb]"
-              }`}
-              onClick={() => {
-                setThreeDMounted(true);
-                setMapView("3d");
-              }}
-              type="button"
-            >
-              3D 입체 (조감·투시)
-            </button>
-          </div>
-          <div className={mapView === "2d" ? "" : "hidden"}>
+        <div className="mb-4 space-y-4">
+          <div>
+            <p className="mb-1.5 text-xs font-bold text-[#475569]">평면 지도 (지구·지역 경계)</p>
             <SpatialDetailMap
               point={{ x: locationPoint.x, y: locationPoint.y }}
               layerFeatures={result.layerFeatures ?? []}
             />
           </div>
-          {threeDMounted ? (
-            <div className={mapView === "3d" ? "" : "hidden"}>
-              <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
-            </div>
-          ) : null}
+          <div>
+            <p className="mb-1.5 text-xs font-bold text-[#475569]">3D 입체 (조감·투시)</p>
+            <Vworld3DView x={locationPoint.x} y={locationPoint.y} />
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-bold text-[#475569]">단면도 (지형·주변 건물 — 회전하면 해당 방향 단면)</p>
+            <Terrain3DView projectId={projectId} />
+          </div>
         </div>
       ) : null}
 

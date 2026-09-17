@@ -82,7 +82,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               ) : null}
             </div>
           </Panel>
-          <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} />
+          <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} projectId={project.id} />
           </div>
           <ChecklistReviewSection project={project} />
         </section>

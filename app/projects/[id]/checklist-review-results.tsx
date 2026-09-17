@@ -12,7 +12,6 @@ import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { buildArticleJumpUrl } from "@/lib/reference-links";
 import { buildEvidenceAnchors } from "@/lib/checklist-review/evidence-anchors";
-import { Terrain3DView } from "@/components/terrain-3d-view";
 
 // 행정문서 톤 — 흰 카드에 판정색 테두리(전체 스트로크), 뱃지는 각진 외곽선 태그
 const STATUS_STYLES: Record<ChecklistItemStatus, { badge: string; dot: string; card: string }> = {
@@ -301,15 +300,6 @@ export default function ChecklistReviewResults({
           · 최대 약 {review.spatialContext.terrain.maxSlopeDeg}°
           <span className="ml-1.5 text-[#94a3b8]">— 위성 DEM(30m 격자) 근사 참고값</span>
         </p>
-      ) : null}
-
-      {review.spatialContext?.terrain ? (
-        <details className="rounded-[4px] border border-[#d0d5dd] bg-white px-4 py-2.5" open>
-          <summary className="cursor-pointer select-none text-xs font-bold text-[#15345b]">
-            3D 지형 <span className="font-semibold text-[#667085]">±220m — 회전하면 해당 방향 단면 높이 표시</span>
-          </summary>
-          <Terrain3DView projectId={projectId} />
-        </details>
       ) : null}
 
       {previousReview ? (
