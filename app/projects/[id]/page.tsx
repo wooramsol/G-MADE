@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
-import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { getProjectById } from "@/lib/project-store";
 import DeleteProjectButton from "../delete-project-button";
 import ReviewWorkspaceTabs from "./review-workspace-tabs";
@@ -39,10 +38,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
         <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Eyebrow>사업명</Eyebrow>
-                <EvaluationStatusBadge project={project} />
-              </div>
+              <Eyebrow>사업명</Eyebrow>
               <PageTitle className="mt-2">{project.name}</PageTitle>
             </div>
             <div className="flex flex-wrap items-center gap-3">

@@ -734,7 +734,7 @@ function SnippetLightbox({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-[100] flex cursor-zoom-out items-center justify-center bg-black/75 p-4 sm:p-8"
+      className="fixed inset-0 z-[3000] flex cursor-zoom-out items-center justify-center bg-black/75 p-4 sm:p-8"
       onClick={(event) => {
         event.stopPropagation();
         onClose();

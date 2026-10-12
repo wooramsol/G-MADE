@@ -54,7 +54,7 @@ export default function AnalysisBlockingOverlay({
     <div
       aria-busy="true"
       aria-live="polite"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-[#172033]/50 p-4"
+      className="fixed inset-0 z-[3000] flex items-center justify-center bg-[#172033]/50 p-4"
       role="alertdialog"
     >
       <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-md border border-[#d7dee8] bg-white shadow-xl">

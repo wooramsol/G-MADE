@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { CardTitle, Eyebrow } from "@/components/typography";
-import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { getProjectEvaluationStatus } from "@/lib/project-evaluation-status";
 import { sortProjectsByUpdatedAt } from "@/lib/project-sort";
 import { filterActiveProjects } from "@/lib/trash";
@@ -62,7 +61,6 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
                 <Eyebrow className="tracking-[0.16em] text-[#2463b3]">{project.reviewType}</Eyebrow>
                 <CardTitle className="mt-3">{project.name}</CardTitle>
               </div>
-              <EvaluationStatusBadge project={project} />
             </div>
             <dl className="mt-5 flex-1 space-y-3 text-sm text-[#475569]">
               <Info label="사업위치" value={project.location} />

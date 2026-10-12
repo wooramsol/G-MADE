@@ -89,7 +89,7 @@ body {
   }
 
   .type-brand-title {
-    @apply text-lg font-black leading-7 text-white;
+    @apply text-lg font-normal leading-7 text-white;
   }
 
   .type-eyebrow {
