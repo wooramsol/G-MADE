@@ -297,7 +297,7 @@ async function ocrSinglePage(
     userBlocks: blocks,
     maxOutputTokens: 8_000,
     model: CLAUDE_FAST_MODEL,
-    timeoutMs: 60_000,
+    timeoutMs: 85_000,
   });
   const tiles = parseOcrJson(response.text);
   if (!tiles) {
@@ -364,6 +364,8 @@ export async function runDrawingOcr(options: {
   fileBuffers: Map<string, Buffer>;
   deadlineAt: number;
   maxUsd: number;
+  /** 먼저 판독할 페이지 (파일명 → 페이지) — 도면 목차에 잡힌 도면 페이지 */
+  priorityPages?: Map<string, Set<number>>;
   onUsage: (model: string, usage?: ClaudeUsage) => void;
 }): Promise<{ byFileId: Map<string, Map<number, OcrLine[]>>; stats: DrawingOcrStats }> {
   const { files, fileBuffers, deadlineAt, maxUsd, onUsage } = options;
@@ -426,7 +428,12 @@ export async function runDrawingOcr(options: {
         }
       }),
     );
-    uncached.sort((a, b) => a - b);
+    const priority = options.priorityPages?.get(parsePageSlices([file])[0]?.fileName ?? file.originalName);
+    uncached.sort((a, b) => {
+      const pa = priority?.has(a) ? 0 : 1;
+      const pb = priority?.has(b) ? 0 : 1;
+      return pa - pb || a - b;
+    });
     if (uncached.length === 0) continue;
 
     let handle: PdfHandle;

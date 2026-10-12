@@ -38,6 +38,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
   const [newFiles, setNewFiles] = useState<File[]>([]);
 
   const [running, setRunning] = useState(false);
+  const [forceFresh, setForceFresh] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [progress, setProgress] = useState<ChecklistReviewProgressEvent | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
@@ -212,6 +213,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
       formData.set("projectId", project.id);
       formData.set("projectSnapshot", JSON.stringify(project));
       formData.set("fileRefs", JSON.stringify([...refs, ...uploadedRefs]));
+      if (forceFresh) formData.set("forceFresh", "1");
 
       const result = await submitChecklistReviewStream(formData, (event) => setProgress(event));
 
@@ -368,6 +370,19 @@ export default function ChecklistReviewSection({ project }: { project: Project }
             >
               {running ? "검토 중..." : "체크리스트 AI 검토 시작"}
             </button>
+            <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs leading-5 text-[#475569]">
+              <input
+                checked={forceFresh}
+                className="mt-0.5"
+                disabled={running}
+                onChange={(event) => setForceFresh(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                새로 분석 — 이전 검토 결과를 재사용하지 않고 처음부터 판정합니다
+                <span className="block text-[11px] text-[#94a3b8]">같은 도서를 다시 평가할 때만 사용 (AI 비용이 첫 분석만큼 듭니다)</span>
+              </span>
+            </label>
           </div>
 
           {reviews.length > 0 ? (

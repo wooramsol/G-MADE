@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
       fileRefs,
       files,
       projectSnapshot: parseProjectSnapshot(formData.get("projectSnapshot")),
+      forceFresh: String(formData.get("forceFresh") ?? "") === "1",
     };
 
     if (wantsStream) {

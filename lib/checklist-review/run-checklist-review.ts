@@ -170,6 +170,8 @@ export type RunChecklistReviewInput = {
   fileRefs: StoredFileRef[];
   files: File[];
   projectSnapshot: Project | null;
+  /** true면 이전 검토 결과를 재사용하지 않고 처음부터 판정 (도면 판독 효과 확인·재평가용) */
+  forceFresh?: boolean;
 };
 
 export type RunChecklistReviewResult = {
@@ -269,21 +271,6 @@ export async function runChecklistReview(
       }),
     );
 
-    // 도면 정밀 판독 — 텍스트층이 빈약한 페이지를 도면/사진으로 분류하고, 스캔 도면은
-    // 고해상도 타일 OCR로 글자+위치를 얻는다. 법령·공간정보 조회와 병렬로 시작해 대기
-    // 시간을 겹치고, 시간·예산 상한을 넘기면 남은 페이지는 건너뛴다(실패해도 평가는 진행).
-    const ocrUsages: Array<{ model: string; usage?: ClaudeUsage }> = [];
-    const ocrPromise = runDrawingOcr({
-      files: filesForAnalysis,
-      fileBuffers,
-      deadlineAt: Date.now() + OCR_DEADLINE_MS,
-      maxUsd: OCR_MAX_USD,
-      onUsage: (ocrModel, usage) => ocrUsages.push({ model: ocrModel, usage }),
-    }).catch((error) => {
-      console.warn("[drawing-ocr] 건너뜀:", error instanceof Error ? error.message : error);
-      return null;
-    });
-
     // 이 프로젝트의 가장 최근 검토를 "기준"으로 삼아 이번 파일들과 페이지 "내용"(해시)을
     // 기준으로 정렬합니다. 단순 페이지 번호 비교가 아니라 LCS(최장 공통 부분수열) 정렬을
     // 쓰므로, 페이지가 삽입·삭제돼 번호가 밀려도 같은 내용의 페이지를 올바르게 대응시켜
@@ -303,7 +290,10 @@ export async function runChecklistReview(
       contentHash: file.contentHash,
       pageHashes: file.pageHashes,
     }));
-    const baselineCandidate = selectBestBaseline(currentFingerprints, project.checklistReviews ?? []);
+    const baselineCandidate = input.forceFresh
+      ? null
+      : selectBestBaseline(currentFingerprints, project.checklistReviews ?? []);
+    if (input.forceFresh) console.log("[checklist-review] 새로 분석 요청 — 이전 결과 재사용 안 함");
     const baselineReview = baselineCandidate?.review;
     const alignments = baselineCandidate?.alignments ?? null;
     // 제출물에 변경이 하나라도 있으면(파일 추가/제거·페이지 추가/삭제/수정) true.
@@ -338,6 +328,34 @@ export async function runChecklistReview(
         : `[checklist-review] baseline=없음 (첫 검토이거나 대응되는 이력 없음)`,
     );
 
+    // 도면 정밀 판독 — 텍스트층이 빈약한 페이지를 도면/사진으로 분류하고, 스캔 도면은
+    // 고해상도 타일 OCR로 글자+위치를 얻는다. 법령·공간정보 조회와 병렬로 시작해 대기
+    // 시간을 겹치고, 시간·예산 상한을 넘기면 남은 페이지는 건너뛴다(실패해도 평가는 진행).
+    // 이전과 완전히 같은 문서면 판정·캡처를 전부 재사용하므로 판독이 쓰일 곳이 없어 생략.
+    // 도면 목차(텍스트층 기준)에 잡힌 도면 페이지를 먼저 판독해 시간 안에 핵심 도면부터.
+    const ocrUsages: Array<{ model: string; usage?: ClaudeUsage }> = [];
+    const skipOcr = baselineCandidate?.exactMatch === true;
+    if (skipOcr) console.log("[drawing-ocr] 생략 — 이전 검토와 동일 문서(결과 재사용)");
+    const priorityPages = new Map<string, Set<number>>();
+    for (const entry of buildDrawingIndex(filesForAnalysis)) {
+      const set = priorityPages.get(entry.fileName) ?? new Set<number>();
+      set.add(entry.page);
+      priorityPages.set(entry.fileName, set);
+    }
+    const ocrPromise = skipOcr
+      ? Promise.resolve(null)
+      : runDrawingOcr({
+          files: filesForAnalysis,
+          fileBuffers,
+          deadlineAt: Date.now() + OCR_DEADLINE_MS,
+          maxUsd: OCR_MAX_USD,
+          priorityPages,
+          onUsage: (ocrModel, usage) => ocrUsages.push({ model: ocrModel, usage }),
+        }).catch((error) => {
+          console.warn("[drawing-ocr] 건너뜀:", error instanceof Error ? error.message : error);
+          return null;
+        });
+
     // 법령·공간정보 조회는 Claude 호출이 아니라 비용이 들지 않고, 시간에 따라 최신화될 수
     // 있으므로 항상 새로 조회합니다.
     emitStep(emit, "context");
@@ -353,7 +371,7 @@ export async function runChecklistReview(
     const usageByModel: UsageByModel = new Map();
     let evaluationWarnings: string[];
 
-    emitStep(emit, "context", "도면 이미지 속 글자·치수 판독 중");
+    if (!skipOcr) emitStep(emit, "context", "도면 이미지 속 글자·치수 판독 중");
     const ocrResult = await ocrPromise;
     for (const entry of ocrUsages) addUsage(usageByModel, entry.model, entry.usage);
     if (ocrResult) {
