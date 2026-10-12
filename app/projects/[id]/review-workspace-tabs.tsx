@@ -43,6 +43,18 @@ const TABS: Array<{
   },
 ];
 
+/** "26.09.04" 형식 (한국 시간) */
+function shortDate(iso: string): string {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(iso));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}.${get("month")}.${get("day")}`;
+}
+
 function changeSummary(version: DocumentVersion): string | null {
   if (version.order === 1) return version.pageCount ? `${version.pageCount}쪽` : null;
   const change = version.change;
@@ -106,48 +118,44 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
   const activeTab = TABS.find((tab) => tab.id === active) ?? TABS[0];
 
   // 도서 버전 선택 — 두 탭의 "검토 자료 선택" 카드 안에 같은 것을 넣는다 (상태는 여기서 공유)
-  const versionPicker = (
-      <div className="rounded-md border border-[#d7dee8] bg-white px-3 py-2.5">
+  const versionPicker =
+    versions.length === 0 ? (
+      <p className="pt-1.5 text-xs text-[#94a3b8]">
+        아직 검토한 도서가 없습니다 — 도서를 검토하면 제출본별 버전이 자동으로 만들어집니다.
+      </p>
+    ) : (
+      <div>
         <div className="flex flex-wrap items-center gap-2">
-          <p className="mr-1 text-sm font-bold text-[#15345b]">도서 버전</p>
-          {versions.length === 0 ? (
-            <span className="text-xs text-[#94a3b8]">
-              아직 검토한 도서가 없습니다 — AI 분석에서 도서를 검토하면 제출본별 버전이 자동으로 만들어집니다.
-            </span>
-          ) : (
-            versions.map((version) => {
-              const selected = version.key === currentVersion?.key;
-              const summary = changeSummary(version);
-              return (
-                <button
-                  className={`rounded-md border px-3 py-1.5 text-left transition ${
-                    selected
-                      ? "border-[#15345b] bg-[#15345b] text-white"
-                      : "border-[#d7dee8] bg-[#f8fafc] text-[#334155] hover:border-[#9fb3cc]"
-                  }`}
-                  key={version.key}
-                  onClick={() => setVersionKey(version.key)}
-                  title={`${version.fileName}\n첫 검토 ${formatUploadDateTime(version.firstReviewedAt)} · 검토 ${version.reviews.length}회`}
-                  type="button"
-                >
-                  <span className="block text-xs font-bold">
-                    {version.label}
-                    <span className={`ml-1.5 font-semibold ${selected ? "text-[#c9d6e6]" : "text-[#94a3b8]"}`}>
-                      {formatUploadDateTime(version.firstReviewedAt).slice(0, 12)}
-                    </span>
+          {versions.map((version) => {
+            const selected = version.key === currentVersion?.key;
+            const summary = changeSummary(version);
+            return (
+              <button
+                className={`flex h-12 min-w-[150px] flex-col justify-center rounded-md border px-3 text-left transition ${
+                  selected
+                    ? "border-[#15345b] bg-[#15345b] text-white"
+                    : "border-[#d7dee8] bg-white text-[#334155] hover:border-[#9fb3cc] hover:bg-[#f8fafc]"
+                }`}
+                key={version.key}
+                onClick={() => setVersionKey(version.key)}
+                title={`${version.fileName}\n첫 검토 ${formatUploadDateTime(version.firstReviewedAt)} · 검토 ${version.reviews.length}회`}
+                type="button"
+              >
+                <span className="flex items-baseline justify-between gap-3 text-xs font-bold leading-4">
+                  {version.label}
+                  <span className={`text-[11px] font-medium ${selected ? "text-[#c9d6e6]" : "text-[#94a3b8]"}`}>
+                    {shortDate(version.firstReviewedAt)}
                   </span>
-                  {summary ? (
-                    <span className={`mt-0.5 block text-[11px] ${selected ? "text-[#dbe4f0]" : "text-[#64748b]"}`}>
-                      {summary}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })
-          )}
+                </span>
+                <span className={`mt-0.5 block truncate text-[11px] leading-4 ${selected ? "text-[#dbe4f0]" : "text-[#64748b]"}`}>
+                  {summary ?? "\u00a0"}
+                </span>
+              </button>
+            );
+          })}
           {currentVersion ? (
             <button
-              className="ml-auto rounded px-2 py-1 text-xs font-bold text-[#2463b3] hover:bg-[#eef4fb]"
+              className="h-8 rounded-[4px] px-2 text-xs font-bold text-[#2463b3] hover:bg-[#eef4fb]"
               onClick={() => renameVersion(currentVersion)}
               type="button"
             >
@@ -157,16 +165,16 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
         </div>
         {currentVersion ? (
           <p className="mt-2 truncate text-[11px] text-[#94a3b8]">
-            {currentVersion.fileName} · 검토 {currentVersion.reviews.length}회
+            {currentVersion.fileName}
             {currentVersion.change && currentVersion.change.changedPages.length > 0
-              ? ` · 바뀐 페이지: ${currentVersion.change.changedPages.slice(0, 20).map((page) => `p.${page}`).join(", ")}${
+              ? ` · 바뀐 페이지 ${currentVersion.change.changedPages.slice(0, 20).map((page) => `p.${page}`).join(", ")}${
                   currentVersion.change.changedPages.length > 20 ? " …" : ""
                 }`
               : ""}
           </p>
         ) : null}
       </div>
-  );
+    );
 
   return (
     <div className="space-y-4">

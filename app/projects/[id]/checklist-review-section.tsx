@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
-import { Caption, MutedText } from "@/components/typography";
+import { MutedText } from "@/components/typography";
 import type { ChecklistReviewProgressEvent } from "@/lib/checklist-review/progress";
 import type { ChecklistReview } from "@/lib/checklist-review/types";
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
@@ -236,59 +236,168 @@ export default function ChecklistReviewSection({
       {running ? <AnalysisBlockingOverlay progress={progress} startedAt={startedAt} statusMessage={uploadMessage ?? undefined} /> : null}
 
       <div className="space-y-5">
-        <div>
-          <div
-            className={`rounded-md border p-4 transition-colors ${
-              dragActive ? "border-[#2463b3] bg-[#f0f7ff]" : "border-[#d7dee8] bg-[#f8fafc]"
-            }`}
-            onDragLeave={(event) => {
-              // 자식 요소로의 이동은 무시 — 영역을 실제로 벗어날 때만 해제
-              if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragActive(false);
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragActive(true);
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragActive(false);
-              handleFileInput(event.dataTransfer.files);
-            }}
-          >
+        <div
+          className={`rounded-md border bg-white transition-colors ${
+            dragActive ? "border-[#2463b3] ring-2 ring-[#2463b3]/15" : "border-[#d7dee8]"
+          }`}
+          onDragLeave={(event) => {
+            // 자식 요소로의 이동은 무시 — 영역을 실제로 벗어날 때만 해제
+            if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragActive(false);
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragActive(true);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragActive(false);
+            handleFileInput(event.dataTransfer.files);
+          }}
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#eef1f5] px-4 py-3">
             <p className="text-sm font-bold text-[#15345b]">검토 자료 선택</p>
-            <Caption className="mt-1 text-[#64748b]">
-              체크리스트가 포함된 PDF 1개를 업로드하거나 이전에 올린 자료 1개를 선택하세요. (한 번에 1개만 분석)
-            </Caption>
-            {versionPicker ? <div className="mt-3">{versionPicker}</div> : null}
+            <p className="text-xs text-[#94a3b8]">체크리스트가 포함된 PDF · 한 번에 1개 분석</p>
+          </div>
 
-            <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_280px]">
-            <div>
-            <button
-              className="w-full rounded-lg border border-dashed border-[#9db6d8] bg-white px-4 py-3 text-sm font-bold text-[#2463b3] hover:bg-[#f0f7ff]"
-              onClick={() => fileInputRef.current?.click()}
-              type="button"
-            >
-              {dragActive ? "여기에 놓으면 업로드됩니다" : `+ PDF·이미지 업로드 또는 드래그 (최대 ${getMaxUploadFileLabel()})`}
-            </button>
-            <input
-              accept=".pdf,.png,.jpg,.jpeg"
-              className="hidden"
-              onChange={(event) => {
-                handleFileInput(event.target.files);
-                event.target.value = "";
-              }}
-              ref={fileInputRef}
-              type="file"
-            />
+          {versionPicker ? <FieldRow label="도서 버전">{versionPicker}</FieldRow> : null}
+          {reviews.length > 0 ? (
+            <FieldRow label="검토 회차">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  className="h-8 rounded-[4px] border border-[#d0d5dd] bg-white px-2 text-xs text-[#172033]"
+                  onChange={(event) => setSelectedReviewId(event.target.value)}
+                  value={selectedReview?.id ?? ""}
+                >
+                  {reviews.map((review, index) => (
+                    <option key={review.id} value={review.id}>
+                      {formatUploadDateTime(review.reviewedAt)}
+                      {index === 0 ? " (최신)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-[#94a3b8]">이 버전 {reviews.length}회 검토</span>
+                <button
+                  className="ml-auto h-8 rounded-[4px] px-2 text-xs font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
+                  disabled={deletingReview || running}
+                  onClick={handleDeleteSelectedReview}
+                  type="button"
+                >
+                  {deletingReview ? "삭제 중..." : "이 검토 기록 삭제"}
+                </button>
+              </div>
+            </FieldRow>
+          ) : null}
+
+          <FieldRow label="새 검토">
+            <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_240px]">
+              <div className="flex min-h-[112px] flex-col rounded-md border border-[#e2e8f0]">
+                <p className="flex items-center justify-between border-b border-[#eef1f5] px-3 py-2 text-xs font-bold text-[#475569]">
+                  보관 중인 자료
+                  <span className="font-semibold text-[#94a3b8]">{storedFiles.length}개</span>
+                </p>
+                {storedFiles.length > 0 ? (
+                  <ul className="max-h-36 flex-1 divide-y divide-[#f1f5f9] overflow-y-auto">
+                    {storedFiles.map((file) => (
+                      <li key={file.id}>
+                        <label
+                          className={`flex cursor-pointer items-center gap-2 px-3 py-2 text-xs ${
+                            selectedStoredIds.has(file.id) ? "bg-[#eef4fb]" : "hover:bg-[#f8fafc]"
+                          }`}
+                        >
+                          <input
+                            checked={selectedStoredIds.has(file.id)}
+                            name="checklist-review-stored-file"
+                            onChange={() => toggleStoredFile(file.id)}
+                            onClick={() => {
+                              // 라디오는 재클릭 시 change 이벤트가 없으므로 클릭으로 선택 해제 지원
+                              if (selectedStoredIds.has(file.id)) toggleStoredFile(file.id);
+                            }}
+                            type="radio"
+                          />
+                          <span className="min-w-0 flex-1 truncate font-semibold text-[#172033]">{file.originalName}</span>
+                          <span className="shrink-0 text-[#94a3b8]">{formatBytes(file.sizeBytes)}</span>
+                          <button
+                            className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold text-[#94a3b8] hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                            disabled={deletingFileId === file.id}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void handleDeleteStoredFile(file);
+                            }}
+                            title="자료 삭제 (저장된 파일도 함께 삭제)"
+                            type="button"
+                          >
+                            {deletingFileId === file.id ? "삭제 중" : "삭제"}
+                          </button>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="flex flex-1 items-center justify-center px-3 py-4 text-xs text-[#94a3b8]">
+                    보관 중인 자료가 없습니다
+                  </p>
+                )}
+              </div>
+
+              <button
+                className={`flex min-h-[112px] flex-col items-center justify-center gap-1 rounded-md border border-dashed px-4 py-4 text-center transition-colors ${
+                  dragActive ? "border-[#2463b3] bg-[#eaf2fd]" : "border-[#9db6d8] bg-[#f8fbff] hover:bg-[#f0f7ff]"
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+              >
+                <span className="text-sm font-bold text-[#2463b3]">
+                  {dragActive ? "여기에 놓으면 업로드됩니다" : "+ 새 PDF 업로드"}
+                </span>
+                <span className="text-[11px] text-[#64748b]">클릭 또는 끌어다 놓기 · 최대 {getMaxUploadFileLabel()}</span>
+              </button>
+              <input
+                accept=".pdf,.png,.jpg,.jpeg"
+                className="hidden"
+                onChange={(event) => {
+                  handleFileInput(event.target.files);
+                  event.target.value = "";
+                }}
+                ref={fileInputRef}
+                type="file"
+              />
+
+              <div className="flex flex-col justify-center gap-2.5">
+                <button
+                  className="primary-action-blue h-11 w-full rounded-md px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={running}
+                  onClick={handleRun}
+                  type="button"
+                >
+                  {running ? "검토 중..." : "AI 검토 시작"}
+                </button>
+                <label className="flex cursor-pointer items-start gap-2 text-xs leading-5 text-[#475569]">
+                  <input
+                    checked={forceFresh}
+                    className="mt-1"
+                    disabled={running}
+                    onChange={(event) => setForceFresh(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>
+                    새로 분석
+                    <span className="block text-[11px] leading-4 text-[#94a3b8]">
+                      이전 결과를 재사용하지 않고 처음부터 판정 (AI 비용이 첫 분석만큼 듭니다)
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
 
             {newFiles.length > 0 ? (
               <ul className="mt-3 space-y-1.5">
                 {newFiles.map((file) => (
                   <li
-                    className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-xs"
+                    className="flex items-center justify-between gap-2 rounded-md border border-[#c9d6e6] bg-[#f8fbff] px-3 py-2 text-xs"
                     key={file.name}
                   >
-                    <span className="min-w-0 truncate font-semibold text-[#172033]">{file.name}</span>
+                    <span className="min-w-0 truncate font-semibold text-[#172033]">새 자료 · {file.name}</span>
                     <span className="flex shrink-0 items-center gap-2 text-[#64748b]">
                       {formatBytes(file.size)}
                       <button
@@ -304,113 +413,15 @@ export default function ChecklistReviewSection({
               </ul>
             ) : null}
 
-            </div>
-
-            <div>
-            {storedFiles.length > 0 ? (
-              <div>
-                <Caption className="font-bold text-[#475569]">보관 중인 자료</Caption>
-                <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto pr-1">
-                  {storedFiles.map((file) => (
-                    <li key={file.id}>
-                      <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs hover:bg-[#f0f7ff]">
-                        <input
-                          checked={selectedStoredIds.has(file.id)}
-                          name="checklist-review-stored-file"
-                          onChange={() => toggleStoredFile(file.id)}
-                          onClick={() => {
-                            // 라디오는 재클릭 시 change 이벤트가 없으므로 클릭으로 선택 해제 지원
-                            if (selectedStoredIds.has(file.id)) toggleStoredFile(file.id);
-                          }}
-                          type="radio"
-                        />
-                        <span className="min-w-0 flex-1 truncate font-semibold text-[#172033]">
-                          {file.originalName}
-                        </span>
-                        <span className="shrink-0 text-[#94a3b8]">{formatBytes(file.sizeBytes)}</span>
-                        <button
-                          className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
-                          disabled={deletingFileId === file.id}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            void handleDeleteStoredFile(file);
-                          }}
-                          title="자료 삭제 (저장된 파일도 함께 삭제)"
-                          type="button"
-                        >
-                          {deletingFileId === file.id ? "삭제 중" : "삭제"}
-                        </button>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            </div>
-
-            <div>
             {lastError ? (
-              <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+              <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
                 {lastError}
               </p>
             ) : null}
-            <button
-              className="primary-action-blue w-full rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={running}
-              onClick={handleRun}
-              type="button"
-            >
-              {running ? "검토 중..." : "체크리스트 AI 검토 시작"}
-            </button>
-            <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs leading-5 text-[#475569]">
-              <input
-                checked={forceFresh}
-                className="mt-0.5"
-                disabled={running}
-                onChange={(event) => setForceFresh(event.target.checked)}
-                type="checkbox"
-              />
-              <span>
-                새로 분석 — 이전 검토 결과를 재사용하지 않고 처음부터 판정합니다
-                <span className="block text-[11px] text-[#94a3b8]">같은 도서를 다시 평가할 때만 사용 (AI 비용이 첫 분석만큼 듭니다)</span>
-              </span>
-            </label>
-            </div>
-            </div>
-          </div>
-
+          </FieldRow>
         </div>
 
         <div className="min-w-0">
-          {reviews.length > 0 ? (
-            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-[#64748b]">
-              <span>
-                이 버전은 <b className="text-[#15345b]">{reviews.length}회</b> 검토됨 — 표시 중:
-              </span>
-              <select
-                className="rounded-[4px] border border-[#d0d5dd] bg-white px-2 py-1 text-xs text-[#172033]"
-                onChange={(event) => setSelectedReviewId(event.target.value)}
-                value={selectedReview?.id ?? ""}
-              >
-                {reviews.map((review, index) => (
-                  <option key={review.id} value={review.id}>
-                    {formatUploadDateTime(review.reviewedAt)}
-                    {index === 0 ? " (최신)" : ""}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="ml-auto rounded px-2 py-1 text-[11px] font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
-                disabled={deletingReview || running}
-                onClick={handleDeleteSelectedReview}
-                type="button"
-              >
-                {deletingReview ? "삭제 중..." : "이 검토 기록 삭제"}
-              </button>
-            </div>
-          ) : null}
           {selectedReview ? (
             <ChecklistReviewResults previousReview={previousReview} projectId={project.id} review={selectedReview} />
           ) : (
@@ -423,5 +434,15 @@ export default function ChecklistReviewSection({
         </div>
       </div>
     </WorkspaceSectionCard>
+  );
+}
+
+/** 검토 자료 카드의 한 줄 — 왼쪽 고정 폭 라벨 + 오른쪽 내용 (줄마다 정렬이 맞도록) */
+function FieldRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2 border-b border-[#eef1f5] px-4 py-3 last:border-b-0 sm:flex-row sm:items-start sm:gap-4">
+      <p className="w-20 shrink-0 pt-2 text-xs font-bold text-[#64748b]">{label}</p>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
   );
 }
