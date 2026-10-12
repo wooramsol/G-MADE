@@ -102,6 +102,13 @@ export async function r2PresignPutUrl(
   return getSignedUrl(getR2Client(), command, { expiresIn: expiresInSeconds });
 }
 
+/** 브라우저 직접 다운로드용 presigned GET URL (전문가 분석 뷰어가 대용량 PDF를 서버 경유 없이 받음) */
+export async function r2PresignGetUrl(key: string, expiresInSeconds = 3600): Promise<string> {
+  return getSignedUrl(getR2Client(), new GetObjectCommand({ Bucket: getBucket(), Key: key }), {
+    expiresIn: expiresInSeconds,
+  });
+}
+
 function isNotFound(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const name = (error as { name?: string }).name ?? "";

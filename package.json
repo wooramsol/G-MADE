@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && node scripts/prisma-db-push-if-configured.mjs && next build",
+    "dev": "node scripts/copy-pdfjs-assets.mjs && next dev",
+    "build": "node scripts/copy-pdfjs-assets.mjs && prisma generate && node scripts/prisma-db-push-if-configured.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "deploy:production": "node scripts/deploy-production.mjs",

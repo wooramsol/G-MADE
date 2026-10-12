@@ -1,97 +1,447 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
-import { collectProjectStoredFiles } from "@/lib/project-file-pool";
-import type { Project } from "@/lib/types";
+import type { ExpertMemo, Project } from "@/lib/types";
+import ExpertPdfViewer, { nextZoom, useExpertPdf, type Region, type ViewerBox, type ViewerTool } from "./expert-pdf-viewer";
 
 /**
- * 사전심의: 전문가 분석 — 인간 전문가가 도서 PDF 위에 직접 영역을 표시하고 메모를 남기는 영역.
- * (1단계: 레이아웃만 — 뷰어·표시 도구·메모 저장은 다음 단계에서 연결)
+ * 사전심의: 전문가 분석 — 전문가가 도서 PDF 위에 영역을 표시하고 의견 메모를 남긴다.
+ * - 메모는 작성자 이름과 함께 모두에게 공유, 수정·삭제는 본인(또는 관리자)만.
+ * - 메모는 작성한 도서 버전에 묶이고, 보완 제출본에서는 이전 버전 메모를 참고로 볼 수 있다.
  */
 
-type Tool = "select" | "box" | "pen" | "memo";
+export type ExpertVersionInfo = {
+  key: string;
+  label: string;
+  order: number;
+  fileName: string;
+  reviewId: string | null;
+  fileId: string | null;
+  /** 직전 버전 대비 바뀐 페이지 */
+  changedPages: number[];
+};
 
-const TOOLS: Array<{ id: Tool; label: string; icon: string }> = [
-  { id: "select", label: "선택", icon: "↖" },
-  { id: "box", label: "영역 표시", icon: "▭" },
-  { id: "pen", label: "펜", icon: "✎" },
-  { id: "memo", label: "메모", icon: "✉" },
+const TOOLS: Array<{ id: ViewerTool; label: string; icon: string; hint: string }> = [
+  { id: "select", label: "선택", icon: "↖", hint: "메모 박스를 눌러 내용 확인" },
+  { id: "box", label: "영역 표시", icon: "▭", hint: "드래그해서 영역을 그리고 메모 작성" },
 ];
+
+function shortDateTime(iso: string): string {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(iso));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}.${get("month")}.${get("day")} ${get("hour")}:${get("minute")}`;
+}
+
+function byPageThenTime(a: ExpertMemo, b: ExpertMemo) {
+  return a.page - b.page || a.region.y - b.region.y || a.createdAt.localeCompare(b.createdAt);
+}
 
 export default function ExpertReviewSection({
   project,
-  activeVersion = null,
+  active = true,
   versionPicker,
+  activeVersion = null,
+  versions = [],
 }: {
   project: Project;
-  /** 도서 버전 선택 (탭 공통) — 검토 자료 선택 카드 안에 표시 */
+  /** 탭이 보일 때만 PDF를 받는다 */
+  active?: boolean;
   versionPicker?: ReactNode;
-  /** 상단에서 고른 도서 버전 — 해당 제출본 파일을 기본 선택 */
-  activeVersion?: { label: string; fileName: string } | null;
+  activeVersion?: ExpertVersionInfo | null;
+  versions?: ExpertVersionInfo[];
 }) {
-  const storedFiles = useMemo(
-    () => collectProjectStoredFiles(project).filter((file) => file.originalName.toLowerCase().endsWith(".pdf")),
-    [project],
+  const [memos, setMemos] = useState<ExpertMemo[]>(project.expertMemos ?? []);
+  const [me, setMe] = useState<{ id: string; isAdmin: boolean } | null>(null);
+  const [tool, setTool] = useState<ViewerTool>("box");
+  const [page, setPage] = useState(1);
+  const [pageCount, setPageCount] = useState(0);
+  const [pageInput, setPageInput] = useState("1");
+  const [zoom, setZoom] = useState(1);
+  const [listTab, setListTab] = useState<"all" | "page">("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Region | null>(null);
+  const [draftText, setDraftText] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [showPrevious, setShowPrevious] = useState(true);
+
+  const pdf = useExpertPdf({
+    projectId: project.id,
+    reviewId: activeVersion?.reviewId ?? null,
+    fileId: activeVersion?.fileId ?? null,
+    enabled: active,
+  });
+
+  // 메모 목록 + 현재 사용자 (탭을 열 때마다 최신으로 — 다른 전문가 메모 반영)
+  const refresh = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/expert-memos?projectId=${encodeURIComponent(project.id)}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = (await response.json()) as { memos: ExpertMemo[]; currentUserId: string; isAdmin: boolean };
+      setMemos(payload.memos);
+      setMe({ id: payload.currentUserId, isAdmin: payload.isAdmin });
+    } catch {
+      // 네트워크 오류 시 기존 목록 유지
+    }
+  }, [project.id]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (active) void refresh();
+  }, [active, refresh]);
+
+  // 버전이 바뀌면 첫 페이지·선택 초기화
+  const versionKey = activeVersion?.key ?? null;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
+    setPageInput("1");
+    setSelectedId(null);
+    setDraft(null);
+    setPageCount(0);
+  }, [versionKey]);
+
+  const goToPage = useCallback(
+    (next: number) => {
+      const clamped = Math.max(1, Math.min(pageCount || next, next));
+      setPage(clamped);
+      setPageInput(String(clamped));
+      setDraft(null);
+    },
+    [pageCount],
   );
-  const versionFileId = storedFiles.find((file) => file.originalName === activeVersion?.fileName)?.id ?? null;
-  const selectedFileId = versionFileId ?? storedFiles[storedFiles.length - 1]?.id ?? null;
-  const [tool, setTool] = useState<Tool>("box");
-  const selectedFile = storedFiles.find((file) => file.id === selectedFileId) ?? null;
+
+  const versionMemos = useMemo(
+    () => memos.filter((memo) => memo.versionKey === versionKey).sort(byPageThenTime),
+    [memos, versionKey],
+  );
+  const numberOf = useMemo(() => new Map(versionMemos.map((memo, index) => [memo.id, index + 1])), [versionMemos]);
+  const versionByKey = useMemo(() => new Map(versions.map((version) => [version.key, version])), [versions]);
+  const previousMemos = useMemo(() => {
+    if (!activeVersion) return [];
+    return memos
+      .filter((memo) => {
+        const version = versionByKey.get(memo.versionKey);
+        return memo.versionKey !== activeVersion.key && version && version.order < activeVersion.order;
+      })
+      .sort((a, b) => (versionByKey.get(b.versionKey)?.order ?? 0) - (versionByKey.get(a.versionKey)?.order ?? 0) || byPageThenTime(a, b));
+  }, [memos, activeVersion, versionByKey]);
+
+  const listed = listTab === "page" ? versionMemos.filter((memo) => memo.page === page) : versionMemos;
+  const selectedPrevious = previousMemos.find((memo) => memo.id === selectedId) ?? null;
+
+  const boxes: ViewerBox[] = [
+    ...versionMemos
+      .filter((memo) => memo.page === page)
+      .map((memo) => ({
+        id: memo.id,
+        region: memo.region,
+        label: String(numberOf.get(memo.id) ?? ""),
+        kind: "current" as const,
+        selected: memo.id === selectedId,
+      })),
+    ...(selectedPrevious && selectedPrevious.page === page
+      ? [
+          {
+            id: selectedPrevious.id,
+            region: selectedPrevious.region,
+            label: `이전 의견 · ${versionByKey.get(selectedPrevious.versionKey)?.label ?? ""}`,
+            kind: "previous" as const,
+            selected: true,
+          },
+        ]
+      : []),
+  ];
+
+  const canEdit = (memo: ExpertMemo) => Boolean(me && (memo.authorId === me.id || me.isAdmin));
+
+  const selectMemo = (memo: ExpertMemo) => {
+    setSelectedId(memo.id);
+    setDraft(null);
+    if (memo.page !== page) goToPage(memo.page);
+  };
+
+  const saveDraft = async () => {
+    if (!draft || !activeVersion?.reviewId || !activeVersion.fileId || !draftText.trim()) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/expert-memos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          versionKey: activeVersion.key,
+          reviewId: activeVersion.reviewId,
+          fileId: activeVersion.fileId,
+          page,
+          region: draft,
+          text: draftText,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { memo?: ExpertMemo; memos?: ExpertMemo[]; error?: string };
+      if (!response.ok || !payload.memos) throw new Error(payload.error ?? "메모를 저장하지 못했습니다.");
+      setMemos(payload.memos);
+      setSelectedId(payload.memo?.id ?? null);
+      setDraft(null);
+      setDraftText("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "메모를 저장하지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveEdit = async (memo: ExpertMemo) => {
+    if (!editText.trim()) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/expert-memos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, memoId: memo.id, text: editText }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { memos?: ExpertMemo[]; error?: string };
+      if (!response.ok || !payload.memos) throw new Error(payload.error ?? "메모를 수정하지 못했습니다.");
+      setMemos(payload.memos);
+      setEditingId(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "메모를 수정하지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (memo: ExpertMemo) => {
+    if (!window.confirm("이 메모를 삭제할까요?")) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const query = new URLSearchParams({ projectId: project.id, memoId: memo.id });
+      const response = await fetch(`/api/expert-memos?${query}`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => ({}))) as { memos?: ExpertMemo[]; error?: string };
+      if (!response.ok || !payload.memos) throw new Error(payload.error ?? "메모를 삭제하지 못했습니다.");
+      setMemos(payload.memos);
+      if (selectedId === memo.id) setSelectedId(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "메모를 삭제하지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changedPages = new Set(activeVersion?.changedPages ?? []);
+
+  const memoCard = (memo: ExpertMemo, previous: boolean) => {
+    const selected = memo.id === selectedId;
+    const editing = editingId === memo.id;
+    const mine = me?.id === memo.authorId;
+    return (
+      <li
+        className={`rounded-md border p-3 text-left transition ${
+          selected
+            ? previous
+              ? "border-[#64748b] bg-[#f1f5f9]"
+              : "border-[#b45309] bg-[#fff8ed]"
+            : "border-[#e2e8f0] bg-white hover:border-[#cbd5e1]"
+        }`}
+        key={memo.id}
+      >
+        <button className="block w-full text-left" onClick={() => selectMemo(memo)} type="button">
+          <span className="flex items-center gap-2 text-[11px]">
+            <span
+              className={`flex h-5 min-w-5 items-center justify-center rounded-[3px] px-1 font-bold text-white ${
+                previous ? "bg-[#64748b]" : "bg-[#b45309]"
+              }`}
+            >
+              {previous ? versionByKey.get(memo.versionKey)?.label ?? "이전" : numberOf.get(memo.id)}
+            </span>
+            <span className="font-bold text-[#334155]">p.{memo.page}</span>
+            {previous && changedPages.has(memo.page) ? (
+              <span className="rounded-[3px] bg-[#fef3c7] px-1.5 font-semibold text-[#92400e]">이번 버전에서 변경된 페이지</span>
+            ) : null}
+            <span className="ml-auto text-[#94a3b8]">{shortDateTime(memo.updatedAt ?? memo.createdAt)}</span>
+          </span>
+          <span className="mt-1 block text-[11px] font-semibold text-[#64748b]">
+            {memo.authorName}
+            {mine ? " (나)" : ""}
+          </span>
+        </button>
+        {editing ? (
+          <div className="mt-2">
+            <textarea
+              autoFocus
+              className="h-24 w-full resize-y rounded-[4px] border border-[#cbd5e1] p-2 text-sm leading-5 outline-none focus:border-[#b45309]"
+              onChange={(event) => setEditText(event.target.value)}
+              value={editText}
+            />
+            <div className="mt-1.5 flex justify-end gap-1.5">
+              <button className="h-7 rounded-[4px] px-2.5 text-xs font-bold text-[#64748b] hover:bg-[#f1f5f9]" onClick={() => setEditingId(null)} type="button">
+                취소
+              </button>
+              <button
+                className="h-7 rounded-[4px] bg-[#b45309] px-3 text-xs font-bold text-white disabled:opacity-50"
+                disabled={busy || !editText.trim()}
+                onClick={() => void saveEdit(memo)}
+                type="button"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[#1e293b]">{memo.text}</p>
+        )}
+        {!previous && !editing && canEdit(memo) ? (
+          <div className="mt-2 flex justify-end gap-1 text-[11px]">
+            <button
+              className="rounded-[3px] px-2 py-0.5 font-semibold text-[#64748b] hover:bg-[#f1f5f9]"
+              onClick={() => {
+                setEditingId(memo.id);
+                setEditText(memo.text);
+              }}
+              type="button"
+            >
+              수정
+            </button>
+            <button className="rounded-[3px] px-2 py-0.5 font-semibold text-[#b91c1c] hover:bg-[#fef2f2]" onClick={() => void remove(memo)} type="button">
+              삭제
+            </button>
+          </div>
+        ) : null}
+      </li>
+    );
+  };
+
+  const draftPopover = (
+    <div className="rounded-md border border-[#b45309] bg-white p-2.5 shadow-lg">
+      <textarea
+        autoFocus
+        className="h-24 w-full resize-y rounded-[4px] border border-[#cbd5e1] p-2 text-sm leading-5 outline-none focus:border-[#b45309]"
+        onChange={(event) => setDraftText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) void saveDraft();
+          if (event.key === "Escape") setDraft(null);
+        }}
+        placeholder="이 영역에 대한 의견을 적어 주세요"
+        value={draftText}
+      />
+      <div className="mt-1.5 flex items-center justify-between">
+        <span className="text-[10px] text-[#94a3b8]">⌘/Ctrl + Enter 저장</span>
+        <span className="flex gap-1.5">
+          <button className="h-7 rounded-[4px] px-2.5 text-xs font-bold text-[#64748b] hover:bg-[#f1f5f9]" onClick={() => setDraft(null)} type="button">
+            취소
+          </button>
+          <button
+            className="h-7 rounded-[4px] bg-[#b45309] px-3 text-xs font-bold text-white disabled:opacity-50"
+            disabled={busy || !draftText.trim()}
+            onClick={() => void saveDraft()}
+            type="button"
+          >
+            {busy ? "저장 중…" : "메모 저장"}
+          </button>
+        </span>
+      </div>
+    </div>
+  );
+
+  const hasFile = Boolean(activeVersion?.reviewId && activeVersion.fileId);
 
   return (
-    <WorkspaceSectionCard
-      id="expert-review"
-      title="사전심의: 전문가 분석"
-      bare
-    >
-      <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
-        {/* 왼쪽: 자료 선택 · 메모 목록 */}
-        <div className="space-y-4">
-          <div className="rounded-md border border-[#d7dee8] bg-white p-4">
-            <p className="mb-3 text-sm font-bold text-[#15345b]">도서 버전</p>
-            {versionPicker ?? <p className="text-xs text-[#94a3b8]">AI 분석 탭에서 PDF를 업로드하면 도서 버전이 만들어집니다.</p>}
+    <WorkspaceSectionCard id="expert-review" title="사전심의: 전문가 분석" bare>
+      <div className="mb-4 rounded-md border border-[#d7dee8] bg-white p-4">
+        <p className="mb-3 text-sm font-bold text-[#15345b]">도서 버전</p>
+        {versionPicker ?? <p className="text-xs text-[#94a3b8]">AI 분석 탭에서 PDF를 업로드하면 도서 버전이 만들어집니다.</p>}
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
+        {/* 왼쪽: 메모 목록 */}
+        <div className="flex min-h-0 flex-col rounded-md border border-[#d7dee8] bg-white p-4 xl:max-h-[calc(78vh+49px)]">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-[#15345b]">전문가 메모</p>
+            <span className="text-xs text-[#94a3b8]">{versionMemos.length}건</span>
+          </div>
+          <div className="mt-3 flex gap-1 border-b border-[#e2e8f0] text-xs">
+            {(
+              [
+                ["all", `전체 ${versionMemos.length}`],
+                ["page", `현재 페이지 ${versionMemos.filter((memo) => memo.page === page).length}`],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                className={`-mb-px rounded-t-[4px] border px-3 py-1.5 font-bold ${
+                  listTab === id ? "border-[#e2e8f0] border-b-white bg-white text-[#15345b]" : "border-transparent text-[#94a3b8] hover:text-[#475569]"
+                }`}
+                key={id}
+                onClick={() => setListTab(id)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          <div className="rounded-md border border-[#d7dee8] bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-[#15345b]">전문가 메모</p>
-              <span className="text-xs text-[#94a3b8]">0건</span>
-            </div>
-            <div className="mt-3 flex gap-1 border-b border-[#e2e8f0] text-xs">
-              {["전체", "현재 페이지"].map((label, index) => (
-                <span
-                  className={`-mb-px rounded-t-[4px] border px-3 py-1.5 font-bold ${
-                    index === 0 ? "border-[#e2e8f0] border-b-white bg-white text-[#15345b]" : "border-transparent text-[#94a3b8]"
-                  }`}
-                  key={label}
+          <div className="mt-3 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            {listed.length === 0 ? (
+              <p className="rounded-[4px] border border-dashed border-[#d0d5dd] bg-[#f8fafc] px-3 py-6 text-center text-xs leading-5 text-[#94a3b8]">
+                {listTab === "page" ? "이 페이지에는 메모가 없습니다." : "아직 메모가 없습니다."}
+                <br />
+                ‘영역 표시’로 도서 위에 네모를 그리면 메모를 남길 수 있습니다.
+              </p>
+            ) : (
+              <ul className="space-y-2">{listed.map((memo) => memoCard(memo, false))}</ul>
+            )}
+
+            {previousMemos.length > 0 ? (
+              <div>
+                <button
+                  className="flex w-full items-center justify-between border-t border-[#e2e8f0] pt-3 text-xs font-bold text-[#475569]"
+                  onClick={() => setShowPrevious((value) => !value)}
+                  type="button"
                 >
-                  {label}
-                </span>
-              ))}
-            </div>
-            <p className="mt-3 rounded-[4px] border border-dashed border-[#d0d5dd] bg-[#f8fafc] px-3 py-6 text-center text-xs leading-5 text-[#94a3b8]">
-              아직 메모가 없습니다.
-              <br />
-              오른쪽 도서 화면에서 영역을 표시하면 메모를 남길 수 있습니다.
-            </p>
+                  이전 버전 의견 {previousMemos.length}건
+                  <span className="text-[#94a3b8]">{showPrevious ? "접기 ▲" : "펼치기 ▼"}</span>
+                </button>
+                {showPrevious ? (
+                  <>
+                    <p className="mt-1.5 text-[11px] leading-4 text-[#94a3b8]">
+                      이전 제출본에 남긴 의견입니다. 누르면 같은 페이지 번호에 점선으로 위치를 보여 줍니다.
+                    </p>
+                    <ul className="mt-2 space-y-2">{previousMemos.map((memo) => memoCard(memo, true))}</ul>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
 
-        {/* 오른쪽: PDF 뷰어 + 표시 도구 */}
+        {/* 오른쪽: PDF 뷰어 */}
         <div className="min-w-0 rounded-md border border-[#d7dee8] bg-white">
           <div className="flex flex-wrap items-center gap-2 border-b border-[#e2e8f0] px-3 py-2">
             <div className="flex items-center gap-1" role="toolbar" aria-label="표시 도구">
               {TOOLS.map((item) => (
                 <button
                   className={`flex h-8 items-center gap-1.5 rounded-[4px] border px-2.5 text-xs font-bold ${
-                    tool === item.id
-                      ? "border-[#2463b3] bg-[#eef4fb] text-[#2463b3]"
-                      : "border-transparent text-[#475569] hover:bg-[#f1f5f9]"
+                    tool === item.id ? "border-[#b45309] bg-[#fff8ed] text-[#b45309]" : "border-transparent text-[#475569] hover:bg-[#f1f5f9]"
                   }`}
                   key={item.id}
-                  onClick={() => setTool(item.id)}
-                  title={item.label}
+                  onClick={() => {
+                    setTool(item.id);
+                    setDraft(null);
+                  }}
+                  title={item.hint}
                   type="button"
                 >
                   <span aria-hidden>{item.icon}</span>
@@ -101,41 +451,95 @@ export default function ExpertReviewSection({
             </div>
             <span className="mx-1 h-5 w-px bg-[#e2e8f0]" />
             <div className="flex items-center gap-1 text-xs text-[#475569]">
-              <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9]" disabled title="이전 페이지" type="button">
+              <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9] disabled:opacity-30" disabled={page <= 1} onClick={() => goToPage(page - 1)} title="이전 페이지" type="button">
                 ◀
               </button>
-              <span className="min-w-[56px] text-center font-semibold">— / —</span>
-              <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9]" disabled title="다음 페이지" type="button">
+              <form
+                className="flex items-center gap-1"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const value = Number(pageInput);
+                  if (Number.isFinite(value)) goToPage(Math.round(value));
+                }}
+              >
+                <input
+                  aria-label="페이지 번호"
+                  className="h-7 w-11 rounded-[4px] border border-[#d7dee8] text-center text-xs font-semibold outline-none focus:border-[#b45309]"
+                  inputMode="numeric"
+                  onBlur={() => setPageInput(String(page))}
+                  onChange={(event) => setPageInput(event.target.value)}
+                  value={pageInput}
+                />
+                <span className="font-semibold">/ {pageCount || "—"}</span>
+              </form>
+              <button
+                className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9] disabled:opacity-30"
+                disabled={pageCount > 0 && page >= pageCount}
+                onClick={() => goToPage(page + 1)}
+                title="다음 페이지"
+                type="button"
+              >
                 ▶
               </button>
+              {changedPages.has(page) ? (
+                <span className="ml-1 rounded-[3px] bg-[#fef3c7] px-1.5 py-0.5 text-[11px] font-semibold text-[#92400e]">이전 버전 대비 변경</span>
+              ) : null}
             </div>
             <div className="ml-auto flex items-center gap-1 text-xs text-[#475569]">
-              <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9]" disabled title="축소" type="button">
+              <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9]" onClick={() => setZoom((value) => nextZoom(value, -1))} title="축소" type="button">
                 −
               </button>
-              <span className="min-w-[44px] text-center font-semibold">100%</span>
-              <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9]" disabled title="확대" type="button">
+              <button className="min-w-[52px] rounded-[4px] py-1 text-center font-semibold hover:bg-[#f1f5f9]" onClick={() => setZoom(1)} title="화면 폭에 맞춤" type="button">
+                {zoom === 1 ? "폭 맞춤" : `${Math.round(zoom * 100)}%`}
+              </button>
+              <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9]" onClick={() => setZoom((value) => nextZoom(value, 1))} title="확대" type="button">
                 +
               </button>
             </div>
           </div>
 
-          <div className="flex min-h-[560px] items-center justify-center bg-[#eef1f5] p-6">
-            <div className="flex aspect-[1.414/1] w-full max-w-[860px] flex-col items-center justify-center rounded-[2px] border border-[#d0d5dd] bg-white text-center shadow-sm">
-              <p className="text-sm font-bold text-[#475569]">
-                {selectedFile ? selectedFile.originalName : "검토 자료를 선택하세요"}
-              </p>
-              <p className="mt-2 text-xs leading-5 text-[#94a3b8]">
-                PDF 페이지가 이곳에 표시됩니다.
-                <br />
-                도구를 골라 검토 부위에 영역을 표시하고 의견 메모를 남깁니다.
-              </p>
+          {!hasFile ? (
+            <div className="flex min-h-[560px] items-center justify-center bg-[#eef1f5] p-6 text-center text-sm text-[#64748b]">
+              AI 분석 탭에서 도서 PDF를 업로드하면 이곳에서 열람·표시할 수 있습니다.
             </div>
-          </div>
+          ) : pdf.error ? (
+            <div className="flex min-h-[560px] flex-col items-center justify-center gap-2 bg-[#eef1f5] p-6 text-center text-sm text-[#b91c1c]">
+              도서를 열지 못했습니다.
+              <span className="text-xs text-[#64748b]">{pdf.error}</span>
+            </div>
+          ) : !pdf.doc ? (
+            <div className="flex min-h-[560px] flex-col items-center justify-center gap-3 bg-[#eef1f5] p-6 text-sm text-[#475569]">
+              도서를 불러오는 중… {pdf.progress > 0 ? `${Math.round(pdf.progress * 100)}%` : ""}
+              <div className="h-1.5 w-56 overflow-hidden rounded-full bg-[#d7dee8]">
+                <div className="h-full bg-[#b45309] transition-all" style={{ width: `${Math.max(4, pdf.progress * 100)}%` }} />
+              </div>
+            </div>
+          ) : (
+            <ExpertPdfViewer
+              boxes={boxes}
+              doc={pdf.doc}
+              draftPopover={draftPopover}
+              draftRegion={draft}
+              onDraftComplete={(region) => {
+                setDraft(region);
+                setDraftText("");
+                setSelectedId(null);
+              }}
+              onPageCount={setPageCount}
+              onSelectBox={(id) => {
+                setSelectedId(id);
+                setListTab("page");
+              }}
+              page={page}
+              tool={tool}
+              zoom={zoom}
+            />
+          )}
 
           <div className="flex items-center gap-3 border-t border-[#e2e8f0] px-3 py-2 text-[11px] text-[#94a3b8]">
-            <span>현재 도구: {TOOLS.find((item) => item.id === tool)?.label}</span>
-            <span className="ml-auto">표시·메모는 자동 저장됩니다 (준비 중)</span>
+            <span>{TOOLS.find((item) => item.id === tool)?.hint}</span>
+            {message ? <span className="font-semibold text-[#b91c1c]">{message}</span> : null}
+            <span className="ml-auto">메모는 저장 즉시 모든 검토자에게 공유됩니다</span>
           </div>
         </div>
       </div>

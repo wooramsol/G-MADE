@@ -6,7 +6,7 @@ import { formatBytes } from "@/lib/format-bytes";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import type { Project } from "@/lib/types";
 import ChecklistReviewSection from "./checklist-review-section";
-import ExpertReviewSection from "./expert-review-section";
+import ExpertReviewSection, { type ExpertVersionInfo } from "./expert-review-section";
 
 type TabId = "ai" | "expert";
 
@@ -98,6 +98,24 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
   };
 
 
+
+  const expertVersions: ExpertVersionInfo[] = useMemo(
+    () =>
+      versions.map((version) => {
+        const review = version.reviews.find((entry) => entry.files[0]) ?? version.reviews[0];
+        return {
+          key: version.key,
+          label: version.label,
+          order: version.order,
+          fileName: version.fileName,
+          reviewId: review?.id ?? null,
+          fileId: review?.files[0]?.id ?? null,
+          changedPages: version.change?.changedPages ?? [],
+        };
+      }),
+    [versions],
+  );
+  const expertActive = expertVersions.find((version) => version.key === currentVersion?.key) ?? null;
 
   const activeTab = TABS.find((tab) => tab.id === active) ?? TABS[0];
 
@@ -196,7 +214,9 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
         <div hidden={active !== "expert"} role="tabpanel">
           <ExpertReviewSection
             versionPicker={versionPicker}
-            activeVersion={currentVersion ? { label: currentVersion.label, fileName: currentVersion.fileName } : null}
+            active={active === "expert"}
+            activeVersion={expertActive}
+            versions={expertVersions}
             project={project}
           />
         </div>

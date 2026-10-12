@@ -12,7 +12,7 @@ import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import { isProjectPurged, isProjectTrashed } from "./trash";
 import type { ChecklistReview } from "./checklist-review/types";
-import type { Project, ProjectFile } from "./types";
+import type { ExpertMemo, Project, ProjectFile } from "./types";
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
@@ -170,6 +170,36 @@ export async function updateProjectDocumentVersionLabel(
     else delete labels[versionKey];
     return { ...project, documentVersionLabels: labels };
   });
+}
+
+/** 전문가 메모 추가 */
+export async function addProjectExpertMemo(id: string, memo: ExpertMemo): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    expertMemos: [...(project.expertMemos ?? []), memo],
+  }));
+}
+
+/** 전문가 메모 수정 — 메모를 반환 (권한 확인은 호출 측에서) */
+export async function updateProjectExpertMemo(
+  id: string,
+  memoId: string,
+  patch: Partial<Pick<ExpertMemo, "text" | "region">>,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    expertMemos: (project.expertMemos ?? []).map((memo) =>
+      memo.id === memoId ? { ...memo, ...patch, updatedAt: new Date().toISOString() } : memo,
+    ),
+  }));
+}
+
+/** 전문가 메모 삭제 */
+export async function removeProjectExpertMemo(id: string, memoId: string): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    expertMemos: (project.expertMemos ?? []).filter((memo) => memo.id !== memoId),
+  }));
 }
 
 /** 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. */

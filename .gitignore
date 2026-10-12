@@ -13,3 +13,4 @@ storage/uploads
 
 storage/projects.json
 tsconfig.tsbuildinfo
+public/pdfjs
