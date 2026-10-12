@@ -172,12 +172,17 @@ export default function ChecklistReviewSection({
         >
           <div className="min-w-0 flex-1">{versionPicker}</div>
           <button
-            className="primary-action-blue h-11 shrink-0 rounded-md px-6 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+            className={`flex h-16 w-full shrink-0 flex-col items-center justify-center rounded-md border-2 border-dashed px-4 text-center transition-colors sm:w-[320px] disabled:cursor-not-allowed disabled:opacity-60 ${
+              dragActive ? "border-[#2463b3] bg-[#eaf2fd]" : "border-[#9db6d8] bg-[#f8fbff] hover:bg-[#f0f7ff]"
+            }`}
             disabled={running}
             onClick={() => fileInputRef.current?.click()}
             type="button"
           >
-            {running ? "검토 중..." : dragActive ? "여기에 놓기" : "PDF 업로드"}
+            <span className="text-sm font-bold text-[#2463b3]">
+              {running ? "검토 중..." : dragActive ? "여기에 놓으면 바로 검토합니다" : "+ PDF 업로드 또는 드래그"}
+            </span>
+            <span className="text-[11px] text-[#64748b]">최대 {getMaxUploadFileLabel()}</span>
           </button>
           <input
             accept=".pdf,.png,.jpg,.jpeg"

@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { buildDocumentVersions, type DocumentVersion } from "@/lib/checklist-review/document-versions";
+import { formatBytes } from "@/lib/format-bytes";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import type { Project } from "@/lib/types";
-import { showToast } from "../../toast";
 import ChecklistReviewSection from "./checklist-review-section";
 import ExpertReviewSection from "./expert-review-section";
 
@@ -43,16 +43,19 @@ const TABS: Array<{
   },
 ];
 
-/** "26.09.04" 형식 (한국 시간) */
-function shortDate(iso: string): string {
+/** "26.09.04 16:15" 형식 (한국 시간) */
+function shortDateTime(iso: string): string {
   const parts = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
     year: "2-digit",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   }).formatToParts(new Date(iso));
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return `${get("year")}.${get("month")}.${get("day")}`;
+  return `${get("year")}.${get("month")}.${get("day")} ${get("hour")}:${get("minute")}`;
 }
 
 function changeSummary(version: DocumentVersion): string | null {
@@ -73,10 +76,9 @@ function changeSummary(version: DocumentVersion): string | null {
  */
 export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
   const [active, setActive] = useState<TabId>("ai");
-  const [labels, setLabels] = useState<Record<string, string>>(project.documentVersionLabels ?? {});
   const versions = useMemo(
-    () => buildDocumentVersions(project.checklistReviews ?? [], labels),
-    [project.checklistReviews, labels],
+    () => buildDocumentVersions(project.checklistReviews ?? [], project.documentVersionLabels ?? {}),
+    [project.checklistReviews, project.documentVersionLabels],
   );
   const [versionKey, setVersionKey] = useState<string | null>(null);
   const currentVersion = versions.find((version) => version.key === versionKey) ?? versions[versions.length - 1];
@@ -94,26 +96,7 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
     if (tab) window.history.replaceState(null, "", tab.hash);
   };
 
-  async function renameVersion(version: DocumentVersion) {
-    const next = window.prompt(
-      `"${version.label}" 버전의 이름을 입력하세요. (비우면 자동 이름 "${version.defaultLabel}")`,
-      version.label === version.defaultLabel ? "" : version.label,
-    );
-    if (next === null) return;
-    const label = next.trim().slice(0, 30);
-    setLabels((current) => {
-      const copy = { ...current };
-      if (label) copy[version.key] = label;
-      else delete copy[version.key];
-      return copy;
-    });
-    const response = await fetch("/api/checklist-reviews", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: project.id, versionKey: version.key, versionLabel: label }),
-    }).catch(() => null);
-    if (!response?.ok) showToast({ message: "버전 이름을 저장하지 못했습니다.", tone: "error" });
-  }
+
 
   const activeTab = TABS.find((tab) => tab.id === active) ?? TABS[0];
 
@@ -131,37 +114,28 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
             const summary = changeSummary(version);
             return (
               <button
-                className={`flex h-12 min-w-[150px] flex-col justify-center rounded-md border px-3 text-left transition ${
+                className={`flex h-12 min-w-[200px] flex-col justify-center rounded-md border px-3 text-left transition ${
                   selected
                     ? "border-[#15345b] bg-[#15345b] text-white"
                     : "border-[#d7dee8] bg-white text-[#334155] hover:border-[#9fb3cc] hover:bg-[#f8fafc]"
                 }`}
                 key={version.key}
                 onClick={() => setVersionKey(version.key)}
-                title={`${version.fileName}\n첫 검토 ${formatUploadDateTime(version.firstReviewedAt)} · 검토 ${version.reviews.length}회`}
+                title={`${version.fileName}\n최근 분석 ${formatUploadDateTime(version.lastReviewedAt)} · 검토 ${version.reviews.length}회`}
                 type="button"
               >
                 <span className="flex items-baseline justify-between gap-3 text-xs font-bold leading-4">
                   {version.label}
                   <span className={`text-[11px] font-medium ${selected ? "text-[#c9d6e6]" : "text-[#94a3b8]"}`}>
-                    {shortDate(version.firstReviewedAt)}
+                    {shortDateTime(version.lastReviewedAt)}
                   </span>
                 </span>
                 <span className={`mt-0.5 block truncate text-[11px] leading-4 ${selected ? "text-[#dbe4f0]" : "text-[#64748b]"}`}>
-                  {summary ?? "\u00a0"}
+                  {[version.sizeBytes > 0 ? formatBytes(version.sizeBytes) : null, summary].filter(Boolean).join(" · ") || "\u00a0"}
                 </span>
               </button>
             );
           })}
-          {currentVersion ? (
-            <button
-              className="h-8 rounded-[4px] px-2 text-xs font-bold text-[#2463b3] hover:bg-[#eef4fb]"
-              onClick={() => renameVersion(currentVersion)}
-              type="button"
-            >
-              이름 변경
-            </button>
-          ) : null}
         </div>
         {currentVersion ? (
           <p className="mt-2 truncate text-[11px] text-[#94a3b8]">

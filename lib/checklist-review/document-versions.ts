@@ -36,6 +36,10 @@ export type DocumentVersion = {
   defaultLabel: string;
   fileName: string;
   firstReviewedAt: string;
+  /** 가장 최근 분석 시각 */
+  lastReviewedAt: string;
+  /** 파일 용량 (bytes) */
+  sizeBytes: number;
   /** 이 버전의 검토 (최신순) */
   reviews: ChecklistReview[];
   pageCount?: number;
@@ -116,6 +120,8 @@ export function buildDocumentVersions(
       label: labelOverrides[entry.key]?.trim() || defaultLabel,
       fileName: latest.files[0]?.originalName ?? "",
       firstReviewedAt: entry.firstReviewedAt,
+      lastReviewedAt: latest.reviewedAt,
+      sizeBytes: latest.files[0]?.sizeBytes ?? 0,
       reviews: entry.reviews,
       pageCount: hashes?.length,
       change,
