@@ -27,6 +27,7 @@ import { MAX_COST_USD_PER_REVIEW } from "./budget";
 import type { ClaudeUsage } from "./claude-call";
 import { mergeOcrIntoFiles, runDrawingOcr } from "./drawing-ocr";
 import { stabilizeFindings } from "./judgment-stability";
+import { correctEvidencePages } from "./evidence-page-correction";
 
 /** 도면 판독에 쓰는 최대 시간(새 페이지 착수 마감) — 평가 시간 확보 */
 const OCR_DEADLINE_MS = 70_000;
@@ -656,6 +657,13 @@ export async function runChecklistReview(
 
     // 수치 인용 검증 — 인용된 치수·수치가 해당 페이지 원문 텍스트에 실제로 있는지
     // 대조하고, 없으면 "확인 필요" 플래그를 단다 (판정은 바꾸지 않음 — 오류 최소화).
+    // 근거 페이지 교정 — 인용 문구가 실제로 있는 페이지로 바로잡음 (캡처·박스·수치 검증 전)
+    const pageFix = correctEvidencePages(findings, filesForAnalysis);
+    findings = pageFix.findings;
+    if (pageFix.checked > 0) {
+      console.log(`[checklist-review] evidence-page-fix checked=${pageFix.checked} corrected=${pageFix.corrected}`);
+    }
+
     const numericCheck = verifyNumericCitations(findings, filesForAnalysis);
     if (numericCheck.checked > 0) {
       console.log(

@@ -107,3 +107,39 @@ test("판정 안정화: [판정 변경]+원문 인용 또는 확대 판독 근�
   assert.deepEqual(changed, ["c1", "c2"]);
   assert.equal(reverted.length, 0);
 });
+
+import { correctEvidencePages } from "../lib/checklist-review/evidence-page-correction";
+
+test("근거 페이지 교정: 인용문이 실제 있는 페이지로 이동, 맞으면 유지, 흔한 문구는 그대로", () => {
+  const file = {
+    id: "f1",
+    originalName: "도서.pdf",
+    fileType: "pdf",
+    sizeBytes: 1,
+    extractedTextPreview: buildPdfPageMarkedText("도서.pdf", [
+      "표지",
+      "설계개요 최고 높이 8.60M",
+      "목차",
+      "",
+      "",
+      "주변의 자연환경 및 인접 건축물과의 연속성을 확보하는 조화로운 계획 반영",
+      "농촌,산림지역에서는 도시보다 낮은 채도 반영",
+    ]),
+    totalPages: 7,
+  } as UploadedFileSummary;
+  const findings = [
+    finding("c1", "충족", {
+      evidence: [
+        { fileName: "도서.pdf", page: 3, note: "체크", anchorText: "인접 건축물과의 연속성을 확보하는" },
+        { fileName: "도서.pdf", page: 2, note: "높이", anchorText: "최고 높이 8.60M" },
+        { fileName: "도서.pdf", page: 1, note: "흔함", anchorText: "반영" },
+      ],
+    }),
+  ];
+  const fixed = correctEvidencePages(findings, [file]);
+  assert.equal(fixed.findings[0].evidence[0].page, 6);
+  assert.equal(fixed.findings[0].evidence[1].page, 2);
+  assert.equal(fixed.findings[0].evidence[2].page, 1);
+  assert.equal(fixed.corrected, 1);
+  assert.equal(findings[0].evidence[0].page, 3, "원본은 변경하지 않음");
+});
