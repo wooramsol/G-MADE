@@ -158,6 +158,20 @@ export async function updateProjectChecklistReviewComment(
   }));
 }
 
+/** 도서 버전 이름 저장 (빈 이름이면 자동 이름으로 되돌림). */
+export async function updateProjectDocumentVersionLabel(
+  id: string,
+  versionKey: string,
+  label: string,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    const labels = { ...(project.documentVersionLabels ?? {}) };
+    if (label) labels[versionKey] = label;
+    else delete labels[versionKey];
+    return { ...project, documentVersionLabels: labels };
+  });
+}
+
 /** 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. */
 export async function clearProjectChecklistReviews(id: string): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => {

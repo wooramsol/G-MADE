@@ -3,8 +3,6 @@ import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/compone
 import EvaluationStatusBadge from "@/components/evaluation-status-badge";
 import { getProjectById } from "@/lib/project-store";
 import DeleteProjectButton from "../delete-project-button";
-import ChecklistReviewSection from "./checklist-review-section";
-import ExpertReviewSection from "./expert-review-section";
 import ReviewWorkspaceTabs from "./review-workspace-tabs";
 import LandscapeZonePanel from "./landscape-zone-panel";
 import ProjectLocationEditor from "./project-location-editor";
@@ -101,10 +99,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
           <div className="grid items-start gap-5 lg:grid-cols-2">
             <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} projectId={project.id} />
           </div>
-          <ReviewWorkspaceTabs
-            aiPanel={<ChecklistReviewSection project={project} />}
-            expertPanel={<ExpertReviewSection project={project} />}
-          />
+          <ReviewWorkspaceTabs project={project} />
         </section>
       </div>
     </main>

@@ -20,12 +20,22 @@ const TOOLS: Array<{ id: Tool; label: string; icon: string }> = [
   { id: "memo", label: "메모", icon: "✉" },
 ];
 
-export default function ExpertReviewSection({ project }: { project: Project }) {
+export default function ExpertReviewSection({
+  project,
+  activeVersion = null,
+}: {
+  project: Project;
+  /** 상단에서 고른 도서 버전 — 해당 제출본 파일을 기본 선택 */
+  activeVersion?: { label: string; fileName: string } | null;
+}) {
   const storedFiles = useMemo(
     () => collectProjectStoredFiles(project).filter((file) => file.originalName.toLowerCase().endsWith(".pdf")),
     [project],
   );
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(storedFiles[0]?.id ?? null);
+  const versionFileId = storedFiles.find((file) => file.originalName === activeVersion?.fileName)?.id ?? null;
+  const [pickedFileId, setPickedFileId] = useState<string | null>(null);
+  const selectedFileId = pickedFileId ?? versionFileId ?? storedFiles[0]?.id ?? null;
+  const setSelectedFileId = setPickedFileId;
   const [tool, setTool] = useState<Tool>("box");
   const selectedFile = storedFiles.find((file) => file.id === selectedFileId) ?? null;
 
@@ -40,7 +50,14 @@ export default function ExpertReviewSection({ project }: { project: Project }) {
         {/* 왼쪽: 자료 선택 · 메모 목록 */}
         <div className="space-y-4">
           <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
-            <p className="text-sm font-bold text-[#15345b]">검토 자료 선택</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-bold text-[#15345b]">검토 자료 선택</p>
+              {activeVersion ? (
+                <span className="rounded-[3px] bg-[#fdf8f1] px-2 py-0.5 text-[11px] font-bold text-[#b45309]">
+                  {activeVersion.label}
+                </span>
+              ) : null}
+            </div>
             <p className="mt-1 text-xs leading-5 text-[#667085]">표시·메모를 남길 도서 PDF를 선택하세요.</p>
             {storedFiles.length === 0 ? (
               <p className="mt-3 rounded-[4px] border border-dashed border-[#d0d5dd] bg-white px-3 py-4 text-center text-xs text-[#94a3b8]">

@@ -20,6 +20,7 @@ import { buildOversizedUploadMessage, getMaxUploadFileLabel, getOversizedUploadF
 import type { Project } from "@/lib/types";
 import { showToast } from "../../toast";
 import ChecklistReviewResults from "./checklist-review-results";
+import { buildDocumentVersions, versionKeyOfReview } from "@/lib/checklist-review/document-versions";
 
 /** 검토 이력 목록의 상태별 건수 태그 색상 (결과 화면 배지와 동일 톤). */
 const HISTORY_COUNT_STYLES: Record<ChecklistItemStatus, string> = {
@@ -29,7 +30,16 @@ const HISTORY_COUNT_STYLES: Record<ChecklistItemStatus, string> = {
   확인불가: "bg-slate-100 text-slate-600",
 };
 
-export default function ChecklistReviewSection({ project }: { project: Project }) {
+export default function ChecklistReviewSection({
+  project,
+  activeVersionKey = null,
+  onActiveVersionChange,
+}: {
+  project: Project;
+  /** 상단에서 고른 도서 버전 — 이 버전의 검토 이력만 보여준다 */
+  activeVersionKey?: string | null;
+  onActiveVersionChange?: (versionKey: string) => void;
+}) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -46,22 +56,24 @@ export default function ChecklistReviewSection({ project }: { project: Project }
   const [liveProject, setLiveProject] = useState<Project | null>(null);
 
   const effectiveProject = liveProject ?? project;
-  const reviews = useMemo(
-    () =>
-      [...(effectiveProject.checklistReviews ?? [])].sort(
-        (left, right) => new Date(right.reviewedAt).getTime() - new Date(left.reviewedAt).getTime(),
-      ),
-    [effectiveProject.checklistReviews],
+  // 도서 버전별 묶음 — 이력은 선택한 버전의 검토만 (같은 제출본의 재분석 기록)
+  const versions = useMemo(
+    () => buildDocumentVersions(effectiveProject.checklistReviews ?? [], effectiveProject.documentVersionLabels ?? {}),
+    [effectiveProject.checklistReviews, effectiveProject.documentVersionLabels],
   );
+  const currentVersion =
+    versions.find((version) => version.key === activeVersionKey) ?? versions[versions.length - 1];
+  const previousVersion = currentVersion ? versions[currentVersion.order - 2] : undefined;
+  const reviews = useMemo(() => currentVersion?.reviews ?? [], [currentVersion]);
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
   const [managementMode, setManagementMode] = useState(false);
   const [selectedReviewIds, setSelectedReviewIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const selectedReview: ChecklistReview | undefined =
     reviews.find((review) => review.id === selectedReviewId) ?? reviews[0];
-  // 회차 비교용 — 선택된 검토의 "직전" 회차 (reviews는 최신순 정렬이므로 다음 인덱스)
+  // 비교 기준 — 이전 버전(제출본)의 최신 검토. 첫 버전이면 같은 버전의 직전 재분석.
   const previousReview: ChecklistReview | undefined = selectedReview
-    ? reviews[reviews.findIndex((review) => review.id === selectedReview.id) + 1]
+    ? (previousVersion?.reviews[0] ?? reviews[reviews.findIndex((review) => review.id === selectedReview.id) + 1])
     : undefined;
 
   function toggleManagementMode() {
@@ -219,6 +231,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
 
       if (result.project) setLiveProject(result.project);
       setSelectedReviewId(result.review.id);
+      onActiveVersionChange?.(versionKeyOfReview(result.review));
       setNewFiles([]);
       setSelectedStoredIds(new Set());
 
@@ -389,7 +402,9 @@ export default function ChecklistReviewSection({ project }: { project: Project }
           {reviews.length > 0 ? (
             <div className="rounded-md border border-[#d7dee8] bg-white p-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-bold text-[#15345b]">검토 이력 {reviews.length}건</p>
+                <p className="text-sm font-bold text-[#15345b]">
+                  검토 이력 <span className="text-[#2463b3]">{currentVersion?.label}</span> {reviews.length}건
+                </p>
                 <button
                   className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#2463b3] hover:bg-[#eef4fb]"
                   onClick={toggleManagementMode}

@@ -16,6 +16,7 @@ import {
   removeProjectChecklistReview,
   removeProjectChecklistReviews,
   updateProjectChecklistReviewComment,
+  updateProjectDocumentVersionLabel,
 } from "@/lib/project-store";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { Project } from "@/lib/types";
@@ -151,8 +152,23 @@ export async function PATCH(request: NextRequest) {
     reviewId?: unknown;
     itemId?: unknown;
     comment?: unknown;
+    versionKey?: unknown;
+    versionLabel?: unknown;
   };
   const projectId = String(body.projectId ?? "").trim();
+
+  // 도서 버전 이름 변경
+  if (body.versionKey !== undefined) {
+    const versionKey = String(body.versionKey ?? "").trim().slice(0, 200);
+    const versionLabel = String(body.versionLabel ?? "").trim().slice(0, 30);
+    if (!projectId || !versionKey) {
+      return NextResponse.json({ error: "projectId와 versionKey가 필요합니다." }, { status: 400 });
+    }
+    const updatedProject = await updateProjectDocumentVersionLabel(projectId, versionKey, versionLabel);
+    if (!updatedProject) return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+    revalidateProjectViews(projectId);
+    return NextResponse.json({ project: updatedProject });
+  }
   const reviewId = String(body.reviewId ?? "").trim();
   const itemId = String(body.itemId ?? "").trim();
   const comment = String(body.comment ?? "").trim().slice(0, MAX_COMMENT_LENGTH);
