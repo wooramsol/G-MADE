@@ -46,8 +46,8 @@ export default function ChecklistReviewSection({
   const effectiveProject = liveProject ?? project;
   // 도서 버전별 묶음 — 이력은 선택한 버전의 검토만 (같은 제출본의 재분석 기록)
   const versions = useMemo(
-    () => buildDocumentVersions(effectiveProject.checklistReviews ?? [], effectiveProject.documentVersionLabels ?? {}),
-    [effectiveProject.checklistReviews, effectiveProject.documentVersionLabels],
+    () => buildDocumentVersions(effectiveProject.checklistReviews ?? []),
+    [effectiveProject.checklistReviews],
   );
   const currentVersion =
     versions.find((version) => version.key === activeVersionKey) ?? versions[versions.length - 1];

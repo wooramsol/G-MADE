@@ -27,7 +27,7 @@ const TABS: Array<{
     sub: "체크리스트 자동 판정 · 근거 캡처",
     hash: "#checklist-review",
     icon: "AI",
-    active: "border-[#2463b3] bg-[#2463b3] text-white shadow-md",
+    active: "border-[#2463b3] bg-[#2463b3] text-white shadow-lg",
     idle: "border-[#c9d6e6] bg-[#f3f7fc] text-[#2463b3] hover:bg-[#e6eef9]",
     bar: "border-[#2463b3]",
   },
@@ -37,7 +37,7 @@ const TABS: Array<{
     sub: "도서 위 표시 · 의견 메모",
     hash: "#expert-review",
     icon: "전문가",
-    active: "border-[#b45309] bg-[#b45309] text-white shadow-md",
+    active: "border-[#b45309] bg-[#b45309] text-white shadow-lg",
     idle: "border-[#ecd3b0] bg-[#fdf8f1] text-[#b45309] hover:bg-[#faefdf]",
     bar: "border-[#b45309]",
   },
@@ -77,8 +77,9 @@ function changeSummary(version: DocumentVersion): string | null {
 export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
   const [active, setActive] = useState<TabId>("ai");
   const versions = useMemo(
-    () => buildDocumentVersions(project.checklistReviews ?? [], project.documentVersionLabels ?? {}),
-    [project.checklistReviews, project.documentVersionLabels],
+    // 버전 이름은 자동 이름만 사용 (이름 변경 기능 제거 — 과거에 저장된 사용자 이름은 무시)
+    () => buildDocumentVersions(project.checklistReviews ?? []),
+    [project.checklistReviews],
   );
   const [versionKey, setVersionKey] = useState<string | null>(null);
   const currentVersion = versions.find((version) => version.key === versionKey) ?? versions[versions.length - 1];
@@ -153,13 +154,13 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
   return (
     <div className="space-y-4">
       {/* AI / 전문가 탭 — 화면 중앙에서 크게 가름 */}
-      <div className="mx-auto grid max-w-[880px] grid-cols-2 gap-3" role="tablist" aria-label="사전심의 작업">
+      <div className="grid grid-cols-2 gap-3" role="tablist" aria-label="사전심의 작업">
         {TABS.map((tab) => {
           const selected = tab.id === active;
           return (
             <button
               aria-selected={selected}
-              className={`flex items-center justify-center gap-3 rounded-lg border-2 px-5 py-4 transition ${
+              className={`flex items-center justify-center gap-4 rounded-lg border-2 px-6 py-6 transition ${
                 selected ? tab.active : tab.idle
               }`}
               key={tab.id}
@@ -168,15 +169,15 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
               type="button"
             >
               <span
-                className={`flex h-9 min-w-9 items-center justify-center rounded-full px-2 text-xs font-black ${
+                className={`flex h-12 min-w-12 items-center justify-center rounded-full px-3 text-sm font-black ${
                   selected ? "bg-white/20" : "bg-white"
                 }`}
               >
                 {tab.icon}
               </span>
               <span className="text-left">
-                <span className="block text-base font-bold leading-6">{tab.label}</span>
-                <span className={`block text-xs ${selected ? "text-white/80" : "opacity-75"}`}>{tab.sub}</span>
+                <span className="block text-xl font-bold leading-7">{tab.label}</span>
+                <span className={`mt-0.5 block text-sm ${selected ? "text-white/85" : "opacity-75"}`}>{tab.sub}</span>
               </span>
             </button>
           );
