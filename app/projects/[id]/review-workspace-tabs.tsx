@@ -29,7 +29,7 @@ const TABS: Array<{
     icon: "AI",
     active: "border-[#2463b3] bg-[#2463b3] text-white shadow-md",
     idle: "border-[#c9d6e6] bg-[#f3f7fc] text-[#2463b3] hover:bg-[#e6eef9]",
-    bar: "border-t-[#2463b3]",
+    bar: "border-[#2463b3]",
   },
   {
     id: "expert",
@@ -39,7 +39,7 @@ const TABS: Array<{
     icon: "전문가",
     active: "border-[#b45309] bg-[#b45309] text-white shadow-md",
     idle: "border-[#ecd3b0] bg-[#fdf8f1] text-[#b45309] hover:bg-[#faefdf]",
-    bar: "border-t-[#b45309]",
+    bar: "border-[#b45309]",
   },
 ];
 
@@ -105,10 +105,9 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
 
   const activeTab = TABS.find((tab) => tab.id === active) ?? TABS[0];
 
-  return (
-    <div className="space-y-4">
-      {/* 도서 버전 선택 — 두 탭 공통 */}
-      <div className="rounded-md border border-[#d7dee8] bg-white px-4 py-3">
+  // 도서 버전 선택 — 두 탭의 "검토 자료 선택" 카드 안에 같은 것을 넣는다 (상태는 여기서 공유)
+  const versionPicker = (
+      <div className="rounded-md border border-[#d7dee8] bg-white px-3 py-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <p className="mr-1 text-sm font-bold text-[#15345b]">도서 버전</p>
           {versions.length === 0 ? (
@@ -167,7 +166,10 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
           </p>
         ) : null}
       </div>
+  );
 
+  return (
+    <div className="space-y-4">
       {/* AI / 전문가 탭 — 화면 중앙에서 크게 가름 */}
       <div className="mx-auto grid max-w-[880px] grid-cols-2 gap-3" role="tablist" aria-label="사전심의 작업">
         {TABS.map((tab) => {
@@ -199,9 +201,10 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
         })}
       </div>
 
-      <div className={`rounded-md border border-[#d7dee8] border-t-4 bg-white p-5 panel-shadow ${activeTab.bar}`}>
+      <div className={`rounded-md border-2 bg-white p-5 panel-shadow ${activeTab.bar}`}>
         <div hidden={active !== "ai"} role="tabpanel">
           <ChecklistReviewSection
+            versionPicker={versionPicker}
             activeVersionKey={currentVersion?.key ?? null}
             onActiveVersionChange={setVersionKey}
             project={project}
@@ -209,6 +212,7 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
         </div>
         <div hidden={active !== "expert"} role="tabpanel">
           <ExpertReviewSection
+            versionPicker={versionPicker}
             activeVersion={currentVersion ? { label: currentVersion.label, fileName: currentVersion.fileName } : null}
             project={project}
           />

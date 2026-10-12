@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { Caption, MutedText } from "@/components/typography";
@@ -26,8 +26,11 @@ export default function ChecklistReviewSection({
   project,
   activeVersionKey = null,
   onActiveVersionChange,
+  versionPicker,
 }: {
   project: Project;
+  /** 도서 버전 선택 (탭 공통) — 검토 자료 선택 카드 안에 표시 */
+  versionPicker?: ReactNode;
   /** 상단에서 고른 도서 버전 — 이 버전의 검토 이력만 보여준다 */
   activeVersionKey?: string | null;
   onActiveVersionChange?: (versionKey: string) => void;
@@ -256,6 +259,7 @@ export default function ChecklistReviewSection({
             <Caption className="mt-1 text-[#64748b]">
               체크리스트가 포함된 PDF 1개를 업로드하거나 이전에 올린 자료 1개를 선택하세요. (한 번에 1개만 분석)
             </Caption>
+            {versionPicker ? <div className="mt-3">{versionPicker}</div> : null}
 
             <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_280px]">
             <div>
