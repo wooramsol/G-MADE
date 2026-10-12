@@ -231,18 +231,24 @@ async function renderRegionSnippetInner(
     // 찾으면: 그 위치를 크롭 중심으로 쓰고 빨간 박스를 그림 (정밀 좌표라 신뢰 가능).
     // 못 찾으면(스캔본·불일치): AI 추정 영역 크롭, 박스 없음 — 기존 동작.
     let anchorRegion: { x: number; y: number; width: number; height: number } | null = null;
+    // 박스 표시 방식 — 실선: 글자 좌표로 위치를 정확히 확인 / 점선: 근사 위치(판독 근사
+    // 좌표 또는 AI 추정 영역). 어느 쪽이든 "어디서 파악했는지"를 항상 보여준다.
+    let boxMode: "solid" | "dashed" | null = region ? "dashed" : null;
     if (anchors && anchors.length > 0) {
       const { locateAnchorRegion } = await import("./text-locate");
       anchorRegion = await locateAnchorRegion(page, anchors, region);
-      if (anchorRegion) region = anchorRegion;
-      // 텍스트층에 없으면(스캔 도면) OCR 판독 줄에서 탐색 — 잉크 보정된 정밀 좌표일 때만
-      // 박스를 그리고, 근사 좌표면 크롭 위치로만 사용
+      if (anchorRegion) {
+        region = anchorRegion;
+        boxMode = "solid";
+      }
+      // 텍스트층에 없으면(스캔 도면) OCR 판독 줄에서 탐색
       if (!anchorRegion && ocrLines && ocrLines.length > 0) {
         const { locateAnchorInOcr } = await import("./ocr-locate");
         const found = locateAnchorInOcr(ocrLines, anchors, region);
         if (found) {
           region = found.region;
           if (found.precise) anchorRegion = found.region;
+          boxMode = found.precise ? "solid" : "dashed";
         }
       }
     }
@@ -276,9 +282,10 @@ async function renderRegionSnippetInner(
       const ry = region.y * image.height;
       const rw = Math.max(8, region.width * image.width);
       const rh = Math.max(8, region.height * image.height);
-      const pad = anchorRegion
-        ? Math.max(48, rh * 4, rw * 0.35)
-        : Math.max(24, Math.max(rw, rh) * SNIPPET_PADDING_RATIO);
+      const pad =
+        boxMode !== null && (rw < image.width * 0.25 || anchorRegion)
+          ? Math.max(48, rh * 4, rw * 0.35)
+          : Math.max(24, Math.max(rw, rh) * SNIPPET_PADDING_RATIO);
       cropX = Math.max(0, Math.floor(rx - pad));
       cropY = Math.max(0, Math.floor(ry - pad));
       cropW = Math.min(image.width - cropX, Math.ceil(rw + pad * 2));
@@ -292,13 +299,17 @@ async function renderRegionSnippetInner(
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, cropW, cropH);
     ctx.drawImage(image, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-    // 박스는 "글자 좌표로 정확히 찾은" 경우에만 그린다 — AI 추정 좌표는 근사치라
-    // 박스를 그리면 오차가 그대로 노출돼 신뢰를 해침 (실측 피드백).
-    if (boxRect && anchorRegion) {
+    // 근거 위치 박스 — 정밀(글자 좌표 확인)은 실선, 근사(판독 근사·AI 추정)는 점선.
+    if (boxRect && boxMode) {
       ctx.strokeStyle = "rgba(220,38,38,0.9)";
       ctx.lineWidth = Math.max(2, cropW / 300);
+      if (boxMode === "dashed") {
+        const dash = Math.max(6, cropW / 80);
+        ctx.setLineDash([dash, dash * 0.6]);
+      }
       const inflate = Math.max(3, boxRect.h * 0.2);
       ctx.strokeRect(boxRect.x - inflate, boxRect.y - inflate, boxRect.w + inflate * 2, boxRect.h + inflate * 2);
+      ctx.setLineDash([]);
     }
 
     const encoded = await canvas.encode("jpeg", 78);

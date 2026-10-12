@@ -70,3 +70,40 @@ test("판독 텍스트가 페이지 표시 텍스트에 합쳐짐 (빈 페이지
   assert.match(file.extractedTextPreview ?? "", /p\.2 ---\n\[도면 판독 텍스트\] 1층 평면도/);
   assert.match(file.extractedTextPreview ?? "", /p\.3 ---\n본문/);
 });
+
+import { stabilizeFindings } from "../lib/checklist-review/judgment-stability";
+import type { ChecklistFinding } from "../lib/checklist-review/types";
+
+const finding = (itemId: string, status: ChecklistFinding["status"], extra: Partial<ChecklistFinding> = {}): ChecklistFinding => ({
+  itemId,
+  status,
+  rationale: "근거",
+  evidence: [{ fileName: "a.pdf", page: 1, note: "확인" }],
+  lawRefs: [],
+  ...extra,
+});
+
+test("판정 안정화: 근거 없는 변경은 이전 판정으로 복원", () => {
+  const prior = new Map([["c1", finding("c1", "충족", { rationale: "이전 근거" })]]);
+  const { findings, reverted } = stabilizeFindings([finding("c1", "확인불가")], prior);
+  assert.equal(findings[0].status, "충족");
+  assert.equal(findings[0].rationale, "이전 근거");
+  assert.deepEqual(reverted, ["c1"]);
+});
+
+test("판정 안정화: [판정 변경]+원문 인용 또는 확대 판독 근거면 변경 인정", () => {
+  const prior = new Map([
+    ["c1", finding("c1", "충족")],
+    ["c2", finding("c2", "확인불가")],
+  ]);
+  const marked = finding("c1", "부분충족", {
+    rationale: "[판정 변경] 이전 충족→부분충족: AL SHEET 고광택 가능성",
+    evidence: [{ fileName: "a.pdf", page: 6, note: "보조색 재료", anchorText: "AL SHEET" }],
+  });
+  const zoom = finding("c2", "충족", { evidence: [{ fileName: "a.pdf", page: 8, note: "확대 판독: H: N / V: 7이상" }] });
+  const { findings, changed, reverted } = stabilizeFindings([marked, zoom], prior);
+  assert.equal(findings[0].status, "부분충족");
+  assert.equal(findings[1].status, "충족");
+  assert.deepEqual(changed, ["c1", "c2"]);
+  assert.equal(reverted.length, 0);
+});

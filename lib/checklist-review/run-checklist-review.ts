@@ -26,6 +26,7 @@ import { addUsage, estimateUsageSummary, mergeUsageByModel, type UsageByModel } 
 import { MAX_COST_USD_PER_REVIEW } from "./budget";
 import type { ClaudeUsage } from "./claude-call";
 import { mergeOcrIntoFiles, runDrawingOcr } from "./drawing-ocr";
+import { stabilizeFindings } from "./judgment-stability";
 
 /** 도면 판독에 쓰는 최대 시간(새 페이지 착수 마감) — 평가 시간 확보 */
 const OCR_DEADLINE_MS = 70_000;
@@ -38,6 +39,7 @@ import { buildDrawingIndex, formatDrawingIndex } from "./drawing-index";
 import { verifyNumericCitations } from "./numeric-verification";
 import {
   buildFindingsByText,
+  normalizeItemText,
   partitionItemsForReuse,
   remapChecklistPages,
   remapItem,
@@ -294,6 +296,18 @@ export async function runChecklistReview(
       ? null
       : selectBestBaseline(currentFingerprints, project.checklistReviews ?? []);
     if (input.forceFresh) console.log("[checklist-review] 새로 분석 요청 — 이전 결과 재사용 안 함");
+    // 판정 안정화 기준점: '새로 분석'이어도 완전히 같은 도서의 최근 검토가 있으면 그 판정을
+    // 참고 판정으로 쓴다 (재사용은 하지 않고, 근거 없는 판정 변동만 막음).
+    const stabilityBaseline = input.forceFresh
+      ? selectBestBaseline(currentFingerprints, project.checklistReviews ?? [])
+      : null;
+    const priorFindingsByText =
+      stabilityBaseline?.exactMatch === true
+        ? buildFindingsByText(stabilityBaseline.review.items, stabilityBaseline.review.findings)
+        : null;
+    if (priorFindingsByText) {
+      console.log(`[checklist-review] 판정 안정화 기준=${stabilityBaseline!.review.id} (${priorFindingsByText.size}개 항목)`);
+    }
     const baselineReview = baselineCandidate?.review;
     const alignments = baselineCandidate?.alignments ?? null;
     // 제출물에 변경이 하나라도 있으면(파일 추가/제거·페이지 추가/삭제/수정) true.
@@ -539,7 +553,15 @@ export async function runChecklistReview(
       const remainingBudgetUsd = () =>
         Math.max(0, MAX_COST_USD_PER_REVIEW - estimateUsageSummary(usageByModel).costUsd);
 
+      const priorFindingsById = new Map<string, ChecklistFinding>();
+      if (priorFindingsByText) {
+        for (const item of itemsNeedingEval) {
+          const prior = priorFindingsByText.get(normalizeItemText(item.text));
+          if (prior) priorFindingsById.set(item.id, prior);
+        }
+      }
       const evaluation = await evaluateChecklistItems({
+        priorFindings: priorFindingsById.size > 0 ? priorFindingsById : undefined,
         files: filesForAnalysis,
         items: itemsNeedingEval,
         checklistPages,
@@ -598,6 +620,27 @@ export async function runChecklistReview(
         );
       }
 
+      // 판정 안정화 — 같은 도서의 이전 판정과 근거 없이 달라진 항목은 이전 판정으로 복원
+      const stabilityNotice: string[] = [];
+      if (priorFindingsById.size > 0) {
+        const stabilized = stabilizeFindings(evaluationFindings, priorFindingsById);
+        evaluationFindings = stabilized.findings;
+        console.log(
+          `[checklist-review] 판정 안정화 reverted=${stabilized.reverted.length} justified-change=${stabilized.changed.length}` +
+            (stabilized.reverted.length > 0 ? ` (${stabilized.reverted.join(",")})` : ""),
+        );
+        if (stabilized.reverted.length > 0) {
+          stabilityNotice.push(
+            `같은 도서의 이전 검토와 비교해 근거 없이 판정이 달라진 ${stabilized.reverted.length}개 항목은 이전 판정을 유지했습니다 (판정 일관성).`,
+          );
+        }
+        if (stabilized.changed.length > 0) {
+          stabilityNotice.push(
+            `${stabilized.changed.length}개 항목은 이전 판정을 뒤집는 근거가 확인되어 판정이 변경됐습니다 (변경 사유는 각 항목 근거 참고).`,
+          );
+        }
+      }
+
       const freshFindingsById = new Map(evaluationFindings.map((finding) => [finding.itemId, finding]));
       findings = items
         .map((item) => reusedFindings.get(item.id) ?? freshFindingsById.get(item.id))
@@ -608,7 +651,7 @@ export async function runChecklistReview(
       const metricsResult = await metricsPromise;
       metrics = metricsResult.metrics;
       mergeUsageByModel(usageByModel, metricsResult.usageByModel);
-      evaluationWarnings = [...reuseNotice, ...evaluation.warnings];
+      evaluationWarnings = [...reuseNotice, ...stabilityNotice, ...evaluation.warnings];
     }
 
     // 수치 인용 검증 — 인용된 치수·수치가 해당 페이지 원문 텍스트에 실제로 있는지

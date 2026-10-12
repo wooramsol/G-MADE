@@ -94,7 +94,7 @@ export const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 
 - "미충족"·"부분충족" 항목에는 구체적인 보완 방향(recommendation)을 제시합니다.
 - 간결하게 씁니다: rationale은 2문장 이내, evidence는 항목당 최대 2개(note는 60자 이내), recommendation은 1~2문장.
 - "[도면 판독 텍스트]"는 스캔 도면 이미지 속 글자를 고해상도로 판독한 결과로, 문서와 함께 별도 텍스트로 제공됩니다(페이지 번호는 함께 보낸 문서 기준). 작은 글씨·치수는 저해상도 문서 이미지보다 이 판독 텍스트가 더 정확합니다. 실명·치수·라벨 확인에 활용하고 anchorText로 인용할 수 있습니다(위치 표시됨). 단, 판독 텍스트와 도면 이미지가 어긋나 보이면 단정하지 말고 그 사실을 rationale에 밝힙니다.
-- evidence의 anchorText: 근거를 확인한 그 페이지 원문에서 "그대로 복사한" 짧은 문구(2~40자)를 기재합니다. 이 문구로 PDF에서 글자 위치를 찾아 화면에 표시하므로 철자·띄어쓰기까지 원문과 일치해야 합니다. 도면이면 해당 부위의 라벨·명칭 텍스트(예: "주동 입면도", "옥상조경")를 기재합니다. 원문 표기를 확실히 모르면 생략합니다.
+- evidence의 anchorText: 근거를 확인한 그 페이지 원문에서 "그대로 복사한" 짧은 문구(2~40자)를 기재합니다. 이 문구로 PDF에서 글자 위치를 찾아 화면에 표시하므로 철자·띄어쓰기까지 원문과 일치해야 합니다. 도면이면 해당 부위의 라벨·명칭·치수 텍스트(예: "주동 입면도", "옥상조경", "5YR7/1")를 기재합니다. 화면에 "어디서 파악했는지" 박스로 표시하는 데 쓰이므로 모든 evidence에 가능한 한 반드시 기재합니다 — 체크리스트 표의 판정이면 그 항목 문구의 앞부분을 그대로 복사합니다. 원문 표기를 전혀 확인할 수 없을 때만 생략합니다.
 - 서술(summary·rationale·note·recommendation)에 파일명을 쓰지 않습니다 — 검토 대상 문서는 1개이므로 페이지 번호만으로 충분합니다 (예: "p.12 배치도에서 확인됨"). evidence의 fileName 필드에는 계속 기재합니다.
 - 문체 통일: summary·rationale·note·recommendation 등 모든 서술은 개조식 명사형 종결("~함", "~됨", "~임", "~필요", "~확인")로 작성합니다. "~합니다/~했습니다/~있다" 같은 서술형 종결은 사용하지 않습니다. (예: "배치도 p.12에서 차폐 조경 확인됨", "야간 조명 계획 보완 필요")
 - 반드시 JSON만 출력합니다.`;
@@ -548,13 +548,44 @@ function remapPayloadPages(
     return { fileName, page: mapping[num - 1] };
   };
 
+  // 서술(rationale·note·recommendation·summary) 속 "p.N"/"pp.A~B"도 발췌본 기준 번호라
+  // 원본 번호로 바꾼다 — 근거 줄(evidence)과 본문 서술의 페이지가 어긋나 보이던 문제.
+  const singleMapping =
+    !chunk && pageMaps && pageMaps.length === 1 ? pageMaps[0].mapping : null;
+  const toOriginal = (num: number): number | null => {
+    if (chunk) return num + (chunk.startPage - 1);
+    if (singleMapping) return singleMapping[num - 1] ?? null;
+    return null;
+  };
+  const remapProse = (text: unknown): string | undefined => {
+    if (typeof text !== "string") return text as undefined;
+    if (!chunk && !singleMapping) return text;
+    return text
+      .replace(/pp\.\s?(\d+)\s*([~\-–·,])\s*(?:p\.\s?)?(\d+)/g, (match, a, sep, b) => {
+        const from = toOriginal(Number(a));
+        const to = toOriginal(Number(b));
+        return from && to ? `pp.${from}${sep}${to}` : match;
+      })
+      .replace(/(?<![p\w])p\.\s?(\d+)/g, (match, n) => {
+        const mapped = toOriginal(Number(n));
+        return mapped ? `p.${mapped}` : match;
+      });
+  };
+
   return {
     ...payload,
+    summary: remapProse(payload.summary),
     checklistPages: payload.checklistPages?.map((entry) => ({ ...entry, ...remap(entry?.fileName, entry?.page) })),
     items: payload.items?.map((entry) => ({ ...entry, ...remap(entry?.fileName, entry?.page) })),
     findings: payload.findings?.map((finding) => ({
       ...finding,
-      evidence: finding.evidence?.map((entry) => ({ ...entry, ...remap(entry?.fileName, entry?.page) })),
+      rationale: remapProse(finding.rationale),
+      recommendation: remapProse(finding.recommendation),
+      evidence: finding.evidence?.map((entry) => ({
+        ...entry,
+        note: remapProse(entry?.note),
+        ...remap(entry?.fileName, entry?.page),
+      })),
     })),
   };
 }
@@ -622,17 +653,41 @@ export function mergeGroupFindings(groups: ChecklistFinding[][], items: Checklis
   });
 }
 
-function buildItemsPrompt(items: ChecklistItem[], projectLabel: string, contextText: string): string {
+function buildItemsPrompt(
+  items: ChecklistItem[],
+  projectLabel: string,
+  contextText: string,
+  priorFindings?: Map<string, ChecklistFinding>,
+): string {
+  const hasPrior = items.some((item) => priorFindings?.has(item.id));
   const itemsJson = JSON.stringify(
-    items.map((item) => ({ id: item.id, category: item.category, text: item.text })),
+    items.map((item) => {
+      const prior = priorFindings?.get(item.id);
+      return prior
+        ? {
+            id: item.id,
+            category: item.category,
+            text: item.text,
+            이전판정: prior.status,
+            이전근거: prior.rationale.slice(0, 160),
+          }
+        : { id: item.id, category: item.category, text: item.text };
+    }),
     null,
     0,
   );
+  const priorRule = hasPrior
+    ? `
+[판정 일관성 — 같은 도서의 이전 판정 참고]
+"이전판정"·"이전근거"는 동일한 도서를 이전에 검토한 결과입니다. 이전 판정을 출발점으로 삼아 같은 근거라면 같은 판정을 유지하세요.
+이전 판정과 다른 판정을 내리려면 이전 판정을 뒤집는 구체적 근거(그 페이지의 evidence와 anchorText)를 반드시 제시하고, rationale 맨 앞에 "[판정 변경] 이전 OO→OO: 사유"를 적으세요. 이 표시와 근거가 없는 판정 변경은 시스템이 이전 판정으로 되돌립니다.
+`
+    : "";
 
   return `${projectLabel}
 
 ${contextText}
-
+${priorRule}
 [평가할 체크리스트 항목]
 ${itemsJson}
 
@@ -936,6 +991,8 @@ export async function evaluateChecklistItems(options: {
   context: EvaluationContext;
   /** 표제란 기반 도면 목차 텍스트 — 항목별로 봐야 할 도면 페이지 안내 (비어 있으면 생략) */
   drawingIndexText?: string;
+  /** 같은 도서의 이전 판정 (항목 id → 판정) — 판정 일관성 기준점으로 프롬프트에 제공 */
+  priorFindings?: Map<string, ChecklistFinding>;
   /** 서버 마감까지 남은 시간(ms) — API 호출 타임아웃 산정 */
   getRemainingBudgetMs?: () => number;
   /** 이 검토의 남은 비용 예산(USD) — 초과 예상 시 배치 수를 줄여 상한 내에서 완료 */
@@ -1129,7 +1186,7 @@ export async function evaluateChecklistItems(options: {
   );
 
   const evaluateBatchOnPayload = async (batch: ChecklistItem[], payload: DocumentPayload | null) => {
-    const basePrompt = buildItemsPrompt(batch, projectLabel, evaluationContextText);
+    const basePrompt = buildItemsPrompt(batch, projectLabel, evaluationContextText, options.priorFindings);
     const notes: string[] = [];
     if (payload?.chunk) notes.push(chunkNote(payload.chunk));
     for (const map of payload?.pageMaps ?? []) notes.push(relevantPagesNote(map.fileName, map.mapping.length));
