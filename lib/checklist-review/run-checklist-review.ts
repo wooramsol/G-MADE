@@ -371,28 +371,6 @@ export async function runChecklistReview(
     const usageByModel: UsageByModel = new Map();
     let evaluationWarnings: string[];
 
-    if (!skipOcr) emitStep(emit, "context", "도면 이미지 속 글자·치수 판독 중");
-    const ocrResult = await ocrPromise;
-    for (const entry of ocrUsages) addUsage(usageByModel, entry.model, entry.usage);
-    if (ocrResult) {
-      mergeOcrIntoFiles(filesForAnalysis, ocrResult.byFileId);
-      const st = ocrResult.stats;
-      console.log(
-        `[drawing-ocr] candidates=${st.candidates} cached=${st.cached} ocr=${st.ocrPages} photo=${st.photoPages} ` +
-          `lines=${st.lines} precise=${st.preciseLines} skipped=${st.skipped}`,
-      );
-    }
-
-    // 도면 인덱스(표제란 기반) — 평가 프롬프트의 [도면 목차]와 심화 판독 페이지 선정에
-    // 사용. 텍스트 레이어만 쓰므로 비용 없음.
-    const drawingIndex = buildDrawingIndex(filesForAnalysis);
-    if (drawingIndex.length > 0) {
-      console.log(
-        `[checklist-review] drawing-index pages=${drawingIndex.length} ` +
-          drawingIndex.slice(0, 12).map((entry) => `p.${entry.page}:${entry.types.join("·")}`).join(" "),
-      );
-    }
-
     if (
       remappedBaselineChecklistPages &&
       baselineReview &&
@@ -459,6 +437,29 @@ export async function runChecklistReview(
       // 적용할 수 없고, 매번 전체를 새로 평가합니다.
       itemSource = extractedItems.length === 0 ? "vision" : "text";
       checklistPages = checklistSlices.map((slice) => ({ fileName: slice.fileName, page: slice.page }));
+    }
+
+    // 도면 판독은 체크리스트 항목 추출과 병렬로 진행됐다 — 평가 직전에 합류
+    if (!skipOcr) emitStep(emit, "context", "도면 이미지 속 글자·치수 판독 마무리 중");
+    const ocrResult = await ocrPromise;
+    for (const entry of ocrUsages) addUsage(usageByModel, entry.model, entry.usage);
+    if (ocrResult) {
+      mergeOcrIntoFiles(filesForAnalysis, ocrResult.byFileId);
+      const st = ocrResult.stats;
+      console.log(
+        `[drawing-ocr] candidates=${st.candidates} cached=${st.cached} ocr=${st.ocrPages} photo=${st.photoPages} ` +
+          `lines=${st.lines} precise=${st.preciseLines} skipped=${st.skipped}`,
+      );
+    }
+
+    // 도면 인덱스(표제란 기반) — 평가 프롬프트의 [도면 목차]와 심화 판독 페이지 선정에
+    // 사용. 텍스트 레이어만 쓰므로 비용 없음.
+    const drawingIndex = buildDrawingIndex(filesForAnalysis);
+    if (drawingIndex.length > 0) {
+      console.log(
+        `[checklist-review] drawing-index pages=${drawingIndex.length} ` +
+          drawingIndex.slice(0, 12).map((entry) => `p.${entry.page}:${entry.types.join("·")}`).join(" "),
+      );
     }
 
     const { reused: reusedFindings, needEval: itemsNeedingEval, skipReasons } =

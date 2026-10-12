@@ -23,7 +23,7 @@ const MAX_ZOOM_PAGES = 8;
 /** 줌 재판정 항목 상한 (출력 토큰 한도 내) */
 const MAX_ZOOM_ITEMS = 15;
 /** 줌 실행에 필요한 최소 남은 시간(ms) — 렌더링+호출 여유 */
-const MIN_REMAINING_MS_FOR_ZOOM = 75_000;
+const MIN_REMAINING_MS_FOR_ZOOM = 110_000;
 
 export type ZoomTarget = {
   fileName: string;
@@ -300,7 +300,7 @@ export async function runZoomReview(options: {
     userBlocks: [...blocks, { type: "text", text: prompt }],
     maxOutputTokens: Math.min(16_384, 1_500 + zoomItems.length * 480),
     includesPdf: false,
-    timeoutMs: Math.max(30_000, Math.min(options.getRemainingBudgetMs() - 10_000, 120_000)),
+    timeoutMs: Math.max(30_000, Math.min(options.getRemainingBudgetMs() - 35_000, 120_000)),
   });
   addUsage(usageByModel, result.model, result.usage);
 
