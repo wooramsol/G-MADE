@@ -121,7 +121,7 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
   const versionPicker =
     versions.length === 0 ? (
       <p className="pt-1.5 text-xs text-[#94a3b8]">
-        아직 검토한 도서가 없습니다 — 도서를 검토하면 제출본별 버전이 자동으로 만들어집니다.
+        PDF를 업로드하면 도서 버전이 만들어지고 검토가 시작됩니다.
       </p>
     ) : (
       <div>

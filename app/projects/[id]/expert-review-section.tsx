@@ -2,7 +2,6 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
-import { formatBytes } from "@/lib/format-bytes";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import type { Project } from "@/lib/types";
 
@@ -36,15 +35,12 @@ export default function ExpertReviewSection({
     [project],
   );
   const versionFileId = storedFiles.find((file) => file.originalName === activeVersion?.fileName)?.id ?? null;
-  const [pickedFileId, setPickedFileId] = useState<string | null>(null);
-  const selectedFileId = pickedFileId ?? versionFileId ?? storedFiles[0]?.id ?? null;
-  const setSelectedFileId = setPickedFileId;
+  const selectedFileId = versionFileId ?? storedFiles[storedFiles.length - 1]?.id ?? null;
   const [tool, setTool] = useState<Tool>("box");
   const selectedFile = storedFiles.find((file) => file.id === selectedFileId) ?? null;
 
   return (
     <WorkspaceSectionCard
-      description="전문가가 도서 PDF 위에 직접 검토 부위를 표시하고 의견 메모를 남깁니다. 표시와 메모는 페이지별로 저장되어 AI 분석 결과와 함께 비교할 수 있습니다."
       id="expert-review"
       title="사전심의: 전문가 분석"
       bare
@@ -52,41 +48,9 @@ export default function ExpertReviewSection({
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         {/* 왼쪽: 자료 선택 · 메모 목록 */}
         <div className="space-y-4">
-          <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
-            <p className="text-sm font-bold text-[#15345b]">검토 자료 선택</p>
-            <p className="mt-1 text-xs leading-5 text-[#667085]">표시·메모를 남길 도서 PDF를 선택하세요.</p>
-            {versionPicker ? (
-              <div className="mt-3 border-t border-[#e2e8f0] pt-3">
-                <p className="mb-2 text-xs font-bold text-[#64748b]">도서 버전</p>
-                {versionPicker}
-              </div>
-            ) : null}
-            {storedFiles.length === 0 ? (
-              <p className="mt-3 rounded-[4px] border border-dashed border-[#d0d5dd] bg-white px-3 py-4 text-center text-xs text-[#94a3b8]">
-                보관 중인 PDF가 없습니다. 사전심의: AI 분석에서 도서를 먼저 업로드해 주세요.
-              </p>
-            ) : (
-              <ul className="mt-3 space-y-1.5">
-                {storedFiles.map((file) => (
-                  <li key={file.id}>
-                    <label
-                      className={`flex cursor-pointer items-center gap-2 rounded-[4px] border px-3 py-2 text-xs ${
-                        file.id === selectedFileId ? "border-[#2463b3] bg-white" : "border-[#e2e8f0] bg-white hover:border-[#c9d2dd]"
-                      }`}
-                    >
-                      <input
-                        checked={file.id === selectedFileId}
-                        name="expert-review-file"
-                        onChange={() => setSelectedFileId(file.id)}
-                        type="radio"
-                      />
-                      <span className="min-w-0 flex-1 truncate font-semibold text-[#172033]">{file.originalName}</span>
-                      <span className="shrink-0 text-[11px] text-[#94a3b8]">{formatBytes(file.sizeBytes)}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="rounded-md border border-[#d7dee8] bg-white p-4">
+            <p className="mb-3 text-sm font-bold text-[#15345b]">도서 버전</p>
+            {versionPicker ?? <p className="text-xs text-[#94a3b8]">AI 분석 탭에서 PDF를 업로드하면 도서 버전이 만들어집니다.</p>}
           </div>
 
           <div className="rounded-md border border-[#d7dee8] bg-white p-4">

@@ -12,9 +12,6 @@ import { exceedsServerlessUploadLimit, SERVERLESS_UPLOAD_LIMIT_LABEL } from "@/l
 import { submitChecklistReviewStream } from "@/lib/client-checklist-stream";
 import { ensureProjectOnServer } from "@/lib/client-ensure-project";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
-import { formatBytes } from "@/lib/format-bytes";
-import { formatUploadDateTime } from "@/lib/format-datetime";
-import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import { buildOversizedUploadMessage, getMaxUploadFileLabel, getOversizedUploadFiles } from "@/lib/upload-limits";
 import type { Project } from "@/lib/types";
 import { showToast } from "../../toast";
@@ -38,12 +35,8 @@ export default function ChecklistReviewSection({
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const storedFiles = useMemo(() => collectProjectStoredFiles(project), [project]);
-  const [selectedStoredIds, setSelectedStoredIds] = useState<Set<string>>(new Set());
-  const [newFiles, setNewFiles] = useState<File[]>([]);
 
   const [running, setRunning] = useState(false);
-  const [forceFresh, setForceFresh] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [progress, setProgress] = useState<ChecklistReviewProgressEvent | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
@@ -61,7 +54,6 @@ export default function ChecklistReviewSection({
   const previousVersion = currentVersion ? versions[currentVersion.order - 2] : undefined;
   const reviews = useMemo(() => currentVersion?.reviews ?? [], [currentVersion]);
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
-  const [deletingReview, setDeletingReview] = useState(false);
   const selectedReview: ChecklistReview | undefined =
     reviews.find((review) => review.id === selectedReviewId) ?? reviews[0];
   // 비교 기준 — 이전 버전(제출본)의 최신 검토. 첫 버전이면 같은 버전의 직전 재분석.
@@ -69,73 +61,9 @@ export default function ChecklistReviewSection({
     ? (previousVersion?.reviews[0] ?? reviews[reviews.findIndex((review) => review.id === selectedReview.id) + 1])
     : undefined;
 
-  /** 현재 표시 중인 검토 기록 1건 삭제 (같은 버전의 재분석 기록 정리용) */
-  async function handleDeleteSelectedReview() {
-    if (!selectedReview) return;
-    if (!window.confirm(`${formatUploadDateTime(selectedReview.reviewedAt)} 검토 기록을 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.`)) return;
 
-    setDeletingReview(true);
-    try {
-      const response = await fetch("/api/checklist-reviews", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id, reviewIds: [selectedReview.id] }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { project?: Project | null; error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error ?? "검토 기록 삭제에 실패했습니다.");
-      }
-      if (payload.project) setLiveProject(payload.project);
-      setSelectedReviewId(null);
-      showToast({ message: "검토 기록을 삭제했습니다.", tone: "success" });
-      router.refresh();
-    } catch (error) {
-      showToast({
-        message: error instanceof Error ? error.message : "검토 기록 삭제에 실패했습니다.",
-        tone: "error",
-      });
-    } finally {
-      setDeletingReview(false);
-    }
-  }
 
-  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
-  async function handleDeleteStoredFile(file: StoredFileRef) {
-    if (!window.confirm(`"${file.originalName}" 자료를 삭제할까요?\n실제 저장된 파일도 함께 삭제되어 되돌릴 수 없습니다.`)) {
-      return;
-    }
-    setDeletingFileId(file.id);
-    try {
-      const response = await fetch(
-        `/api/projects/${encodeURIComponent(project.id)}/files/${encodeURIComponent(file.id)}`,
-        { method: "DELETE" },
-      );
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) {
-        throw new Error(data.error || "자료를 삭제하지 못했습니다.");
-      }
-      setSelectedStoredIds((current) => {
-        if (!current.has(file.id)) return current;
-        return new Set();
-      });
-      showToast({ message: `"${file.originalName}" 자료를 삭제했습니다.`, tone: "success" });
-      router.refresh();
-    } catch (error) {
-      showToast({
-        message: error instanceof Error ? error.message : "자료를 삭제하지 못했습니다.",
-        tone: "error",
-      });
-    } finally {
-      setDeletingFileId(null);
-    }
-  }
-
-  function toggleStoredFile(id: string) {
-    // 검토 자료는 한 번에 1개만 — 회차 간 비교(재사용·충족 추이)의 기준을 명확히 하기 위함.
-    setSelectedStoredIds((current) => (current.has(id) ? new Set() : new Set([id])));
-    setNewFiles([]);
-  }
 
   const [dragActive, setDragActive] = useState(false);
 
@@ -154,20 +82,13 @@ export default function ChecklistReviewSection({
       showToast({ message: buildOversizedUploadMessage(oversized, getMaxUploadFileLabel()), tone: "error" });
       return;
     }
-    setNewFiles(incoming);
-    setSelectedStoredIds(new Set());
+    // 업로드하면 바로 검토 시작 — 같은 도서면 이전 결과를 재사용해 빠르게 끝난다
+    void handleRun(incoming);
   }
 
-  async function handleRun() {
-    const refs = storedFiles.filter((file) => selectedStoredIds.has(file.id));
-    if (refs.length === 0 && newFiles.length === 0) {
-      showToast({ message: "검토할 자료를 선택하거나 업로드해 주세요.", tone: "error" });
-      return;
-    }
-    if (refs.length + newFiles.length > 1) {
-      showToast({ message: "검토 자료는 한 번에 1개만 분석할 수 있습니다.", tone: "error" });
-      return;
-    }
+  async function handleRun(newFiles: File[]) {
+    const refs: StoredFileRef[] = [];
+    if (newFiles.length === 0) return;
 
     setRunning(true);
     setStartedAt(Date.now());
@@ -196,15 +117,12 @@ export default function ChecklistReviewSection({
       formData.set("projectId", project.id);
       formData.set("projectSnapshot", JSON.stringify(project));
       formData.set("fileRefs", JSON.stringify([...refs, ...uploadedRefs]));
-      if (forceFresh) formData.set("forceFresh", "1");
 
       const result = await submitChecklistReviewStream(formData, (event) => setProgress(event));
 
       if (result.project) setLiveProject(result.project);
       setSelectedReviewId(result.review.id);
       onActiveVersionChange?.(versionKeyOfReview(result.review));
-      setNewFiles([]);
-      setSelectedStoredIds(new Set());
 
       const counts = result.review.counts;
       showToast({
@@ -228,7 +146,6 @@ export default function ChecklistReviewSection({
 
   return (
     <WorkspaceSectionCard
-      description="PDF 안의 '체크리스트' 페이지를 인식해 항목별 충족 여부를 AI가 평가합니다. 도면·이미지 속 내용과 법령(국가법령정보센터)·공간정보(브이월드)를 근거로 사용합니다."
       id="checklist-review"
       title="사전심의: AI 분석"
       bare
@@ -237,11 +154,10 @@ export default function ChecklistReviewSection({
 
       <div className="space-y-5">
         <div
-          className={`rounded-md border bg-white transition-colors ${
-            dragActive ? "border-[#2463b3] ring-2 ring-[#2463b3]/15" : "border-[#d7dee8]"
+          className={`flex flex-wrap items-center gap-4 rounded-md border px-4 py-3 transition-colors ${
+            dragActive ? "border-[#2463b3] bg-[#f0f7ff]" : "border-[#d7dee8] bg-white"
           }`}
           onDragLeave={(event) => {
-            // 자식 요소로의 이동은 무시 — 영역을 실제로 벗어날 때만 해제
             if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragActive(false);
           }}
           onDragOver={(event) => {
@@ -254,171 +170,30 @@ export default function ChecklistReviewSection({
             handleFileInput(event.dataTransfer.files);
           }}
         >
-          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#eef1f5] px-4 py-3">
-            <p className="text-sm font-bold text-[#15345b]">검토 자료 선택</p>
-            <p className="text-xs text-[#94a3b8]">체크리스트가 포함된 PDF · 한 번에 1개 분석</p>
-          </div>
-
-          {versionPicker ? <FieldRow label="도서 버전">{versionPicker}</FieldRow> : null}
-          {reviews.length > 0 ? (
-            <FieldRow label="검토 회차">
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  className="h-8 rounded-[4px] border border-[#d0d5dd] bg-white px-2 text-xs text-[#172033]"
-                  onChange={(event) => setSelectedReviewId(event.target.value)}
-                  value={selectedReview?.id ?? ""}
-                >
-                  {reviews.map((review, index) => (
-                    <option key={review.id} value={review.id}>
-                      {formatUploadDateTime(review.reviewedAt)}
-                      {index === 0 ? " (최신)" : ""}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-xs text-[#94a3b8]">이 버전 {reviews.length}회 검토</span>
-                <button
-                  className="ml-auto h-8 rounded-[4px] px-2 text-xs font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
-                  disabled={deletingReview || running}
-                  onClick={handleDeleteSelectedReview}
-                  type="button"
-                >
-                  {deletingReview ? "삭제 중..." : "이 검토 기록 삭제"}
-                </button>
-              </div>
-            </FieldRow>
+          <div className="min-w-0 flex-1">{versionPicker}</div>
+          <button
+            className="primary-action-blue h-11 shrink-0 rounded-md px-6 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={running}
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
+            {running ? "검토 중..." : dragActive ? "여기에 놓기" : "PDF 업로드"}
+          </button>
+          <input
+            accept=".pdf,.png,.jpg,.jpeg"
+            className="hidden"
+            onChange={(event) => {
+              handleFileInput(event.target.files);
+              event.target.value = "";
+            }}
+            ref={fileInputRef}
+            type="file"
+          />
+          {lastError ? (
+            <p className="basis-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+              {lastError}
+            </p>
           ) : null}
-
-          <FieldRow label="새 검토">
-            <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_240px]">
-              <div className="flex min-h-[112px] flex-col rounded-md border border-[#e2e8f0]">
-                <p className="flex items-center justify-between border-b border-[#eef1f5] px-3 py-2 text-xs font-bold text-[#475569]">
-                  보관 중인 자료
-                  <span className="font-semibold text-[#94a3b8]">{storedFiles.length}개</span>
-                </p>
-                {storedFiles.length > 0 ? (
-                  <ul className="max-h-36 flex-1 divide-y divide-[#f1f5f9] overflow-y-auto">
-                    {storedFiles.map((file) => (
-                      <li key={file.id}>
-                        <label
-                          className={`flex cursor-pointer items-center gap-2 px-3 py-2 text-xs ${
-                            selectedStoredIds.has(file.id) ? "bg-[#eef4fb]" : "hover:bg-[#f8fafc]"
-                          }`}
-                        >
-                          <input
-                            checked={selectedStoredIds.has(file.id)}
-                            name="checklist-review-stored-file"
-                            onChange={() => toggleStoredFile(file.id)}
-                            onClick={() => {
-                              // 라디오는 재클릭 시 change 이벤트가 없으므로 클릭으로 선택 해제 지원
-                              if (selectedStoredIds.has(file.id)) toggleStoredFile(file.id);
-                            }}
-                            type="radio"
-                          />
-                          <span className="min-w-0 flex-1 truncate font-semibold text-[#172033]">{file.originalName}</span>
-                          <span className="shrink-0 text-[#94a3b8]">{formatBytes(file.sizeBytes)}</span>
-                          <button
-                            className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold text-[#94a3b8] hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                            disabled={deletingFileId === file.id}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              void handleDeleteStoredFile(file);
-                            }}
-                            title="자료 삭제 (저장된 파일도 함께 삭제)"
-                            type="button"
-                          >
-                            {deletingFileId === file.id ? "삭제 중" : "삭제"}
-                          </button>
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="flex flex-1 items-center justify-center px-3 py-4 text-xs text-[#94a3b8]">
-                    보관 중인 자료가 없습니다
-                  </p>
-                )}
-              </div>
-
-              <button
-                className={`flex min-h-[112px] flex-col items-center justify-center gap-1 rounded-md border border-dashed px-4 py-4 text-center transition-colors ${
-                  dragActive ? "border-[#2463b3] bg-[#eaf2fd]" : "border-[#9db6d8] bg-[#f8fbff] hover:bg-[#f0f7ff]"
-                }`}
-                onClick={() => fileInputRef.current?.click()}
-                type="button"
-              >
-                <span className="text-sm font-bold text-[#2463b3]">
-                  {dragActive ? "여기에 놓으면 업로드됩니다" : "+ 새 PDF 업로드"}
-                </span>
-                <span className="text-[11px] text-[#64748b]">클릭 또는 끌어다 놓기 · 최대 {getMaxUploadFileLabel()}</span>
-              </button>
-              <input
-                accept=".pdf,.png,.jpg,.jpeg"
-                className="hidden"
-                onChange={(event) => {
-                  handleFileInput(event.target.files);
-                  event.target.value = "";
-                }}
-                ref={fileInputRef}
-                type="file"
-              />
-
-              <div className="flex flex-col justify-center gap-2.5">
-                <button
-                  className="primary-action-blue h-11 w-full rounded-md px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={running}
-                  onClick={handleRun}
-                  type="button"
-                >
-                  {running ? "검토 중..." : "AI 검토 시작"}
-                </button>
-                <label className="flex cursor-pointer items-start gap-2 text-xs leading-5 text-[#475569]">
-                  <input
-                    checked={forceFresh}
-                    className="mt-1"
-                    disabled={running}
-                    onChange={(event) => setForceFresh(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>
-                    새로 분석
-                    <span className="block text-[11px] leading-4 text-[#94a3b8]">
-                      이전 결과를 재사용하지 않고 처음부터 판정 (AI 비용이 첫 분석만큼 듭니다)
-                    </span>
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            {newFiles.length > 0 ? (
-              <ul className="mt-3 space-y-1.5">
-                {newFiles.map((file) => (
-                  <li
-                    className="flex items-center justify-between gap-2 rounded-md border border-[#c9d6e6] bg-[#f8fbff] px-3 py-2 text-xs"
-                    key={file.name}
-                  >
-                    <span className="min-w-0 truncate font-semibold text-[#172033]">새 자료 · {file.name}</span>
-                    <span className="flex shrink-0 items-center gap-2 text-[#64748b]">
-                      {formatBytes(file.size)}
-                      <button
-                        className="font-bold text-red-600 hover:underline"
-                        onClick={() => setNewFiles((current) => current.filter((item) => item.name !== file.name))}
-                        type="button"
-                      >
-                        제거
-                      </button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
-            {lastError ? (
-              <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
-                {lastError}
-              </p>
-            ) : null}
-          </FieldRow>
         </div>
 
         <div className="min-w-0">
@@ -437,12 +212,3 @@ export default function ChecklistReviewSection({
   );
 }
 
-/** 검토 자료 카드의 한 줄 — 왼쪽 고정 폭 라벨 + 오른쪽 내용 (줄마다 정렬이 맞도록) */
-function FieldRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2 border-b border-[#eef1f5] px-4 py-3 last:border-b-0 sm:flex-row sm:items-start sm:gap-4">
-      <p className="w-20 shrink-0 pt-2 text-xs font-bold text-[#64748b]">{label}</p>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  );
-}
