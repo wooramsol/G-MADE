@@ -19,7 +19,24 @@ type PdfPageLike = {
 
 /** 검색 정규화 — 공백 제거(줄바꿈·자간 분절 대응) */
 function normalizeForSearch(text: string): string {
-  return text.replace(/\s+/g, "");
+  // 공백·구두점 표기 차이(·/ㆍ, 쉼표, 괄호 등) 흡수
+  return text.replace(/[\s·ㆍ.,/|()（）\-–~:;'"“”‘’]/g, "");
+}
+
+/**
+ * 검색 후보 — 원문 전체 → 앞부분(16자 → 10자). 표 안의 긴 문구는 셀 줄바꿈 사이에 다른
+ * 열의 글자(반영·해당없음 표시 등)가 끼어 전체 일치가 깨지므로 앞부분으로 위치를 잡는다.
+ */
+function searchNeedles(anchor: string): string[] {
+  const full = normalizeForSearch(anchor);
+  const needles = [full];
+  // "샌드위치판넬 / AL SHEET"처럼 표의 여러 칸을 이어 붙인 인용 → 첫 칸 문구로도 탐색
+  const parts = anchor.split(/\s\/\s|\s\|\s/).map(normalizeForSearch).filter((part) => part.length >= 3);
+  if (parts.length > 1) needles.push(parts[0]);
+  for (const length of [16, 10]) {
+    if (full.length > length + 2) needles.push(full.slice(0, length));
+  }
+  return needles.filter((needle, index, list) => needle.length >= 2 && list.indexOf(needle) === index);
 }
 
 export async function locateAnchorRegion(
@@ -85,8 +102,8 @@ export async function locateAnchorRegion(
 
   // 긴(더 구체적인) 앵커부터 시도
   const sorted = [...anchors].sort((a, b) => b.length - a.length);
-  for (const anchor of sorted) {
-    const needle = normalizeForSearch(anchor);
+  const needles = sorted.flatMap((anchor) => searchNeedles(anchor));
+  for (const needle of needles) {
     if (needle.length < 2) continue;
 
     // 모든 일치 위치 수집 (최대 8곳)

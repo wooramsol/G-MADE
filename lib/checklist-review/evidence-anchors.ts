@@ -9,8 +9,9 @@
 export function buildEvidenceAnchors(evidence: { note?: string; anchorText?: string }): string[] {
   const anchors: string[] = [];
   const push = (value: string | undefined) => {
-    const text = value?.trim();
-    if (!text || text.length < 2 || text.length > 60) return;
+    // 긴 인용(체크리스트 항목 원문 등)은 버리지 않고 앞 60자만 사용 — 위치 탐색은 앞부분으로 충분
+    const text = value?.trim().slice(0, 60).trim();
+    if (!text || text.length < 2) return;
     if (!anchors.includes(text)) anchors.push(text);
   };
 
