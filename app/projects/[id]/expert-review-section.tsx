@@ -34,6 +34,7 @@ export default function ExpertReviewSection({ project }: { project: Project }) {
       description="전문가가 도서 PDF 위에 직접 검토 부위를 표시하고 의견 메모를 남깁니다. 표시와 메모는 페이지별로 저장되어 AI 분석 결과와 함께 비교할 수 있습니다."
       id="expert-review"
       title="사전심의: 전문가 분석"
+      bare
     >
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         {/* 왼쪽: 자료 선택 · 메모 목록 */}
