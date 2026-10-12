@@ -6,8 +6,7 @@ import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { Caption, MutedText } from "@/components/typography";
 import type { ChecklistReviewProgressEvent } from "@/lib/checklist-review/progress";
-import { CHECKLIST_ITEM_STATUSES, type ChecklistItemStatus, type ChecklistReview } from "@/lib/checklist-review/types";
-import { formatUsageLabel } from "@/lib/checklist-review/usage-cost";
+import type { ChecklistReview } from "@/lib/checklist-review/types";
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
 import { exceedsServerlessUploadLimit, SERVERLESS_UPLOAD_LIMIT_LABEL } from "@/lib/blob-config";
 import { submitChecklistReviewStream } from "@/lib/client-checklist-stream";
@@ -22,13 +21,6 @@ import { showToast } from "../../toast";
 import ChecklistReviewResults from "./checklist-review-results";
 import { buildDocumentVersions, versionKeyOfReview } from "@/lib/checklist-review/document-versions";
 
-/** 검토 이력 목록의 상태별 건수 태그 색상 (결과 화면 배지와 동일 톤). */
-const HISTORY_COUNT_STYLES: Record<ChecklistItemStatus, string> = {
-  충족: "bg-emerald-50 text-emerald-700",
-  부분충족: "bg-amber-50 text-amber-700",
-  미충족: "bg-red-50 text-red-700",
-  확인불가: "bg-slate-100 text-slate-600",
-};
 
 export default function ChecklistReviewSection({
   project,
@@ -66,9 +58,7 @@ export default function ChecklistReviewSection({
   const previousVersion = currentVersion ? versions[currentVersion.order - 2] : undefined;
   const reviews = useMemo(() => currentVersion?.reviews ?? [], [currentVersion]);
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
-  const [managementMode, setManagementMode] = useState(false);
-  const [selectedReviewIds, setSelectedReviewIds] = useState<Set<string>>(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [deletingReview, setDeletingReview] = useState(false);
   const selectedReview: ChecklistReview | undefined =
     reviews.find((review) => review.id === selectedReviewId) ?? reviews[0];
   // 비교 기준 — 이전 버전(제출본)의 최신 검토. 첫 버전이면 같은 버전의 직전 재분석.
@@ -76,47 +66,25 @@ export default function ChecklistReviewSection({
     ? (previousVersion?.reviews[0] ?? reviews[reviews.findIndex((review) => review.id === selectedReview.id) + 1])
     : undefined;
 
-  function toggleManagementMode() {
-    setManagementMode((current) => !current);
-    setSelectedReviewIds(new Set());
-  }
+  /** 현재 표시 중인 검토 기록 1건 삭제 (같은 버전의 재분석 기록 정리용) */
+  async function handleDeleteSelectedReview() {
+    if (!selectedReview) return;
+    if (!window.confirm(`${formatUploadDateTime(selectedReview.reviewedAt)} 검토 기록을 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.`)) return;
 
-  function toggleSelectAllReviews() {
-    setSelectedReviewIds((current) =>
-      current.size === reviews.length ? new Set<string>() : new Set(reviews.map((review) => review.id)),
-    );
-  }
-
-  function toggleReviewChecked(reviewId: string) {
-    setSelectedReviewIds((current) => {
-      const next = new Set(current);
-      if (next.has(reviewId)) next.delete(reviewId);
-      else next.add(reviewId);
-      return next;
-    });
-  }
-
-  async function handleBulkDeleteReviews() {
-    if (selectedReviewIds.size === 0) return;
-    if (!window.confirm(`선택한 ${selectedReviewIds.size}건의 검토 기록을 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.`)) return;
-
-    setBulkDeleting(true);
+    setDeletingReview(true);
     try {
       const response = await fetch("/api/checklist-reviews", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id, reviewIds: Array.from(selectedReviewIds) }),
+        body: JSON.stringify({ projectId: project.id, reviewIds: [selectedReview.id] }),
       });
       const payload = (await response.json().catch(() => ({}))) as { project?: Project | null; error?: string };
       if (!response.ok) {
         throw new Error(payload.error ?? "검토 기록 삭제에 실패했습니다.");
       }
-
       if (payload.project) setLiveProject(payload.project);
-      if (selectedReviewId && selectedReviewIds.has(selectedReviewId)) setSelectedReviewId(null);
-      showToast({ message: `검토 기록 ${selectedReviewIds.size}건을 삭제했습니다.`, tone: "success" });
-      setSelectedReviewIds(new Set());
-      setManagementMode(false);
+      setSelectedReviewId(null);
+      showToast({ message: "검토 기록을 삭제했습니다.", tone: "success" });
       router.refresh();
     } catch (error) {
       showToast({
@@ -124,7 +92,7 @@ export default function ChecklistReviewSection({
         tone: "error",
       });
     } finally {
-      setBulkDeleting(false);
+      setDeletingReview(false);
     }
   }
 
@@ -264,8 +232,8 @@ export default function ChecklistReviewSection({
     >
       {running ? <AnalysisBlockingOverlay progress={progress} startedAt={startedAt} statusMessage={uploadMessage ?? undefined} /> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
-        <div className="space-y-4">
+      <div className="space-y-5">
+        <div>
           <div
             className={`rounded-md border p-4 transition-colors ${
               dragActive ? "border-[#2463b3] bg-[#f0f7ff]" : "border-[#d7dee8] bg-[#f8fafc]"
@@ -289,8 +257,10 @@ export default function ChecklistReviewSection({
               체크리스트가 포함된 PDF 1개를 업로드하거나 이전에 올린 자료 1개를 선택하세요. (한 번에 1개만 분석)
             </Caption>
 
+            <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_280px]">
+            <div>
             <button
-              className="mt-3 w-full rounded-lg border border-dashed border-[#9db6d8] bg-white px-4 py-3 text-sm font-bold text-[#2463b3] hover:bg-[#f0f7ff]"
+              className="w-full rounded-lg border border-dashed border-[#9db6d8] bg-white px-4 py-3 text-sm font-bold text-[#2463b3] hover:bg-[#f0f7ff]"
               onClick={() => fileInputRef.current?.click()}
               type="button"
             >
@@ -330,10 +300,13 @@ export default function ChecklistReviewSection({
               </ul>
             ) : null}
 
+            </div>
+
+            <div>
             {storedFiles.length > 0 ? (
-              <div className="mt-4">
+              <div>
                 <Caption className="font-bold text-[#475569]">보관 중인 자료</Caption>
-                <ul className="mt-2 max-h-56 space-y-1.5 overflow-y-auto pr-1">
+                <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto pr-1">
                   {storedFiles.map((file) => (
                     <li key={file.id}>
                       <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs hover:bg-[#f0f7ff]">
@@ -371,13 +344,16 @@ export default function ChecklistReviewSection({
               </div>
             ) : null}
 
+            </div>
+
+            <div>
             {lastError ? (
-              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
+              <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700">
                 {lastError}
               </p>
             ) : null}
             <button
-              className="primary-action-blue mt-4 w-full rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+              className="primary-action-blue w-full rounded-lg px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
               disabled={running}
               onClick={handleRun}
               type="button"
@@ -397,95 +373,40 @@ export default function ChecklistReviewSection({
                 <span className="block text-[11px] text-[#94a3b8]">같은 도서를 다시 평가할 때만 사용 (AI 비용이 첫 분석만큼 듭니다)</span>
               </span>
             </label>
+            </div>
+            </div>
           </div>
 
-          {reviews.length > 0 ? (
-            <div className="rounded-md border border-[#d7dee8] bg-white p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-bold text-[#15345b]">
-                  검토 이력 <span className="text-[#2463b3]">{currentVersion?.label}</span> {reviews.length}건
-                </p>
-                <button
-                  className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#2463b3] hover:bg-[#eef4fb]"
-                  onClick={toggleManagementMode}
-                  type="button"
-                >
-                  {managementMode ? "완료" : "관리"}
-                </button>
-              </div>
-
-              {managementMode ? (
-                <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-[#f8fafc] px-3 py-2">
-                  <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#475569]">
-                    <input
-                      checked={reviews.length > 0 && selectedReviewIds.size === reviews.length}
-                      onChange={toggleSelectAllReviews}
-                      type="checkbox"
-                    />
-                    전체선택
-                    <span className="text-[#94a3b8]">{selectedReviewIds.size}건 선택됨</span>
-                  </label>
-                  <button
-                    className="rounded-lg px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={selectedReviewIds.size === 0 || bulkDeleting}
-                    onClick={handleBulkDeleteReviews}
-                    type="button"
-                  >
-                    {bulkDeleting ? "삭제 중..." : "선택 삭제"}
-                  </button>
-                </div>
-              ) : null}
-
-              <ul className="mt-2 space-y-1.5">
-                {reviews.map((review) => (
-                  <li className="flex items-center gap-2" key={review.id}>
-                    {managementMode ? (
-                      <input
-                        checked={selectedReviewIds.has(review.id)}
-                        className="shrink-0"
-                        onChange={() => toggleReviewChecked(review.id)}
-                        type="checkbox"
-                      />
-                    ) : null}
-                    <button
-                      className={`min-w-0 flex-1 rounded-lg px-3 py-2 text-left text-xs font-semibold ${
-                        !managementMode && selectedReview?.id === review.id
-                          ? "bg-[#eef4fb] text-[#15345b]"
-                          : "text-[#475569] hover:bg-[#f8fafc]"
-                      }`}
-                      onClick={() =>
-                        managementMode ? toggleReviewChecked(review.id) : setSelectedReviewId(review.id)
-                      }
-                      type="button"
-                    >
-                      <span className="block">{formatUploadDateTime(review.reviewedAt)}</span>
-                      <span className="mt-1 flex flex-wrap items-center gap-1">
-                        <span className="rounded-full bg-[#e8f1ff] px-2 py-0.5 text-[11px] font-bold text-[#2463b3]">
-                          전체 {review.items.length}
-                        </span>
-                        {CHECKLIST_ITEM_STATUSES.map((statusName) => (
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${HISTORY_COUNT_STYLES[statusName]}`}
-                            key={statusName}
-                          >
-                            {statusName} {review.counts[statusName] ?? 0}
-                          </span>
-                        ))}
-                        {review.usage ? (
-                          <span className="ml-auto select-none text-[11px] leading-none text-slate-300">
-                            {formatUsageLabel(review.usage)}
-                          </span>
-                        ) : null}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
         </div>
 
         <div className="min-w-0">
+          {reviews.length > 0 ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-[#64748b]">
+              <span>
+                이 버전은 <b className="text-[#15345b]">{reviews.length}회</b> 검토됨 — 표시 중:
+              </span>
+              <select
+                className="rounded-[4px] border border-[#d0d5dd] bg-white px-2 py-1 text-xs text-[#172033]"
+                onChange={(event) => setSelectedReviewId(event.target.value)}
+                value={selectedReview?.id ?? ""}
+              >
+                {reviews.map((review, index) => (
+                  <option key={review.id} value={review.id}>
+                    {formatUploadDateTime(review.reviewedAt)}
+                    {index === 0 ? " (최신)" : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="ml-auto rounded px-2 py-1 text-[11px] font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
+                disabled={deletingReview || running}
+                onClick={handleDeleteSelectedReview}
+                type="button"
+              >
+                {deletingReview ? "삭제 중..." : "이 검토 기록 삭제"}
+              </button>
+            </div>
+          ) : null}
           {selectedReview ? (
             <ChecklistReviewResults previousReview={previousReview} projectId={project.id} review={selectedReview} />
           ) : (
