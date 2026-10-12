@@ -246,7 +246,7 @@ export default function ChecklistReviewSection({ project }: { project: Project }
     <WorkspaceSectionCard
       description="PDF 안의 '체크리스트' 페이지를 인식해 항목별 충족 여부를 AI가 평가합니다. 도면·이미지 속 내용과 법령(국가법령정보센터)·공간정보(브이월드)를 근거로 사용합니다."
       id="checklist-review"
-      title="사전 검토자료 체크리스트 AI 검토"
+      title="사전심의: AI 분석"
     >
       {running ? <AnalysisBlockingOverlay progress={progress} startedAt={startedAt} statusMessage={uploadMessage ?? undefined} /> : null}
 
