@@ -223,7 +223,12 @@ export default function ExpertPdfViewer({
     if (tool !== "box" || event.button !== 0) return;
     const point = toLocal(event);
     if (!point) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // 포인터 캡처 미지원 환경 — 캡처 없이 진행
+    }
     setDrag({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
   };
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -259,7 +264,7 @@ export default function ExpertPdfViewer({
   });
 
   return (
-    <div className="relative max-h-[78vh] min-h-[560px] overflow-auto bg-[#eef1f5]" ref={containerRef}>
+    <div className="relative max-h-[78vh] min-h-[560px] select-none overflow-auto bg-[#eef1f5]" ref={containerRef}>
       <div className="flex min-w-full justify-center p-4" style={size ? { width: Math.max(containerWidth, size.width + 32) } : undefined}>
         <div
           className="relative bg-white shadow-sm"
