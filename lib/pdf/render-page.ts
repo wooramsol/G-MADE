@@ -175,8 +175,12 @@ export async function renderRegionSnippet(
   targetLongEdge: number = 520,
   /** 원문 인용구 — PDF 글자 좌표에서 찾으면 그 위치에 정확한 박스를 그림 */
   anchors?: string[],
+  /** 스캔 도면의 OCR 판독 줄 — 텍스트층에서 못 찾으면 여기서 찾는다 */
+  ocrLines?: import("./ocr-locate").OcrLine[] | null,
 ): Promise<RegionSnippet | null> {
-  return withRenderSlot(() => renderRegionSnippetInner(pdfInput, pageNumber, region, targetLongEdge, anchors));
+  return withRenderSlot(() =>
+    renderRegionSnippetInner(pdfInput, pageNumber, region, targetLongEdge, anchors, ocrLines ?? null),
+  );
 }
 
 async function renderRegionSnippetInner(
@@ -184,7 +188,8 @@ async function renderRegionSnippetInner(
   pageNumber: number,
   region: { x: number; y: number; width: number; height: number } | null,
   targetLongEdge: number,
-  anchors?: string[],
+  anchors: string[] | undefined,
+  ocrLines: import("./ocr-locate").OcrLine[] | null,
 ): Promise<RegionSnippet | null> {
   try {
     const { getDocumentProxy, renderPageAsImage } = await import("unpdf");
@@ -230,6 +235,16 @@ async function renderRegionSnippetInner(
       const { locateAnchorRegion } = await import("./text-locate");
       anchorRegion = await locateAnchorRegion(page, anchors, region);
       if (anchorRegion) region = anchorRegion;
+      // 텍스트층에 없으면(스캔 도면) OCR 판독 줄에서 탐색 — 잉크 보정된 정밀 좌표일 때만
+      // 박스를 그리고, 근사 좌표면 크롭 위치로만 사용
+      if (!anchorRegion && ocrLines && ocrLines.length > 0) {
+        const { locateAnchorInOcr } = await import("./ocr-locate");
+        const found = locateAnchorInOcr(ocrLines, anchors, region);
+        if (found) {
+          region = found.region;
+          if (found.precise) anchorRegion = found.region;
+        }
+      }
     }
 
     // 크롭(근거 영역 또는 페이지 전체)의 긴 변이 목표 크기가 되도록 배율 결정
@@ -318,4 +333,52 @@ export async function downscaleJpeg(base64: string, targetLongEdge: number): Pro
     console.warn("[checklist-review] 썸네일 축소 실패:", error instanceof Error ? error.message : error);
     return null;
   }
+}
+
+/**
+ * 렌더링 가능한 pdf.js 문서를 연다 — 정상 동작하는 캔버스 팩토리와 JPX/JBIG2용
+ * WASM 경로를 주입한 상태 (도면 OCR·페이지 분류 등 여러 페이지를 연속 렌더링할 때
+ * 문서를 한 번만 파싱하기 위함).
+ */
+export async function openPdfForRender(pdfBytes: Uint8Array) {
+  const { getDocumentProxy, renderPageAsImage } = await import("unpdf");
+  const canvasModule = await import("@napi-rs/canvas");
+
+  class NapiCanvasFactory {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    constructor(_options?: unknown) {}
+    create(width: number, height: number) {
+      const canvas = canvasModule.createCanvas(Math.max(1, Math.ceil(width)), Math.max(1, Math.ceil(height)));
+      return { canvas, context: canvas.getContext("2d") };
+    }
+    reset(entry: { canvas: { width: number; height: number } }, width: number, height: number) {
+      entry.canvas.width = Math.max(1, Math.ceil(width));
+      entry.canvas.height = Math.max(1, Math.ceil(height));
+    }
+    destroy(entry: { canvas: { width: number; height: number } | null; context: unknown }) {
+      if (entry.canvas) {
+        entry.canvas.width = 0;
+        entry.canvas.height = 0;
+      }
+      entry.canvas = null;
+      entry.context = null;
+    }
+  }
+
+  const pdf = await getDocumentProxy(new Uint8Array(pdfBytes), {
+    CanvasFactory: NapiCanvasFactory,
+    wasmUrl: resolvePdfjsWasmUrl(),
+  } as never);
+
+  /** 페이지를 지정 배율로 렌더링해 캔버스 이미지로 돌려준다 (렌더 슬롯 공유 — 메모리 보호) */
+  const renderPage = (pageNumber: number, scale: number) =>
+    withRenderSlot(async () => {
+      const rendered = await renderPageAsImage(pdf, pageNumber, {
+        scale,
+        canvasImport: () => import("@napi-rs/canvas"),
+      });
+      return canvasModule.loadImage(Buffer.from(rendered));
+    });
+
+  return { pdf, canvasModule, renderPage };
 }

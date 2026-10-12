@@ -2,6 +2,7 @@ import { head, put } from "@vercel/blob";
 import { getBlobAccess, isBlobStorageConfigured } from "@/lib/blob-config";
 import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
 import { isR2Configured, r2GetObject, r2HeadObject, r2PutObject } from "@/lib/r2-storage";
+import type { OcrLine } from "@/lib/pdf/ocr-locate";
 import { downscaleJpeg, renderRegionSnippet } from "@/lib/pdf/render-page";
 import type { ChecklistFinding, EvidenceRegion } from "./types";
 import { anchorCacheSuffix, buildEvidenceAnchors } from "./evidence-anchors";
@@ -163,6 +164,8 @@ export async function prewarmEvidenceSnippets(options: {
   pdfBytes: Uint8Array | Buffer;
   findings: ChecklistFinding[];
   getRemainingBudgetMs: () => number;
+  /** 스캔 도면 OCR 판독 줄 (페이지 → 줄) — 도면 근거 위치 표시용 */
+  ocrLinesByPage?: Map<number, OcrLine[]>;
 }): Promise<void> {
   if (!isBlobStorageEnabled()) return;
 
@@ -209,6 +212,7 @@ export async function prewarmEvidenceSnippets(options: {
         target.region,
         SNIPPET_SIZES.full,
         target.anchors,
+        options.ocrLinesByPage?.get(target.page) ?? null,
       );
       if (!full) {
         failed += 1;

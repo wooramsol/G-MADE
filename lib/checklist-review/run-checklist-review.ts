@@ -24,6 +24,13 @@ import { extractProjectMetrics } from "./extract-metrics";
 import { hashFileBuffer } from "./file-fingerprint";
 import { addUsage, estimateUsageSummary, mergeUsageByModel, type UsageByModel } from "./usage-cost";
 import { MAX_COST_USD_PER_REVIEW } from "./budget";
+import type { ClaudeUsage } from "./claude-call";
+import { mergeOcrIntoFiles, runDrawingOcr } from "./drawing-ocr";
+
+/** 도면 판독에 쓰는 최대 시간(새 페이지 착수 마감) — 평가 시간 확보 */
+const OCR_DEADLINE_MS = 70_000;
+/** 도면 판독 비용 상한 (USD) — 검토 1건 상한($2) 안에서 평가 예산을 남김 */
+const OCR_MAX_USD = 0.7;
 import { runZoomReview } from "./zoom-review";
 import { prewarmEvidenceSnippets } from "./snippet-cache";
 import { findChecklistPages, mentionsChecklist } from "./find-checklist-pages";
@@ -262,6 +269,21 @@ export async function runChecklistReview(
       }),
     );
 
+    // 도면 정밀 판독 — 텍스트층이 빈약한 페이지를 도면/사진으로 분류하고, 스캔 도면은
+    // 고해상도 타일 OCR로 글자+위치를 얻는다. 법령·공간정보 조회와 병렬로 시작해 대기
+    // 시간을 겹치고, 시간·예산 상한을 넘기면 남은 페이지는 건너뛴다(실패해도 평가는 진행).
+    const ocrUsages: Array<{ model: string; usage?: ClaudeUsage }> = [];
+    const ocrPromise = runDrawingOcr({
+      files: filesForAnalysis,
+      fileBuffers,
+      deadlineAt: Date.now() + OCR_DEADLINE_MS,
+      maxUsd: OCR_MAX_USD,
+      onUsage: (ocrModel, usage) => ocrUsages.push({ model: ocrModel, usage }),
+    }).catch((error) => {
+      console.warn("[drawing-ocr] 건너뜀:", error instanceof Error ? error.message : error);
+      return null;
+    });
+
     // 이 프로젝트의 가장 최근 검토를 "기준"으로 삼아 이번 파일들과 페이지 "내용"(해시)을
     // 기준으로 정렬합니다. 단순 페이지 번호 비교가 아니라 LCS(최장 공통 부분수열) 정렬을
     // 쓰므로, 페이지가 삽입·삭제돼 번호가 밀려도 같은 내용의 페이지를 올바르게 대응시켜
@@ -330,6 +352,18 @@ export async function runChecklistReview(
     let metrics: ChecklistReview["metrics"];
     const usageByModel: UsageByModel = new Map();
     let evaluationWarnings: string[];
+
+    emitStep(emit, "context", "도면 이미지 속 글자·치수 판독 중");
+    const ocrResult = await ocrPromise;
+    for (const entry of ocrUsages) addUsage(usageByModel, entry.model, entry.usage);
+    if (ocrResult) {
+      mergeOcrIntoFiles(filesForAnalysis, ocrResult.byFileId);
+      const st = ocrResult.stats;
+      console.log(
+        `[drawing-ocr] candidates=${st.candidates} cached=${st.cached} ocr=${st.ocrPages} photo=${st.photoPages} ` +
+          `lines=${st.lines} precise=${st.preciseLines} skipped=${st.skipped}`,
+      );
+    }
 
     // 도면 인덱스(표제란 기반) — 평가 프롬프트의 [도면 목차]와 심화 판독 페이지 선정에
     // 사용. 텍스트 레이어만 쓰므로 비용 없음.
@@ -643,6 +677,7 @@ export async function runChecklistReview(
           pdfBytes: bytes,
           findings,
           getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
+          ocrLinesByPage: ocrResult?.byFileId.get(file.id),
         });
       }
     } catch (error) {

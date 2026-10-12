@@ -9,6 +9,9 @@ import {
   snippetRegionKey,
 } from "@/lib/checklist-review/snippet-cache";
 import { anchorCacheSuffix } from "@/lib/checklist-review/evidence-anchors";
+import { isR2Configured } from "@/lib/r2-storage";
+import { readFileOcrLines } from "@/lib/checklist-review/drawing-ocr";
+import { hashFileBuffer } from "@/lib/checklist-review/file-fingerprint";
 import { downscaleJpeg, renderRegionSnippet } from "@/lib/pdf/render-page";
 import { getProjectById } from "@/lib/project-store";
 
@@ -171,7 +174,12 @@ export async function GET(request: NextRequest) {
     // 캐시 미스 시 고해상도(full)로 한 번만 렌더링하고 썸네일은 축소로 파생 —
     // 카드가 보인 시점(썸네일 요청)에 확대본까지 캐시돼, 라이트박스 클릭이 즉시 뜸.
     // bytes를 그대로 전달 (base64 문자열 변환은 대용량 파일에서 메모리를 배로 씀)
-    const fullSnippet = await renderRegionSnippet(bytes, page, region, SIZES.full, anchors);
+    // 스캔 도면이면 분석 때 저장한 OCR 판독 줄로도 근거 위치를 찾는다 (없으면 null)
+    const ocrLines =
+      anchors.length > 0 && isR2Configured()
+        ? await readFileOcrLines(hashFileBuffer(Buffer.from(bytes)), page).catch(() => null)
+        : null;
+    const fullSnippet = await renderRegionSnippet(bytes, page, region, SIZES.full, anchors, ocrLines);
     if (!fullSnippet) {
       console.warn(`[checklist-review] 캡처 생성 실패(null) file=${fileId} p=${page} region=${regionKey}`);
       return NextResponse.json({ error: "근거 캡처를 생성하지 못했습니다." }, { status: 404 });
