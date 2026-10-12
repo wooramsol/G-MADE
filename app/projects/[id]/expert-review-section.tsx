@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import type { ExpertMemo, Project } from "@/lib/types";
 import ExpertPdfViewer, { nextZoom, useExpertPdf, type Region, type ViewerBox, type ViewerTool } from "./expert-pdf-viewer";
@@ -69,10 +69,8 @@ export default function ExpertReviewSection({
   const [listTab, setListTab] = useState<"all" | "page">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Region | null>(null);
-  const [draftText, setDraftText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
-  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [showPrevious, setShowPrevious] = useState(true);
 
@@ -141,7 +139,8 @@ export default function ExpertReviewSection({
   const listed = listTab === "page" ? versionMemos.filter((memo) => memo.page === page) : versionMemos;
   const selectedPrevious = previousMemos.find((memo) => memo.id === selectedId) ?? null;
 
-  const boxes: ViewerBox[] = [
+  const boxes: ViewerBox[] = useMemo(
+    () => [
     ...versionMemos
       .filter((memo) => memo.page === page)
       .map((memo) => ({
@@ -162,7 +161,18 @@ export default function ExpertReviewSection({
           },
         ]
       : []),
-  ];
+  ],
+    [versionMemos, page, numberOf, selectedId, selectedPrevious, versionByKey],
+  );
+
+  const onDraftComplete = useCallback((region: Region) => {
+    setDraft(region);
+    setSelectedId(null);
+  }, []);
+  const onSelectBox = useCallback((id: string) => {
+    setSelectedId(id);
+    setListTab("page");
+  }, []);
 
   const canEdit = (memo: ExpertMemo) => Boolean(me && (memo.authorId === me.id || me.isAdmin));
 
@@ -172,9 +182,26 @@ export default function ExpertReviewSection({
     if (memo.page !== page) goToPage(memo.page);
   };
 
-  const saveDraft = async () => {
-    if (!draft || !activeVersion?.reviewId || !activeVersion.fileId || !draftText.trim()) return;
-    setBusy(true);
+  const saveDraft = async (text: string) => {
+    if (!draft || !activeVersion?.reviewId || !activeVersion.fileId || !text.trim() || !me) return;
+    // 낙관적 반영 — 서버 저장을 기다리지 않고 바로 목록·박스에 표시
+    const tempId = `pending-${Date.now()}`;
+    const optimistic: ExpertMemo = {
+      id: tempId,
+      versionKey: activeVersion.key,
+      reviewId: activeVersion.reviewId,
+      fileId: activeVersion.fileId,
+      fileName: activeVersion.fileName,
+      page,
+      region: draft,
+      text: text.trim(),
+      authorId: me.id,
+      authorName: "저장 중…",
+      createdAt: new Date().toISOString(),
+    };
+    setMemos((prev) => [...prev, optimistic]);
+    setSelectedId(tempId);
+    setDraft(null);
     setMessage(null);
     try {
       const response = await fetch("/api/expert-memos", {
@@ -187,25 +214,24 @@ export default function ExpertReviewSection({
           fileId: activeVersion.fileId,
           page,
           region: draft,
-          text: draftText,
+          text,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { memo?: ExpertMemo; memos?: ExpertMemo[]; error?: string };
       if (!response.ok || !payload.memos) throw new Error(payload.error ?? "메모를 저장하지 못했습니다.");
       setMemos(payload.memos);
-      setSelectedId(payload.memo?.id ?? null);
-      setDraft(null);
-      setDraftText("");
+      setSelectedId((current) => (current === tempId ? payload.memo?.id ?? null : current));
     } catch (error) {
+      setMemos((prev) => prev.filter((memo) => memo.id !== tempId));
       setMessage(error instanceof Error ? error.message : "메모를 저장하지 못했습니다.");
-    } finally {
-      setBusy(false);
     }
   };
 
   const saveEdit = async (memo: ExpertMemo) => {
     if (!editText.trim()) return;
-    setBusy(true);
+    const before = memos;
+    setMemos((prev) => prev.map((entry) => (entry.id === memo.id ? { ...entry, text: editText.trim() } : entry)));
+    setEditingId(null);
     setMessage(null);
     try {
       const response = await fetch("/api/expert-memos", {
@@ -216,17 +242,17 @@ export default function ExpertReviewSection({
       const payload = (await response.json().catch(() => ({}))) as { memos?: ExpertMemo[]; error?: string };
       if (!response.ok || !payload.memos) throw new Error(payload.error ?? "메모를 수정하지 못했습니다.");
       setMemos(payload.memos);
-      setEditingId(null);
     } catch (error) {
+      setMemos(before);
       setMessage(error instanceof Error ? error.message : "메모를 수정하지 못했습니다.");
-    } finally {
-      setBusy(false);
     }
   };
 
   const remove = async (memo: ExpertMemo) => {
     if (!window.confirm("이 메모를 삭제할까요?")) return;
-    setBusy(true);
+    const before = memos;
+    setMemos((prev) => prev.filter((entry) => entry.id !== memo.id));
+    if (selectedId === memo.id) setSelectedId(null);
     setMessage(null);
     try {
       const query = new URLSearchParams({ projectId: project.id, memoId: memo.id });
@@ -234,11 +260,9 @@ export default function ExpertReviewSection({
       const payload = (await response.json().catch(() => ({}))) as { memos?: ExpertMemo[]; error?: string };
       if (!response.ok || !payload.memos) throw new Error(payload.error ?? "메모를 삭제하지 못했습니다.");
       setMemos(payload.memos);
-      if (selectedId === memo.id) setSelectedId(null);
     } catch (error) {
+      setMemos(before);
       setMessage(error instanceof Error ? error.message : "메모를 삭제하지 못했습니다.");
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -293,7 +317,7 @@ export default function ExpertReviewSection({
               </button>
               <button
                 className="h-7 rounded-[4px] bg-[#b45309] px-3 text-xs font-bold text-white disabled:opacity-50"
-                disabled={busy || !editText.trim()}
+                disabled={!editText.trim()}
                 onClick={() => void saveEdit(memo)}
                 type="button"
               >
@@ -304,7 +328,7 @@ export default function ExpertReviewSection({
         ) : (
           <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[#1e293b]">{memo.text}</p>
         )}
-        {!previous && !editing && canEdit(memo) ? (
+        {!previous && !editing && canEdit(memo) && !memo.id.startsWith("pending-") ? (
           <div className="mt-2 flex justify-end gap-1 text-[11px]">
             <button
               className="rounded-[3px] px-2 py-0.5 font-semibold text-[#64748b] hover:bg-[#f1f5f9]"
@@ -325,36 +349,21 @@ export default function ExpertReviewSection({
     );
   };
 
-  const draftPopover = (
-    <div className="rounded-md border border-[#b45309] bg-white p-2.5 shadow-lg">
-      <textarea
-        autoFocus
-        className="h-24 w-full resize-y rounded-[4px] border border-[#cbd5e1] p-2 text-sm leading-5 outline-none focus:border-[#b45309]"
-        onChange={(event) => setDraftText(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) void saveDraft();
-          if (event.key === "Escape") setDraft(null);
-        }}
-        placeholder="이 영역에 대한 의견을 적어 주세요"
-        value={draftText}
-      />
-      <div className="mt-1.5 flex items-center justify-between">
-        <span className="text-[10px] text-[#94a3b8]">⌘/Ctrl + Enter 저장</span>
-        <span className="flex gap-1.5">
-          <button className="h-7 rounded-[4px] px-2.5 text-xs font-bold text-[#64748b] hover:bg-[#f1f5f9]" onClick={() => setDraft(null)} type="button">
-            취소
-          </button>
-          <button
-            className="h-7 rounded-[4px] bg-[#b45309] px-3 text-xs font-bold text-white disabled:opacity-50"
-            disabled={busy || !draftText.trim()}
-            onClick={() => void saveDraft()}
-            type="button"
-          >
-            {busy ? "저장 중…" : "메모 저장"}
-          </button>
-        </span>
-      </div>
-    </div>
+  // 입력창은 draft가 같으면 그대로 유지 — 저장 함수는 ref로 최신 것을 호출
+  const saveDraftRef = useRef(saveDraft);
+  useEffect(() => {
+    saveDraftRef.current = saveDraft;
+  });
+  const draftPopover = useMemo(
+    () =>
+      draft ? (
+        <DraftPopover
+          key={`${draft.x},${draft.y}`}
+          onCancel={() => setDraft(null)}
+          onSave={(text) => void saveDraftRef.current(text)}
+        />
+      ) : null,
+    [draft],
   );
 
   const hasFile = Boolean(activeVersion?.reviewId && activeVersion.fileId);
@@ -520,16 +529,9 @@ export default function ExpertReviewSection({
               doc={pdf.doc}
               draftPopover={draftPopover}
               draftRegion={draft}
-              onDraftComplete={(region) => {
-                setDraft(region);
-                setDraftText("");
-                setSelectedId(null);
-              }}
+              onDraftComplete={onDraftComplete}
               onPageCount={setPageCount}
-              onSelectBox={(id) => {
-                setSelectedId(id);
-                setListTab("page");
-              }}
+              onSelectBox={onSelectBox}
               page={page}
               tool={tool}
               zoom={zoom}
@@ -544,5 +546,41 @@ export default function ExpertReviewSection({
         </div>
       </div>
     </WorkspaceSectionCard>
+  );
+}
+
+/** 메모 입력창 — 글자 입력이 상위(뷰어·목록)를 다시 그리지 않도록 자체 상태로 */
+function DraftPopover({ onSave, onCancel }: { onSave: (text: string) => void; onCancel: () => void }) {
+  const [text, setText] = useState("");
+  return (
+    <div className="rounded-md border border-[#b45309] bg-white p-2.5 shadow-lg">
+      <textarea
+        autoFocus
+        className="h-24 w-full resize-y rounded-[4px] border border-[#cbd5e1] p-2 text-sm leading-5 outline-none focus:border-[#b45309]"
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && text.trim()) onSave(text);
+          if (event.key === "Escape") onCancel();
+        }}
+        placeholder="이 영역에 대한 의견을 적어 주세요"
+        value={text}
+      />
+      <div className="mt-1.5 flex items-center justify-between">
+        <span className="text-[10px] text-[#94a3b8]">⌘/Ctrl + Enter 저장</span>
+        <span className="flex gap-1.5">
+          <button className="h-7 rounded-[4px] px-2.5 text-xs font-bold text-[#64748b] hover:bg-[#f1f5f9]" onClick={onCancel} type="button">
+            취소
+          </button>
+          <button
+            className="h-7 rounded-[4px] bg-[#b45309] px-3 text-xs font-bold text-white disabled:opacity-50"
+            disabled={!text.trim()}
+            onClick={() => onSave(text)}
+            type="button"
+          >
+            메모 저장
+          </button>
+        </span>
+      </div>
+    </div>
   );
 }

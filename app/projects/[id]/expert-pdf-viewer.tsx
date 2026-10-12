@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import type { ExpertMemo } from "@/lib/types";
 
@@ -16,7 +16,11 @@ export type Region = ExpertMemo["region"];
 type DocSource = { directUrl: string | null; fallbackUrl: string };
 
 /** 사파리 캔버스 한도(약 16.7M px) 아래로 */
-const MAX_CANVAS_PIXELS = 16_000_000;
+const MAX_CANVAS_PIXELS = 12_000_000;
+/** 렌더 캐시 총 픽셀 상한 (약 240MB 이하) */
+const CACHE_PIXEL_BUDGET = 60_000_000;
+
+type RenderedPage = { canvas: HTMLCanvasElement; cssWidth: number; cssHeight: number; pixels: number };
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
 let pdfjsPromise: Promise<typeof import("pdfjs-dist")> | null = null;
@@ -115,7 +119,7 @@ export type ViewerBox = {
   selected: boolean;
 };
 
-export default function ExpertPdfViewer({
+function ExpertPdfViewerImpl({
   doc,
   page,
   zoom,
@@ -161,41 +165,91 @@ export default function ExpertPdfViewer({
     return () => observer.disconnect();
   }, []);
 
+  // 렌더 결과 캐시 (페이지·배율별) — 이미 본 페이지·미리 그려 둔 앞뒤 페이지는 즉시 표시
+  const cacheRef = useRef<{ doc: PDFDocumentProxy | null; entries: Map<string, RenderedPage> }>({ doc: null, entries: new Map() });
+
   useEffect(() => {
     if (containerWidth <= 0) return;
+    if (cacheRef.current.doc !== doc) cacheRef.current = { doc, entries: new Map() };
     let cancelled = false;
-    let task: RenderTask | null = null;
+    const tasks: RenderTask[] = [];
+    const cache = cacheRef.current.entries;
+
+    const renderPage = async (pageNumber: number): Promise<RenderedPage | null> => {
+      const key = `${pageNumber}|${zoom}|${containerWidth}`;
+      const hit = cache.get(key);
+      if (hit) {
+        cache.delete(key);
+        cache.set(key, hit); // LRU 갱신
+        return hit;
+      }
+      const pdfPage = await doc.getPage(pageNumber);
+      if (cancelled) return null;
+      const base = pdfPage.getViewport({ scale: 1 });
+      const cssScale = Math.max(0.05, ((containerWidth - 32) / base.width) * zoom);
+      const cssWidth = base.width * cssScale;
+      const cssHeight = base.height * cssScale;
+      // 고해상도 화면도 2배까지만 — 그 이상은 체감 차이 없이 그리는 시간만 늘어남
+      let pixelRatio = Math.min(2, window.devicePixelRatio || 1);
+      if (cssWidth * cssHeight * pixelRatio * pixelRatio > MAX_CANVAS_PIXELS) {
+        pixelRatio = Math.sqrt(MAX_CANVAS_PIXELS / (cssWidth * cssHeight));
+      }
+      const viewport = pdfPage.getViewport({ scale: cssScale * pixelRatio });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) return null;
+      const task = pdfPage.render({ canvas, canvasContext: context, viewport });
+      tasks.push(task);
+      await task.promise;
+      if (cancelled) return null;
+      const entry: RenderedPage = { canvas, cssWidth, cssHeight, pixels: canvas.width * canvas.height };
+      cache.set(key, entry);
+      // 메모리 상한 — 오래된 것부터 버림
+      let total = 0;
+      for (const value of cache.values()) total += value.pixels;
+      for (const [oldKey, value] of cache) {
+        if (total <= CACHE_PIXEL_BUDGET || oldKey === key) break;
+        cache.delete(oldKey);
+        total -= value.pixels;
+        value.canvas.width = 0;
+        value.canvas.height = 0;
+      }
+      return entry;
+    };
+
+    const show = (entry: RenderedPage) => {
+      const target = canvasRef.current;
+      if (!target) return;
+      target.width = entry.canvas.width;
+      target.height = entry.canvas.height;
+      target.getContext("2d")?.drawImage(entry.canvas, 0, 0);
+      setSize({ width: entry.cssWidth, height: entry.cssHeight });
+    };
+
     (async () => {
-      setRendering(true);
+      const current = Math.min(Math.max(1, page), doc.numPages);
+      const cachedNow = cache.get(`${current}|${zoom}|${containerWidth}`);
+      if (cachedNow) show(cachedNow);
+      else setRendering(true);
       try {
-        const pdfPage = await doc.getPage(Math.min(Math.max(1, page), doc.numPages));
-        if (cancelled) return;
-        const base = pdfPage.getViewport({ scale: 1 });
-        const fitScale = (containerWidth - 32) / base.width;
-        const cssScale = Math.max(0.05, fitScale * zoom);
-        const cssWidth = base.width * cssScale;
-        const cssHeight = base.height * cssScale;
-        const dpr = window.devicePixelRatio || 1;
-        let pixelRatio = dpr;
-        if (cssWidth * cssHeight * pixelRatio * pixelRatio > MAX_CANVAS_PIXELS) {
-          pixelRatio = Math.sqrt(MAX_CANVAS_PIXELS / (cssWidth * cssHeight));
+        const entry = cachedNow ?? (await renderPage(current));
+        if (!entry || cancelled) return;
+        if (!cachedNow) show(entry);
+        setRendering(false);
+        // 다음·이전 페이지를 미리 그려 둠 (화면이 한가할 때)
+        for (const neighbor of [current + 1, current - 1, current + 2]) {
+          if (cancelled) return;
+          if (neighbor < 1 || neighbor > doc.numPages) continue;
+          await new Promise<void>((resolve) => {
+            const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+            if (idle) idle(() => resolve());
+            else setTimeout(resolve, 60);
+          });
+          if (cancelled) return;
+          await renderPage(neighbor);
         }
-        const viewport = pdfPage.getViewport({ scale: cssScale * pixelRatio });
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const offscreen = document.createElement("canvas");
-        offscreen.width = Math.floor(viewport.width);
-        offscreen.height = Math.floor(viewport.height);
-        const context = offscreen.getContext("2d");
-        if (!context) return;
-        task = pdfPage.render({ canvas: offscreen, canvasContext: context, viewport });
-        await task.promise;
-        if (cancelled) return;
-        // 다 그린 뒤 한 번에 교체 — 확대·페이지 이동 중 빈 화면 깜빡임 방지
-        canvas.width = offscreen.width;
-        canvas.height = offscreen.height;
-        canvas.getContext("2d")?.drawImage(offscreen, 0, 0);
-        setSize({ width: cssWidth, height: cssHeight });
       } catch (error) {
         if (!cancelled && !(error instanceof Error && error.name === "RenderingCancelledException")) {
           console.warn("[expert-viewer] 렌더 실패", error);
@@ -206,7 +260,7 @@ export default function ExpertPdfViewer({
     })();
     return () => {
       cancelled = true;
-      task?.cancel();
+      for (const task of tasks) task.cancel();
     };
   }, [doc, page, zoom, containerWidth]);
 
@@ -328,8 +382,10 @@ export default function ExpertPdfViewer({
           </div>
         </div>
       </div>
-      {rendering && !size ? (
-        <p className="absolute inset-x-0 top-1/2 text-center text-xs text-[#64748b]">페이지를 그리는 중…</p>
+      {rendering ? (
+        <p className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-[#15345b]/80 px-3 py-1 text-[11px] font-semibold text-white">
+          페이지 불러오는 중…
+        </p>
       ) : null}
     </div>
   );
@@ -339,3 +395,7 @@ export function nextZoom(current: number, direction: 1 | -1): number {
   if (direction > 0) return ZOOM_STEPS.find((step) => step > current + 1e-6) ?? current;
   return [...ZOOM_STEPS].reverse().find((step) => step < current - 1e-6) ?? current;
 }
+
+/** 메모 입력 등 상위 상태 변화로 뷰어가 다시 그려지지 않도록 */
+const ExpertPdfViewer = memo(ExpertPdfViewerImpl);
+export default ExpertPdfViewer;
