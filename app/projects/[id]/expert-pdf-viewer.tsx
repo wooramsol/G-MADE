@@ -314,7 +314,7 @@ export default function ExpertPdfViewer({
               <>
                 <div className="absolute border-2 border-dashed border-[#b45309] bg-[#f59e0b]/20" style={pct(draftRegion)} />
                 <div
-                  className="absolute z-10 w-[300px]"
+                  className="absolute z-10 w-[300px] select-text"
                   style={{
                     left: `${Math.min(draftRegion.x * 100, 70)}%`,
                     top: `calc(${(draftRegion.y + draftRegion.height) * 100}% + 6px)`,
