@@ -93,7 +93,7 @@ export const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 
 - 치수·수치·축척 인용 규칙(오류 방지 최우선): (a) 문서의 "추출 텍스트"에 있는 수치는 인용 가능 — 반드시 anchorText에 그 수치를 원문 그대로 기재합니다(좌표 검증됨). (b) 이미지·도면을 눈으로 보고 어림잡은 수치는 절대 인용 금지 — 저해상도에서 숫자가 불명확하면 추정하지 말고 "확인불가"로 판정하고 rationale에 판독 불가 사실을 밝힙니다.
 - "미충족"·"부분충족" 항목에는 구체적인 보완 방향(recommendation)을 제시합니다.
 - 간결하게 씁니다: rationale은 2문장 이내, evidence는 항목당 최대 2개(note는 60자 이내), recommendation은 1~2문장.
-- "[도면 판독 텍스트]"는 스캔 도면 이미지 속 글자를 고해상도로 판독해 추출 텍스트에 덧붙인 것입니다. 실명·치수·라벨 확인에 활용하고 anchorText로 인용할 수 있습니다(위치 표시됨). 단, 판독 텍스트와 도면 이미지가 어긋나 보이면 단정하지 말고 그 사실을 rationale에 밝힙니다.
+- "[도면 판독 텍스트]"는 스캔 도면 이미지 속 글자를 고해상도로 판독한 결과로, 문서와 함께 별도 텍스트로 제공됩니다(페이지 번호는 함께 보낸 문서 기준). 작은 글씨·치수는 저해상도 문서 이미지보다 이 판독 텍스트가 더 정확합니다. 실명·치수·라벨 확인에 활용하고 anchorText로 인용할 수 있습니다(위치 표시됨). 단, 판독 텍스트와 도면 이미지가 어긋나 보이면 단정하지 말고 그 사실을 rationale에 밝힙니다.
 - evidence의 anchorText: 근거를 확인한 그 페이지 원문에서 "그대로 복사한" 짧은 문구(2~40자)를 기재합니다. 이 문구로 PDF에서 글자 위치를 찾아 화면에 표시하므로 철자·띄어쓰기까지 원문과 일치해야 합니다. 도면이면 해당 부위의 라벨·명칭 텍스트(예: "주동 입면도", "옥상조경")를 기재합니다. 원문 표기를 확실히 모르면 생략합니다.
 - 서술(summary·rationale·note·recommendation)에 파일명을 쓰지 않습니다 — 검토 대상 문서는 1개이므로 페이지 번호만으로 충분합니다 (예: "p.12 배치도에서 확인됨"). evidence의 fileName 필드에는 계속 기재합니다.
 - 문체 통일: summary·rationale·note·recommendation 등 모든 서술은 개조식 명사형 종결("~함", "~됨", "~임", "~필요", "~확인")로 작성합니다. "~합니다/~했습니다/~있다" 같은 서술형 종결은 사용하지 않습니다. (예: "배치도 p.12에서 차폐 조경 확인됨", "야간 조명 계획 보완 필요")
@@ -164,6 +164,50 @@ export function buildContextText(context: EvaluationContext): string {
   return parts.join("\n\n");
 }
 
+/** 페이지당·전체 도면 판독 텍스트 상한 (토큰 비용 보호) */
+const OCR_TEXT_PER_PAGE = 2_500;
+const OCR_TEXT_TOTAL = 16_000;
+
+/**
+ * PDF를 이미지(문서 블록)로 보낼 때는 추출 텍스트를 따로 보내지 않는데, 스캔 도면의
+ * "도면 판독 텍스트"는 PDF 안에 없는 정보(고해상도 판독 결과)라 별도 텍스트로 붙인다.
+ * 발췌본이면 페이지 번호를 발췌본 기준(1..k)으로 적어 모델의 페이지 인용 체계와 맞춘다.
+ */
+function buildOcrTextBlock(
+  file: UploadedFileSummary,
+  pages: number[],
+  excerpt: boolean,
+): ClaudeContentBlock | null {
+  const slices = parsePageSlices([file]);
+  const ocrByPage = new Map<number, string>();
+  for (const slice of slices) {
+    const at = slice.text.indexOf("[도면 판독 텍스트]");
+    if (at === -1) continue;
+    ocrByPage.set(slice.page, slice.text.slice(at + "[도면 판독 텍스트]".length).trim());
+  }
+  if (ocrByPage.size === 0) return null;
+
+  const parts: string[] = [];
+  let total = 0;
+  pages.forEach((originalPage, index) => {
+    const text = ocrByPage.get(originalPage);
+    if (!text || total >= OCR_TEXT_TOTAL) return;
+    const clipped = text.slice(0, Math.min(OCR_TEXT_PER_PAGE, OCR_TEXT_TOTAL - total));
+    total += clipped.length;
+    const label = excerpt ? `p.${index + 1}` : `p.${originalPage}`;
+    parts.push(`${label}: ${clipped}`);
+  });
+  if (parts.length === 0) return null;
+  return {
+    type: "text",
+    text:
+      `=== [도면 판독 텍스트] ${file.originalName}${excerpt ? " (위 발췌본 기준 페이지 번호)" : ""} ===\n` +
+      "스캔 도면 이미지 속 글자를 고해상도로 판독한 결과입니다. 줄은 ' / '로 구분됩니다.\n" +
+      parts.join("\n"),
+  };
+}
+
+
 /**
  * 파일별 선별 결과에 따라 비전(문서·이미지)과 텍스트 블록을 섞어 구성합니다.
  * selection이 null이면 텍스트 전용 모드입니다.
@@ -202,6 +246,8 @@ async function buildDocumentBlocks(
                   title: `${file.originalName} (관련 페이지 발췌 ${extracted.pages.length}p)`,
                 });
                 pageMaps.push({ fileName: file.originalName, mapping: extracted.pages });
+                const ocrBlock = buildOcrTextBlock(file, extracted.pages, true);
+                if (ocrBlock) blocks.push(ocrBlock);
                 usedFiltered = true;
               }
             } catch {
@@ -215,6 +261,13 @@ async function buildDocumentBlocks(
               source: { type: "base64", media_type: "application/pdf", data: asset.base64 },
               title: file.originalName,
             });
+            const totalPages = file.totalPages ?? 0;
+            const ocrBlock = buildOcrTextBlock(
+              file,
+              Array.from({ length: totalPages }, (_, index) => index + 1),
+              false,
+            );
+            if (ocrBlock) blocks.push(ocrBlock);
           }
         } else {
           blocks.push({
