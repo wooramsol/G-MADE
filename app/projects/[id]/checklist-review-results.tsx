@@ -121,8 +121,8 @@ export default function ChecklistReviewResults({
       const anchorParam =
         anchors && anchors.length > 0 ? `&anchors=${encodeURIComponent(anchors.join("|"))}` : "";
       return {
-        thumbSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}${anchorParam}&size=thumb`,
-        fullSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}${anchorParam}&size=full`,
+        thumbSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}${anchorParam}&size=thumb&v=4`,
+        fullSrc: `/api/checklist-reviews/evidence-snippet?${base}${coords}${anchorParam}&size=full&v=4`,
       };
     };
   }, [review.files, review.id, projectId]);
