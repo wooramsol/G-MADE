@@ -516,7 +516,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
           {errorMessage}
         </p>
       ) : null}
-      <div className={`relative mt-2 overflow-hidden rounded-[4px] ${status === "ready" ? "border border-[#d0d5dd]" : ""}`}>
+      <div className={`relative isolate mt-2 overflow-hidden rounded-[4px] ${status === "ready" ? "border border-[#d0d5dd]" : ""}`}>
         <div ref={containerRef} />
         <span className={labelClass} ref={labelPeakRef} style={{ opacity: 0 }} />
         <span className={labelClass} ref={labelStartRef} style={{ opacity: 0 }} />

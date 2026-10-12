@@ -87,7 +87,7 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
           </a>
         </div>
       ) : (
-        <div className="relative h-[320px] w-full overflow-hidden rounded-md border border-[#d7dee8] bg-[#0b1220]">
+        <div className="relative isolate h-[320px] w-full overflow-hidden rounded-md border border-[#d7dee8] bg-[#0b1220]">
           <iframe
             className="h-full w-full border-0"
             ref={iframeRef}

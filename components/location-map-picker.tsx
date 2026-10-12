@@ -67,7 +67,7 @@ export default function LocationMapPicker({ selected, onSelect, disabled }: Prop
   return (
     <div
       aria-label="사업 위치 선택 지도"
-      className="h-[280px] overflow-hidden rounded-lg border [&_.leaflet-container]:h-full [&_.leaflet-container]:w-full [&_.leaflet-container]:z-0"
+      className="isolate h-[280px] overflow-hidden rounded-lg border [&_.leaflet-container]:h-full [&_.leaflet-container]:w-full [&_.leaflet-container]:z-0"
       role="application"
     >
       <MapContainer center={center} zoom={selected ? 16 : 11} scrollWheelZoom>
