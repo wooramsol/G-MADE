@@ -172,34 +172,9 @@ export async function updateProjectDocumentVersionLabel(
   });
 }
 
-/** 전문가 메모 추가 */
-export async function addProjectExpertMemo(id: string, memo: ExpertMemo): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    expertMemos: [...(project.expertMemos ?? []), memo],
-  }));
-}
-
-/** 전문가 메모 수정 — 메모를 반환 (권한 확인은 호출 측에서) */
-export async function updateProjectExpertMemo(
-  id: string,
-  memoId: string,
-  patch: Partial<Pick<ExpertMemo, "text" | "region">>,
-): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    expertMemos: (project.expertMemos ?? []).map((memo) =>
-      memo.id === memoId ? { ...memo, ...patch, updatedAt: new Date().toISOString() } : memo,
-    ),
-  }));
-}
-
-/** 전문가 메모 삭제 */
-export async function removeProjectExpertMemo(id: string, memoId: string): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    expertMemos: (project.expertMemos ?? []).filter((memo) => memo.id !== memoId),
-  }));
+/** 프로젝트 JSON 안의 전문가 메모 교체 (R2 미사용 환경·이관용 — 평소엔 expert-memo-store가 R2에 따로 저장) */
+export async function setProjectExpertMemos(id: string, memos: ExpertMemo[]): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({ ...project, expertMemos: memos }));
 }
 
 /** 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. */

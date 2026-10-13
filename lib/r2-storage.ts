@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -100,6 +101,20 @@ export async function r2PresignPutUrl(
     ContentLength: contentLength,
   });
   return getSignedUrl(getR2Client(), command, { expiresIn: expiresInSeconds });
+}
+
+/** 접두어 아래 객체 키 목록 (페이지네이션 처리) */
+export async function r2ListKeys(prefix: string): Promise<string[]> {
+  const keys: string[] = [];
+  let token: string | undefined;
+  do {
+    const result = await getR2Client().send(
+      new ListObjectsV2Command({ Bucket: getBucket(), Prefix: prefix, ContinuationToken: token }),
+    );
+    for (const item of result.Contents ?? []) if (item.Key) keys.push(item.Key);
+    token = result.IsTruncated ? result.NextContinuationToken : undefined;
+  } while (token);
+  return keys;
 }
 
 /** 브라우저 직접 다운로드용 presigned GET URL (전문가 분석 뷰어가 대용량 PDF를 서버 경유 없이 받음) */

@@ -1,12 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
-import {
-  addProjectExpertMemo,
-  getProjectById,
-  removeProjectExpertMemo,
-  updateProjectExpertMemo,
-} from "@/lib/project-store";
+import { deleteExpertMemo, getExpertMemo, listExpertMemos, saveExpertMemo } from "@/lib/expert-memo-store";
+import { getProjectById } from "@/lib/project-store";
 import type { ExpertMemo } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -15,6 +11,7 @@ export const dynamic = "force-dynamic";
 /**
  * 사전심의: 전문가 분석 — 도서 위 영역 메모.
  * 메모는 작성자 이름과 함께 프로젝트 사용자 모두에게 공유되고, 수정·삭제는 작성자(또는 관리자)만.
+ * 메모 1건씩 따로 저장 — 연달아 저장해도 서로 덮어쓰지 않음.
  */
 
 const MAX_TEXT = 4_000;
@@ -47,7 +44,7 @@ export async function GET(request: NextRequest) {
 
   const user = authResult.session.user;
   return NextResponse.json({
-    memos: project.expertMemos ?? [],
+    memos: await listExpertMemos(projectId),
     currentUserId: user.id,
     isAdmin: user.role === "ADMIN",
   });
@@ -93,15 +90,18 @@ export async function POST(request: NextRequest) {
     createdAt: new Date().toISOString(),
   };
 
-  const updated = await addProjectExpertMemo(projectId, memo);
-  if (!updated) return NextResponse.json({ error: "메모를 저장하지 못했습니다." }, { status: 500 });
-  return NextResponse.json({ memo, memos: updated.expertMemos ?? [] });
+  try {
+    await saveExpertMemo(projectId, memo);
+  } catch (error) {
+    console.error("[expert-memos] 저장 실패", error);
+    return NextResponse.json({ error: "메모를 저장하지 못했습니다." }, { status: 500 });
+  }
+  return NextResponse.json({ memo });
 }
 
 async function loadOwnMemo(projectId: string, memoId: string, userId: string, isAdmin: boolean) {
-  const project = projectId ? await getProjectById(projectId) : undefined;
-  const memo = (project?.expertMemos ?? []).find((entry) => entry.id === memoId);
-  if (!project || !memo) {
+  const memo = projectId && memoId ? await getExpertMemo(projectId, memoId) : null;
+  if (!memo) {
     return { error: NextResponse.json({ error: "메모를 찾을 수 없습니다." }, { status: 404 }) };
   }
   if (memo.authorId !== userId && !isAdmin) {
@@ -121,21 +121,25 @@ export async function PATCH(request: NextRequest) {
   const check = await loadOwnMemo(projectId, memoId, user.id, user.role === "ADMIN");
   if (check.error) return check.error;
 
-  const patch: { text?: string; region?: ExpertMemo["region"] } = {};
+  const next: ExpertMemo = { ...check.memo, updatedAt: new Date().toISOString() };
   if (typeof body?.text === "string") {
     const text = body.text.trim().slice(0, MAX_TEXT);
     if (!text) return NextResponse.json({ error: "메모 내용을 입력해 주세요." }, { status: 400 });
-    patch.text = text;
+    next.text = text;
   }
   if (body?.region !== undefined) {
     const region = parseRegion(body.region);
     if (!region) return NextResponse.json({ error: "영역 정보가 올바르지 않습니다." }, { status: 400 });
-    patch.region = region;
+    next.region = region;
   }
 
-  const updated = await updateProjectExpertMemo(projectId, memoId, patch);
-  if (!updated) return NextResponse.json({ error: "메모를 저장하지 못했습니다." }, { status: 500 });
-  return NextResponse.json({ memos: updated.expertMemos ?? [] });
+  try {
+    await saveExpertMemo(projectId, next);
+  } catch (error) {
+    console.error("[expert-memos] 수정 실패", error);
+    return NextResponse.json({ error: "메모를 수정하지 못했습니다." }, { status: 500 });
+  }
+  return NextResponse.json({ memo: next });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -148,7 +152,11 @@ export async function DELETE(request: NextRequest) {
   const check = await loadOwnMemo(projectId, memoId, user.id, user.role === "ADMIN");
   if (check.error) return check.error;
 
-  const updated = await removeProjectExpertMemo(projectId, memoId);
-  if (!updated) return NextResponse.json({ error: "메모를 삭제하지 못했습니다." }, { status: 500 });
-  return NextResponse.json({ memos: updated.expertMemos ?? [] });
+  try {
+    await deleteExpertMemo(projectId, memoId);
+  } catch (error) {
+    console.error("[expert-memos] 삭제 실패", error);
+    return NextResponse.json({ error: "메모를 삭제하지 못했습니다." }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true });
 }

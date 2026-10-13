@@ -87,7 +87,8 @@ export default function ExpertReviewSection({
       const response = await fetch(`/api/expert-memos?projectId=${encodeURIComponent(project.id)}`, { cache: "no-store" });
       if (!response.ok) return;
       const payload = (await response.json()) as { memos: ExpertMemo[]; currentUserId: string; isAdmin: boolean };
-      setMemos(payload.memos);
+      // 저장 중인 메모는 유지 (서버 목록에 아직 없음)
+      setMemos((prev) => [...payload.memos, ...prev.filter((memo) => memo.id.startsWith("pending-"))]);
       setMe({ id: payload.currentUserId, isAdmin: payload.isAdmin });
     } catch {
       // 네트워크 오류 시 기존 목록 유지
@@ -218,8 +219,10 @@ export default function ExpertReviewSection({
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { memo?: ExpertMemo; memos?: ExpertMemo[]; error?: string };
-      if (!response.ok || !payload.memos) throw new Error(payload.error ?? "메모를 저장하지 못했습니다.");
-      setMemos(payload.memos);
+      const saved = payload.memo;
+      if (!response.ok || !saved) throw new Error(payload.error ?? "메모를 저장하지 못했습니다.");
+      // 이 메모만 교체 — 그 사이 만든 다른 메모(저장 중 포함)는 그대로 둠
+      setMemos((prev) => prev.map((memo) => (memo.id === tempId ? saved : memo)));
       setSelectedId((current) => (current === tempId ? payload.memo?.id ?? null : current));
     } catch (error) {
       setMemos((prev) => prev.filter((memo) => memo.id !== tempId));
@@ -229,7 +232,6 @@ export default function ExpertReviewSection({
 
   const saveEdit = async (memo: ExpertMemo) => {
     if (!editText.trim()) return;
-    const before = memos;
     setMemos((prev) => prev.map((entry) => (entry.id === memo.id ? { ...entry, text: editText.trim() } : entry)));
     setEditingId(null);
     setMessage(null);
@@ -239,29 +241,28 @@ export default function ExpertReviewSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: project.id, memoId: memo.id, text: editText }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { memos?: ExpertMemo[]; error?: string };
-      if (!response.ok || !payload.memos) throw new Error(payload.error ?? "메모를 수정하지 못했습니다.");
-      setMemos(payload.memos);
+      const payload = (await response.json().catch(() => ({}))) as { memo?: ExpertMemo; error?: string };
+      const saved = payload.memo;
+      if (!response.ok || !saved) throw new Error(payload.error ?? "메모를 수정하지 못했습니다.");
+      setMemos((prev) => prev.map((entry) => (entry.id === saved.id ? saved : entry)));
     } catch (error) {
-      setMemos(before);
+      setMemos((prev) => prev.map((entry) => (entry.id === memo.id ? memo : entry)));
       setMessage(error instanceof Error ? error.message : "메모를 수정하지 못했습니다.");
     }
   };
 
   const remove = async (memo: ExpertMemo) => {
     if (!window.confirm("이 메모를 삭제할까요?")) return;
-    const before = memos;
     setMemos((prev) => prev.filter((entry) => entry.id !== memo.id));
     if (selectedId === memo.id) setSelectedId(null);
     setMessage(null);
     try {
       const query = new URLSearchParams({ projectId: project.id, memoId: memo.id });
       const response = await fetch(`/api/expert-memos?${query}`, { method: "DELETE" });
-      const payload = (await response.json().catch(() => ({}))) as { memos?: ExpertMemo[]; error?: string };
-      if (!response.ok || !payload.memos) throw new Error(payload.error ?? "메모를 삭제하지 못했습니다.");
-      setMemos(payload.memos);
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "메모를 삭제하지 못했습니다.");
     } catch (error) {
-      setMemos(before);
+      setMemos((prev) => (prev.some((entry) => entry.id === memo.id) ? prev : [...prev, memo]));
       setMessage(error instanceof Error ? error.message : "메모를 삭제하지 못했습니다.");
     }
   };
