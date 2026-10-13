@@ -128,10 +128,11 @@ function ExpertPageNavigatorImpl({
     const list = listRef.current;
     const item = list?.querySelector<HTMLElement>(`[data-page="${page}"]`);
     if (!list || !item) return;
-    const top = item.offsetTop - list.offsetTop;
-    if (top < list.scrollTop || top + item.offsetHeight > list.scrollTop + list.clientHeight) {
-      list.scrollTop = top - list.clientHeight / 2 + item.offsetHeight / 2;
-    }
+    // 화면 좌표로 비교 — 이미 보이면 그대로 두고, 가려져 있을 때만 목록 안에서 조금 스크롤
+    const listRect = list.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    if (itemRect.top < listRect.top) list.scrollTop += itemRect.top - listRect.top - 8;
+    else if (itemRect.bottom > listRect.bottom) list.scrollTop += itemRect.bottom - listRect.bottom + 8;
   }, [page]);
 
   const pages = Array.from({ length: doc.numPages }, (_, index) => index + 1);

@@ -4,7 +4,7 @@ import { memo as reactMemo, useCallback, useEffect, useMemo, useRef, useState, t
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import type { ExpertMemo, Project } from "@/lib/types";
 import ExpertPageNavigator from "./expert-page-navigator";
-import ExpertPdfViewer, { nextZoom, useExpertPdf } from "./expert-pdf-viewer";
+import ExpertPdfViewer, { useExpertPdf } from "./expert-pdf-viewer";
 
 /**
  * 사전심의: 전문가 분석 — 도서 PDF 위 원하는 지점에 핀을 꽂고, 핀 바로 아래에 의견을 적는다.
@@ -188,11 +188,9 @@ export default function ExpertReviewSection({
 }) {
   const [memos, setMemos] = useState<ExpertMemo[]>(project.expertMemos ?? []);
   const [me, setMe] = useState<{ id: string; isAdmin: boolean } | null>(null);
-  const [pinMode, setPinMode] = useState(true);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [pageInput, setPageInput] = useState("1");
-  const [zoom, setZoom] = useState(1);
   const [draft, setDraft] = useState<Point | null>(null);
   const [showPrevious, setShowPrevious] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -330,7 +328,7 @@ export default function ExpertReviewSection({
   };
 
   const deleteMemo = async (memo: ExpertMemo) => {
-    if (!window.confirm("이 메모를 삭제할까요?")) return;
+    if (!window.confirm("이 의견을 삭제할까요?")) return;
     setMemos((prev) => prev.filter((entry) => entry.id !== memo.id));
     setMessage(null);
     try {
@@ -451,30 +449,6 @@ export default function ExpertReviewSection({
         {/* PDF 뷰어 */}
         <div className="min-w-0 rounded-md border border-[#d7dee8] bg-white">
           <div className="flex flex-wrap items-center gap-2 border-b border-[#e2e8f0] px-3 py-2">
-            <div className="flex items-center gap-1" role="toolbar" aria-label="도구">
-              {(
-                [
-                  [true, "📍 핀 추가", "도서 위를 누르면 그 자리에 핀과 메모 입력칸이 생깁니다"],
-                  [false, "보기", "누르기만 해도 핀이 생기지 않도록"],
-                ] as const
-              ).map(([mode, label, hint]) => (
-                <button
-                  className={`flex h-8 items-center rounded-[4px] border px-2.5 text-xs font-bold ${
-                    pinMode === mode ? "border-[#b45309] bg-[#fff8ed] text-[#b45309]" : "border-transparent text-[#475569] hover:bg-[#f1f5f9]"
-                  }`}
-                  key={label}
-                  onClick={() => {
-                    setPinMode(mode);
-                    setDraft(null);
-                  }}
-                  title={hint}
-                  type="button"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <span className="mx-1 h-5 w-px bg-[#e2e8f0]" />
             <div className="flex items-center gap-1 text-xs text-[#475569]">
               <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9] disabled:opacity-30" disabled={page <= 1} onClick={() => goToPage(page - 1)} title="이전 페이지" type="button">
                 ◀
@@ -516,17 +490,6 @@ export default function ExpertReviewSection({
                 이전 버전 의견 {previousCount}건
               </label>
             ) : null}
-            <div className="ml-auto flex items-center gap-1 text-xs text-[#475569]">
-              <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9]" onClick={() => setZoom((value) => nextZoom(value, -1))} title="축소" type="button">
-                −
-              </button>
-              <button className="min-w-[52px] rounded-[4px] py-1 text-center font-semibold hover:bg-[#f1f5f9]" onClick={() => setZoom(1)} title="화면 폭에 맞춤" type="button">
-                {zoom === 1 ? "폭 맞춤" : `${Math.round(zoom * 100)}%`}
-              </button>
-              <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9]" onClick={() => setZoom((value) => nextZoom(value, 1))} title="확대" type="button">
-                +
-              </button>
-            </div>
           </div>
 
           {!hasFile ? (
@@ -552,15 +515,15 @@ export default function ExpertReviewSection({
               onPageCount={setPageCount}
               overlay={overlay}
               page={page}
-              pinMode={pinMode}
+              pinMode
               prefetchPages={memoPages}
-              zoom={zoom}
+              zoom={1}
             />
           )}
 
           <div className="flex items-center gap-3 border-t border-[#e2e8f0] px-3 py-2 text-[11px] text-[#94a3b8]">
             <span>
-              {pinMode ? "도서 위를 누르면 핀이 꽂히고 아래에 의견을 적습니다 · 내 메모 글을 누르면 바로 수정" : "보기 모드 — 눌러도 핀이 생기지 않습니다"}
+              도서 위를 누르면 핀이 꽂히고 아래에 의견을 적습니다 · 내 의견 글을 누르면 바로 수정
             </span>
             {message ? <span className="font-semibold text-[#b91c1c]">{message}</span> : null}
             <span className="ml-auto">메모는 저장 즉시 모든 검토자에게 공유됩니다</span>
