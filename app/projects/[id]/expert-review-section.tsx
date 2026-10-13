@@ -174,7 +174,7 @@ export default function ExpertReviewSection({
     setSelectedId(id);
     // 목록에서 해당 메모 카드가 보이도록
     window.setTimeout(() => {
-      document.querySelector(`[data-memo-id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      document.querySelector(`[data-memo-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
     }, 0);
   }, []);
 
@@ -284,7 +284,7 @@ export default function ExpertReviewSection({
     const mine = me?.id === memo.authorId;
     return (
       <li
-        className={`rounded-md border p-3 text-left transition ${
+        className={`rounded-md border p-3 text-left ${
           selected
             ? previous
               ? "border-[#64748b] bg-[#f1f5f9]"
