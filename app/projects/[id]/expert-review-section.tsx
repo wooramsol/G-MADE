@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo as reactMemo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import type { ExpertMemo, Project } from "@/lib/types";
 import ExpertPageNavigator from "./expert-page-navigator";
-import ExpertPdfViewer, { nextZoom, useExpertPdf, type Region, type ViewerBox, type ViewerTool } from "./expert-pdf-viewer";
+import ExpertPdfViewer, { nextZoom, useExpertPdf } from "./expert-pdf-viewer";
 
 /**
- * 사전심의: 전문가 분석 — 전문가가 도서 PDF 위에 영역을 표시하고 의견 메모를 남긴다.
+ * 사전심의: 전문가 분석 — 도서 PDF 위 원하는 지점에 핀을 꽂고, 핀 바로 아래에 의견을 적는다.
  * - 메모는 작성자 이름과 함께 모두에게 공유, 수정·삭제는 본인(또는 관리자)만.
- * - 메모는 작성한 도서 버전에 묶이고, 보완 제출본에서는 이전 버전 메모를 참고로 볼 수 있다.
+ * - 메모는 작성한 도서 버전에 묶이고, 보완 제출본에서는 이전 버전 의견을 회색 핀으로 참고할 수 있다.
  */
 
 export type ExpertVersionInfo = {
@@ -23,15 +23,11 @@ export type ExpertVersionInfo = {
   changedPages: number[];
 };
 
-const TOOLS: Array<{ id: ViewerTool; label: string; icon: string; hint: string }> = [
-  { id: "select", label: "선택", icon: "↖", hint: "메모 박스를 눌러 내용 확인" },
-  { id: "box", label: "영역 표시", icon: "▭", hint: "드래그해서 영역을 그리고 메모 작성" },
-];
+type Point = { x: number; y: number };
 
 function shortDateTime(iso: string): string {
   const parts = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
-    year: "2-digit",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -39,12 +35,137 @@ function shortDateTime(iso: string): string {
     hour12: false,
   }).formatToParts(new Date(iso));
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return `${get("year")}.${get("month")}.${get("day")} ${get("hour")}:${get("minute")}`;
+  return `${get("month")}.${get("day")} ${get("hour")}:${get("minute")}`;
 }
 
-function byPageThenTime(a: ExpertMemo, b: ExpertMemo) {
-  return a.page - b.page || a.region.y - b.region.y || a.createdAt.localeCompare(b.createdAt);
+/** 핀 위치 — 핀 메모는 (x, y) 그대로, 예전 박스 메모는 박스 위쪽 가운데 */
+function pinPoint(memo: ExpertMemo): Point {
+  const { x, y, width, height } = memo.region;
+  if (width > 0.002 || height > 0.002) return { x: x + width / 2, y };
+  return { x, y };
 }
+
+function byPosition(a: ExpertMemo, b: ExpertMemo) {
+  return a.page - b.page || pinPoint(a).y - pinPoint(b).y || a.createdAt.localeCompare(b.createdAt);
+}
+
+/** 핀 + 그 아래 메모 카드. 본인 메모는 글을 누르면 바로 고칠 수 있다. */
+const PinNote = reactMemo(function PinNote({
+  point,
+  label,
+  text,
+  author,
+  time,
+  tone,
+  editable,
+  startEditing = false,
+  saving = false,
+  onSave,
+  onDelete,
+  onCancelNew,
+  onTextChange,
+}: {
+  point: Point;
+  label: string;
+  text: string;
+  author: string;
+  time: string;
+  tone: "current" | "previous" | "draft";
+  editable: boolean;
+  startEditing?: boolean;
+  saving?: boolean;
+  onSave?: (text: string) => void;
+  onDelete?: () => void;
+  /** 새 핀 입력 취소 */
+  onCancelNew?: () => void;
+  /** 새 핀 입력 중인 글 (다른 곳을 눌러 다음 핀을 꽂을 때 자동 저장용) */
+  onTextChange?: (text: string) => void;
+}) {
+  const [editing, setEditing] = useState(startEditing);
+  const [value, setValue] = useState(text);
+  const flipLeft = point.x > 0.72;
+  const color = tone === "previous" ? "#64748b" : "#b45309";
+
+  const finish = (commit: boolean) => {
+    const next = value.trim();
+    if (commit && next && next !== text) onSave?.(next);
+    if (tone === "draft" && (!commit || !next)) onCancelNew?.();
+    if (!commit) setValue(text);
+    setEditing(false);
+  };
+
+  return (
+    <div
+      className="absolute"
+      onMouseDown={(event) => event.stopPropagation()}
+      style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%`, zIndex: editing ? 20 : 10 }}
+    >
+      {/* 핀 — 끝이 정확히 그 지점을 가리킴 */}
+      <svg aria-hidden className="absolute -translate-x-1/2 -translate-y-full drop-shadow" height="26" viewBox="0 0 20 26" width="20">
+        <path d="M10 25.5C10 25.5 19 15.6 19 9.6A9 9 0 0 0 1 9.6C1 15.6 10 25.5 10 25.5Z" fill={color} stroke="white" strokeWidth="1.2" />
+        <text fill="white" fontSize="9" fontWeight="700" textAnchor="middle" x="10" y="12.8">
+          {label}
+        </text>
+      </svg>
+      <div
+        className={`absolute top-1 w-max min-w-[120px] max-w-[240px] rounded-md border bg-white/95 px-2 py-1.5 text-left shadow-md ${
+          flipLeft ? "right-[-10px]" : "left-[-10px]"
+        } ${tone === "previous" ? "border-dashed border-[#94a3b8]" : "border-[#f2c48d]"}`}
+      >
+        {editing ? (
+          <textarea
+            autoFocus
+            className="block h-16 w-[220px] resize-y rounded-[3px] border border-[#cbd5e1] p-1.5 text-xs leading-4 text-[#1e293b] outline-none focus:border-[#b45309]"
+            onBlur={() => finish(true)}
+            onChange={(event) => {
+              setValue(event.target.value);
+              onTextChange?.(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                finish(true);
+              }
+              if (event.key === "Escape") finish(false);
+            }}
+            placeholder="의견 입력 후 Enter (줄바꿈 Shift+Enter)"
+            value={value}
+          />
+        ) : (
+          <p
+            className={`whitespace-pre-wrap text-xs leading-4 ${tone === "previous" ? "text-[#475569]" : "text-[#1e293b]"} ${
+              editable ? "cursor-text hover:bg-[#fff8ed]" : ""
+            }`}
+            onClick={() => {
+              if (editable) {
+                setValue(text);
+                setEditing(true);
+              }
+            }}
+            title={editable ? "눌러서 수정" : undefined}
+          >
+            {text}
+          </p>
+        )}
+        {tone !== "draft" ? (
+          <p className="mt-1 flex items-center gap-1.5 text-[10px] leading-3 text-[#94a3b8]">
+            <span className="font-semibold text-[#64748b]">{author}</span>
+            <span>{saving ? "저장 중…" : time}</span>
+            {editable && !editing && onDelete ? (
+              <button
+                className="ml-auto rounded-[2px] px-1 font-semibold text-[#b91c1c] hover:bg-[#fef2f2]"
+                onClick={onDelete}
+                type="button"
+              >
+                삭제
+              </button>
+            ) : null}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+});
 
 export default function ExpertReviewSection({
   project,
@@ -62,17 +183,14 @@ export default function ExpertReviewSection({
 }) {
   const [memos, setMemos] = useState<ExpertMemo[]>(project.expertMemos ?? []);
   const [me, setMe] = useState<{ id: string; isAdmin: boolean } | null>(null);
-  const [tool, setTool] = useState<ViewerTool>("box");
+  const [pinMode, setPinMode] = useState(true);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [pageInput, setPageInput] = useState("1");
   const [zoom, setZoom] = useState(1);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Region | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Point | null>(null);
   const [showPrevious, setShowPrevious] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
 
   const pdf = useExpertPdf({
     projectId: project.id,
@@ -81,13 +199,12 @@ export default function ExpertReviewSection({
     enabled: active,
   });
 
-  // 메모 목록 + 현재 사용자 (탭을 열 때마다 최신으로 — 다른 전문가 메모 반영)
+  // 메모 + 현재 사용자 (탭을 열 때마다 최신으로 — 다른 전문가 메모 반영)
   const refresh = useCallback(async () => {
     try {
       const response = await fetch(`/api/expert-memos?projectId=${encodeURIComponent(project.id)}`, { cache: "no-store" });
       if (!response.ok) return;
       const payload = (await response.json()) as { memos: ExpertMemo[]; currentUserId: string; isAdmin: boolean };
-      // 저장 중인 메모는 유지 (서버 목록에 아직 없음)
       setMemos((prev) => [...payload.memos, ...prev.filter((memo) => memo.id.startsWith("pending-"))]);
       setMe({ id: payload.currentUserId, isAdmin: payload.isAdmin });
     } catch {
@@ -100,13 +217,12 @@ export default function ExpertReviewSection({
     if (active) void refresh();
   }, [active, refresh]);
 
-  // 버전이 바뀌면 첫 페이지·선택 초기화
   const versionKey = activeVersion?.key ?? null;
   useEffect(() => {
+    // 버전이 바뀌면 첫 페이지로
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
     setPageInput("1");
-    setSelectedId(null);
     setDraft(null);
     setPageCount(0);
   }, [versionKey]);
@@ -122,84 +238,32 @@ export default function ExpertReviewSection({
   );
 
   const versionMemos = useMemo(
-    () => memos.filter((memo) => memo.versionKey === versionKey).sort(byPageThenTime),
+    () => memos.filter((memo) => memo.versionKey === versionKey).sort(byPosition),
     [memos, versionKey],
   );
-  const numberOf = useMemo(() => new Map(versionMemos.map((memo, index) => [memo.id, index + 1])), [versionMemos]);
   const versionByKey = useMemo(() => new Map(versions.map((version) => [version.key, version])), [versions]);
   const previousMemos = useMemo(() => {
     if (!activeVersion) return [];
-    return memos
-      .filter((memo) => {
-        const version = versionByKey.get(memo.versionKey);
-        return memo.versionKey !== activeVersion.key && version && version.order < activeVersion.order;
-      })
-      .sort((a, b) => (versionByKey.get(b.versionKey)?.order ?? 0) - (versionByKey.get(a.versionKey)?.order ?? 0) || byPageThenTime(a, b));
+    return memos.filter((memo) => {
+      const version = versionByKey.get(memo.versionKey);
+      return memo.versionKey !== activeVersion.key && version && version.order < activeVersion.order;
+    });
   }, [memos, activeVersion, versionByKey]);
 
-  const listed = versionMemos;
   const memoCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const memo of versionMemos) counts.set(memo.page, (counts.get(memo.page) ?? 0) + 1);
     return counts;
   }, [versionMemos]);
-  const selectedPrevious = previousMemos.find((memo) => memo.id === selectedId) ?? null;
+  const changedPageSet = useMemo(() => new Set(activeVersion?.changedPages ?? []), [activeVersion?.changedPages]);
+  const memoPages = useMemo(() => [...memoCounts.keys()], [memoCounts]);
 
-  const boxes: ViewerBox[] = useMemo(
-    () => [
-    ...versionMemos
-      .filter((memo) => memo.page === page)
-      .map((memo) => ({
-        id: memo.id,
-        region: memo.region,
-        label: String(numberOf.get(memo.id) ?? ""),
-        kind: "current" as const,
-        selected: memo.id === selectedId,
-      })),
-    ...(selectedPrevious && selectedPrevious.page === page
-      ? [
-          {
-            id: selectedPrevious.id,
-            region: selectedPrevious.region,
-            label: `이전 의견 · ${versionByKey.get(selectedPrevious.versionKey)?.label ?? ""}`,
-            kind: "previous" as const,
-            selected: true,
-          },
-        ]
-      : []),
-  ],
-    [versionMemos, page, numberOf, selectedId, selectedPrevious, versionByKey],
-  );
+  const canEdit = (memo: ExpertMemo) =>
+    Boolean(me && (memo.authorId === me.id || me.isAdmin)) && !memo.id.startsWith("pending-");
 
-  const onDraftComplete = useCallback((region: Region) => {
-    setDraft(region);
-    setSelectedId(null);
-  }, []);
-  const onSelectBox = useCallback((id: string) => {
-    setSelectedId(id);
-    // 목록에서 해당 메모 카드가 보이도록
-    window.setTimeout(() => {
-      document.querySelector(`[data-memo-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
-    }, 0);
-  }, []);
-
-  const canEdit = (memo: ExpertMemo) => Boolean(me && (memo.authorId === me.id || me.isAdmin));
-
-  const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
-  const selectMemo = (memo: ExpertMemo) => {
-    setSelectedId(memo.id);
-    setDraft(null);
-    setFocus((prev) => ({ id: memo.id, nonce: (prev?.nonce ?? 0) + 1 }));
-    if (memo.page !== page) goToPage(memo.page);
-  };
-  const memoPages = useMemo(
-    () => [...new Set([...versionMemos, ...previousMemos].map((memo) => memo.page))],
-    [versionMemos, previousMemos],
-  );
-
-  const saveDraft = async (text: string) => {
-    if (!draft || !activeVersion?.reviewId || !activeVersion.fileId || !text.trim() || !me) return;
-    // 낙관적 반영 — 서버 저장을 기다리지 않고 바로 목록·박스에 표시
+  const createMemo = async (point: Point, text: string) => {
+    if (!activeVersion?.reviewId || !activeVersion.fileId || !me) return;
+    const region = { x: point.x, y: point.y, width: 0, height: 0 };
     const tempId = `pending-${Date.now()}`;
     const optimistic: ExpertMemo = {
       id: tempId,
@@ -208,14 +272,13 @@ export default function ExpertReviewSection({
       fileId: activeVersion.fileId,
       fileName: activeVersion.fileName,
       page,
-      region: draft,
-      text: text.trim(),
+      region,
+      text,
       authorId: me.id,
-      authorName: "저장 중…",
+      authorName: "나",
       createdAt: new Date().toISOString(),
     };
     setMemos((prev) => [...prev, optimistic]);
-    setSelectedId(tempId);
     setDraft(null);
     setMessage(null);
     try {
@@ -228,32 +291,28 @@ export default function ExpertReviewSection({
           reviewId: activeVersion.reviewId,
           fileId: activeVersion.fileId,
           page,
-          region: draft,
+          region,
           text,
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { memo?: ExpertMemo; memos?: ExpertMemo[]; error?: string };
+      const payload = (await response.json().catch(() => ({}))) as { memo?: ExpertMemo; error?: string };
       const saved = payload.memo;
       if (!response.ok || !saved) throw new Error(payload.error ?? "메모를 저장하지 못했습니다.");
-      // 이 메모만 교체 — 그 사이 만든 다른 메모(저장 중 포함)는 그대로 둠
       setMemos((prev) => prev.map((memo) => (memo.id === tempId ? saved : memo)));
-      setSelectedId((current) => (current === tempId ? payload.memo?.id ?? null : current));
     } catch (error) {
       setMemos((prev) => prev.filter((memo) => memo.id !== tempId));
       setMessage(error instanceof Error ? error.message : "메모를 저장하지 못했습니다.");
     }
   };
 
-  const saveEdit = async (memo: ExpertMemo) => {
-    if (!editText.trim()) return;
-    setMemos((prev) => prev.map((entry) => (entry.id === memo.id ? { ...entry, text: editText.trim() } : entry)));
-    setEditingId(null);
+  const updateMemo = async (memo: ExpertMemo, text: string) => {
+    setMemos((prev) => prev.map((entry) => (entry.id === memo.id ? { ...entry, text } : entry)));
     setMessage(null);
     try {
       const response = await fetch("/api/expert-memos", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id, memoId: memo.id, text: editText }),
+        body: JSON.stringify({ projectId: project.id, memoId: memo.id, text }),
       });
       const payload = (await response.json().catch(() => ({}))) as { memo?: ExpertMemo; error?: string };
       const saved = payload.memo;
@@ -265,10 +324,9 @@ export default function ExpertReviewSection({
     }
   };
 
-  const remove = async (memo: ExpertMemo) => {
+  const deleteMemo = async (memo: ExpertMemo) => {
     if (!window.confirm("이 메모를 삭제할까요?")) return;
     setMemos((prev) => prev.filter((entry) => entry.id !== memo.id));
-    if (selectedId === memo.id) setSelectedId(null);
     setMessage(null);
     try {
       const query = new URLSearchParams({ projectId: project.id, memoId: memo.id });
@@ -281,121 +339,83 @@ export default function ExpertReviewSection({
     }
   };
 
-  const changedPageSet = useMemo(() => new Set(activeVersion?.changedPages ?? []), [activeVersion?.changedPages]);
-  const changedPages = changedPageSet;
-
-  const memoCard = (memo: ExpertMemo, previous: boolean) => {
-    const selected = memo.id === selectedId;
-    const editing = editingId === memo.id;
-    const mine = me?.id === memo.authorId;
-    return (
-      <li
-        className={`cursor-pointer rounded-md border p-3 text-left ${
-          selected
-            ? previous
-              ? "border-[#64748b] bg-[#f1f5f9]"
-              : "border-[#b45309] bg-[#fff8ed]"
-            : "border-[#e2e8f0] bg-white hover:border-[#cbd5e1]"
-        }`}
-        data-memo-id={memo.id}
-        key={memo.id}
-        // 카드 어디를 눌러도 해당 메모로 이동 (수정 중에는 제외)
-        // 버튼을 뗄 때(click)가 아니라 누르는 순간(mousedown) 반응 — 체감 지연 제거
-        onMouseDown={(event) => {
-          if (event.button === 0 && !editing) selectMemo(memo);
-        }}
-        onKeyDown={(event) => {
-          if ((event.key === "Enter" || event.key === " ") && !editing) {
-            event.preventDefault();
-            selectMemo(memo);
-          }
-        }}
-        tabIndex={0}
-      >
-        <div className="block w-full text-left">
-          <span className="flex items-center gap-2 text-[11px]">
-            <span
-              className={`flex h-5 min-w-5 items-center justify-center rounded-[3px] px-1 font-bold text-white ${
-                previous ? "bg-[#64748b]" : "bg-[#b45309]"
-              }`}
-            >
-              {previous ? versionByKey.get(memo.versionKey)?.label ?? "이전" : numberOf.get(memo.id)}
-            </span>
-            <span className="font-bold text-[#334155]">p.{memo.page}</span>
-            {previous && changedPages.has(memo.page) ? (
-              <span className="rounded-[3px] bg-[#fef3c7] px-1.5 font-semibold text-[#92400e]">이번 버전에서 변경된 페이지</span>
-            ) : null}
-            <span className="ml-auto text-[#94a3b8]">{shortDateTime(memo.updatedAt ?? memo.createdAt)}</span>
-          </span>
-          <span className="mt-1 block text-[11px] font-semibold text-[#64748b]">
-            {memo.authorName}
-            {mine ? " (나)" : ""}
-          </span>
-        </div>
-        {editing ? (
-          <div className="mt-2">
-            <textarea
-              autoFocus
-              className="h-24 w-full resize-y rounded-[4px] border border-[#cbd5e1] p-2 text-sm leading-5 outline-none focus:border-[#b45309]"
-              onChange={(event) => setEditText(event.target.value)}
-              value={editText}
-            />
-            <div className="mt-1.5 flex justify-end gap-1.5">
-              <button className="h-7 rounded-[4px] px-2.5 text-xs font-bold text-[#64748b] hover:bg-[#f1f5f9]" onClick={() => setEditingId(null)} type="button">
-                취소
-              </button>
-              <button
-                className="h-7 rounded-[4px] bg-[#b45309] px-3 text-xs font-bold text-white disabled:opacity-50"
-                disabled={!editText.trim()}
-                onClick={() => void saveEdit(memo)}
-                type="button"
-              >
-                저장
-              </button>
-            </div>
-          </div>
-        ) : (
-          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[#1e293b]">{memo.text}</p>
-        )}
-        {!previous && !editing && canEdit(memo) && !memo.id.startsWith("pending-") ? (
-          <div className="mt-2 flex justify-end gap-1 text-[11px]" onMouseDown={(event) => event.stopPropagation()}>
-            <button
-              className="rounded-[3px] px-2 py-0.5 font-semibold text-[#64748b] hover:bg-[#f1f5f9]"
-              onClick={() => {
-                setEditingId(memo.id);
-                setEditText(memo.text);
-              }}
-              type="button"
-            >
-              수정
-            </button>
-            <button className="rounded-[3px] px-2 py-0.5 font-semibold text-[#b91c1c] hover:bg-[#fef2f2]" onClick={() => void remove(memo)} type="button">
-              삭제
-            </button>
-          </div>
-        ) : null}
-      </li>
-    );
-  };
-
-  // 입력창은 draft가 같으면 그대로 유지 — 저장 함수는 ref로 최신 것을 호출
-  const saveDraftRef = useRef(saveDraft);
+  // 페이지를 누르면 새 핀 — 입력 중이던 핀이 있으면 그 글은 저장하고 새 핀으로
+  const draftRef = useRef<{ point: Point | null; text: string }>({ point: null, text: "" });
   useEffect(() => {
-    saveDraftRef.current = saveDraft;
+    draftRef.current.point = draft;
+    if (!draft) draftRef.current.text = "";
+  }, [draft]);
+  const createMemoRef = useRef(createMemo);
+  useEffect(() => {
+    createMemoRef.current = createMemo;
   });
-  const draftPopover = useMemo(
-    () =>
-      draft ? (
-        <DraftPopover
-          key={`${draft.x},${draft.y}`}
-          onCancel={() => setDraft(null)}
-          onSave={(text) => void saveDraftRef.current(text)}
+  const onPageClick = useCallback((point: Point) => {
+    const current = draftRef.current;
+    if (current.point && current.text.trim()) void createMemoRef.current(current.point, current.text.trim());
+    draftRef.current = { point, text: "" };
+    setDraft(point);
+  }, []);
+
+  // 페이지 위 핀·메모
+  const pageMemos = versionMemos.filter((memo) => memo.page === page);
+  const previousOnPage = showPrevious ? previousMemos.filter((memo) => memo.page === page) : [];
+  const overlay = (
+    <>
+      {previousOnPage.map((memo) => (
+        <PinNote
+          author={memo.authorName}
+          editable={false}
+          key={memo.id}
+          label="이"
+          point={pinPoint(memo)}
+          text={memo.text}
+          time={`${versionByKey.get(memo.versionKey)?.label ?? "이전"} · ${shortDateTime(memo.updatedAt ?? memo.createdAt)}`}
+          tone="previous"
         />
-      ) : null,
-    [draft],
+      ))}
+      {pageMemos.map((memo, index) => (
+        <PinNote
+          author={memo.authorName}
+          editable={canEdit(memo)}
+          key={memo.id}
+          label={String(index + 1)}
+          onDelete={() => void deleteMemo(memo)}
+          onSave={(text) => void updateMemo(memo, text)}
+          point={pinPoint(memo)}
+          saving={memo.id.startsWith("pending-")}
+          text={memo.text}
+          time={shortDateTime(memo.updatedAt ?? memo.createdAt)}
+          tone="current"
+        />
+      ))}
+      {draft ? (
+        <PinNote
+          author=""
+          editable
+          key={`draft-${draft.x}-${draft.y}`}
+          label="+"
+          // 다른 곳을 눌러 새 핀으로 넘어간 뒤 뒤늦게 오는 이벤트는 무시 (중복 저장·새 핀 취소 방지)
+          onCancelNew={() => {
+            if (draftRef.current.point === draft) setDraft(null);
+          }}
+          onSave={(text) => {
+            if (draftRef.current.point === draft) void createMemo(draft, text);
+          }}
+          onTextChange={(text) => {
+            draftRef.current.text = text;
+          }}
+          point={draft}
+          startEditing
+          text=""
+          time=""
+          tone="draft"
+        />
+      ) : null}
+    </>
   );
 
   const hasFile = Boolean(activeVersion?.reviewId && activeVersion.fileId);
+  const previousCount = previousMemos.length;
 
   return (
     <WorkspaceSectionCard id="expert-review" title="사전심의: 전문가 분석" bare>
@@ -404,48 +424,8 @@ export default function ExpertReviewSection({
         {versionPicker ?? <p className="text-xs text-[#94a3b8]">AI 분석 탭에서 PDF를 업로드하면 도서 버전이 만들어집니다.</p>}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[300px_136px_1fr]">
-        {/* 왼쪽: 메모 목록 */}
-        <div className="flex min-h-0 flex-col rounded-md border border-[#d7dee8] bg-white p-4 xl:max-h-[calc(78vh+49px)]">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-[#15345b]">전문가 메모</p>
-            <span className="text-xs text-[#94a3b8]">{versionMemos.length}건</span>
-          </div>
-          <div className="mt-3 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-            {listed.length === 0 ? (
-              <p className="rounded-[4px] border border-dashed border-[#d0d5dd] bg-[#f8fafc] px-3 py-6 text-center text-xs leading-5 text-[#94a3b8]">
-                아직 메모가 없습니다.
-                <br />
-                ‘영역 표시’로 도서 위에 네모를 그리면 메모를 남길 수 있습니다.
-              </p>
-            ) : (
-              <ul className="space-y-2">{listed.map((memo) => memoCard(memo, false))}</ul>
-            )}
-
-            {previousMemos.length > 0 ? (
-              <div>
-                <button
-                  className="flex w-full items-center justify-between border-t border-[#e2e8f0] pt-3 text-xs font-bold text-[#475569]"
-                  onClick={() => setShowPrevious((value) => !value)}
-                  type="button"
-                >
-                  이전 버전 의견 {previousMemos.length}건
-                  <span className="text-[#94a3b8]">{showPrevious ? "접기 ▲" : "펼치기 ▼"}</span>
-                </button>
-                {showPrevious ? (
-                  <>
-                    <p className="mt-1.5 text-[11px] leading-4 text-[#94a3b8]">
-                      이전 제출본에 남긴 의견입니다. 누르면 같은 페이지 번호에 점선으로 위치를 보여 줍니다.
-                    </p>
-                    <ul className="mt-2 space-y-2">{previousMemos.map((memo) => memoCard(memo, true))}</ul>
-                  </>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {/* 가운데: 페이지 네비게이터 (썸네일 + 메모 개수) */}
+      <div className="grid gap-4 xl:grid-cols-[136px_1fr]">
+        {/* 페이지 네비게이터 (썸네일 + 메모 개수) */}
         <div className="hidden min-h-0 flex-col rounded-md border border-[#d7dee8] bg-white xl:flex">
           <p className="border-b border-[#e2e8f0] px-3 py-2.5 text-xs font-bold text-[#15345b]">
             페이지 <span className="font-medium text-[#94a3b8]">{pageCount || ""}</span>
@@ -463,25 +443,29 @@ export default function ExpertReviewSection({
           )}
         </div>
 
-        {/* 오른쪽: PDF 뷰어 */}
+        {/* PDF 뷰어 */}
         <div className="min-w-0 rounded-md border border-[#d7dee8] bg-white">
           <div className="flex flex-wrap items-center gap-2 border-b border-[#e2e8f0] px-3 py-2">
-            <div className="flex items-center gap-1" role="toolbar" aria-label="표시 도구">
-              {TOOLS.map((item) => (
+            <div className="flex items-center gap-1" role="toolbar" aria-label="도구">
+              {(
+                [
+                  [true, "📍 핀 추가", "도서 위를 누르면 그 자리에 핀과 메모 입력칸이 생깁니다"],
+                  [false, "보기", "누르기만 해도 핀이 생기지 않도록"],
+                ] as const
+              ).map(([mode, label, hint]) => (
                 <button
-                  className={`flex h-8 items-center gap-1.5 rounded-[4px] border px-2.5 text-xs font-bold ${
-                    tool === item.id ? "border-[#b45309] bg-[#fff8ed] text-[#b45309]" : "border-transparent text-[#475569] hover:bg-[#f1f5f9]"
+                  className={`flex h-8 items-center rounded-[4px] border px-2.5 text-xs font-bold ${
+                    pinMode === mode ? "border-[#b45309] bg-[#fff8ed] text-[#b45309]" : "border-transparent text-[#475569] hover:bg-[#f1f5f9]"
                   }`}
-                  key={item.id}
+                  key={label}
                   onClick={() => {
-                    setTool(item.id);
+                    setPinMode(mode);
                     setDraft(null);
                   }}
-                  title={item.hint}
+                  title={hint}
                   type="button"
                 >
-                  <span aria-hidden>{item.icon}</span>
-                  {item.label}
+                  {label}
                 </button>
               ))}
             </div>
@@ -517,10 +501,16 @@ export default function ExpertReviewSection({
               >
                 ▶
               </button>
-              {changedPages.has(page) ? (
+              {changedPageSet.has(page) ? (
                 <span className="ml-1 rounded-[3px] bg-[#fef3c7] px-1.5 py-0.5 text-[11px] font-semibold text-[#92400e]">이전 버전 대비 변경</span>
               ) : null}
             </div>
+            {previousCount > 0 ? (
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[#475569]">
+                <input checked={showPrevious} onChange={(event) => setShowPrevious(event.target.checked)} type="checkbox" />
+                이전 버전 의견 {previousCount}건
+              </label>
+            ) : null}
             <div className="ml-auto flex items-center gap-1 text-xs text-[#475569]">
               <button className="h-8 w-8 rounded-[4px] hover:bg-[#f1f5f9]" onClick={() => setZoom((value) => nextZoom(value, -1))} title="축소" type="button">
                 −
@@ -547,69 +537,31 @@ export default function ExpertReviewSection({
             <div className="flex min-h-[560px] flex-col items-center justify-center gap-3 bg-[#eef1f5] p-6 text-sm text-[#475569]">
               도서를 불러오는 중… {pdf.progress > 0 ? `${Math.round(pdf.progress * 100)}%` : ""}
               <div className="h-1.5 w-56 overflow-hidden rounded-full bg-[#d7dee8]">
-                <div className="h-full bg-[#b45309] transition-all" style={{ width: `${Math.max(4, pdf.progress * 100)}%` }} />
+                <div className="h-full bg-[#b45309]" style={{ width: `${Math.max(4, pdf.progress * 100)}%` }} />
               </div>
             </div>
           ) : (
             <ExpertPdfViewer
-              boxes={boxes}
               doc={pdf.doc}
-              draftPopover={draftPopover}
-              draftRegion={draft}
-              onDraftComplete={onDraftComplete}
+              onPageClick={onPageClick}
               onPageCount={setPageCount}
-              onSelectBox={onSelectBox}
-              focus={focus}
-              prefetchPages={memoPages}
+              overlay={overlay}
               page={page}
-              tool={tool}
+              pinMode={pinMode}
+              prefetchPages={memoPages}
               zoom={zoom}
             />
           )}
 
           <div className="flex items-center gap-3 border-t border-[#e2e8f0] px-3 py-2 text-[11px] text-[#94a3b8]">
-            <span>{TOOLS.find((item) => item.id === tool)?.hint}</span>
+            <span>
+              {pinMode ? "도서 위를 누르면 핀이 꽂히고 아래에 의견을 적습니다 · 내 메모 글을 누르면 바로 수정" : "보기 모드 — 눌러도 핀이 생기지 않습니다"}
+            </span>
             {message ? <span className="font-semibold text-[#b91c1c]">{message}</span> : null}
             <span className="ml-auto">메모는 저장 즉시 모든 검토자에게 공유됩니다</span>
           </div>
         </div>
       </div>
     </WorkspaceSectionCard>
-  );
-}
-
-/** 메모 입력창 — 글자 입력이 상위(뷰어·목록)를 다시 그리지 않도록 자체 상태로 */
-function DraftPopover({ onSave, onCancel }: { onSave: (text: string) => void; onCancel: () => void }) {
-  const [text, setText] = useState("");
-  return (
-    <div className="rounded-md border border-[#b45309] bg-white p-2.5 shadow-lg">
-      <textarea
-        autoFocus
-        className="h-24 w-full resize-y rounded-[4px] border border-[#cbd5e1] p-2 text-sm leading-5 outline-none focus:border-[#b45309]"
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && text.trim()) onSave(text);
-          if (event.key === "Escape") onCancel();
-        }}
-        placeholder="이 영역에 대한 의견을 적어 주세요"
-        value={text}
-      />
-      <div className="mt-1.5 flex items-center justify-between">
-        <span className="text-[10px] text-[#94a3b8]">⌘/Ctrl + Enter 저장</span>
-        <span className="flex gap-1.5">
-          <button className="h-7 rounded-[4px] px-2.5 text-xs font-bold text-[#64748b] hover:bg-[#f1f5f9]" onClick={onCancel} type="button">
-            취소
-          </button>
-          <button
-            className="h-7 rounded-[4px] bg-[#b45309] px-3 text-xs font-bold text-white disabled:opacity-50"
-            disabled={!text.trim()}
-            onClick={() => onSave(text)}
-            type="button"
-          >
-            메모 저장
-          </button>
-        </span>
-      </div>
-    </div>
   );
 }

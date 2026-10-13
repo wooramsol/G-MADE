@@ -1,16 +1,14 @@
 "use client";
 
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { ExpertMemo } from "@/lib/types";
 
 /**
- * 전문가 분석 PDF 뷰어 — 브라우저에서 pdf.js로 페이지를 그리고, 그 위에 메모 영역 박스를 얹는다.
- * - 영역 표시 도구: 드래그로 네모를 그리면 onDraftComplete로 정규화 좌표(0~1)를 넘긴다.
- * - 선택 도구: 박스를 누르면 onSelectMemo.
+ * 전문가 분석 PDF 뷰어 — 브라우저에서 pdf.js로 페이지를 그리고, 그 위에 핀·메모(overlay)를 얹는다.
+ * 핀 추가 모드에서 페이지 빈 곳을 누르면 onPageClick으로 정규화 좌표(0~1)를 넘긴다.
  */
 
-export type ViewerTool = "select" | "box";
 export type Region = ExpertMemo["region"];
 
 type DocSource = { directUrl: string | null; fallbackUrl: string };
@@ -110,80 +108,38 @@ export function useExpertPdf(params: { projectId: string; reviewId: string | nul
   return current;
 }
 
-export type ViewerBox = {
-  id: string;
-  region: Region;
-  label: string;
-  /** "mine" | "other" = 현재 버전 메모, "previous" = 이전 버전 참고 */
-  kind: "current" | "previous";
-  selected: boolean;
-};
-
 function ExpertPdfViewerImpl({
   doc,
   page,
   zoom,
-  tool,
-  boxes,
-  onSelectBox,
-  onDraftComplete,
-  draftRegion,
-  draftPopover,
+  pinMode,
+  onPageClick,
+  overlay,
   onPageCount,
-  focus = null,
   prefetchPages = [],
 }: {
   doc: PDFDocumentProxy;
   page: number;
   /** 1 = 화면 폭 맞춤 */
   zoom: number;
-  tool: ViewerTool;
-  boxes: ViewerBox[];
-  onSelectBox: (id: string) => void;
-  onDraftComplete: (region: Region) => void;
-  /** 저장 전 그려 둔 영역 (입력창이 붙음) */
-  draftRegion: Region | null;
-  draftPopover: ReactNode;
+  /** 핀 추가 모드 — 페이지 빈 곳을 누르면 onPageClick */
+  pinMode: boolean;
+  onPageClick: (point: { x: number; y: number }) => void;
+  /** 페이지 위에 얹을 핀·메모 (정규화 좌표 % 위치로 배치) */
+  overlay: ReactNode;
   onPageCount?: (count: number) => void;
-  /** 이 박스로 화면 이동 (nonce가 바뀔 때마다 다시 이동) */
-  focus?: { id: string; nonce: number } | null;
-  /** 메모가 있는 페이지 — 한가할 때 미리 그려 목록 클릭 시 즉시 표시 */
+  /** 메모가 있는 페이지 — 한가할 때 미리 그려 즉시 표시 */
   prefetchPages?: number[];
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const overlayRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [rendering, setRendering] = useState(false);
-  const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const prefetchRef = useRef<number[]>(prefetchPages);
   useEffect(() => {
     prefetchRef.current = prefetchPages;
   }, [prefetchPages]);
-
-  // 목록에서 고른 메모 박스로 스크롤 — 페이지가 그려져 박스가 생긴 뒤 한 번 실행
-  const pendingFocusRef = useRef<{ id: string; nonce: number } | null>(null);
-  const lastFocusNonceRef = useRef<number | null>(null);
-  useLayoutEffect(() => {
-    if (focus && focus.nonce !== lastFocusNonceRef.current) {
-      lastFocusNonceRef.current = focus.nonce;
-      pendingFocusRef.current = focus;
-    }
-    const pending = pendingFocusRef.current;
-    const container = containerRef.current;
-    // 새 페이지가 다 그려진 뒤(크기 확정 후)에 스크롤 — 그리기 전에 스크롤하면 위치가 어긋나 메모가 화면 밖에 남음
-    if (!pending || !container || !size || rendering) return;
-    const element = container.querySelector<HTMLElement>(`[data-box-id="${CSS.escape(pending.id)}"]`);
-    if (!element) return;
-    pendingFocusRef.current = null;
-    const containerRect = container.getBoundingClientRect();
-    const rect = element.getBoundingClientRect();
-    container.scrollTo({
-      top: container.scrollTop + rect.top - containerRect.top - (containerRect.height - rect.height) / 2,
-      left: container.scrollLeft + rect.left - containerRect.left - (containerRect.width - rect.width) / 2,
-    });
-  }, [focus, size, boxes, rendering]);
 
   useEffect(() => {
     onPageCount?.(doc.numPages);
@@ -332,122 +288,32 @@ function ExpertPdfViewerImpl({
     };
   }, [doc, page, zoom, containerWidth, getRendered, prefetchKey]);
 
-  const toLocal = useCallback((event: ReactPointerEvent) => {
-    const rect = overlayRef.current?.getBoundingClientRect();
-    if (!rect || rect.width === 0 || rect.height === 0) return null;
-    return {
+  const onOverlayMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    // 핀·메모 위를 누른 경우는 제외 (그쪽에서 처리)
+    if (!pinMode || event.button !== 0 || event.target !== event.currentTarget) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    // 기본 동작(포커스 이동) 막기 — 새 입력칸에 바로 포커스가 가도록
+    event.preventDefault();
+    onPageClick({
       x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
       y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
-    };
-  }, []);
-
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (tool !== "box" || event.button !== 0) return;
-    const point = toLocal(event);
-    if (!point) return;
-    event.preventDefault();
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // 포인터 캡처 미지원 환경 — 캡처 없이 진행
-    }
-    setDrag({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
+    });
   };
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drag) return;
-    const point = toLocal(event);
-    if (point) setDrag({ ...drag, x1: point.x, y1: point.y });
-  };
-  const onPointerUp = () => {
-    if (!drag) return;
-    const region = {
-      x: Math.min(drag.x0, drag.x1),
-      y: Math.min(drag.y0, drag.y1),
-      width: Math.abs(drag.x1 - drag.x0),
-      height: Math.abs(drag.y1 - drag.y0),
-    };
-    setDrag(null);
-    if (region.width > 0.008 && region.height > 0.008) onDraftComplete(region);
-  };
-
-  const dragRegion = drag
-    ? {
-        x: Math.min(drag.x0, drag.x1),
-        y: Math.min(drag.y0, drag.y1),
-        width: Math.abs(drag.x1 - drag.x0),
-        height: Math.abs(drag.y1 - drag.y0),
-      }
-    : null;
-  const pct = (region: Region) => ({
-    left: `${region.x * 100}%`,
-    top: `${region.y * 100}%`,
-    width: `${region.width * 100}%`,
-    height: `${region.height * 100}%`,
-  });
 
   return (
-    <div className="relative max-h-[78vh] min-h-[560px] select-none overflow-auto bg-[#eef1f5]" ref={containerRef}>
-      <div className="flex min-w-full justify-center p-4" style={size ? { width: Math.max(containerWidth, size.width + 32) } : undefined}>
+    <div className="relative max-h-[78vh] min-h-[560px] overflow-auto bg-[#eef1f5]" ref={containerRef}>
+      <div className="flex min-w-full justify-center p-4 pb-40" style={size ? { width: Math.max(containerWidth, size.width + 32) } : undefined}>
         <div
           className="relative bg-white shadow-sm"
           style={size ? { width: size.width, height: size.height } : { width: "100%", aspectRatio: "1.414 / 1" }}
         >
-          <canvas className="block h-full w-full" ref={canvasRef} />
+          <canvas className="block h-full w-full select-none" ref={canvasRef} />
           <div
-            className={`absolute inset-0 ${tool === "box" ? "cursor-crosshair" : ""}`}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={() => setDrag(null)}
-            ref={overlayRef}
-            style={{ touchAction: tool === "box" ? "none" : "auto" }}
+            className={`absolute inset-0 ${pinMode ? "cursor-crosshair" : ""}`}
+            onMouseDown={onOverlayMouseDown}
           >
-            {boxes.map((box) => (
-              <button
-                aria-label={`메모 ${box.label}`}
-                className={`absolute rounded-[2px] border-2 ${
-                  box.kind === "previous"
-                    ? "border-dashed border-[#64748b] bg-[#64748b]/10"
-                    : box.selected
-                      ? "border-[#b45309] bg-[#f59e0b]/25 ring-2 ring-[#f59e0b]/50"
-                      : "border-[#d97706] bg-[#f59e0b]/10 hover:bg-[#f59e0b]/20"
-                } ${tool === "box" ? "pointer-events-none" : ""}`}
-                data-box-id={box.id}
-                key={box.id}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onSelectBox(box.id);
-                }}
-                style={pct(box.region)}
-                type="button"
-              >
-                <span
-                  className={`absolute -left-[2px] -top-[22px] rounded-t-[3px] px-1.5 text-[11px] font-bold leading-5 text-white ${
-                    box.kind === "previous" ? "bg-[#64748b]" : "bg-[#b45309]"
-                  }`}
-                >
-                  {box.label}
-                </span>
-              </button>
-            ))}
-            {dragRegion ? (
-              <div className="absolute border-2 border-[#b45309] bg-[#f59e0b]/15" style={pct(dragRegion)} />
-            ) : null}
-            {draftRegion ? (
-              <>
-                <div className="absolute border-2 border-dashed border-[#b45309] bg-[#f59e0b]/20" style={pct(draftRegion)} />
-                <div
-                  className="absolute z-10 w-[300px] select-text"
-                  style={{
-                    left: `${Math.min(draftRegion.x * 100, 70)}%`,
-                    top: `calc(${(draftRegion.y + draftRegion.height) * 100}% + 6px)`,
-                  }}
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  {draftPopover}
-                </div>
-              </>
-            ) : null}
+            {overlay}
           </div>
         </div>
       </div>

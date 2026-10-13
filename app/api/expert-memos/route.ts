@@ -30,7 +30,7 @@ function parseRegion(value: unknown): ExpertMemo["region"] | null {
   const width = clamp01(raw.width);
   const height = clamp01(raw.height);
   if (x === null || y === null || width === null || height === null) return null;
-  if (width < 0.002 || height < 0.002) return null;
+  // 너비·높이 0 = 핀(한 점) 메모
   return { x, y, width: Math.min(width, 1 - x), height: Math.min(height, 1 - y) };
 }
 
