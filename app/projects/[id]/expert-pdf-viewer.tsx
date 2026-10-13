@@ -130,6 +130,8 @@ function ExpertPdfViewerImpl({
   draftRegion,
   draftPopover,
   onPageCount,
+  focus = null,
+  prefetchPages = [],
 }: {
   doc: PDFDocumentProxy;
   page: number;
@@ -143,6 +145,10 @@ function ExpertPdfViewerImpl({
   draftRegion: Region | null;
   draftPopover: ReactNode;
   onPageCount?: (count: number) => void;
+  /** 이 박스로 화면 이동 (nonce가 바뀔 때마다 다시 이동) */
+  focus?: { id: string; nonce: number } | null;
+  /** 메모가 있는 페이지 — 한가할 때 미리 그려 목록 클릭 시 즉시 표시 */
+  prefetchPages?: number[];
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -151,6 +157,42 @@ function ExpertPdfViewerImpl({
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [rendering, setRendering] = useState(false);
   const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const prefetchRef = useRef<number[]>(prefetchPages);
+  useEffect(() => {
+    prefetchRef.current = prefetchPages;
+  }, [prefetchPages]);
+
+  // 목록에서 고른 메모 박스로 스크롤 — 페이지가 그려져 박스가 생긴 뒤 한 번 실행
+  const pendingFocusRef = useRef<{ id: string; nonce: number } | null>(null);
+  const lastFocusNonceRef = useRef<number | null>(null);
+  const flashTimerRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (focus && focus.nonce !== lastFocusNonceRef.current) {
+      lastFocusNonceRef.current = focus.nonce;
+      pendingFocusRef.current = focus;
+    }
+    const pending = pendingFocusRef.current;
+    const container = containerRef.current;
+    if (!pending || !container || !size) return;
+    const element = container.querySelector<HTMLElement>(`[data-box-id="${CSS.escape(pending.id)}"]`);
+    if (!element) return;
+    pendingFocusRef.current = null;
+    const containerRect = container.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
+    container.scrollTo({
+      top: container.scrollTop + rect.top - containerRect.top - (containerRect.height - rect.height) / 2,
+      left: container.scrollLeft + rect.left - containerRect.left - (containerRect.width - rect.width) / 2,
+      behavior: "smooth",
+    });
+    // 뷰어가 화면 밖이면 뷰어까지 화면 안으로
+    if (containerRect.bottom < 80 || containerRect.top > window.innerHeight - 80) {
+      container.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    setFlashId(pending.id);
+    window.clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = window.setTimeout(() => setFlashId(null), 1200);
+  }, [focus, size, boxes]);
 
   useEffect(() => {
     onPageCount?.(doc.numPages);
@@ -239,7 +281,8 @@ function ExpertPdfViewerImpl({
         if (!cachedNow) show(entry);
         setRendering(false);
         // 다음·이전 페이지를 미리 그려 둠 (화면이 한가할 때)
-        for (const neighbor of [current + 1, current - 1, current + 2]) {
+        const memoPages = prefetchRef.current.filter((value) => Math.abs(value - current) > 2).slice(0, 12);
+        for (const neighbor of [current + 1, current - 1, current + 2, ...memoPages]) {
           if (cancelled) return;
           if (neighbor < 1 || neighbor > doc.numPages) continue;
           await new Promise<void>((resolve) => {
@@ -343,7 +386,8 @@ function ExpertPdfViewerImpl({
                     : box.selected
                       ? "border-[#b45309] bg-[#f59e0b]/25 ring-2 ring-[#f59e0b]/50"
                       : "border-[#d97706] bg-[#f59e0b]/10 hover:bg-[#f59e0b]/20"
-                } ${tool === "box" ? "pointer-events-none" : ""}`}
+                } ${flashId === box.id ? "animate-pulse ring-4 ring-[#f59e0b]/70" : ""} ${tool === "box" ? "pointer-events-none" : ""}`}
+                data-box-id={box.id}
                 key={box.id}
                 onClick={(event) => {
                   event.stopPropagation();

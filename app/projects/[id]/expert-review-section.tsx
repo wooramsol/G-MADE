@@ -172,16 +172,25 @@ export default function ExpertReviewSection({
   }, []);
   const onSelectBox = useCallback((id: string) => {
     setSelectedId(id);
-    setListTab("page");
+    // 목록에서 해당 메모 카드가 보이도록
+    window.setTimeout(() => {
+      document.querySelector(`[data-memo-id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 0);
   }, []);
 
   const canEdit = (memo: ExpertMemo) => Boolean(me && (memo.authorId === me.id || me.isAdmin));
 
+  const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
   const selectMemo = (memo: ExpertMemo) => {
     setSelectedId(memo.id);
     setDraft(null);
+    setFocus((prev) => ({ id: memo.id, nonce: (prev?.nonce ?? 0) + 1 }));
     if (memo.page !== page) goToPage(memo.page);
   };
+  const memoPages = useMemo(
+    () => [...new Set([...versionMemos, ...previousMemos].map((memo) => memo.page))],
+    [versionMemos, previousMemos],
+  );
 
   const saveDraft = async (text: string) => {
     if (!draft || !activeVersion?.reviewId || !activeVersion.fileId || !text.trim() || !me) return;
@@ -282,6 +291,7 @@ export default function ExpertReviewSection({
               : "border-[#b45309] bg-[#fff8ed]"
             : "border-[#e2e8f0] bg-white hover:border-[#cbd5e1]"
         }`}
+        data-memo-id={memo.id}
         key={memo.id}
       >
         <button className="block w-full text-left" onClick={() => selectMemo(memo)} type="button">
@@ -533,6 +543,8 @@ export default function ExpertReviewSection({
               onDraftComplete={onDraftComplete}
               onPageCount={setPageCount}
               onSelectBox={onSelectBox}
+              focus={focus}
+              prefetchPages={memoPages}
               page={page}
               tool={tool}
               zoom={zoom}
