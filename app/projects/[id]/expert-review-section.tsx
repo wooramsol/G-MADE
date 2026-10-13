@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import type { ExpertMemo, Project } from "@/lib/types";
+import ExpertPageNavigator from "./expert-page-navigator";
 import ExpertPdfViewer, { nextZoom, useExpertPdf, type Region, type ViewerBox, type ViewerTool } from "./expert-pdf-viewer";
 
 /**
@@ -66,7 +67,6 @@ export default function ExpertReviewSection({
   const [pageCount, setPageCount] = useState(0);
   const [pageInput, setPageInput] = useState("1");
   const [zoom, setZoom] = useState(1);
-  const [listTab, setListTab] = useState<"all" | "page">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Region | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -137,7 +137,12 @@ export default function ExpertReviewSection({
       .sort((a, b) => (versionByKey.get(b.versionKey)?.order ?? 0) - (versionByKey.get(a.versionKey)?.order ?? 0) || byPageThenTime(a, b));
   }, [memos, activeVersion, versionByKey]);
 
-  const listed = listTab === "page" ? versionMemos.filter((memo) => memo.page === page) : versionMemos;
+  const listed = versionMemos;
+  const memoCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const memo of versionMemos) counts.set(memo.page, (counts.get(memo.page) ?? 0) + 1);
+    return counts;
+  }, [versionMemos]);
   const selectedPrevious = previousMemos.find((memo) => memo.id === selectedId) ?? null;
 
   const boxes: ViewerBox[] = useMemo(
@@ -276,7 +281,8 @@ export default function ExpertReviewSection({
     }
   };
 
-  const changedPages = new Set(activeVersion?.changedPages ?? []);
+  const changedPageSet = useMemo(() => new Set(activeVersion?.changedPages ?? []), [activeVersion?.changedPages]);
+  const changedPages = changedPageSet;
 
   const memoCard = (memo: ExpertMemo, previous: boolean) => {
     const selected = memo.id === selectedId;
@@ -398,37 +404,17 @@ export default function ExpertReviewSection({
         {versionPicker ?? <p className="text-xs text-[#94a3b8]">AI 분석 탭에서 PDF를 업로드하면 도서 버전이 만들어집니다.</p>}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[300px_136px_1fr]">
         {/* 왼쪽: 메모 목록 */}
         <div className="flex min-h-0 flex-col rounded-md border border-[#d7dee8] bg-white p-4 xl:max-h-[calc(78vh+49px)]">
           <div className="flex items-center justify-between">
             <p className="text-sm font-bold text-[#15345b]">전문가 메모</p>
             <span className="text-xs text-[#94a3b8]">{versionMemos.length}건</span>
           </div>
-          <div className="mt-3 flex gap-1 border-b border-[#e2e8f0] text-xs">
-            {(
-              [
-                ["all", `전체 ${versionMemos.length}`],
-                ["page", `현재 페이지 ${versionMemos.filter((memo) => memo.page === page).length}`],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                className={`-mb-px rounded-t-[4px] border px-3 py-1.5 font-bold ${
-                  listTab === id ? "border-[#e2e8f0] border-b-white bg-white text-[#15345b]" : "border-transparent text-[#94a3b8] hover:text-[#475569]"
-                }`}
-                key={id}
-                onClick={() => setListTab(id)}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
           <div className="mt-3 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
             {listed.length === 0 ? (
               <p className="rounded-[4px] border border-dashed border-[#d0d5dd] bg-[#f8fafc] px-3 py-6 text-center text-xs leading-5 text-[#94a3b8]">
-                {listTab === "page" ? "이 페이지에는 메모가 없습니다." : "아직 메모가 없습니다."}
+                아직 메모가 없습니다.
                 <br />
                 ‘영역 표시’로 도서 위에 네모를 그리면 메모를 남길 수 있습니다.
               </p>
@@ -457,6 +443,24 @@ export default function ExpertReviewSection({
               </div>
             ) : null}
           </div>
+        </div>
+
+        {/* 가운데: 페이지 네비게이터 (썸네일 + 메모 개수) */}
+        <div className="hidden min-h-0 flex-col rounded-md border border-[#d7dee8] bg-white xl:flex">
+          <p className="border-b border-[#e2e8f0] px-3 py-2.5 text-xs font-bold text-[#15345b]">
+            페이지 <span className="font-medium text-[#94a3b8]">{pageCount || ""}</span>
+          </p>
+          {pdf.doc ? (
+            <ExpertPageNavigator
+              changedPages={changedPageSet}
+              counts={memoCounts}
+              doc={pdf.doc}
+              onSelect={goToPage}
+              page={page}
+            />
+          ) : (
+            <p className="px-3 py-6 text-center text-[11px] text-[#94a3b8]">불러오는 중…</p>
+          )}
         </div>
 
         {/* 오른쪽: PDF 뷰어 */}

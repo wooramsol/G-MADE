@@ -172,7 +172,8 @@ function ExpertPdfViewerImpl({
     }
     const pending = pendingFocusRef.current;
     const container = containerRef.current;
-    if (!pending || !container || !size) return;
+    // 새 페이지가 다 그려진 뒤(크기 확정 후)에 스크롤 — 그리기 전에 스크롤하면 위치가 어긋나 메모가 화면 밖에 남음
+    if (!pending || !container || !size || rendering) return;
     const element = container.querySelector<HTMLElement>(`[data-box-id="${CSS.escape(pending.id)}"]`);
     if (!element) return;
     pendingFocusRef.current = null;
@@ -182,7 +183,7 @@ function ExpertPdfViewerImpl({
       top: container.scrollTop + rect.top - containerRect.top - (containerRect.height - rect.height) / 2,
       left: container.scrollLeft + rect.left - containerRect.left - (containerRect.width - rect.width) / 2,
     });
-  }, [focus, size, boxes]);
+  }, [focus, size, boxes, rendering]);
 
   useEffect(() => {
     onPageCount?.(doc.numPages);
