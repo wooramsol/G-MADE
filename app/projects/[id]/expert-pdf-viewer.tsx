@@ -134,6 +134,7 @@ function ExpertPdfViewerImpl({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [rendering, setRendering] = useState(false);
   const prefetchRef = useRef<number[]>(prefetchPages);
@@ -148,9 +149,13 @@ function ExpertPdfViewerImpl({
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
-    const observer = new ResizeObserver(() => setContainerWidth(element.clientWidth));
+    const measure = () => {
+      setContainerWidth(element.clientWidth);
+      setContainerHeight(element.clientHeight);
+    };
+    const observer = new ResizeObserver(measure);
     observer.observe(element);
-    setContainerWidth(element.clientWidth);
+    measure();
     return () => observer.disconnect();
   }, []);
 
@@ -171,7 +176,7 @@ function ExpertPdfViewerImpl({
         renderStoreRef.current = { doc, entries: new Map(), inflight: new Map() };
       }
       const { entries, inflight } = renderStoreRef.current;
-      const key = `${pageNumber}|${zoom}|${containerWidth}`;
+      const key = `${pageNumber}|${zoom}|${containerWidth}x${containerHeight}`;
       const hit = entries.get(key);
       if (hit) {
         entries.delete(key);
@@ -184,7 +189,9 @@ function ExpertPdfViewerImpl({
       const job = (async (): Promise<RenderedPage | null> => {
         const pdfPage = await doc.getPage(pageNumber);
         const base = pdfPage.getViewport({ scale: 1 });
-        const cssScale = Math.max(0.05, ((containerWidth - 32) / base.width) * zoom);
+        // 페이지 전체가 한 화면에 들어오도록 (가로·세로 중 작은 쪽에 맞춤) — 뷰어 안 스크롤 없음
+        const fit = Math.min((containerWidth - 32) / base.width, (containerHeight - 32) / base.height);
+        const cssScale = Math.max(0.05, fit * zoom);
         const cssWidth = base.width * cssScale;
         const cssHeight = base.height * cssScale;
         // 고해상도 화면도 2배까지만 — 그 이상은 체감 차이 없이 그리는 시간만 늘어남
@@ -222,14 +229,14 @@ function ExpertPdfViewerImpl({
       inflight.set(key, job);
       return job;
     },
-    [doc, zoom, containerWidth],
+    [doc, zoom, containerWidth, containerHeight],
   );
 
   // 레이아웃 단계에서 실행 — 캐시된 페이지는 다음 화면 그리기 전에 바로 교체
   useLayoutEffect(() => {
-    if (containerWidth <= 0) return;
+    if (containerWidth <= 0 || containerHeight <= 0) return;
     const current = Math.min(Math.max(1, page), doc.numPages);
-    const key = `${current}|${zoom}|${containerWidth}`;
+    const key = `${current}|${zoom}|${containerWidth}x${containerHeight}`;
     currentKeyRef.current = key;
 
     const show = (entry: RenderedPage) => {
@@ -260,12 +267,12 @@ function ExpertPdfViewerImpl({
         if (entry) show(entry);
       });
     }
-  }, [doc, page, zoom, containerWidth, getRendered]);
+  }, [doc, page, zoom, containerWidth, containerHeight, getRendered]);
 
   // 미리 그리기 — 앞뒤 페이지와 메모가 있는 페이지를 한가할 때 차례로 (페이지 이동으로 취소되지 않음)
   const prefetchKey = prefetchPages.join(",");
   useEffect(() => {
-    if (containerWidth <= 0) return;
+    if (containerWidth <= 0 || containerHeight <= 0) return;
     let stopped = false;
     const current = Math.min(Math.max(1, page), doc.numPages);
     const queue = [current + 1, current - 1, current + 2, ...prefetchRef.current]
@@ -286,7 +293,7 @@ function ExpertPdfViewerImpl({
       // 다음 목록으로 넘어갈 뿐, 이미 시작한 렌더는 끝까지 그려 캐시에 남김
       stopped = true;
     };
-  }, [doc, page, zoom, containerWidth, getRendered, prefetchKey]);
+  }, [doc, page, zoom, containerWidth, containerHeight, getRendered, prefetchKey]);
 
   const onOverlayMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
     // 핀·메모 위를 누른 경우는 제외 (그쪽에서 처리)
@@ -302,11 +309,11 @@ function ExpertPdfViewerImpl({
   };
 
   return (
-    <div className="relative max-h-[78vh] min-h-[560px] overflow-auto bg-[#eef1f5]" ref={containerRef}>
-      <div className="flex min-w-full justify-center p-4 pb-40" style={size ? { width: Math.max(containerWidth, size.width + 32) } : undefined}>
+    <div className="relative h-[78vh] min-h-[560px] overflow-hidden bg-[#eef1f5]" ref={containerRef}>
+      <div className="flex h-full w-full items-center justify-center p-4">
         <div
           className="relative bg-white shadow-sm"
-          style={size ? { width: size.width, height: size.height } : { width: "100%", aspectRatio: "1.414 / 1" }}
+          style={size ? { width: size.width, height: size.height } : { height: "100%", aspectRatio: "1.414 / 1" }}
         >
           <canvas className="block h-full w-full select-none" ref={canvasRef} />
           <div

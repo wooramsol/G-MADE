@@ -84,6 +84,8 @@ const PinNote = reactMemo(function PinNote({
   const [editing, setEditing] = useState(startEditing);
   const [value, setValue] = useState(text);
   const flipLeft = point.x > 0.72;
+  // 페이지 아래쪽 핀은 메모를 핀 위로 띄워 화면 밖으로 잘리지 않게
+  const flipUp = point.y > 0.75;
   const color = tone === "previous" ? "#64748b" : "#b45309";
 
   const finish = (commit: boolean) => {
@@ -108,7 +110,7 @@ const PinNote = reactMemo(function PinNote({
         </text>
       </svg>
       <div
-        className={`absolute top-1 w-max min-w-[120px] max-w-[240px] rounded-md border bg-white/95 px-2 py-1.5 text-left shadow-md ${
+        className={`absolute ${flipUp ? "bottom-[30px]" : "top-1"} w-max min-w-[120px] max-w-[240px] rounded-md border bg-white/95 px-2 py-1.5 text-left shadow-md ${
           flipLeft ? "right-[-10px]" : "left-[-10px]"
         } ${tone === "previous" ? "border-dashed border-[#94a3b8]" : "border-[#f2c48d]"}`}
       >
