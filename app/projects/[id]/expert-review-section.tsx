@@ -284,7 +284,7 @@ export default function ExpertReviewSection({
     const mine = me?.id === memo.authorId;
     return (
       <li
-        className={`rounded-md border p-3 text-left ${
+        className={`cursor-pointer rounded-md border p-3 text-left ${
           selected
             ? previous
               ? "border-[#64748b] bg-[#f1f5f9]"
@@ -293,8 +293,12 @@ export default function ExpertReviewSection({
         }`}
         data-memo-id={memo.id}
         key={memo.id}
+        // 카드 어디를 눌러도 해당 메모로 이동 (수정 중에는 제외)
+        onClick={() => {
+          if (!editing) selectMemo(memo);
+        }}
       >
-        <button className="block w-full text-left" onClick={() => selectMemo(memo)} type="button">
+        <div className="block w-full text-left">
           <span className="flex items-center gap-2 text-[11px]">
             <span
               className={`flex h-5 min-w-5 items-center justify-center rounded-[3px] px-1 font-bold text-white ${
@@ -313,7 +317,7 @@ export default function ExpertReviewSection({
             {memo.authorName}
             {mine ? " (나)" : ""}
           </span>
-        </button>
+        </div>
         {editing ? (
           <div className="mt-2">
             <textarea
@@ -340,7 +344,7 @@ export default function ExpertReviewSection({
           <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[#1e293b]">{memo.text}</p>
         )}
         {!previous && !editing && canEdit(memo) && !memo.id.startsWith("pending-") ? (
-          <div className="mt-2 flex justify-end gap-1 text-[11px]">
+          <div className="mt-2 flex justify-end gap-1 text-[11px]" onClick={(event) => event.stopPropagation()}>
             <button
               className="rounded-[3px] px-2 py-0.5 font-semibold text-[#64748b] hover:bg-[#f1f5f9]"
               onClick={() => {
