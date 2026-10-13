@@ -182,10 +182,6 @@ function ExpertPdfViewerImpl({
       top: container.scrollTop + rect.top - containerRect.top - (containerRect.height - rect.height) / 2,
       left: container.scrollLeft + rect.left - containerRect.left - (containerRect.width - rect.width) / 2,
     });
-    // 뷰어가 화면 밖이면 뷰어까지 화면 안으로
-    if (containerRect.bottom < 80 || containerRect.top > window.innerHeight - 80) {
-      container.scrollIntoView({ block: "nearest" });
-    }
   }, [focus, size, boxes]);
 
   useEffect(() => {

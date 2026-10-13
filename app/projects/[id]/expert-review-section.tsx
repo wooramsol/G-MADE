@@ -294,9 +294,17 @@ export default function ExpertReviewSection({
         data-memo-id={memo.id}
         key={memo.id}
         // 카드 어디를 눌러도 해당 메모로 이동 (수정 중에는 제외)
-        onClick={() => {
-          if (!editing) selectMemo(memo);
+        // 버튼을 뗄 때(click)가 아니라 누르는 순간(mousedown) 반응 — 체감 지연 제거
+        onMouseDown={(event) => {
+          if (event.button === 0 && !editing) selectMemo(memo);
         }}
+        onKeyDown={(event) => {
+          if ((event.key === "Enter" || event.key === " ") && !editing) {
+            event.preventDefault();
+            selectMemo(memo);
+          }
+        }}
+        tabIndex={0}
       >
         <div className="block w-full text-left">
           <span className="flex items-center gap-2 text-[11px]">
@@ -344,7 +352,7 @@ export default function ExpertReviewSection({
           <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[#1e293b]">{memo.text}</p>
         )}
         {!previous && !editing && canEdit(memo) && !memo.id.startsWith("pending-") ? (
-          <div className="mt-2 flex justify-end gap-1 text-[11px]" onClick={(event) => event.stopPropagation()}>
+          <div className="mt-2 flex justify-end gap-1 text-[11px]" onMouseDown={(event) => event.stopPropagation()}>
             <button
               className="rounded-[3px] px-2 py-0.5 font-semibold text-[#64748b] hover:bg-[#f1f5f9]"
               onClick={() => {
