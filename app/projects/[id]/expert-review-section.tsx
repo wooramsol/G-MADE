@@ -486,6 +486,9 @@ export default function ExpertReviewSection({
                 <span className="ml-1 rounded-[3px] bg-[#fef3c7] px-1.5 py-0.5 text-[11px] font-semibold text-[#92400e]">이전 버전 대비 변경</span>
               ) : null}
             </div>
+            <span className="ml-auto flex items-center gap-1.5 rounded-full bg-[#fff8ed] px-3 py-1 text-xs font-bold text-[#b45309]">
+              📍 의견을 남길 곳을 클릭하세요
+            </span>
             {previousCount > 0 ? (
               <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[#475569]">
                 <input checked={showPrevious} onChange={(event) => setShowPrevious(event.target.checked)} type="checkbox" />
@@ -524,9 +527,7 @@ export default function ExpertReviewSection({
           )}
 
           <div className="flex items-center gap-3 border-t border-[#e2e8f0] px-3 py-2 text-[11px] text-[#94a3b8]">
-            <span>
-              도서 위를 누르면 핀이 꽂히고 아래에 의견을 적습니다 · 내 의견 글을 누르면 바로 수정
-            </span>
+            <span>내 의견은 글을 누르면 바로 수정할 수 있습니다</span>
             {message ? <span className="font-semibold text-[#b91c1c]">{message}</span> : null}
             <span className="ml-auto">메모는 저장 즉시 모든 검토자에게 공유됩니다</span>
           </div>

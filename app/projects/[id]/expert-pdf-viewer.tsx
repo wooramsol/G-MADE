@@ -312,26 +312,7 @@ function ExpertPdfViewerImpl({
     };
   }, [doc, page, zoom, containerWidth, containerHeight, getRendered, prefetchKey]);
 
-  // 커서를 따라다니는 안내 ("클릭해서 의견 남기기") — 상태 없이 DOM만 움직여 가볍게
-  const hintRef = useRef<HTMLDivElement | null>(null);
-  const moveHint = (event: ReactMouseEvent<HTMLDivElement>) => {
-    const hint = hintRef.current;
-    if (!hint) return;
-    const typing = document.activeElement instanceof HTMLTextAreaElement;
-    if (!pinMode || typing || event.target !== event.currentTarget) {
-      hint.style.opacity = "0";
-      return;
-    }
-    const rect = event.currentTarget.getBoundingClientRect();
-    hint.style.transform = `translate(${event.clientX - rect.left + 14}px, ${event.clientY - rect.top + 6}px)`;
-    hint.style.opacity = "1";
-  };
-  const hideHint = () => {
-    if (hintRef.current) hintRef.current.style.opacity = "0";
-  };
-
   const onOverlayMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
-    hideHint();
     // 핀·메모 위를 누른 경우는 제외 (그쪽에서 처리)
     if (!pinMode || event.button !== 0 || event.target !== event.currentTarget) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -359,18 +340,9 @@ function ExpertPdfViewerImpl({
           <div
             className="absolute inset-0"
             onMouseDown={onOverlayMouseDown}
-            onMouseLeave={hideHint}
-            onMouseMove={moveHint}
             style={pinMode ? { cursor: PIN_CURSOR } : undefined}
           >
             {overlay}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute left-0 top-0 z-30 whitespace-nowrap rounded-full bg-[#15345b]/85 px-2.5 py-1 text-[11px] font-semibold text-white opacity-0 shadow transition-opacity duration-150"
-              ref={hintRef}
-            >
-              클릭해서 의견 남기기
-            </div>
           </div>
         </div>
       </div>
