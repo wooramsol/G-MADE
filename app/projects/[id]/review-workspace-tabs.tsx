@@ -85,10 +85,19 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
   const currentVersion = versions.find((version) => version.key === versionKey) ?? versions[versions.length - 1];
 
   useEffect(() => {
-    // 주소 해시는 브라우저에서만 알 수 있어 마운트 후 1회 동기화 (서버 렌더와의 불일치 방지)
-    const fromHash = TABS.find((tab) => tab.hash === window.location.hash);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (fromHash) setActive(fromHash.id);
+    // 주소 해시는 브라우저에서만 알 수 있어 마운트 후 동기화 (서버 렌더와의 불일치 방지)
+    // 라우터 초기화가 끝난 뒤에도 한 번 더 확인하고, 해시가 바뀌면 따라감
+    const sync = () => {
+      const fromHash = TABS.find((tab) => tab.hash === window.location.hash);
+      if (fromHash) setActive(fromHash.id);
+    };
+    sync();
+    const timer = window.setTimeout(sync, 300);
+    window.addEventListener("hashchange", sync);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("hashchange", sync);
+    };
   }, []);
 
   const select = (id: TabId) => {
