@@ -3,6 +3,7 @@
 import { memo as reactMemo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import type { ExpertMemo, Project } from "@/lib/types";
+import { exportExpertPdf, type ExportMemo } from "./expert-export";
 import ExpertPageNavigator from "./expert-page-navigator";
 import ExpertPdfViewer, { useExpertPdf } from "./expert-pdf-viewer";
 
@@ -196,6 +197,7 @@ export default function ExpertReviewSection({
   const [draft, setDraft] = useState<Point | null>(null);
   const [showPrevious, setShowPrevious] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
 
   const pdf = useExpertPdf({
     projectId: project.id,
@@ -420,6 +422,33 @@ export default function ExpertReviewSection({
   );
 
   const hasFile = Boolean(activeVersion?.reviewId && activeVersion.fileId);
+
+  // 전문가 분석 다운로드 — 원본 PDF 위에 화면 그대로 핀·의견을 새겨 저장
+  const downloadExpertPdf = async () => {
+    if (!pdf.doc || exporting) return;
+    const byPage = new Map<number, ExportMemo[]>();
+    for (const memo of versionMemos) {
+      if (memo.id.startsWith("pending-")) continue;
+      const list = byPage.get(memo.page) ?? [];
+      list.push({ memo, label: String(list.length + 1), point: pinPoint(memo) });
+      byPage.set(memo.page, list);
+    }
+    const base = (activeVersion?.fileName ?? "도서").replace(/\.pdf$/i, "");
+    setExporting("준비 중…");
+    setMessage(null);
+    try {
+      await exportExpertPdf({
+        doc: pdf.doc,
+        byPage,
+        fileName: `${base}_전문가분석_${activeVersion?.label ?? ""}.pdf`,
+        onProgress: (done, total) => setExporting(`${done}/${total}쪽`),
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? `다운로드 실패: ${error.message}` : "다운로드에 실패했습니다.");
+    } finally {
+      setExporting(null);
+    }
+  };
   const previousCount = previousMemos.length;
 
   return (
@@ -489,6 +518,15 @@ export default function ExpertReviewSection({
             <span className="ml-auto flex items-center gap-1.5 rounded-full bg-[#fff8ed] px-3 py-1 text-xs font-bold text-[#b45309]">
               📍 의견을 남길 곳을 클릭하세요
             </span>
+            <button
+              className="inline-flex items-center rounded-lg bg-[#b45309] px-3.5 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
+              disabled={!pdf.doc || Boolean(exporting)}
+              onClick={() => void downloadExpertPdf()}
+              title="원본 도서에 핀과 의견을 새긴 PDF로 저장합니다"
+              type="button"
+            >
+              {exporting ? `만드는 중… ${exporting}` : "전문가 분석 다운로드"}
+            </button>
             {previousCount > 0 ? (
               <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[#475569]">
                 <input checked={showPrevious} onChange={(event) => setShowPrevious(event.target.checked)} type="checkbox" />

@@ -210,7 +210,7 @@ export default function ChecklistReviewResults({
             className="primary-action-blue inline-flex items-center rounded-lg px-3.5 py-2 text-xs font-bold hover:opacity-90"
             href={`/api/checklist-reviews/supplement-doc?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}`}
           >
-            보완요구서 초안 다운로드 (.docx)
+            AI 분석 다운로드
           </a>
         </div>
       </div>
