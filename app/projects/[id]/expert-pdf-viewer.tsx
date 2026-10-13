@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { ExpertMemo } from "@/lib/types";
 
 /**
@@ -201,106 +201,139 @@ function ExpertPdfViewerImpl({
     return () => observer.disconnect();
   }, []);
 
-  // 렌더 결과 캐시 (페이지·배율별) — 이미 본 페이지·미리 그려 둔 앞뒤 페이지는 즉시 표시
-  const cacheRef = useRef<{ doc: PDFDocumentProxy | null; entries: Map<string, RenderedPage> }>({ doc: null, entries: new Map() });
+  // 렌더 결과 캐시 + 진행 중 렌더 공유 (페이지·배율별)
+  // - 미리 그리던 페이지로 이동하면 처음부터 다시 그리지 않고 그 결과를 그대로 기다린다.
+  // - 페이지를 옮겨도 미리 그리기는 취소하지 않는다 (예전엔 이동할 때마다 취소돼 클릭이 늦게 반영됨).
+  const renderStoreRef = useRef<{
+    doc: PDFDocumentProxy | null;
+    entries: Map<string, RenderedPage>;
+    inflight: Map<string, Promise<RenderedPage | null>>;
+  }>({ doc: null, entries: new Map(), inflight: new Map() });
+  const currentKeyRef = useRef<string>("");
+
+  const getRendered = useCallback(
+    (pageNumber: number): Promise<RenderedPage | null> => {
+      const store = renderStoreRef.current;
+      if (store.doc !== doc) {
+        renderStoreRef.current = { doc, entries: new Map(), inflight: new Map() };
+      }
+      const { entries, inflight } = renderStoreRef.current;
+      const key = `${pageNumber}|${zoom}|${containerWidth}`;
+      const hit = entries.get(key);
+      if (hit) {
+        entries.delete(key);
+        entries.set(key, hit); // LRU 갱신
+        return Promise.resolve(hit);
+      }
+      const running = inflight.get(key);
+      if (running) return running;
+
+      const job = (async (): Promise<RenderedPage | null> => {
+        const pdfPage = await doc.getPage(pageNumber);
+        const base = pdfPage.getViewport({ scale: 1 });
+        const cssScale = Math.max(0.05, ((containerWidth - 32) / base.width) * zoom);
+        const cssWidth = base.width * cssScale;
+        const cssHeight = base.height * cssScale;
+        // 고해상도 화면도 2배까지만 — 그 이상은 체감 차이 없이 그리는 시간만 늘어남
+        let pixelRatio = Math.min(2, window.devicePixelRatio || 1);
+        if (cssWidth * cssHeight * pixelRatio * pixelRatio > MAX_CANVAS_PIXELS) {
+          pixelRatio = Math.sqrt(MAX_CANVAS_PIXELS / (cssWidth * cssHeight));
+        }
+        const viewport = pdfPage.getViewport({ scale: cssScale * pixelRatio });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) return null;
+        await pdfPage.render({ canvas, canvasContext: context, viewport }).promise;
+        const entry: RenderedPage = { canvas, cssWidth, cssHeight, pixels: canvas.width * canvas.height };
+        entries.set(key, entry);
+        // 메모리 상한 — 오래된 것부터 버림 (지금 보고 있는 페이지는 유지)
+        let total = 0;
+        for (const value of entries.values()) total += value.pixels;
+        for (const [oldKey, value] of entries) {
+          if (total <= CACHE_PIXEL_BUDGET) break;
+          if (oldKey === key || oldKey === currentKeyRef.current) continue;
+          entries.delete(oldKey);
+          total -= value.pixels;
+          value.canvas.width = 0;
+          value.canvas.height = 0;
+        }
+        return entry;
+      })()
+        .catch((error) => {
+          console.warn("[expert-viewer] 렌더 실패", error);
+          return null;
+        })
+        .finally(() => inflight.delete(key));
+      inflight.set(key, job);
+      return job;
+    },
+    [doc, zoom, containerWidth],
+  );
 
   // 레이아웃 단계에서 실행 — 캐시된 페이지는 다음 화면 그리기 전에 바로 교체
   useLayoutEffect(() => {
     if (containerWidth <= 0) return;
-    if (cacheRef.current.doc !== doc) cacheRef.current = { doc, entries: new Map() };
-    let cancelled = false;
-    const tasks: RenderTask[] = [];
-    const cache = cacheRef.current.entries;
-
-    const renderPage = async (pageNumber: number): Promise<RenderedPage | null> => {
-      const key = `${pageNumber}|${zoom}|${containerWidth}`;
-      const hit = cache.get(key);
-      if (hit) {
-        cache.delete(key);
-        cache.set(key, hit); // LRU 갱신
-        return hit;
-      }
-      const pdfPage = await doc.getPage(pageNumber);
-      if (cancelled) return null;
-      const base = pdfPage.getViewport({ scale: 1 });
-      const cssScale = Math.max(0.05, ((containerWidth - 32) / base.width) * zoom);
-      const cssWidth = base.width * cssScale;
-      const cssHeight = base.height * cssScale;
-      // 고해상도 화면도 2배까지만 — 그 이상은 체감 차이 없이 그리는 시간만 늘어남
-      let pixelRatio = Math.min(2, window.devicePixelRatio || 1);
-      if (cssWidth * cssHeight * pixelRatio * pixelRatio > MAX_CANVAS_PIXELS) {
-        pixelRatio = Math.sqrt(MAX_CANVAS_PIXELS / (cssWidth * cssHeight));
-      }
-      const viewport = pdfPage.getViewport({ scale: cssScale * pixelRatio });
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
-      const context = canvas.getContext("2d", { alpha: false });
-      if (!context) return null;
-      const task = pdfPage.render({ canvas, canvasContext: context, viewport });
-      tasks.push(task);
-      await task.promise;
-      if (cancelled) return null;
-      const entry: RenderedPage = { canvas, cssWidth, cssHeight, pixels: canvas.width * canvas.height };
-      cache.set(key, entry);
-      // 메모리 상한 — 오래된 것부터 버림
-      let total = 0;
-      for (const value of cache.values()) total += value.pixels;
-      for (const [oldKey, value] of cache) {
-        if (total <= CACHE_PIXEL_BUDGET || oldKey === key) break;
-        cache.delete(oldKey);
-        total -= value.pixels;
-        value.canvas.width = 0;
-        value.canvas.height = 0;
-      }
-      return entry;
-    };
+    const current = Math.min(Math.max(1, page), doc.numPages);
+    const key = `${current}|${zoom}|${containerWidth}`;
+    currentKeyRef.current = key;
 
     const show = (entry: RenderedPage) => {
       const target = canvasRef.current;
-      if (!target) return;
+      if (!target || currentKeyRef.current !== key) return;
       target.width = entry.canvas.width;
       target.height = entry.canvas.height;
       target.getContext("2d")?.drawImage(entry.canvas, 0, 0);
-      setSize({ width: entry.cssWidth, height: entry.cssHeight });
+      setSize((prev) =>
+        prev && prev.width === entry.cssWidth && prev.height === entry.cssHeight ? prev : { width: entry.cssWidth, height: entry.cssHeight },
+      );
+      setRendering(false);
     };
 
+    const cached = renderStoreRef.current.doc === doc ? renderStoreRef.current.entries.get(key) : undefined;
+    if (cached) {
+      show(cached);
+    } else {
+      // 아직 안 그려진 페이지 — 이전 페이지를 남겨 두지 않고 즉시 비워서 "이동했음"을 바로 보여 줌
+      const target = canvasRef.current;
+      const context = target?.getContext("2d");
+      if (target && context) {
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, target.width, target.height);
+      }
+      setRendering(true);
+      void getRendered(current).then((entry) => {
+        if (entry) show(entry);
+      });
+    }
+  }, [doc, page, zoom, containerWidth, getRendered]);
+
+  // 미리 그리기 — 앞뒤 페이지와 메모가 있는 페이지를 한가할 때 차례로 (페이지 이동으로 취소되지 않음)
+  const prefetchKey = prefetchPages.join(",");
+  useEffect(() => {
+    if (containerWidth <= 0) return;
+    let stopped = false;
+    const current = Math.min(Math.max(1, page), doc.numPages);
+    const queue = [current + 1, current - 1, current + 2, ...prefetchRef.current]
+      .filter((value, index, all) => value >= 1 && value <= doc.numPages && value !== current && all.indexOf(value) === index)
+      .slice(0, 16);
     (async () => {
-      const current = Math.min(Math.max(1, page), doc.numPages);
-      const cachedNow = cache.get(`${current}|${zoom}|${containerWidth}`);
-      if (cachedNow) show(cachedNow);
-      else setRendering(true);
-      try {
-        const entry = cachedNow ?? (await renderPage(current));
-        if (!entry || cancelled) return;
-        if (!cachedNow) show(entry);
-        setRendering(false);
-        // 다음·이전 페이지를 미리 그려 둠 (화면이 한가할 때)
-        const memoPages = prefetchRef.current.filter((value) => Math.abs(value - current) > 2).slice(0, 12);
-        for (const neighbor of [current + 1, current - 1, current + 2, ...memoPages]) {
-          if (cancelled) return;
-          if (neighbor < 1 || neighbor > doc.numPages) continue;
-          await new Promise<void>((resolve) => {
-            const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
-            if (idle) idle(() => resolve());
-            else setTimeout(resolve, 60);
-          });
-          if (cancelled) return;
-          await renderPage(neighbor);
-        }
-      } catch (error) {
-        if (!cancelled && !(error instanceof Error && error.name === "RenderingCancelledException")) {
-          console.warn("[expert-viewer] 렌더 실패", error);
-        }
-      } finally {
-        if (!cancelled) setRendering(false);
+      for (const target of queue) {
+        await new Promise<void>((resolve) => {
+          const idle = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+          if (idle) idle(() => resolve(), { timeout: 300 });
+          else setTimeout(resolve, 30);
+        });
+        if (stopped) return;
+        await getRendered(target);
       }
     })();
     return () => {
-      cancelled = true;
-      for (const task of tasks) task.cancel();
+      // 다음 목록으로 넘어갈 뿐, 이미 시작한 렌더는 끝까지 그려 캐시에 남김
+      stopped = true;
     };
-  }, [doc, page, zoom, containerWidth]);
+  }, [doc, page, zoom, containerWidth, getRendered, prefetchKey]);
 
   const toLocal = useCallback((event: ReactPointerEvent) => {
     const rect = overlayRef.current?.getBoundingClientRect();
