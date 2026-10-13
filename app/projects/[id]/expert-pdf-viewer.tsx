@@ -135,6 +135,18 @@ function ExpertPdfViewerImpl({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
+  // 뷰어 높이 = 폭 × 페이지 비율 → 상하·좌우 여백이 같아짐 (첫 페이지 비율 기준, 기본 A4 가로)
+  const [pageRatio, setPageRatio] = useState(1 / 1.414);
+  useEffect(() => {
+    let cancelled = false;
+    void doc.getPage(1).then((first) => {
+      const viewport = first.getViewport({ scale: 1 });
+      if (!cancelled && viewport.width > 0) setPageRatio(viewport.height / viewport.width);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [doc]);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [rendering, setRendering] = useState(false);
   const prefetchRef = useRef<number[]>(prefetchPages);
@@ -309,7 +321,11 @@ function ExpertPdfViewerImpl({
   };
 
   return (
-    <div className="relative h-[78vh] min-h-[560px] overflow-hidden bg-[#eef1f5]" ref={containerRef}>
+    <div
+      className="relative overflow-hidden bg-[#eef1f5]"
+      ref={containerRef}
+      style={{ height: containerWidth > 0 ? Math.round((containerWidth - 32) * pageRatio + 32) : 560 }}
+    >
       <div className="flex h-full w-full items-center justify-center p-4">
         <div
           className="relative bg-white shadow-sm"

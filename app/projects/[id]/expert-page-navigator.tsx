@@ -137,7 +137,7 @@ function ExpertPageNavigatorImpl({
 
   const pages = Array.from({ length: doc.numPages }, (_, index) => index + 1);
   return (
-    <div className="relative max-h-[calc(78vh+49px)] space-y-1.5 overflow-y-auto p-2" ref={listRef}>
+    <div className="absolute inset-x-0 bottom-0 top-[41px] space-y-1.5 overflow-y-auto p-2" ref={listRef}>
       {pages.map((pageNumber) => (
         <Thumb
           active={pageNumber === page}

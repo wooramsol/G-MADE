@@ -431,7 +431,7 @@ export default function ExpertReviewSection({
 
       <div className="grid gap-4 xl:grid-cols-[136px_1fr]">
         {/* 페이지 네비게이터 (썸네일 + 메모 개수) */}
-        <div className="hidden min-h-0 flex-col rounded-md border border-[#d7dee8] bg-white xl:flex">
+        <div className="relative hidden min-h-0 flex-col rounded-md border border-[#d7dee8] bg-white xl:flex">
           <p className="border-b border-[#e2e8f0] px-3 py-2.5 text-xs font-bold text-[#15345b]">
             페이지 <span className="font-medium text-[#94a3b8]">{pageCount || ""}</span>
           </p>
