@@ -117,6 +117,11 @@ const PinNote = reactMemo(function PinNote({
             autoFocus
             className="block h-16 w-[220px] resize-y rounded-[3px] border border-[#cbd5e1] p-1.5 text-xs leading-4 text-[#1e293b] outline-none focus:border-[#b45309]"
             onBlur={() => finish(true)}
+            onFocus={(event) => {
+              // 커서를 글 끝으로
+              const length = event.currentTarget.value.length;
+              event.currentTarget.setSelectionRange(length, length);
+            }}
             onChange={(event) => {
               setValue(event.target.value);
               onTextChange?.(event.target.value);
