@@ -19,6 +19,11 @@ const MAX_CANVAS_PIXELS = 12_000_000;
 const CACHE_PIXEL_BUDGET = 60_000_000;
 
 type RenderedPage = { canvas: HTMLCanvasElement; cssWidth: number; cssHeight: number; pixels: number };
+/** 핀 모양 커서 — 끝(아래 꼭짓점)이 클릭 지점 */
+const PIN_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="30" viewBox="0 0 24 30"><path d="M12 29C12 29 22.5 17.6 22.5 10.8A10.5 10.5 0 0 0 1.5 10.8C1.5 17.6 12 29 12 29Z" fill="#b45309" stroke="white" stroke-width="1.5"/><path d="M12 6v9M7.5 10.5h9" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg>',
+)}") 12 29, crosshair`;
+
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
 let pdfjsPromise: Promise<typeof import("pdfjs-dist")> | null = null;
@@ -307,7 +312,26 @@ function ExpertPdfViewerImpl({
     };
   }, [doc, page, zoom, containerWidth, containerHeight, getRendered, prefetchKey]);
 
+  // 커서를 따라다니는 안내 ("클릭해서 의견 남기기") — 상태 없이 DOM만 움직여 가볍게
+  const hintRef = useRef<HTMLDivElement | null>(null);
+  const moveHint = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const hint = hintRef.current;
+    if (!hint) return;
+    const typing = document.activeElement instanceof HTMLTextAreaElement;
+    if (!pinMode || typing || event.target !== event.currentTarget) {
+      hint.style.opacity = "0";
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    hint.style.transform = `translate(${event.clientX - rect.left + 14}px, ${event.clientY - rect.top + 6}px)`;
+    hint.style.opacity = "1";
+  };
+  const hideHint = () => {
+    if (hintRef.current) hintRef.current.style.opacity = "0";
+  };
+
   const onOverlayMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    hideHint();
     // 핀·메모 위를 누른 경우는 제외 (그쪽에서 처리)
     if (!pinMode || event.button !== 0 || event.target !== event.currentTarget) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -333,10 +357,20 @@ function ExpertPdfViewerImpl({
         >
           <canvas className="block h-full w-full select-none" ref={canvasRef} />
           <div
-            className={`absolute inset-0 ${pinMode ? "cursor-crosshair" : ""}`}
+            className="absolute inset-0"
             onMouseDown={onOverlayMouseDown}
+            onMouseLeave={hideHint}
+            onMouseMove={moveHint}
+            style={pinMode ? { cursor: PIN_CURSOR } : undefined}
           >
             {overlay}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-0 top-0 z-30 whitespace-nowrap rounded-full bg-[#15345b]/85 px-2.5 py-1 text-[11px] font-semibold text-white opacity-0 shadow transition-opacity duration-150"
+              ref={hintRef}
+            >
+              클릭해서 의견 남기기
+            </div>
           </div>
         </div>
       </div>
