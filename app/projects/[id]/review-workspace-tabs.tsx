@@ -14,7 +14,6 @@ type TabId = "ai" | "expert";
 const TABS: Array<{
   id: TabId;
   label: string;
-  sub: string;
   hash: string;
   icon: string;
   active: string;
@@ -23,8 +22,7 @@ const TABS: Array<{
 }> = [
   {
     id: "ai",
-    label: "사전심의: AI 분석",
-    sub: "체크리스트 자동 판정 · 근거 캡처",
+    label: "사전심의: AI 에이전트 분석",
     hash: "#checklist-review",
     icon: "AI",
     active: "border-[#2463b3] bg-[#2463b3] text-white shadow-lg",
@@ -33,8 +31,7 @@ const TABS: Array<{
   },
   {
     id: "expert",
-    label: "사전심의: 전문가 분석",
-    sub: "도서 위 표시 · 의견 메모",
+    label: "사전심의: 인간 전문가 분석",
     hash: "#expert-review",
     icon: "전문가",
     active: "border-[#b45309] bg-[#b45309] text-white shadow-lg",
@@ -204,7 +201,6 @@ export default function ReviewWorkspaceTabs({ project }: { project: Project }) {
               </span>
               <span className="text-left">
                 <span className="block text-xl font-bold leading-7">{tab.label}</span>
-                <span className={`mt-0.5 block text-sm ${selected ? "text-white/85" : "opacity-75"}`}>{tab.sub}</span>
               </span>
             </button>
           );

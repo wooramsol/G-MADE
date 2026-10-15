@@ -452,7 +452,7 @@ export default function ExpertReviewSection({
   const previousCount = previousMemos.length;
 
   return (
-    <WorkspaceSectionCard id="expert-review" title="사전심의: 전문가 분석" bare>
+    <WorkspaceSectionCard id="expert-review" title="사전심의: 인간 전문가 분석" bare>
       <div className="mb-4 rounded-md border border-[#d7dee8] bg-white p-4">
         <p className="mb-3 text-sm font-bold text-[#15345b]">도서 버전</p>
         {versionPicker ?? <p className="text-xs text-[#94a3b8]">AI 분석 탭에서 PDF를 업로드하면 도서 버전이 만들어집니다.</p>}
