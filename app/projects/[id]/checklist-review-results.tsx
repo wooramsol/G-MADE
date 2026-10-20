@@ -198,6 +198,11 @@ export default function ChecklistReviewResults({
             {formatUploadDateTime(review.reviewedAt)} · 항목 {review.items.length}개 ·{" "}
             {review.itemSource === "vision" ? "스캔 문서(비전 추출)" : "텍스트 추출"} · G-Made Hive AI
           </Caption>
+          {review.usage ? (
+            <Caption className="mt-0.5 text-[#94a3b8]" title="이 분석 1회에 사용한 AI 토큰과 예상 비용 (환율 1,400원 기준 원화 환산)">
+              사용량: 토큰 {formatTokens(review.usage.totalTokens)} · 약 ${review.usage.costUsd.toFixed(2)} (≈ {Math.round(review.usage.costUsd * 1400).toLocaleString("ko-KR")}원)
+            </Caption>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {review.checklistPages.length > 0 ? (
@@ -784,4 +789,10 @@ function SnippetLightbox({
       </button>
     </div>
   );
+}
+
+/** 토큰 수를 읽기 쉽게 — 159,173 → "15.9만" */
+function formatTokens(value: number): string {
+  if (value >= 10_000) return `${(value / 10_000).toFixed(1)}만`;
+  return value.toLocaleString("ko-KR");
 }
