@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireOfficial } from "@/lib/project-access";
 import { deleteExpertMemo, getExpertMemo, listExpertMemos, saveExpertMemo } from "@/lib/expert-memo-store";
 import { getProjectById } from "@/lib/project-store";
 import type { ExpertMemo } from "@/lib/types";
@@ -35,7 +35,7 @@ function parseRegion(value: unknown): ExpertMemo["region"] | null {
 }
 
 export async function GET(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const projectId = request.nextUrl.searchParams.get("projectId")?.trim() ?? "";
@@ -46,12 +46,12 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     memos: await listExpertMemos(projectId),
     currentUserId: user.id,
-    isAdmin: user.role === "ADMIN",
+    isAdmin: true,
   });
 }
 
 export async function POST(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
@@ -76,6 +76,12 @@ export async function POST(request: NextRequest) {
   }
 
   const user = authResult.session.user;
+  // 본심의 — 공무원이 고른 심사위원 이름으로 기록
+  const reviewerId = typeof body?.reviewerId === "string" ? body.reviewerId.trim() : "";
+  const reviewer = reviewerId ? (project.reviewers ?? []).find((entry) => entry.id === reviewerId) : undefined;
+  if (reviewerId && !reviewer) {
+    return NextResponse.json({ error: "심사위원을 찾을 수 없습니다. 목록을 새로고침해 주세요." }, { status: 400 });
+  }
   const memo: ExpertMemo = {
     id: `memo-${randomUUID()}`,
     versionKey,
@@ -88,6 +94,7 @@ export async function POST(request: NextRequest) {
     authorId: user.id,
     authorName: user.name?.trim() || user.email?.split("@")[0] || "검토자",
     createdAt: new Date().toISOString(),
+    ...(reviewer ? { reviewerId: reviewer.id, reviewerName: reviewer.name, reviewerColor: reviewer.color } : {}),
   };
 
   try {
@@ -104,14 +111,14 @@ async function loadOwnMemo(projectId: string, memoId: string, userId: string, is
   if (!memo) {
     return { error: NextResponse.json({ error: "메모를 찾을 수 없습니다." }, { status: 404 }) };
   }
-  if (memo.authorId !== userId && !isAdmin) {
-    return { error: NextResponse.json({ error: "본인이 작성한 메모만 수정·삭제할 수 있습니다." }, { status: 403 }) };
-  }
+  // 본심의 의견은 공무원이 심사위원 대신 입력하므로, 공무원이면 누구나 수정·삭제 가능
+  void userId;
+  void isAdmin;
   return { memo };
 }
 
 export async function PATCH(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
@@ -143,7 +150,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const projectId = request.nextUrl.searchParams.get("projectId")?.trim() ?? "";

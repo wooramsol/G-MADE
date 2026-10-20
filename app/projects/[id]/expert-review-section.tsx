@@ -1,8 +1,9 @@
 "use client";
 
-import { memo as reactMemo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo as reactMemo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
-import type { ExpertMemo, Project } from "@/lib/types";
+import type { ChecklistReview } from "@/lib/checklist-review/types";
+import type { ExpertMemo, Project, ReviewerMarker } from "@/lib/types";
 import { exportExpertPdf, type ExportMemo } from "./expert-export";
 import ExpertPageNavigator from "./expert-page-navigator";
 import ExpertPdfViewer, { useExpertPdf } from "./expert-pdf-viewer";
@@ -65,7 +66,10 @@ const PinNote = reactMemo(function PinNote({
   onDelete,
   onCancelNew,
   onTextChange,
+  color: colorProp,
 }: {
+  /** 심사위원 마커 색 */
+  color?: string;
   point: Point;
   label: string;
   text: string;
@@ -87,7 +91,7 @@ const PinNote = reactMemo(function PinNote({
   const flipLeft = point.x > 0.72;
   // 페이지 아래쪽 핀은 메모를 핀 위로 띄워 화면 밖으로 잘리지 않게
   const flipUp = point.y > 0.75;
-  const color = tone === "previous" ? "#64748b" : "#b45309";
+  const color = tone === "previous" ? "#64748b" : colorProp ?? "#b45309";
 
   const finish = (commit: boolean) => {
     const next = value.trim();
@@ -113,7 +117,8 @@ const PinNote = reactMemo(function PinNote({
       <div
         className={`absolute ${flipUp ? "bottom-[30px]" : "top-1"} w-max min-w-[120px] max-w-[240px] rounded-md border bg-white/95 px-2 py-1.5 text-left shadow-md ${
           flipLeft ? "right-[-10px]" : "left-[-10px]"
-        } ${tone === "previous" ? "border-dashed border-[#94a3b8]" : "border-[#f2c48d]"}`}
+        } ${tone === "previous" ? "border-dashed border-[#94a3b8]" : ""}`}
+        style={tone === "previous" ? undefined : { borderColor: `${color}66` }}
       >
         {editing ? (
           <textarea
@@ -178,14 +183,12 @@ const PinNote = reactMemo(function PinNote({
 export default function ExpertReviewSection({
   project,
   active = true,
-  versionPicker,
   activeVersion = null,
   versions = [],
 }: {
   project: Project;
   /** 탭이 보일 때만 PDF를 받는다 */
   active?: boolean;
-  versionPicker?: ReactNode;
   activeVersion?: ExpertVersionInfo | null;
   versions?: ExpertVersionInfo[];
 }) {
@@ -198,6 +201,33 @@ export default function ExpertReviewSection({
   const [showPrevious, setShowPrevious] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
+  // 본심의 심사위원 마커 — 공무원이 고른 위원 이름으로 의견이 기록됨
+  const [reviewers, setReviewers] = useState<ReviewerMarker[]>(project.reviewers ?? []);
+  const [activeReviewerId, setActiveReviewerId] = useState<string | null>(null);
+  const [onlyActiveReviewer, setOnlyActiveReviewer] = useState(false);
+  const activeReviewer = reviewers.find((reviewer) => reviewer.id === activeReviewerId) ?? null;
+  const activeReviewerRef = useRef<ReviewerMarker | null>(null);
+  useEffect(() => {
+    activeReviewerRef.current = activeReviewer;
+  }, [activeReviewer]);
+
+  const saveReviewers = async (next: ReviewerMarker[]) => {
+    const before = reviewers;
+    setReviewers(next);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/reviewers`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewers: next }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { reviewers?: ReviewerMarker[]; error?: string };
+      if (!response.ok || !payload.reviewers) throw new Error(payload.error ?? "심사위원 목록을 저장하지 못했습니다.");
+      setReviewers(payload.reviewers);
+    } catch (error) {
+      setReviewers(before);
+      setMessage(error instanceof Error ? error.message : "심사위원 목록을 저장하지 못했습니다.");
+    }
+  };
 
   const pdf = useExpertPdf({
     projectId: project.id,
@@ -257,6 +287,16 @@ export default function ExpertReviewSection({
     });
   }, [memos, activeVersion, versionByKey]);
 
+  const reviewerCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const memo of versionMemos) if (memo.reviewerId) counts.set(memo.reviewerId, (counts.get(memo.reviewerId) ?? 0) + 1);
+    return counts;
+  }, [versionMemos]);
+  const aiReview = useMemo(
+    () => (project.checklistReviews ?? []).find((review) => review.id === activeVersion?.reviewId) ?? null,
+    [project.checklistReviews, activeVersion?.reviewId],
+  );
+
   const memoCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const memo of versionMemos) counts.set(memo.page, (counts.get(memo.page) ?? 0) + 1);
@@ -270,6 +310,7 @@ export default function ExpertReviewSection({
 
   const createMemo = async (point: Point, text: string) => {
     if (!activeVersion?.reviewId || !activeVersion.fileId || !me) return;
+    const reviewer = activeReviewerRef.current;
     const region = { x: point.x, y: point.y, width: 0, height: 0 };
     const tempId = `pending-${Date.now()}`;
     const optimistic: ExpertMemo = {
@@ -283,6 +324,7 @@ export default function ExpertReviewSection({
       text,
       authorId: me.id,
       authorName: "나",
+      ...(reviewer ? { reviewerId: reviewer.id, reviewerName: reviewer.name, reviewerColor: reviewer.color } : {}),
       createdAt: new Date().toISOString(),
     };
     setMemos((prev) => [...prev, optimistic]);
@@ -300,6 +342,7 @@ export default function ExpertReviewSection({
           page,
           region,
           text,
+          reviewerId: reviewer?.id,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { memo?: ExpertMemo; error?: string };
@@ -357,6 +400,11 @@ export default function ExpertReviewSection({
     createMemoRef.current = createMemo;
   });
   const onPageClick = useCallback((point: Point) => {
+    if (!activeReviewerRef.current) {
+      setMessage("먼저 위에서 의견을 낼 심사위원을 선택하세요.");
+      return;
+    }
+    setMessage(null);
     const current = draftRef.current;
     if (current.point && current.text.trim()) void createMemoRef.current(current.point, current.text.trim());
     draftRef.current = { point, text: "" };
@@ -364,7 +412,9 @@ export default function ExpertReviewSection({
   }, []);
 
   // 페이지 위 핀·메모
-  const pageMemos = versionMemos.filter((memo) => memo.page === page);
+  const pageMemos = versionMemos.filter(
+    (memo) => memo.page === page && (!onlyActiveReviewer || !activeReviewerId || memo.reviewerId === activeReviewerId),
+  );
   const previousOnPage = showPrevious ? previousMemos.filter((memo) => memo.page === page) : [];
   const overlay = (
     <>
@@ -382,7 +432,8 @@ export default function ExpertReviewSection({
       ))}
       {pageMemos.map((memo, index) => (
         <PinNote
-          author={memo.authorName}
+          author={memo.reviewerName ? `${memo.reviewerName} 위원` : memo.authorName}
+          color={memo.reviewerColor}
           editable={canEdit(memo)}
           key={memo.id}
           label={String(index + 1)}
@@ -400,6 +451,7 @@ export default function ExpertReviewSection({
           author=""
           editable
           key={`draft-${draft.x}-${draft.y}`}
+          color={activeReviewer?.color}
           label="+"
           // 다른 곳을 눌러 새 핀으로 넘어간 뒤 뒤늦게 오는 이벤트는 무시 (중복 저장·새 핀 취소 방지)
           onCancelNew={() => {
@@ -430,7 +482,7 @@ export default function ExpertReviewSection({
     for (const memo of versionMemos) {
       if (memo.id.startsWith("pending-")) continue;
       const list = byPage.get(memo.page) ?? [];
-      list.push({ memo, label: String(list.length + 1), point: pinPoint(memo) });
+      list.push({ memo, label: String(list.length + 1), point: pinPoint(memo), color: memo.reviewerColor });
       byPage.set(memo.page, list);
     }
     const base = (activeVersion?.fileName ?? "도서").replace(/\.pdf$/i, "");
@@ -440,7 +492,7 @@ export default function ExpertReviewSection({
       await exportExpertPdf({
         doc: pdf.doc,
         byPage,
-        fileName: `${base}_전문가분석_${activeVersion?.label ?? ""}.pdf`,
+        fileName: `${base}_본심의_전문가분석.pdf`,
         onProgress: (done, total) => setExporting(`${done}/${total}쪽`),
       });
     } catch (error) {
@@ -452,13 +504,23 @@ export default function ExpertReviewSection({
   const previousCount = previousMemos.length;
 
   return (
-    <WorkspaceSectionCard id="expert-review" title="사전심의: 인간 전문가 분석" bare>
-      <div className="mb-4 rounded-md border border-[#d7dee8] bg-white p-4">
-        <p className="mb-3 text-sm font-bold text-[#15345b]">도서 버전</p>
-        {versionPicker ?? <p className="text-xs text-[#94a3b8]">AI 분석 탭에서 PDF를 업로드하면 도서 버전이 만들어집니다.</p>}
-      </div>
+    <WorkspaceSectionCard id="expert-review" title="본심의: 인간 전문가 분석" bare>
+      <ReviewerBar
+        activeId={activeReviewerId}
+        counts={reviewerCounts}
+        finalLabel={activeVersion ? `${activeVersion.label} · ${activeVersion.fileName}` : null}
+        onlyActive={onlyActiveReviewer}
+        onChange={(next) => void saveReviewers(next)}
+        onSelect={(id) => {
+          setActiveReviewerId(id);
+          setDraft(null);
+          setMessage(null);
+        }}
+        onToggleOnly={setOnlyActiveReviewer}
+        reviewers={reviewers}
+      />
 
-      <div className="grid gap-4 xl:grid-cols-[136px_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[136px_1fr_300px]">
         {/* 페이지 네비게이터 (썸네일 + 메모 개수) */}
         <div className="relative hidden min-h-0 flex-col rounded-md border border-[#d7dee8] bg-white xl:flex">
           <p className="border-b border-[#e2e8f0] px-3 py-2.5 text-xs font-bold text-[#15345b]">
@@ -516,7 +578,7 @@ export default function ExpertReviewSection({
               ) : null}
             </div>
             <span className="ml-auto flex items-center gap-1.5 rounded-full bg-[#fff8ed] px-3 py-1 text-xs font-bold text-[#b45309]">
-              📍 의견을 남길 곳을 클릭하세요
+              {activeReviewer ? `📍 ${activeReviewer.name} 위원 의견 — 남길 곳을 클릭하세요` : "👤 심사위원을 먼저 선택하세요"}
             </span>
             <button
               className="inline-flex items-center rounded-lg bg-[#b45309] px-3.5 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
@@ -565,12 +627,238 @@ export default function ExpertReviewSection({
           )}
 
           <div className="flex items-center gap-3 border-t border-[#e2e8f0] px-3 py-2 text-[11px] text-[#94a3b8]">
-            <span>내 의견은 글을 누르면 바로 수정할 수 있습니다</span>
+            <span>의견 글을 누르면 바로 수정할 수 있습니다</span>
             {message ? <span className="font-semibold text-[#b91c1c]">{message}</span> : null}
-            <span className="ml-auto">메모는 저장 즉시 모든 검토자에게 공유됩니다</span>
+            <span className="ml-auto">저장 즉시 공유됩니다</span>
           </div>
         </div>
+
+        {/* AI 에이전트 분석 결과 — 이 페이지를 근거로 한 판정 */}
+        <AiFindingsPanel onGoToPage={goToPage} page={page} review={aiReview} />
       </div>
     </WorkspaceSectionCard>
+  );
+}
+
+/** 심사위원 마커 색 (20명 이상도 구분되도록) */
+const REVIEWER_COLORS = [
+  "#b45309", "#2563eb", "#059669", "#dc2626", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#ea580c", "#4f46e5",
+  "#0d9488", "#be123c", "#9333ea", "#0284c7", "#ca8a04", "#16a34a", "#c026d3", "#e11d48", "#2dd4bf", "#78716c",
+];
+
+/** 본심의 심사위원 선택·관리 (계정 없음 — 공무원이 위원을 골라 대신 입력) */
+function ReviewerBar({
+  reviewers,
+  activeId,
+  counts,
+  onlyActive,
+  finalLabel,
+  onSelect,
+  onChange,
+  onToggleOnly,
+}: {
+  reviewers: ReviewerMarker[];
+  activeId: string | null;
+  counts: Map<string, number>;
+  onlyActive: boolean;
+  finalLabel: string | null;
+  onSelect: (id: string | null) => void;
+  onChange: (next: ReviewerMarker[]) => void;
+  onToggleOnly: (value: boolean) => void;
+}) {
+  const [name, setName] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  const add = () => {
+    const names = name
+      .split(/[,\n]/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (names.length === 0) return;
+    const next = [...reviewers];
+    for (const entry of names) {
+      if (next.some((reviewer) => reviewer.name === entry)) continue;
+      next.push({
+        id: `rv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        name: entry,
+        color: REVIEWER_COLORS[next.length % REVIEWER_COLORS.length],
+      });
+    }
+    setName("");
+    onChange(next);
+  };
+
+  return (
+    <div className="mb-4 rounded-md border border-[#d7dee8] bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-bold text-[#15345b]">
+          심사위원 <span className="font-medium text-[#94a3b8]">{reviewers.length}명</span>
+        </p>
+        <div className="flex items-center gap-3 text-xs text-[#475569]">
+          {finalLabel ? <span className="truncate text-[#94a3b8]">최종 도서: {finalLabel}</span> : null}
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input checked={onlyActive} onChange={(event) => onToggleOnly(event.target.checked)} type="checkbox" />
+            선택한 위원 의견만 보기
+          </label>
+          <button className="font-semibold text-[#2463b3] underline" onClick={() => setEditing((value) => !value)} type="button">
+            {editing ? "편집 끝" : "위원 추가·삭제"}
+          </button>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {reviewers.length === 0 ? (
+          <p className="text-xs text-[#94a3b8]">&lsquo;위원 추가·삭제&rsquo;에서 심사위원 이름을 등록하세요.</p>
+        ) : null}
+        {reviewers.map((reviewer) => {
+          const selected = reviewer.id === activeId;
+          return (
+            <span className="relative" key={reviewer.id}>
+              <button
+                className={`flex h-9 items-center gap-2 rounded-full border-2 pl-1.5 pr-3 text-sm font-bold transition ${
+                  selected ? "text-white shadow" : "bg-white text-[#334155] hover:bg-[#f8fafc]"
+                }`}
+                onClick={() => onSelect(selected ? null : reviewer.id)}
+                style={selected ? { background: reviewer.color, borderColor: reviewer.color } : { borderColor: `${reviewer.color}55` }}
+                type="button"
+              >
+                <span className="h-5 w-5 rounded-full border-2 border-white" style={{ background: reviewer.color }} />
+                {reviewer.name}
+                <span className={`text-xs font-semibold ${selected ? "text-white/80" : "text-[#94a3b8]"}`}>{counts.get(reviewer.id) ?? 0}</span>
+              </button>
+              {editing ? (
+                <button
+                  aria-label={`${reviewer.name} 삭제`}
+                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#b91c1c] text-[11px] font-bold text-white"
+                  onClick={() => {
+                    if ((counts.get(reviewer.id) ?? 0) > 0 && !window.confirm(`${reviewer.name} 위원을 목록에서 뺄까요? 이미 남긴 의견은 그대로 남습니다.`)) return;
+                    if (reviewer.id === activeId) onSelect(null);
+                    onChange(reviewers.filter((entry) => entry.id !== reviewer.id));
+                  }}
+                  type="button"
+                >
+                  ×
+                </button>
+              ) : null}
+            </span>
+          );
+        })}
+      </div>
+      {editing ? (
+        <div className="mt-3 flex gap-2">
+          <input
+            className="h-9 flex-1 rounded-md border border-[#d7dee8] px-3 text-sm outline-none focus:border-[#b45309]"
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                add();
+              }
+            }}
+            placeholder="위원 이름 (여러 명은 쉼표로: 홍길동, 김철수)"
+            value={name}
+          />
+          <button className="h-9 rounded-md bg-[#15345b] px-4 text-sm font-bold text-white" onClick={add} type="button">
+            추가
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const STATUS_STYLE: Record<string, string> = {
+  충족: "bg-[#ecfdf5] text-[#047857]",
+  부분충족: "bg-[#fff8ed] text-[#b45309]",
+  미충족: "bg-[#fef2f2] text-[#b91c1c]",
+  확인불가: "bg-[#f1f5f9] text-[#475569]",
+};
+
+/** 본심의 오른쪽 — AI 에이전트 분석 결과 (현재 페이지 근거 / 전체) */
+function AiFindingsPanel({
+  review,
+  page,
+  onGoToPage,
+}: {
+  review: ChecklistReview | null;
+  page: number;
+  onGoToPage: (page: number) => void;
+}) {
+  const [scope, setScope] = useState<"page" | "all">("page");
+  const itemsById = useMemo(() => new Map((review?.items ?? []).map((item) => [item.id, item])), [review]);
+  const findings = review?.findings ?? [];
+  const onPage = findings.filter((finding) => finding.evidence.some((evidence) => evidence.page === page));
+  const listed = scope === "page" ? onPage : findings;
+
+  return (
+    <div className="flex min-h-0 flex-col rounded-md border border-[#c9d6e6] bg-white xl:max-h-[calc(100vh-120px)]">
+      <div className="border-b border-[#e2e8f0] px-3 py-2.5">
+        <p className="text-xs font-bold text-[#2463b3]">AI 에이전트 분석</p>
+        {review ? (
+          <p className="mt-1 flex flex-wrap gap-1 text-[10px]">
+            {(["충족", "부분충족", "미충족", "확인불가"] as const).map((status) => (
+              <span className={`rounded-[3px] px-1.5 py-0.5 font-bold ${STATUS_STYLE[status]}`} key={status}>
+                {status} {review.counts[status]}
+              </span>
+            ))}
+          </p>
+        ) : null}
+        <div className="mt-2 flex gap-1 text-[11px]">
+          {(
+            [
+              ["page", `이 페이지 근거 ${onPage.length}`],
+              ["all", `전체 ${findings.length}`],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              className={`rounded-full px-2.5 py-1 font-bold ${scope === id ? "bg-[#2463b3] text-white" : "bg-[#f1f5f9] text-[#475569]"}`}
+              key={id}
+              onClick={() => setScope(id)}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
+        {!review ? (
+          <p className="px-1 py-6 text-center text-xs text-[#94a3b8]">이 도서의 AI 분석 결과가 없습니다.</p>
+        ) : listed.length === 0 ? (
+          <p className="px-1 py-6 text-center text-xs text-[#94a3b8]">이 페이지를 근거로 한 AI 판정이 없습니다.</p>
+        ) : (
+          <ul className="space-y-2">
+            {listed.map((finding) => {
+              const item = itemsById.get(finding.itemId);
+              const pages = [...new Set(finding.evidence.map((evidence) => evidence.page))].sort((a, b) => a - b);
+              return (
+                <li className="rounded-md border border-[#e2e8f0] p-2.5" key={finding.itemId}>
+                  <div className="flex items-start gap-1.5">
+                    <span className={`shrink-0 rounded-[3px] px-1.5 py-0.5 text-[10px] font-bold ${STATUS_STYLE[finding.status]}`}>{finding.status}</span>
+                    <p className="line-clamp-3 text-xs font-semibold leading-4 text-[#1e293b]">{item?.text ?? finding.itemId}</p>
+                  </div>
+                  <p className="mt-1.5 line-clamp-4 text-[11px] leading-4 text-[#475569]">{finding.rationale}</p>
+                  {pages.length > 0 ? (
+                    <p className="mt-1.5 flex flex-wrap gap-1">
+                      {pages.map((evidencePage) => (
+                        <button
+                          className={`rounded-[3px] px-1.5 py-0.5 text-[10px] font-bold ${
+                            evidencePage === page ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dbe8f7]"
+                          }`}
+                          key={evidencePage}
+                          onClick={() => onGoToPage(evidencePage)}
+                          type="button"
+                        >
+                          p.{evidencePage}
+                        </button>
+                      ))}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }

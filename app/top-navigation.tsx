@@ -3,17 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const navItems = [
-  {
-    label: "프로젝트 관리",
-    href: "/projects",
-    match: (pathname: string) => pathname === "/" || pathname.startsWith("/projects"),
-  },
-  { label: "내 정보", href: "/mypage", match: (pathname: string) => pathname === "/mypage" },
-] as const;
+import type { RoleCode } from "@/lib/types";
 
-export default function TopNavigation({ isAuthenticated }: { isAuthenticated: boolean }) {
+type NavItem = { label: string; href: "/projects" | "/mypage" | "/admin/users"; match: (pathname: string) => boolean };
+
+export default function TopNavigation({ isAuthenticated, role }: { isAuthenticated: boolean; role: RoleCode | null }) {
   const pathname = usePathname();
+  const navItems: NavItem[] = [
+    {
+      label: role === "APPLICANT" ? "내 심의 신청" : "프로젝트 관리",
+      href: "/projects",
+      match: (path) => path === "/" || path.startsWith("/projects"),
+    },
+    ...(role === "ADMIN" ? [{ label: "계정 관리", href: "/admin/users" as const, match: (path: string) => path.startsWith("/admin") }] : []),
+    { label: "내 정보", href: "/mypage", match: (path) => path === "/mypage" },
+  ];
 
   return (
     <nav className="border-b border-[#d7dee8] bg-white px-6">

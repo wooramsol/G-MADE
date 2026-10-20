@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireOfficial } from "@/lib/project-access";
 import { buildSupplementDoc } from "@/lib/checklist-review/supplement-doc";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { getProjectById } from "@/lib/project-store";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /** 보완요구서 초안(.docx) 다운로드 — 미충족·부분충족·확인불가 항목 정리본. */
 export async function GET(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const projectId = request.nextUrl.searchParams.get("projectId")?.trim() ?? "";

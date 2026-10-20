@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { CardTitle, Eyebrow } from "@/components/typography";
-import { getProjectEvaluationStatus } from "@/lib/project-evaluation-status";
+import { projectStageStatus } from "@/lib/roles";
 import { sortProjectsByUpdatedAt } from "@/lib/project-sort";
 import { filterActiveProjects } from "@/lib/trash";
 import type { Project } from "@/lib/types";
@@ -32,7 +32,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
         project.designer,
         project.reviewType,
         project.projectType,
-        getProjectEvaluationStatus(project).label,
+        projectStageStatus(project),
       ]
         .join(" ")
         .toLowerCase()
@@ -61,15 +61,19 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
                 <Eyebrow className="tracking-[0.16em] text-[#2463b3]">{project.reviewType}</Eyebrow>
                 <CardTitle className="mt-3">{project.name}</CardTitle>
               </div>
+              <span className="shrink-0 rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3]">
+                {projectStageStatus(project)}
+              </span>
             </div>
             <dl className="mt-5 flex-1 space-y-3 text-sm text-[#475569]">
               <Info label="사업위치" value={project.location} />
               <Info label="시행자" value={project.client} />
               <Info label="사업유형" value={project.projectType} />
               <Info label="접수일" value={project.receivedAt} />
+              {project.ownerName ? <Info label="신청자" value={project.ownerName} /> : null}
             </dl>
             <div className="primary-action-blue mt-5 rounded-md px-4 py-3 text-center text-sm font-bold">
-              프로젝트 상세 평가로 이동
+              상세 보기
             </div>
           </Link>
         </article>

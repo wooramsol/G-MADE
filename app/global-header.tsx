@@ -48,7 +48,7 @@ export default async function GlobalHeader() {
           ) : null}
         </div>
       </div>
-      <TopNavigation isAuthenticated={Boolean(user)} />
+      <TopNavigation isAuthenticated={Boolean(user)} role={user?.role ?? null} />
     </header>
   );
 }

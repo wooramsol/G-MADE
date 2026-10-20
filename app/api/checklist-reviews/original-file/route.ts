@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireOfficial } from "@/lib/project-access";
 import { getProjectById } from "@/lib/project-store";
 import { readSavedUploadFile } from "@/lib/save-uploaded-files";
 
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * 근거 인용의 "p.N" 클릭 시 이 URL + #page=N 앵커로 해당 페이지가 바로 열립니다.
  */
 export async function GET(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const projectId = request.nextUrl.searchParams.get("projectId")?.trim() ?? "";

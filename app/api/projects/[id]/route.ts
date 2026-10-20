@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiRole, requireApiSession } from "@/lib/api-auth";
+import { requireApiRole } from "@/lib/api-auth";
+import { requireProjectAccess } from "@/lib/project-access";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import {
   getProjectById,
@@ -19,27 +20,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const authResult = await requireApiSession();
-  if (authResult.response) return authResult.response;
-
   const { id } = await params;
-  const project = await getProjectById(id);
-  if (!project) {
-    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
-  }
-
-  return NextResponse.json({ project });
+  const access = await requireProjectAccess(id);
+  if (access.response) return access.response;
+  return NextResponse.json({ project: access.project });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const authResult = await requireApiSession();
-  if (authResult.response) return authResult.response;
-
   const { id } = await params;
-  const existing = await getProjectById(id);
-  if (!existing) {
-    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
-  }
+  const access = await requireProjectAccess(id);
+  if (access.response) return access.response;
 
   try {
     const payload = await request.json();
@@ -63,6 +53,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (payload.summary !== undefined) {
       patch.summary = String(payload.summary).trim() || undefined;
+    }
+
+    // 지원자는 기본정보만 수정 (상태·접수일은 공무원만)
+    if (!access.official) {
+      delete patch.status;
+      delete patch.receivedAt;
     }
 
     if (patch.status !== undefined && !PROJECT_STATUSES.has(String(patch.status))) {
@@ -110,10 +106,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const authResult = await requireApiSession();
-  if (authResult.response) return authResult.response;
-
   const { id } = await params;
+  // 삭제(휴지통 이동 포함)는 공무원만
+  const access = await requireProjectAccess(id, { officialOnly: true });
+  if (access.response) return access.response;
   const permanent = request.nextUrl.searchParams.get("permanent") === "true";
 
   if (permanent) {

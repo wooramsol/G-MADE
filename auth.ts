@@ -5,10 +5,11 @@ import { authenticateUser } from "@/lib/auth-credentials";
 import type { RoleCode } from "@/lib/types";
 
 function toRoleCode(value: unknown): RoleCode {
-  if (value === "ADMIN" || value === "REVIEWER" || value === "OFFICER") {
+  if (value === "ADMIN" || value === "REVIEWER" || value === "OFFICER" || value === "APPLICANT") {
     return value;
   }
-  return "OFFICER";
+  // 알 수 없는 역할은 가장 낮은 권한으로
+  return "APPLICANT";
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({

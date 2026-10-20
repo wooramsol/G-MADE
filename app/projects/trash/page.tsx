@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { MutedText, PageTitle, SectionDescription } from "@/components/typography";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { getTrashedProjects } from "@/lib/project-store";
+import { isOfficialRole } from "@/lib/roles";
 import TrashManagement from "./trash-management";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectTrashPage() {
+  const session = await auth();
+  if (!isOfficialRole(session?.user?.role)) redirect("/projects");
   const trashedProjects = await getTrashedProjects();
 
   return (

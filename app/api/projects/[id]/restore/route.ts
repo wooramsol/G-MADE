@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireOfficial } from "@/lib/project-access";
 import { getProjectRecordById, restoreProjectRecord } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { isProjectTrashed } from "@/lib/trash";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const { id } = await params;

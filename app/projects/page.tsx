@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { FormLabel, MutedText, PageTitle, SectionDescription } from "@/components/typography";
 import ProjectManagementGrid from "./project-management-grid";
+import { auth } from "@/auth";
 import { getAllProjects } from "@/lib/project-store";
+import { canAccessProject, isOfficialRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +12,10 @@ export default async function ProjectManagementPage({
 }: {
   searchParams?: Promise<{ q?: string }>;
 }) {
-  const projects = await getAllProjects();
+  const session = await auth();
+  const official = isOfficialRole(session?.user?.role);
+  // 지원자는 자기가 등록한 사업만
+  const projects = (await getAllProjects()).filter((project) => canAccessProject(session?.user, project));
   const params = await searchParams;
   const query = (params?.q ?? "").trim();
 
@@ -19,21 +24,24 @@ export default async function ProjectManagementPage({
       <div className="mx-auto max-w-[1500px] space-y-6 px-6 py-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <PageTitle>심의 프로젝트 목록</PageTitle>
+            <PageTitle>{official ? "심의 프로젝트 목록" : "내 심의 신청"}</PageTitle>
             <SectionDescription>
-              프로젝트를 선택하면 평가항목·배점 설정, AI·전문가 자료 업로드, 하이브리드 평가 분석과 통합 평가 결과
-              확인을 한 화면에서 진행할 수 있습니다.
+              {official
+                ? "도서접수 → 사전심의 → 본심의 순서로 진행합니다. 프로젝트를 선택해 단계별 작업을 진행하세요."
+                : "사업을 등록하고 심의 도서를 접수하세요. 사전심의에서 보완 요청을 받으면 보완 도서를 다시 제출할 수 있습니다."}
             </SectionDescription>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link
-              className="rounded-lg border border-[#d7dee8] bg-white px-4 py-3 text-sm font-bold text-[#15345b] shadow-sm transition hover:bg-[#f8fafc]"
-              href="/projects/trash"
-            >
-              휴지통
-            </Link>
+            {official ? (
+              <Link
+                className="rounded-lg border border-[#d7dee8] bg-white px-4 py-3 text-sm font-bold text-[#15345b] shadow-sm transition hover:bg-[#f8fafc]"
+                href="/projects/trash"
+              >
+                휴지통
+              </Link>
+            ) : null}
             <Link href="/projects/new" className="primary-action-blue rounded-lg px-4 py-3 text-sm font-bold shadow-sm">
-              새 프로젝트 추가하기
+              {official ? "새 프로젝트 추가하기" : "새 심의 신청"}
             </Link>
           </div>
         </div>

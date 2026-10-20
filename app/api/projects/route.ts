@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { createProject, getAllProjects } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
+import { canAccessProject, isOfficialRole } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +11,8 @@ export async function GET() {
   const authResult = await requireApiSession();
   if (authResult.response) return authResult.response;
 
-  const projects = await getAllProjects();
+  const user = authResult.session.user;
+  const projects = (await getAllProjects()).filter((project) => canAccessProject(user, project));
   return NextResponse.json({ projects });
 }
 
@@ -63,6 +65,13 @@ export async function POST(request: NextRequest) {
       reviewType: String(payload.reviewType).trim(),
       receivedAt: String(payload.receivedAt).trim(),
       summary: String(payload.summary ?? "").trim() || undefined,
+      // 등록자 = 소유자 (지원자는 자기 프로젝트만 볼 수 있음)
+      ownerId: authResult.session.user.id,
+      ownerName: authResult.session.user.name ?? undefined,
+      ownerEmail: authResult.session.user.email ?? undefined,
+      stage: "RECEPTION",
+      // 지원자 등록은 '접수일'을 오늘로 — 공무원은 입력값 사용
+      ...(isOfficialRole(authResult.session.user.role) ? {} : { receivedAt: new Date().toISOString().slice(0, 10) }),
     });
 
     revalidateProjectViews(project.id);

@@ -10,7 +10,7 @@ import type { ExpertMemo } from "@/lib/types";
  * - 회전된 페이지는 화면 모습 그대로 이미지로 바꿔 넣는다.
  */
 
-export type ExportMemo = { memo: ExpertMemo; label: string; point: { x: number; y: number } };
+export type ExportMemo = { memo: ExpertMemo; label: string; point: { x: number; y: number }; color?: string };
 
 /** 화면 뷰어에서 페이지가 표시되는 대략적인 폭(px) — 이 폭 기준으로 핀·글자 크기를 맞춘다 */
 const REFERENCE_PAGE_WIDTH = 1150;
@@ -65,14 +65,15 @@ function drawAnnotations(ctx: CanvasRenderingContext2D, width: number, height: n
   const fontFamily = getComputedStyle(document.body).fontFamily || "sans-serif";
   const pin = new Path2D(PIN_PATH);
 
-  for (const { memo, label, point } of items) {
+  for (const { memo, label, point, color: pinColor } of items) {
+    const color = pinColor ?? "#b45309";
     const px = point.x * width;
     const py = point.y * height;
 
     // 메모 카드
     ctx.font = `${12 * u}px ${fontFamily}`;
     const textLines = wrapLines(ctx, memo.text, 224 * u);
-    const meta = `${memo.authorName}  ${shortDateTime(memo.updatedAt ?? memo.createdAt)}`;
+    const meta = `${memo.reviewerName ? `${memo.reviewerName} 위원` : memo.authorName}  ${shortDateTime(memo.updatedAt ?? memo.createdAt)}`;
     let contentWidth = Math.max(...textLines.map((line) => ctx.measureText(line).width));
     ctx.font = `600 ${10 * u}px ${fontFamily}`;
     contentWidth = Math.max(contentWidth, ctx.measureText(meta).width);
@@ -93,7 +94,7 @@ function drawAnnotations(ctx: CanvasRenderingContext2D, width: number, height: n
     ctx.restore();
     roundRect(ctx, boxX, boxY, boxW, boxH, 6 * u);
     ctx.lineWidth = 1 * u;
-    ctx.strokeStyle = "#f2c48d";
+    ctx.strokeStyle = `${color}66`;
     ctx.stroke();
 
     ctx.textBaseline = "top";
@@ -110,7 +111,7 @@ function drawAnnotations(ctx: CanvasRenderingContext2D, width: number, height: n
     ctx.scale(u, u);
     ctx.shadowColor = "rgba(15, 23, 42, 0.25)";
     ctx.shadowBlur = 3;
-    ctx.fillStyle = "#b45309";
+    ctx.fillStyle = color;
     ctx.fill(pin);
     ctx.shadowColor = "transparent";
     ctx.lineWidth = 1.2;

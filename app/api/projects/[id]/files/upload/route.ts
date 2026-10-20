@@ -4,7 +4,7 @@ import { r2PresignPutUrl } from "@/lib/r2-storage";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { getBlobUploadStatus } from "@/lib/blob-upload-status";
-import { getProjectById } from "@/lib/project-store";
+import { requireProjectAccess } from "@/lib/project-access";
 import { getExtension, validateUploadExtension } from "@/lib/upload-validation";
 
 export const runtime = "nodejs";
@@ -62,13 +62,9 @@ export async function POST(
 
   const { id: projectId } = await context.params;
 
-  const project = await getProjectById(projectId);
-  if (!project) {
-    return NextResponse.json(
-      { error: "존재하지 않는 프로젝트에는 파일을 업로드할 수 없습니다." },
-      { status: 404 },
-    );
-  }
+  // 지원자는 자기 프로젝트에만 업로드 가능
+  const access = await requireProjectAccess(projectId);
+  if (access.response) return access.response;
 
   const body = (await request.json()) as
     | HandleUploadBody

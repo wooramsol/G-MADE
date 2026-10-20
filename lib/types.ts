@@ -1,6 +1,7 @@
 import type { ChecklistReview } from "./checklist-review/types";
 
-export type RoleCode = "ADMIN" | "REVIEWER" | "OFFICER";
+/** ADMIN 관리자 · OFFICER 공무원 · APPLICANT 지원자 (REVIEWER는 과거 계정 호환용 — 공무원과 같은 권한) */
+export type RoleCode = "ADMIN" | "REVIEWER" | "OFFICER" | "APPLICANT";
 
 export type LawReference = {
   id: string;
@@ -55,8 +56,48 @@ export type ExpertMemo = {
   text: string;
   authorId: string;
   authorName: string;
+  /** 본심의 — 이 의견을 낸 심사위원 (공무원이 대신 입력) */
+  reviewerId?: string;
+  reviewerName?: string;
+  reviewerColor?: string;
   createdAt: string;
   updatedAt?: string;
+};
+
+/** 심의 단계 — 1 도서접수 · 2 사전심의 · 3 본심의 (반려 시 종료) */
+export type ProjectStage = "RECEPTION" | "PRE_REVIEW" | "MAIN_REVIEW" | "REJECTED";
+
+/** 지원자(또는 공무원)가 접수한 도서 1건 */
+export type DocumentSubmission = {
+  id: string;
+  /** 1부터 — 1 = 최초 접수, 2~ = 보완 제출 */
+  round: number;
+  file: {
+    id: string;
+    originalName: string;
+    fileType: string;
+    sizeBytes: number;
+    storageKey: string;
+    blobUrl?: string;
+  };
+  submittedAt: string;
+  submittedBy: { id: string; name: string; role: RoleCode };
+};
+
+/** 사전심의 판정 (공무원) */
+export type PreReviewDecision = {
+  id: string;
+  decision: "보완요청" | "반려" | "통과";
+  note?: string;
+  decidedAt: string;
+  decidedBy: { id: string; name: string };
+};
+
+/** 본심의 심사위원 (계정 없음 — 공무원이 이름 마커를 골라 대신 입력) */
+export type ReviewerMarker = {
+  id: string;
+  name: string;
+  color: string;
 };
 
 export type Project = {
@@ -80,6 +121,18 @@ export type Project = {
   documentVersionLabels?: Record<string, string>;
   /** 사전심의: 전문가 분석 — 도서 위 영역 표시 + 의견 메모 (작성자별, 프로젝트 사용자 모두 공유) */
   expertMemos?: ExpertMemo[];
+  /** 프로젝트를 등록한 사용자 (지원자는 자기 프로젝트만 볼 수 있음) */
+  ownerId?: string;
+  ownerName?: string;
+  ownerEmail?: string;
+  /** 심의 단계 (없으면 검토 기록 유무로 추정) */
+  stage?: ProjectStage;
+  /** 도서 접수·보완 제출 이력 */
+  submissions?: DocumentSubmission[];
+  /** 사전심의 판정 이력 */
+  preReviewDecisions?: PreReviewDecision[];
+  /** 본심의 심사위원 목록 */
+  reviewers?: ReviewerMarker[];
   /** 휴지통으로 이동한 시각 (ISO). 설정되면 목록에서 숨깁니다. */
   deletedAt?: string;
   /** 데모 프로젝트 영구 삭제 표식 (ISO). 설정되면 데모 원본이 다시 병합되지 않습니다. */

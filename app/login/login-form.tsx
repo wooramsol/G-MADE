@@ -48,9 +48,7 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
       >
         {pending ? "로그인 중..." : "로그인"}
       </button>
-      <Caption className="text-center">
-        내부 테스트용 계정입니다. 이메일 인증이나 비밀번호 재설정 메일은 발송되지 않습니다.
-      </Caption>
+      <Caption className="text-center">비밀번호를 잊으셨다면 관리자에게 재설정을 요청하세요.</Caption>
     </form>
   );
 }

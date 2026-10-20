@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireOfficial } from "@/lib/project-access";
 import { getProjectById } from "@/lib/project-store";
 import { isR2Configured, r2HeadObject, r2PresignGetUrl } from "@/lib/r2-storage";
 
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * R2에 없거나 브라우저가 직접 받지 못하면 같은 출처 프록시(original-file)로 받는다.
  */
 export async function GET(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const params = request.nextUrl.searchParams;

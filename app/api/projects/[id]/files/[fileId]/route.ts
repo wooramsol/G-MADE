@@ -1,10 +1,10 @@
 import { get } from "@vercel/blob";
 import { NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireProjectAccess } from "@/lib/project-access";
 import { getBlobAccess } from "@/lib/blob-config";
 import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
 import { findStoredFileInProject } from "@/lib/project-file-pool";
-import { getProjectById, removeProjectFile } from "@/lib/project-store";
+import { removeProjectFile } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { deleteSavedUploadFiles, storedRefsToSavedFiles } from "@/lib/save-uploaded-files";
 
@@ -15,15 +15,10 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string; fileId: string }> },
 ) {
-  const authResult = await requireApiSession();
-  if (authResult.response) return authResult.response;
-
   const { id: projectId, fileId } = await context.params;
-  const project = await getProjectById(projectId);
-
-  if (!project) {
-    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
-  }
+  const access = await requireProjectAccess(projectId);
+  if (access.response) return access.response;
+  const project = access.project;
 
   const file = findStoredFileInProject(project, fileId);
   if (!file) {
@@ -62,15 +57,10 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string; fileId: string }> },
 ) {
-  const authResult = await requireApiSession();
-  if (authResult.response) return authResult.response;
-
   const { id: projectId, fileId } = await context.params;
-  const project = await getProjectById(projectId);
-
-  if (!project) {
-    return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
-  }
+  const access = await requireProjectAccess(projectId, { officialOnly: true });
+  if (access.response) return access.response;
+  const project = access.project;
 
   const file = findStoredFileInProject(project, fileId);
   if (!file) {

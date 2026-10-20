@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireOfficial } from "@/lib/project-access";
 import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
 import {
   putSnippetCache,
@@ -90,7 +90,7 @@ function tryReserveOriginalDownload(fileKey: string): boolean {
  *   렌더링 없이 즉시 스트리밍됩니다. 브라우저 캐시도 병행.
  */
 export async function GET(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const params = request.nextUrl.searchParams;

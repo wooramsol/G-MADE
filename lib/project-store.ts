@@ -12,7 +12,7 @@ import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import { isProjectPurged, isProjectTrashed } from "./trash";
 import type { ChecklistReview } from "./checklist-review/types";
-import type { ExpertMemo, Project, ProjectFile } from "./types";
+import type { DocumentSubmission, ExpertMemo, PreReviewDecision, Project, ProjectFile, ProjectStage, ReviewerMarker } from "./types";
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
@@ -175,6 +175,45 @@ export async function updateProjectDocumentVersionLabel(
 /** 프로젝트 JSON 안의 전문가 메모 교체 (R2 미사용 환경·이관용 — 평소엔 expert-memo-store가 R2에 따로 저장) */
 export async function setProjectExpertMemos(id: string, memos: ExpertMemo[]): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => ({ ...project, expertMemos: memos }));
+}
+
+/** 도서 접수·보완 제출 기록 — 접수되면 사전심의 단계로 */
+export async function addProjectSubmission(
+  id: string,
+  submission: Omit<DocumentSubmission, "round">,
+  file: ProjectFile,
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    const submissions = project.submissions ?? [];
+    return {
+      ...project,
+      files: mergeProjectFiles(project.files, [file]),
+      submissions: [...submissions, { ...submission, round: submissions.length + 1 }],
+      stage: !project.stage || project.stage === "RECEPTION" ? "PRE_REVIEW" : project.stage,
+    };
+  });
+}
+
+/** 사전심의 판정 — 통과 → 본심의, 반려 → 종료, 보완요청 → 사전심의 유지 */
+export async function addPreReviewDecision(id: string, decision: PreReviewDecision): Promise<Project | undefined> {
+  const nextStage: ProjectStage =
+    decision.decision === "통과" ? "MAIN_REVIEW" : decision.decision === "반려" ? "REJECTED" : "PRE_REVIEW";
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    preReviewDecisions: [...(project.preReviewDecisions ?? []), decision],
+    stage: nextStage,
+    status: nextStage === "MAIN_REVIEW" || nextStage === "PRE_REVIEW" ? "심사 진행중" : "완료",
+  }));
+}
+
+/** 단계 직접 변경 (공무원 — 판정 되돌리기 등) */
+export async function setProjectStage(id: string, stage: ProjectStage): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({ ...project, stage }));
+}
+
+/** 본심의 심사위원 목록 저장 */
+export async function setProjectReviewers(id: string, reviewers: ReviewerMarker[]): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({ ...project, reviewers }));
 }
 
 /** 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. */

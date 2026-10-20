@@ -24,8 +24,11 @@ export default function ChecklistReviewSection({
   activeVersionKey = null,
   onActiveVersionChange,
   versionPicker,
+  pendingSubmission = null,
 }: {
   project: Project;
+  /** 아직 AI 분석하지 않은 최신 접수 도서 (지원자 제출본) */
+  pendingSubmission?: StoredFileRef | null;
   /** 도서 버전 선택 (탭 공통) — 검토 자료 선택 카드 안에 표시 */
   versionPicker?: ReactNode;
   /** 상단에서 고른 도서 버전 — 이 버전의 검토 이력만 보여준다 */
@@ -86,9 +89,8 @@ export default function ChecklistReviewSection({
     void handleRun(incoming);
   }
 
-  async function handleRun(newFiles: File[]) {
-    const refs: StoredFileRef[] = [];
-    if (newFiles.length === 0) return;
+  async function handleRun(newFiles: File[], refs: StoredFileRef[] = []) {
+    if (newFiles.length === 0 && refs.length === 0) return;
 
     setRunning(true);
     setStartedAt(Date.now());
@@ -153,6 +155,22 @@ export default function ChecklistReviewSection({
       {running ? <AnalysisBlockingOverlay progress={progress} startedAt={startedAt} statusMessage={uploadMessage ?? undefined} /> : null}
 
       <div className="space-y-5">
+        {pendingSubmission ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-md border-2 border-[#2463b3] bg-[#f0f7ff] px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-[#15345b]">새로 접수된 도서가 있습니다</p>
+              <p className="truncate text-xs text-[#475569]">{pendingSubmission.originalName}</p>
+            </div>
+            <button
+              className="primary-action-blue rounded-md px-4 py-2.5 text-sm font-bold disabled:opacity-60"
+              disabled={running}
+              onClick={() => void handleRun([], [pendingSubmission])}
+              type="button"
+            >
+              AI 에이전트 분석 시작
+            </button>
+          </div>
+        ) : null}
         <div
           className={`flex flex-wrap items-center gap-4 rounded-md border px-4 py-3 transition-colors ${
             dragActive ? "border-[#2463b3] bg-[#f0f7ff]" : "border-[#d7dee8] bg-white"

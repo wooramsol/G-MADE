@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireOfficial } from "@/lib/project-access";
 import { extractPdfPages } from "@/lib/pdf/split-pdf";
 import { getProjectById } from "@/lib/project-store";
 import { readSavedUploadFile } from "@/lib/save-uploaded-files";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * (브라우저 기본 PDF 뷰어에는 오버레이를 얹을 수 없으므로 PDF 자체에 박스를 그림)
  */
 export async function GET(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const params = request.nextUrl.searchParams;

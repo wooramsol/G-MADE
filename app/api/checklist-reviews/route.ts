@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/api-auth";
+import { requireOfficial } from "@/lib/project-access";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import {
@@ -27,7 +27,7 @@ export const preferredRegion = "icn1";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const rateKey = `checklist-review:${authResult.session.user?.id ?? authResult.session.user?.email ?? "anonymous"}`;
@@ -144,7 +144,7 @@ const MAX_COMMENT_LENGTH = 2_000;
 
 /** 검토 항목별 공무원 코멘트 저장/삭제 (comment가 비어 있으면 삭제). */
 export async function PATCH(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const body = (await request.json().catch(() => ({}))) as {
@@ -195,7 +195,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const authResult = await requireApiSession();
+  const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
 
   const body = (await request.json().catch(() => ({}))) as {

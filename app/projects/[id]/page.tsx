@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
+import { auth } from "@/auth";
 import { getProjectById } from "@/lib/project-store";
+import { canAccessProject, isOfficialRole, projectStageStatus } from "@/lib/roles";
 import DeleteProjectButton from "../delete-project-button";
-import ReviewWorkspaceTabs from "./review-workspace-tabs";
+import ProjectWorkflow from "./project-workflow";
 import LandscapeZonePanel from "./landscape-zone-panel";
 import ProjectLocationEditor from "./project-location-editor";
 import ProjectMetadataEditor from "./project-metadata-editor";
@@ -11,7 +13,11 @@ export const dynamic = "force-dynamic";
 
 export default async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const project = await getProjectById(id);
+  const session = await auth();
+  const found = await getProjectById(id);
+  // 지원자는 자기 프로젝트만 — 남의 프로젝트는 '없음'으로 표시
+  const project = found && canAccessProject(session?.user, found) ? found : undefined;
+  const official = isOfficialRole(session?.user?.role);
 
   if (!project) {
     return (
@@ -33,7 +39,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
           className="mb-3 inline-flex items-center gap-1 text-sm font-bold !text-[#2463b3] hover:underline"
           href="/projects"
         >
-          ← 프로젝트 목록으로
+          ← {official ? "프로젝트 목록으로" : "내 심의 신청 목록으로"}
         </Link>
         <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -42,7 +48,9 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
               <PageTitle className="mt-2">{project.name}</PageTitle>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" />
+              {official ? (
+                <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" />
+              ) : null}
             </div>
           </div>
         </div>
@@ -59,7 +67,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                   접수 {project.receivedAt}
                 </span>
                 <span className="rounded-[3px] border border-[#c9d6e6] bg-white px-2 py-0.5 text-xs font-bold text-[#2463b3]">
-                  {project.status}
+                  {projectStageStatus(project)}
                 </span>
               </div>
 
@@ -95,7 +103,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
           <div className="grid items-stretch gap-5 lg:grid-cols-2">
             <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} projectId={project.id} />
           </div>
-          <ReviewWorkspaceTabs project={project} />
+          <ProjectWorkflow official={official} project={project} />
         </section>
       </div>
     </main>
