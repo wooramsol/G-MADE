@@ -33,6 +33,8 @@ export type ClaudeCallOptions = {
   model?: string;
   includesPdf?: boolean;
   timeoutMs?: number;
+  /** 절대 마감 시각(ms) — 재시도·모델 폴백을 포함한 전체 호출이 이 시각을 넘지 않음 */
+  deadlineAt?: number;
   /** 기본 0 — 같은 문서에 같은 판정이 나오도록 결정적 출력 사용 */
   temperature?: number;
 };
@@ -76,6 +78,17 @@ export async function callClaude(options: ClaudeCallOptions): Promise<ClaudeCall
     triedModels.push(model);
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      // 마감이 있으면 남은 시간만큼만 기다리고, 너무 적게 남았으면 재시도하지 않음
+      // (예전: 타임아웃 후 같은 시간으로 재시도해 서버 한도를 넘김)
+      let attemptTimeout = options.timeoutMs ?? 240_000;
+      if (options.deadlineAt) {
+        const left = options.deadlineAt - Date.now();
+        if (left < 10_000) {
+          lastError = lastError ?? new Error("남은 서버 시간이 부족해 호출을 건너뜁니다.");
+          break;
+        }
+        attemptTimeout = Math.min(attemptTimeout, left);
+      }
       try {
         const response = await fetchWithTimeout(
           ANTHROPIC_MESSAGES_URL,
@@ -90,7 +103,7 @@ export async function callClaude(options: ClaudeCallOptions): Promise<ClaudeCall
               messages: [{ role: "user", content: options.userBlocks }],
             }),
           },
-          options.timeoutMs ?? 240_000,
+          attemptTimeout,
         );
 
         if (!response.ok) {

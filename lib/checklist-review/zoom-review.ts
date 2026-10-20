@@ -258,6 +258,11 @@ export async function runZoomReview(options: {
   let renderedPages = 0;
   let totalTileBytes = 0;
   for (const target of targets) {
+    // 고해상도 렌더링도 시간이 걸리므로, 남은 시간이 줄면 여기서 멈춤
+    if (options.getRemainingBudgetMs() < MIN_REMAINING_MS_FOR_ZOOM - 20_000) {
+      console.log(`[checklist-review] zoom 렌더링 중단 — 남은 시간 부족 (${renderedPages}페이지까지)`);
+      break;
+    }
     const pdfAsset = findPdfAsset(target.fileName);
     if (!pdfAsset) {
       console.warn(`[checklist-review] zoom 대상 파일 미발견: "${target.fileName}" (보유: ${pdfFiles.map((f) => f.originalName).join(", ")})`);
@@ -290,6 +295,13 @@ export async function runZoomReview(options: {
     return null;
   }
 
+  // 저장·캡처 생성 등 마무리에 45초는 남겨 둠
+  const zoomBudgetMs = options.getRemainingBudgetMs() - 45_000;
+  if (zoomBudgetMs < 20_000) {
+    console.log("[checklist-review] zoom 생략 — 렌더링 후 남은 시간 부족");
+    return null;
+  }
+
   const prompt = buildZoomPrompt(
     zoomItems,
     targets.map((target) => ({ fileName: target.fileName, page: target.page })),
@@ -300,7 +312,9 @@ export async function runZoomReview(options: {
     userBlocks: [...blocks, { type: "text", text: prompt }],
     maxOutputTokens: Math.min(16_384, 1_500 + zoomItems.length * 480),
     includesPdf: false,
-    timeoutMs: Math.max(30_000, Math.min(options.getRemainingBudgetMs() - 35_000, 120_000)),
+    timeoutMs: Math.max(20_000, Math.min(zoomBudgetMs, 120_000)),
+    // 재시도 포함 전체가 저장·마무리 시간을 남기고 끝나도록 절대 마감
+    deadlineAt: Date.now() + Math.max(20_000, zoomBudgetMs),
   });
   addUsage(usageByModel, result.model, result.usage);
 
