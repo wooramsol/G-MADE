@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireProjectAccess } from "@/lib/project-access";
 import { addProjectSubmission } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
+import { notifyOfficials, notifyUsers } from "@/lib/notifications";
 import { applicantCanSubmit } from "@/lib/roles";
 import { storedRefsToProjectFiles } from "@/lib/save-uploaded-files";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
@@ -59,6 +60,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     storedRefsToProjectFiles([ref], now)[0],
   );
   if (!updated) return NextResponse.json({ error: "접수를 저장하지 못했습니다." }, { status: 500 });
+
+  // 알림 — 공무원: 신규 접수/보완 제출, 지원자(소유자): 사전심의 진행
+  const round = (updated.submissions ?? []).length;
+  const link = `/projects/${id}`;
+  if (!official) {
+    await notifyOfficials(
+      round === 1
+        ? { kind: "NEW_SUBMISSION", title: `신규 도서 접수 · ${updated.name}`, body: `${session.user.name ?? "지원자"} · ${ref.originalName}`, link, projectId: id }
+        : { kind: "RESUBMISSION", title: `보완 도서 제출 (${round - 1}차) · ${updated.name}`, body: `${session.user.name ?? "지원자"} · ${ref.originalName}`, link, projectId: id },
+      session.user.id,
+    );
+  }
+  if (updated.ownerId) {
+    await notifyUsers([updated.ownerId], {
+      kind: "PRE_REVIEW",
+      title: round === 1 ? `도서가 접수되어 사전심의 중입니다 · ${updated.name}` : `보완 도서가 접수되어 사전심의 중입니다 · ${updated.name}`,
+      link,
+      projectId: id,
+    });
+  }
   revalidateProjectViews(id);
   return NextResponse.json({ project: updated });
 }

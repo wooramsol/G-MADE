@@ -310,3 +310,20 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+/// 앱 내 알림 (받는 사람별 1건) — userId는 FK 없이 저장 (환경변수 관리자 'env-admin' 포함)
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  kind      String
+  title     String
+  body      String?
+  link      String?
+  projectId String?   @map("project_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  readAt    DateTime? @map("read_at")
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}

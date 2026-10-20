@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import type { RoleCode } from "@/lib/types";
+import NotificationBell from "./notification-bell";
 
 type NavItem = { label: string; href: "/projects" | "/mypage" | "/admin/users"; match: (pathname: string) => boolean };
 
@@ -40,6 +41,7 @@ export default function TopNavigation({ isAuthenticated, role }: { isAuthenticat
           );
         })}
         </div>
+        {isAuthenticated ? <NotificationBell /> : null}
         {!isAuthenticated ? (
           <Link className="type-nav-link rounded-lg bg-[#15345b] px-4 py-2 !text-white shadow-sm" href="/login">
             로그인

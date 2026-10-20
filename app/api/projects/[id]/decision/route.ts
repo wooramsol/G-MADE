@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireProjectAccess } from "@/lib/project-access";
+import { notifyUsers } from "@/lib/notifications";
 import { addPreReviewDecision, setProjectStage } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import type { PreReviewDecision, ProjectStage } from "@/lib/types";
@@ -45,6 +46,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     decidedBy: { id: user.id, name: user.name ?? user.email ?? "공무원" },
   });
   if (!updated) return NextResponse.json({ error: "판정을 저장하지 못했습니다." }, { status: 500 });
+
+  // 지원자 알림 — 보완요청 / 본심의 진행 / 반려
+  if (updated.ownerId) {
+    const link = `/projects/${id}`;
+    await notifyUsers([updated.ownerId], {
+      kind: decision === "보완요청" ? "REVISION_REQUESTED" : decision === "통과" ? "MAIN_REVIEW" : "REJECTED",
+      title:
+        decision === "보완요청"
+          ? `보완 요청이 있습니다 · ${updated.name}`
+          : decision === "통과"
+            ? `사전심의를 통과해 본심의 중입니다 · ${updated.name}`
+            : `반려되었습니다 · ${updated.name}`,
+      body: note || undefined,
+      link,
+      projectId: id,
+    });
+  }
   revalidateProjectViews(id);
   return NextResponse.json({ project: updated });
 }
