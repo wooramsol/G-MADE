@@ -18,6 +18,7 @@ export async function createOfficerAction(_previous: AccountActionState, formDat
     name: String(formData.get("name") ?? ""),
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
     role: "OFFICER",
   });
   if (!result.ok) return { error: result.error };

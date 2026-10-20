@@ -12,6 +12,7 @@ export type SignupState = { error?: string };
 export async function signupAction(_previous: SignupState, formData: FormData): Promise<SignupState> {
   const name = String(formData.get("name") ?? "");
   const email = String(formData.get("email") ?? "");
+  const phone = String(formData.get("phone") ?? "");
   const password = String(formData.get("password") ?? "");
   const passwordConfirm = String(formData.get("passwordConfirm") ?? "");
   const agreed = formData.get("agree") === "on";
@@ -23,7 +24,7 @@ export async function signupAction(_previous: SignupState, formData: FormData): 
   if (password !== passwordConfirm) return { error: "비밀번호 확인이 일치하지 않습니다." };
   if (!agreed) return { error: "개인정보 수집·이용에 동의해 주세요." };
 
-  const result = await createAccount({ name, email, password, role: "APPLICANT" });
+  const result = await createAccount({ name, email, password, phone, role: "APPLICANT" });
   if (!result.ok) return { error: result.error };
 
   redirect("/login?signedUp=1");

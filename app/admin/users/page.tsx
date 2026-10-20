@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PageTitle, SectionDescription, SubsectionTitle } from "@/components/typography";
 import { getRoleLabel } from "@/lib/role-labels";
-import { listAccounts } from "@/lib/user-accounts";
+import { formatPhone, listAccounts } from "@/lib/user-accounts";
 import { toggleAccountAction } from "./actions";
 import { CreateOfficerForm, ResetPasswordForm } from "./account-forms";
 
@@ -38,6 +38,7 @@ export default async function AdminUsersPage() {
                 <tr>
                   <th className="py-2 pr-3">이름</th>
                   <th className="py-2 pr-3">이메일</th>
+                  <th className="py-2 pr-3">휴대폰</th>
                   <th className="py-2 pr-3">구분</th>
                   <th className="py-2 pr-3">가입일</th>
                   <th className="py-2 pr-3">상태</th>
@@ -49,6 +50,7 @@ export default async function AdminUsersPage() {
                   <tr className="border-b border-[#f1f5f9]" key={account.id}>
                     <td className="py-2.5 pr-3 font-semibold">{account.name}</td>
                     <td className="py-2.5 pr-3 text-[#475569]">{account.email}</td>
+                    <td className="py-2.5 pr-3 text-[#475569]">{formatPhone(account.phone) || "—"}</td>
                     <td className="py-2.5 pr-3">
                       <span
                         className={`rounded-[3px] px-2 py-0.5 text-xs font-bold ${
@@ -81,7 +83,7 @@ export default async function AdminUsersPage() {
                 ))}
                 {accounts.length === 0 ? (
                   <tr>
-                    <td className="py-6 text-center text-[#94a3b8]" colSpan={6}>
+                    <td className="py-6 text-center text-[#94a3b8]" colSpan={7}>
                       아직 발급·가입된 계정이 없습니다.
                     </td>
                   </tr>

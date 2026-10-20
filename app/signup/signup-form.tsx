@@ -23,6 +23,22 @@ export default function SignupForm() {
         <input autoComplete="email" className={inputClass} name="email" required type="email" />
       </label>
       <label className="block">
+        <FormLabel>휴대폰 번호</FormLabel>
+        <input
+          autoComplete="tel"
+          className={inputClass}
+          inputMode="tel"
+          maxLength={13}
+          name="phone"
+          pattern="01[016789]-?[0-9]{3,4}-?[0-9]{4}"
+          placeholder="010-1234-5678"
+          required
+          title="010-1234-5678 형식으로 입력해 주세요"
+          type="tel"
+        />
+        <span className="mt-1 block text-xs text-[#64748b]">접수·보완 요청 등 심의 진행 안내에 사용됩니다.</span>
+      </label>
+      <label className="block">
         <FormLabel>비밀번호</FormLabel>
         <input autoComplete="new-password" className={inputClass} minLength={8} name="password" placeholder="영문·숫자 포함 8자 이상" required type="password" />
       </label>
@@ -33,7 +49,7 @@ export default function SignupForm() {
       <label className="flex items-start gap-2 text-sm text-[#334155]">
         <input className="mt-1" name="agree" type="checkbox" />
         <span>
-          심의 신청 처리를 위해 이름·이메일을 수집·이용하는 데 동의합니다.{" "}
+          심의 신청 처리와 진행 안내를 위해 이름·이메일·휴대폰 번호를 수집·이용하는 데 동의합니다.{" "}
           <Link className="font-semibold !text-[#2463b3] underline" href="/data-processing" target="_blank">
             자세히
           </Link>

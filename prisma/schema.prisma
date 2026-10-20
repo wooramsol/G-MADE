@@ -41,6 +41,8 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
+  /// 휴대폰 번호 (지원자 회원가입 시 필수, 숫자만 저장)
+  phone        String?
   passwordHash String?  @map("password_hash")
   roleId       String   @map("role_id")
   role         Role     @relation(fields: [roleId], references: [id])

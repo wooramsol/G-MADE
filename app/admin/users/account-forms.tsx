@@ -9,7 +9,7 @@ const inputClass =
 export function CreateOfficerForm() {
   const [state, action, pending] = useActionState<AccountActionState, FormData>(createOfficerAction, {});
   return (
-    <form action={action} className="grid gap-3 md:grid-cols-[1fr_1.3fr_1fr_auto] md:items-end">
+    <form action={action} className="grid gap-3 md:grid-cols-[1fr_1.3fr_1fr_1fr_auto] md:items-end">
       <label className="text-xs font-bold text-[#475569]">
         이름·부서
         <input className={`${inputClass} mt-1`} name="name" placeholder="예: 홍길동 (경관디자인과)" required />
@@ -19,14 +19,18 @@ export function CreateOfficerForm() {
         <input className={`${inputClass} mt-1`} name="email" required type="email" />
       </label>
       <label className="text-xs font-bold text-[#475569]">
+        휴대폰 (선택)
+        <input className={`${inputClass} mt-1`} inputMode="tel" name="phone" placeholder="010-1234-5678" />
+      </label>
+      <label className="text-xs font-bold text-[#475569]">
         임시 비밀번호
         <input className={`${inputClass} mt-1`} name="password" placeholder="영문·숫자 8자 이상" required />
       </label>
       <button className="primary-action-blue h-[38px] rounded-md px-4 text-sm font-bold disabled:opacity-60" disabled={pending} type="submit">
         {pending ? "발급 중…" : "공무원 계정 발급"}
       </button>
-      {state.error ? <p className="text-sm font-semibold text-red-700 md:col-span-4">{state.error}</p> : null}
-      {state.ok ? <p className="text-sm font-semibold text-[#047857] md:col-span-4">{state.ok}</p> : null}
+      {state.error ? <p className="text-sm font-semibold text-red-700 md:col-span-5">{state.error}</p> : null}
+      {state.ok ? <p className="text-sm font-semibold text-[#047857] md:col-span-5">{state.ok}</p> : null}
     </form>
   );
 }

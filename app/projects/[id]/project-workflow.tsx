@@ -298,11 +298,13 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
+  // 파일을 고르면 바로 제출하지 않고 확인 단계를 거친다
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const submissions = project.submissions ?? [];
   const stage = projectStage(project);
   const canSubmit = official ? stage === "RECEPTION" || stage === "PRE_REVIEW" : applicantCanSubmit(project);
 
-  const submit = async (file: File | undefined) => {
+  const choose = (file: File | undefined) => {
     if (!file || busy) return;
     if (!/\.pdf$/i.test(file.name)) {
       showToast({ message: "도서는 PDF 파일로 제출해 주세요.", tone: "error" });
@@ -313,6 +315,11 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
       showToast({ message: buildOversizedUploadMessage(oversized, getMaxUploadFileLabel()), tone: "error" });
       return;
     }
+    setPendingFile(file);
+  };
+
+  const submit = async (file: File | null) => {
+    if (!file || busy) return;
     setBusy("업로드 준비 중…");
     try {
       const [ref] = await uploadProjectFilesToBlob(project, [file], (_index, ratio) => setBusy(`업로드 중 ${Math.round(ratio * 100)}%`));
@@ -324,7 +331,8 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "접수에 실패했습니다.");
-      showToast({ message: submissions.length === 0 ? "도서가 접수되었습니다." : "보완 도서가 제출되었습니다.", tone: "success" });
+      showToast({ message: submissions.length === 0 ? "도서가 제출되었습니다." : "보완 도서가 제출되었습니다.", tone: "success" });
+      setPendingFile(null);
       router.refresh();
     } catch (error) {
       showToast({ message: error instanceof Error ? error.message : "접수에 실패했습니다.", tone: "error" });
@@ -340,7 +348,41 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
         <p className="text-xs text-[#64748b]">PDF · 최대 {getMaxUploadFileLabel()}</p>
       </div>
 
-      {canSubmit ? (
+      {canSubmit && pendingFile ? (
+        <div className="mt-4 rounded-md border-2 border-[#2463b3] bg-[#f0f7ff] p-5">
+          <p className="text-base font-bold text-[#15345b]">
+            {submissions.length === 0 ? "이 도서를 제출하시겠습니까?" : "이 보완 도서를 제출하시겠습니까?"}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[#c9d6e6] bg-white px-4 py-3 text-sm">
+            <span className="rounded-[3px] bg-[#15345b] px-2 py-0.5 text-xs font-bold text-white">PDF</span>
+            <span className="min-w-0 flex-1 truncate font-semibold text-[#172033]">{pendingFile.name}</span>
+            <span className="text-xs text-[#64748b]">{formatBytes(pendingFile.size)}</span>
+          </div>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-[#334155]">
+            <li>제출한 도서는 담당부서로 전달되며, 제출 후에는 취소하거나 바꿀 수 없습니다.</li>
+            <li>접수가 완료되면 알림으로 안내해 드립니다.</li>
+            {submissions.length > 0 ? <li>보완 요청 사항이 모두 반영되었는지 다시 한 번 확인해 주세요.</li> : null}
+          </ul>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              className="rounded-md border border-[#d7dee8] bg-white px-4 py-2.5 text-sm font-bold text-[#475569] hover:bg-[#f8fafc] disabled:opacity-50"
+              disabled={Boolean(busy)}
+              onClick={() => setPendingFile(null)}
+              type="button"
+            >
+              취소
+            </button>
+            <button
+              className="primary-action-blue rounded-md px-5 py-2.5 text-sm font-bold disabled:opacity-60"
+              disabled={Boolean(busy)}
+              onClick={() => void submit(pendingFile)}
+              type="button"
+            >
+              {busy ?? "제출하기"}
+            </button>
+          </div>
+        </div>
+      ) : canSubmit ? (
         <button
           className={`mt-4 flex h-24 w-full flex-col items-center justify-center rounded-md border-2 border-dashed text-center transition ${
             drag ? "border-[#2463b3] bg-[#eaf2fd]" : "border-[#9db6d8] bg-[#f8fbff] hover:bg-[#f0f7ff]"
@@ -355,15 +397,15 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
           onDrop={(event) => {
             event.preventDefault();
             setDrag(false);
-            void submit(event.dataTransfer.files[0]);
+            choose(event.dataTransfer.files[0]);
           }}
           type="button"
         >
           <span className="text-base font-bold text-[#2463b3]">
-            {busy ?? (submissions.length === 0 ? "+ 심의 도서 PDF 제출 (클릭 또는 드래그)" : "+ 보완 도서 PDF 제출 (클릭 또는 드래그)")}
+            {submissions.length === 0 ? "+ 심의 도서 PDF 첨부 (클릭 또는 드래그)" : "+ 보완 도서 PDF 첨부 (클릭 또는 드래그)"}
           </span>
           <span className="mt-1 text-xs text-[#64748b]">
-            {submissions.length === 0 ? "제출하면 사전심의가 시작됩니다." : "보완 요청 사항을 반영한 도서를 제출해 주세요."}
+            첨부한 뒤 내용을 확인하고 제출합니다.
           </span>
         </button>
       ) : (
@@ -375,7 +417,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
         accept=".pdf"
         className="hidden"
         onChange={(event) => {
-          void submit(event.target.files?.[0]);
+          choose(event.target.files?.[0]);
           event.target.value = "";
         }}
         ref={inputRef}
