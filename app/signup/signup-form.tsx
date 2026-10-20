@@ -40,11 +40,11 @@ export default function SignupForm() {
       </label>
       <label className="block">
         <FormLabel>비밀번호</FormLabel>
-        <input autoComplete="new-password" className={inputClass} minLength={8} name="password" placeholder="영문·숫자 포함 8자 이상" required type="password" />
+        <input autoComplete="new-password" className={inputClass} name="password" required type="password" />
       </label>
       <label className="block">
         <FormLabel>비밀번호 확인</FormLabel>
-        <input autoComplete="new-password" className={inputClass} minLength={8} name="passwordConfirm" required type="password" />
+        <input autoComplete="new-password" className={inputClass} name="passwordConfirm" required type="password" />
       </label>
       <label className="flex items-start gap-2 text-sm text-[#334155]">
         <input className="mt-1" name="agree" type="checkbox" />

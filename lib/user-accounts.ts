@@ -45,8 +45,8 @@ export function formatPhone(digits: string | null | undefined): string {
 }
 
 export function validatePassword(password: string): string | null {
-  if (password.length < 8) return "비밀번호는 8자 이상이어야 합니다.";
-  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return "비밀번호에 영문과 숫자를 함께 넣어 주세요.";
+  // 테스트 기간: 비밀번호 규칙 없음 (빈 값만 막음)
+  if (!password) return "비밀번호를 입력해 주세요.";
   return null;
 }
 

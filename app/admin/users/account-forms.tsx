@@ -24,7 +24,7 @@ export function CreateOfficerForm() {
       </label>
       <label className="text-xs font-bold text-[#475569]">
         임시 비밀번호
-        <input className={`${inputClass} mt-1`} name="password" placeholder="영문·숫자 8자 이상" required />
+        <input className={`${inputClass} mt-1`} name="password" placeholder="임시 비밀번호" required />
       </label>
       <button className="primary-action-blue h-[38px] rounded-md px-4 text-sm font-bold disabled:opacity-60" disabled={pending} type="submit">
         {pending ? "발급 중…" : "공무원 계정 발급"}
