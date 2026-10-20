@@ -120,3 +120,26 @@ export async function resetAccountPassword(id: string, password: string): Promis
   await prisma.user.update({ where: { id }, data: { passwordHash: await bcrypt.hash(password, 12) } });
   return null;
 }
+
+/**
+ * 지원자 계정 삭제 — 그 지원자가 등록한 사업(접수 기록·업로드 파일 포함)도 함께 영구 삭제.
+ * 관리자 화면에서만 호출. 공무원·관리자 계정은 삭제하지 않음(사용 중지만).
+ */
+export async function deleteApplicantAccount(id: string): Promise<{ ok: true; projects: number } | { ok: false; error: string }> {
+  const prisma = getPrismaClient();
+  if (!prisma) return { ok: false, error: "계정 저장소(DB)를 사용할 수 없습니다." };
+  const user = await prisma.user.findUnique({ where: { id }, include: { role: true } });
+  if (!user) return { ok: false, error: "계정을 찾을 수 없습니다." };
+  if (user.role.code !== "APPLICANT") return { ok: false, error: "지원자 계정만 삭제할 수 있습니다. 공무원 계정은 사용 중지하세요." };
+
+  const { getAllProjects, getTrashedProjects, purgeProjectRecord } = await import("./project-store");
+  const { collectProjectStoredFiles } = await import("./project-file-pool");
+  const { deleteSavedUploadFiles, storedRefsToSavedFiles } = await import("./save-uploaded-files");
+  const owned = [...(await getAllProjects()), ...(await getTrashedProjects())].filter((project) => project.ownerId === id);
+  for (const project of owned) {
+    await purgeProjectRecord(project.id);
+    await deleteSavedUploadFiles(storedRefsToSavedFiles(collectProjectStoredFiles(project))).catch(() => undefined);
+  }
+  await prisma.user.delete({ where: { id } });
+  return { ok: true, projects: owned.length };
+}

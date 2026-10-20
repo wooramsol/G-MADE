@@ -4,7 +4,7 @@ import { PageTitle, SectionDescription, SubsectionTitle } from "@/components/typ
 import { getRoleLabel } from "@/lib/role-labels";
 import { formatPhone, listAccounts } from "@/lib/user-accounts";
 import { toggleAccountAction } from "./actions";
-import { CreateOfficerForm, ResetPasswordForm } from "./account-forms";
+import { CreateOfficerForm, DeleteApplicantButton, ResetPasswordForm } from "./account-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +77,10 @@ export default async function AdminUsersPage() {
                       </form>
                     </td>
                     <td className="py-2.5">
-                      <ResetPasswordForm id={account.id} />
+                      <div className="flex items-center gap-2">
+                        <ResetPasswordForm id={account.id} />
+                        {account.role === "APPLICANT" ? <DeleteApplicantButton id={account.id} name={account.name} /> : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

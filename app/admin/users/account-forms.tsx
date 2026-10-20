@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { createOfficerAction, resetPasswordAction, type AccountActionState } from "./actions";
+import { createOfficerAction, deleteApplicantAction, resetPasswordAction, type AccountActionState } from "./actions";
 
 const inputClass =
   "w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-3 py-2 text-sm outline-none focus:border-[#2463b3] focus:bg-white";
@@ -46,6 +46,25 @@ export function ResetPasswordForm({ id }: { id: string }) {
       </button>
       {state.error ? <span className="text-[11px] text-red-700">{state.error}</span> : null}
       {state.ok ? <span className="text-[11px] text-[#047857]">{state.ok}</span> : null}
+    </form>
+  );
+}
+
+/** 지원자 계정 삭제 — 확인 후 등록한 사업·접수 기록까지 함께 삭제 */
+export function DeleteApplicantButton({ id, name }: { id: string; name: string }) {
+  return (
+    <form
+      action={deleteApplicantAction}
+      onSubmit={(event) => {
+        if (!window.confirm(`${name} 지원자 계정을 삭제할까요?\n이 지원자가 등록한 사업과 접수 기록·업로드 도서도 함께 영구 삭제되며 되돌릴 수 없습니다.`)) {
+          event.preventDefault();
+        }
+      }}
+    >
+      <input name="id" type="hidden" value={id} />
+      <button className="rounded-md border border-[#fecaca] px-2 py-1 text-xs font-bold text-[#b91c1c] hover:bg-[#fef2f2]" type="submit">
+        계정 삭제
+      </button>
     </form>
   );
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { createAccount, resetAccountPassword, setAccountActive } from "@/lib/user-accounts";
+import { createAccount, deleteApplicantAccount, resetAccountPassword, setAccountActive } from "@/lib/user-accounts";
 
 export type AccountActionState = { error?: string; ok?: string };
 
@@ -37,4 +37,13 @@ export async function resetPasswordAction(_previous: AccountActionState, formDat
   const error = await resetAccountPassword(String(formData.get("id") ?? ""), String(formData.get("password") ?? ""));
   if (error) return { error };
   return { ok: "비밀번호를 변경했습니다." };
+}
+
+/** 지원자 계정 삭제 (등록한 사업·접수 기록 포함) */
+export async function deleteApplicantAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const result = await deleteApplicantAccount(String(formData.get("id") ?? ""));
+  if (!result.ok) throw new Error(result.error);
+  revalidatePath("/admin/users");
+  revalidatePath("/projects");
 }
