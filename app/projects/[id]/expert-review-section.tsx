@@ -218,22 +218,35 @@ export default function ExpertReviewSection({
     activeReviewerRef.current = activeReviewer;
   }, [activeReviewer]);
 
-  const saveReviewers = async (next: ReviewerMarker[]) => {
-    const before = reviewers;
+  // 심사위원 목록 저장 — 화면은 즉시 바꾸고, 서버 저장은 뒤에서 순서대로 (마지막 상태만 반영)
+  const reviewersSaveRef = useRef<{ seq: number; chain: Promise<void>; confirmed: ReviewerMarker[] }>({
+    seq: 0,
+    chain: Promise.resolve(),
+    confirmed: project.reviewers ?? [],
+  });
+  const saveReviewers = (next: ReviewerMarker[]) => {
     setReviewers(next);
-    try {
-      const response = await fetch(`/api/projects/${project.id}/reviewers`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewers: next }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { reviewers?: ReviewerMarker[]; error?: string };
-      if (!response.ok || !payload.reviewers) throw new Error(payload.error ?? "심사위원 목록을 저장하지 못했습니다.");
-      setReviewers(payload.reviewers);
-    } catch (error) {
-      setReviewers(before);
-      setMessage(error instanceof Error ? error.message : "심사위원 목록을 저장하지 못했습니다.");
-    }
+    setMessage(null);
+    const store = reviewersSaveRef.current;
+    const seq = ++store.seq;
+    store.chain = store.chain.then(async () => {
+      // 더 새 변경이 대기 중이면 이 저장은 건너뜀 (마지막 것만 보내면 충분)
+      if (seq !== store.seq) return;
+      try {
+        const response = await fetch(`/api/projects/${project.id}/reviewers`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reviewers: next }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { reviewers?: ReviewerMarker[]; error?: string };
+        if (!response.ok || !payload.reviewers) throw new Error(payload.error ?? "심사위원 목록을 저장하지 못했습니다.");
+        store.confirmed = payload.reviewers;
+      } catch (error) {
+        // 실패 시에만, 그 사이 다른 변경이 없을 때 마지막으로 저장된 목록으로 되돌림
+        if (seq === store.seq) setReviewers(store.confirmed);
+        setMessage(error instanceof Error ? error.message : "심사위원 목록을 저장하지 못했습니다.");
+      }
+    });
   };
 
   const pdf = useExpertPdf({
@@ -517,7 +530,7 @@ export default function ExpertReviewSection({
         counts={reviewerCounts}
         finalLabel={activeVersion ? `${activeVersion.label} · ${activeVersion.fileName}` : null}
         onlyActive={onlyActiveReviewer}
-        onChange={(next) => void saveReviewers(next)}
+        onChange={saveReviewers}
         onSelect={(id) => {
           setActiveReviewerId(id);
           setDraft(null);
@@ -683,8 +696,12 @@ function ReviewerBar({
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
+  const committedRef = useRef(false);
 
   const add = () => {
+    // Enter로 추가한 뒤 입력칸이 사라지며 생기는 blur에서 또 추가되지 않도록
+    if (committedRef.current) return;
+    committedRef.current = true;
     const names = name
       .split(/[,\n]/)
       .map((value) => value.trim())
@@ -803,7 +820,10 @@ function ReviewerBar({
         ) : (
           <button
             className="flex h-10 items-center gap-2 rounded-full border-2 border-dashed border-[#9db6d8] bg-[#f8fbff] pl-1.5 pr-4 text-sm font-bold text-[#2463b3] transition hover:border-[#2463b3] hover:bg-[#eef4fb]"
-            onClick={() => setAdding(true)}
+            onClick={() => {
+              committedRef.current = false;
+              setAdding(true);
+            }}
             title="심사위원 추가"
             type="button"
           >
