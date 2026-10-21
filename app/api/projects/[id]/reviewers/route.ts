@@ -19,13 +19,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const reviewers: ReviewerMarker[] = [];
   const seen = new Set<string>();
+  const seenNames = new Set<string>();
   for (const raw of body.reviewers.slice(0, MAX_REVIEWERS)) {
     const entry = raw as Partial<ReviewerMarker>;
     const name = String(entry.name ?? "").trim().slice(0, 30);
     const reviewerId = String(entry.id ?? "").trim().slice(0, 64);
     const color = /^#[0-9a-f]{6}$/i.test(String(entry.color)) ? String(entry.color) : "#b45309";
-    if (!name || !reviewerId || seen.has(reviewerId)) continue;
+    // 같은 이름(띄어쓰기·대소문자 무시)은 한 명만
+    const nameKey = name.replace(/\s+/g, "").toLowerCase();
+    if (!name || !reviewerId || seen.has(reviewerId) || seenNames.has(nameKey)) continue;
     seen.add(reviewerId);
+    seenNames.add(nameKey);
     reviewers.push({ id: reviewerId, name, color });
   }
 

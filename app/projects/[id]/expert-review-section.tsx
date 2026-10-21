@@ -692,9 +692,14 @@ function ReviewerBar({
     setAdding(false);
     if (names.length === 0) return;
     const next = [...reviewers];
+    const skipped: string[] = [];
     let lastAdded: string | null = null;
     for (const entry of names) {
-      if (next.some((reviewer) => reviewer.name === entry)) continue;
+      // 띄어쓰기·대소문자 차이까지 같은 이름으로 보고 중복 추가하지 않음
+      if (next.some((reviewer) => sameReviewerName(reviewer.name, entry))) {
+        skipped.push(entry);
+        continue;
+      }
       // 이미 쓰는 색은 피해서 배정
       const used = new Set(next.map((reviewer) => reviewer.color));
       const color = REVIEWER_COLORS.find((candidate) => !used.has(candidate)) ?? REVIEWER_COLORS[next.length % REVIEWER_COLORS.length];
@@ -702,7 +707,8 @@ function ReviewerBar({
       next.push({ id, name: entry, color });
       lastAdded = id;
     }
-    onChange(next);
+    if (skipped.length > 0) window.alert(`이미 있는 위원은 추가하지 않았습니다: ${skipped.join(", ")}`);
+    if (next.length !== reviewers.length) onChange(next);
     if (lastAdded && names.length === 1) onSelect(lastAdded);
   };
 
@@ -901,4 +907,9 @@ function AiFindingsPanel({
       </div>
     </div>
   );
+}
+
+function sameReviewerName(a: string, b: string): boolean {
+  const normalize = (value: string) => value.replace(/\s+/g, "").toLowerCase();
+  return normalize(a) === normalize(b);
 }
