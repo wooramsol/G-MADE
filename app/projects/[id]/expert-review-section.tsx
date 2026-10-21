@@ -91,7 +91,7 @@ const PinNote = reactMemo(function PinNote({
   const flipLeft = point.x > 0.72;
   // 페이지 아래쪽 핀은 메모를 핀 위로 띄워 화면 밖으로 잘리지 않게
   const flipUp = point.y > 0.75;
-  const color = tone === "previous" ? "#64748b" : colorProp ?? "#b45309";
+  const color = tone === "previous" ? "#64748b" : colorProp ?? "#111827";
 
   const finish = (commit: boolean) => {
     const next = value.trim();
@@ -563,7 +563,7 @@ export default function ExpertReviewSection({
               >
                 <input
                   aria-label="페이지 번호"
-                  className="h-7 w-11 rounded-[4px] border border-[#d7dee8] text-center text-xs font-semibold outline-none focus:border-[#b45309]"
+                  className="h-7 w-11 rounded-[4px] border border-[#d7dee8] text-center text-xs font-semibold outline-none focus:border-[#111827]"
                   inputMode="numeric"
                   onBlur={() => setPageInput(String(page))}
                   onChange={(event) => setPageInput(event.target.value)}
@@ -595,7 +595,7 @@ export default function ExpertReviewSection({
               {activeReviewer ? `📍 ${activeReviewer.name} 위원 의견 — 남길 곳을 클릭하세요` : "👤 심사위원을 먼저 선택하세요"}
             </span>
             <button
-              className="inline-flex items-center rounded-lg bg-[#b45309] px-3.5 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
+              className="inline-flex items-center rounded-lg bg-[#111827] px-3.5 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
               disabled={!pdf.doc || Boolean(exporting)}
               onClick={() => void downloadExpertPdf()}
               title="원본 도서에 핀과 의견을 새긴 PDF로 저장합니다"
@@ -624,7 +624,7 @@ export default function ExpertReviewSection({
             <div className="flex min-h-[560px] flex-col items-center justify-center gap-3 bg-[#eef1f5] p-6 text-sm text-[#475569]">
               도서를 불러오는 중… {pdf.progress > 0 ? `${Math.round(pdf.progress * 100)}%` : ""}
               <div className="h-1.5 w-56 overflow-hidden rounded-full bg-[#d7dee8]">
-                <div className="h-full bg-[#b45309]" style={{ width: `${Math.max(4, pdf.progress * 100)}%` }} />
+                <div className="h-full bg-[#111827]" style={{ width: `${Math.max(4, pdf.progress * 100)}%` }} />
               </div>
             </div>
           ) : (

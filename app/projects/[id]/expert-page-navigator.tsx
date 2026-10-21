@@ -82,7 +82,7 @@ function Thumb({
   return (
     <button
       className={`group relative block w-full rounded-[4px] border-2 p-1 text-left ${
-        active ? "border-[#b45309] bg-[#fff8ed]" : "border-transparent hover:border-[#cbd5e1]"
+        active ? "border-[#111827] bg-[#f1f5f9]" : "border-transparent hover:border-[#cbd5e1]"
       }`}
       data-page={pageNumber}
       onMouseDown={(event) => {
@@ -93,12 +93,12 @@ function Thumb({
     >
       <canvas className="block w-full bg-white shadow-sm" ref={canvasRef} style={{ height: 74 }} />
       <span className="mt-1 flex items-center justify-between text-[11px] leading-4">
-        <span className={`font-semibold ${active ? "text-[#b45309]" : "text-[#64748b]"}`}>
+        <span className={`font-semibold ${active ? "text-[#111827]" : "text-[#64748b]"}`}>
           {pageNumber}
           {changed ? <span className="ml-1 text-[10px] text-[#92400e]">변경</span> : null}
         </span>
         {count > 0 ? (
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#b45309] px-1 text-[10px] font-bold text-white">
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#111827] px-1 text-[10px] font-bold text-white">
             {count}
           </span>
         ) : null}

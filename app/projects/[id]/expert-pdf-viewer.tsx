@@ -21,7 +21,7 @@ const CACHE_PIXEL_BUDGET = 60_000_000;
 type RenderedPage = { canvas: HTMLCanvasElement; cssWidth: number; cssHeight: number; pixels: number };
 /** 핀 모양 커서 — 끝(아래 꼭짓점)이 클릭 지점 */
 const PIN_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="30" viewBox="0 0 24 30"><path d="M12 29C12 29 22.5 17.6 22.5 10.8A10.5 10.5 0 0 0 1.5 10.8C1.5 17.6 12 29 12 29Z" fill="#b45309" stroke="white" stroke-width="1.5"/><path d="M12 6v9M7.5 10.5h9" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="30" viewBox="0 0 24 30"><path d="M12 29C12 29 22.5 17.6 22.5 10.8A10.5 10.5 0 0 0 1.5 10.8C1.5 17.6 12 29 12 29Z" fill="#111827" stroke="white" stroke-width="1.5"/><path d="M12 6v9M7.5 10.5h9" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg>',
 )}") 12 29, crosshair`;
 
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];

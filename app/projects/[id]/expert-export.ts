@@ -66,7 +66,7 @@ function drawAnnotations(ctx: CanvasRenderingContext2D, width: number, height: n
   const pin = new Path2D(PIN_PATH);
 
   for (const { memo, label, point, color: pinColor } of items) {
-    const color = pinColor ?? "#b45309";
+    const color = pinColor ?? "#111827";
     const px = point.x * width;
     const py = point.y * height;
 

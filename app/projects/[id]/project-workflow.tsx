@@ -158,7 +158,7 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
 
       {!official ? <ApplicantStatus project={project} /> : null}
 
-      <div className={`rounded-md border-2 bg-white p-5 panel-shadow ${viewStep >= 3 ? "border-[#b45309]" : viewStep === 2 ? "border-[#2463b3]" : "border-[#15345b]"}`}>
+      <div className={`rounded-md border-2 bg-white p-5 panel-shadow ${viewStep >= 3 ? "border-[#111827]" : viewStep === 2 ? "border-[#2463b3]" : "border-[#15345b]"}`}>
         {viewStep === 1 || !official ? <ReceptionPanel official={official} project={project} /> : null}
         {official ? (
           <>
