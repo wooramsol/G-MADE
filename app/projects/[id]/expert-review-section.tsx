@@ -118,12 +118,17 @@ const PinNote = reactMemo(function PinNote({
         className={`absolute ${flipUp ? "bottom-[30px]" : "top-1"} w-max min-w-[120px] max-w-[240px] rounded-md border bg-white/95 px-2 py-1.5 text-left shadow-md ${
           flipLeft ? "right-[-10px]" : "left-[-10px]"
         } ${tone === "previous" ? "border-dashed border-[#94a3b8]" : ""}`}
-        style={tone === "previous" ? undefined : { borderColor: `${color}66` }}
+        style={
+          tone === "previous"
+            ? undefined
+            : { borderColor: `${color}55`, borderLeft: `4px solid ${color}`, background: `color-mix(in srgb, ${color} 7%, white)` }
+        }
       >
         {editing ? (
           <textarea
             autoFocus
-            className="block h-16 w-[220px] resize-y rounded-[3px] border border-[#cbd5e1] p-1.5 text-xs leading-4 text-[#1e293b] outline-none focus:border-[#b45309]"
+            className="block h-16 w-[220px] resize-y rounded-[3px] border border-[#cbd5e1] bg-white p-1.5 text-xs leading-4 text-[#1e293b] outline-none"
+            style={{ outlineColor: color }}
             onBlur={() => finish(true)}
             onFocus={(event) => {
               // 커서를 글 끝으로
@@ -147,7 +152,7 @@ const PinNote = reactMemo(function PinNote({
         ) : (
           <p
             className={`whitespace-pre-wrap text-xs leading-4 ${tone === "previous" ? "text-[#475569]" : "text-[#1e293b]"} ${
-              editable ? "cursor-text hover:bg-[#fff8ed]" : ""
+              editable ? "cursor-text rounded-[2px] hover:bg-white/70" : ""
             }`}
             onClick={() => {
               if (editable) {
@@ -162,7 +167,9 @@ const PinNote = reactMemo(function PinNote({
         )}
         {tone !== "draft" ? (
           <p className="mt-1 flex items-center gap-1.5 text-[10px] leading-3 text-[#94a3b8]">
-            <span className="font-semibold text-[#64748b]">{author}</span>
+            <span className="font-bold" style={{ color: tone === "previous" ? "#64748b" : color }}>
+              {author}
+            </span>
             <span>{saving ? "저장 중…" : time}</span>
             {editable && !editing && onDelete ? (
               <button
@@ -577,7 +584,14 @@ export default function ExpertReviewSection({
                 <span className="ml-1 rounded-[3px] bg-[#fef3c7] px-1.5 py-0.5 text-[11px] font-semibold text-[#92400e]">이전 버전 대비 변경</span>
               ) : null}
             </div>
-            <span className="ml-auto flex items-center gap-1.5 rounded-full bg-[#fff8ed] px-3 py-1 text-xs font-bold text-[#b45309]">
+            <span
+              className="ml-auto flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold"
+              style={
+                activeReviewer
+                  ? { color: activeReviewer.color, background: `color-mix(in srgb, ${activeReviewer.color} 10%, white)` }
+                  : { color: "#64748b", background: "#f1f5f9" }
+              }
+            >
               {activeReviewer ? `📍 ${activeReviewer.name} 위원 의견 — 남길 곳을 클릭하세요` : "👤 심사위원을 먼저 선택하세요"}
             </span>
             <button
@@ -642,11 +656,11 @@ export default function ExpertReviewSection({
 
 /** 심사위원 마커 색 (20명 이상도 구분되도록) */
 const REVIEWER_COLORS = [
-  "#b45309", "#2563eb", "#059669", "#dc2626", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#ea580c", "#4f46e5",
+  "#2563eb", "#059669", "#dc2626", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#b45309", "#4f46e5", "#ea580c",
   "#0d9488", "#be123c", "#9333ea", "#0284c7", "#ca8a04", "#16a34a", "#c026d3", "#e11d48", "#2dd4bf", "#78716c",
 ];
 
-/** 본심의 심사위원 선택·관리 (계정 없음 — 공무원이 위원을 골라 대신 입력) */
+/** 본심의 심사위원 선택·관리 — 이름표를 눌러 선택, ×로 제거, 점선 [+] 이름표로 추가 */
 function ReviewerBar({
   reviewers,
   activeId,
@@ -666,33 +680,37 @@ function ReviewerBar({
   onChange: (next: ReviewerMarker[]) => void;
   onToggleOnly: (value: boolean) => void;
 }) {
+  const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
-  const [editing, setEditing] = useState(false);
 
   const add = () => {
     const names = name
       .split(/[,\n]/)
       .map((value) => value.trim())
       .filter(Boolean);
+    setName("");
+    setAdding(false);
     if (names.length === 0) return;
     const next = [...reviewers];
+    let lastAdded: string | null = null;
     for (const entry of names) {
       if (next.some((reviewer) => reviewer.name === entry)) continue;
-      next.push({
-        id: `rv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-        name: entry,
-        color: REVIEWER_COLORS[next.length % REVIEWER_COLORS.length],
-      });
+      // 이미 쓰는 색은 피해서 배정
+      const used = new Set(next.map((reviewer) => reviewer.color));
+      const color = REVIEWER_COLORS.find((candidate) => !used.has(candidate)) ?? REVIEWER_COLORS[next.length % REVIEWER_COLORS.length];
+      const id = `rv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      next.push({ id, name: entry, color });
+      lastAdded = id;
     }
-    setName("");
     onChange(next);
+    if (lastAdded && names.length === 1) onSelect(lastAdded);
   };
 
   return (
     <div className="mb-4 rounded-md border border-[#d7dee8] bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-bold text-[#15345b]">
-          심사위원 <span className="font-medium text-[#94a3b8]">{reviewers.length}명</span>
+          심사위원 <span className="font-medium text-[#94a3b8]">{reviewers.length}명 · 이름표를 눌러 선택한 뒤 도서에 의견을 남기세요</span>
         </p>
         <div className="flex items-center gap-3 text-xs text-[#475569]">
           {finalLabel ? <span className="truncate text-[#94a3b8]">최종 도서: {finalLabel}</span> : null}
@@ -700,68 +718,90 @@ function ReviewerBar({
             <input checked={onlyActive} onChange={(event) => onToggleOnly(event.target.checked)} type="checkbox" />
             선택한 위원 의견만 보기
           </label>
-          <button className="font-semibold text-[#2463b3] underline" onClick={() => setEditing((value) => !value)} type="button">
-            {editing ? "편집 끝" : "위원 추가·삭제"}
-          </button>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {reviewers.length === 0 ? (
-          <p className="text-xs text-[#94a3b8]">&lsquo;위원 추가·삭제&rsquo;에서 심사위원 이름을 등록하세요.</p>
-        ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         {reviewers.map((reviewer) => {
           const selected = reviewer.id === activeId;
+          const count = counts.get(reviewer.id) ?? 0;
           return (
-            <span className="relative" key={reviewer.id}>
+            <span className="group relative" key={reviewer.id}>
               <button
-                className={`flex h-9 items-center gap-2 rounded-full border-2 pl-1.5 pr-3 text-sm font-bold transition ${
-                  selected ? "text-white shadow" : "bg-white text-[#334155] hover:bg-[#f8fafc]"
+                className={`flex h-10 items-center gap-2 rounded-full border-2 pl-1.5 pr-3.5 text-sm font-bold transition ${
+                  selected ? "text-white shadow-md" : "text-[#334155] hover:shadow-sm"
                 }`}
                 onClick={() => onSelect(selected ? null : reviewer.id)}
-                style={selected ? { background: reviewer.color, borderColor: reviewer.color } : { borderColor: `${reviewer.color}55` }}
+                style={
+                  selected
+                    ? { background: reviewer.color, borderColor: reviewer.color }
+                    : { borderColor: `${reviewer.color}66`, background: `color-mix(in srgb, ${reviewer.color} 8%, white)` }
+                }
                 type="button"
               >
-                <span className="h-5 w-5 rounded-full border-2 border-white" style={{ background: reviewer.color }} />
+                <span className="h-6 w-6 rounded-full border-2 border-white shadow-sm" style={{ background: reviewer.color }} />
                 {reviewer.name}
-                <span className={`text-xs font-semibold ${selected ? "text-white/80" : "text-[#94a3b8]"}`}>{counts.get(reviewer.id) ?? 0}</span>
+                <span className={`text-xs font-semibold ${selected ? "text-white/85" : "text-[#94a3b8]"}`}>{count}</span>
               </button>
-              {editing ? (
-                <button
-                  aria-label={`${reviewer.name} 삭제`}
-                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#b91c1c] text-[11px] font-bold text-white"
-                  onClick={() => {
-                    if ((counts.get(reviewer.id) ?? 0) > 0 && !window.confirm(`${reviewer.name} 위원을 목록에서 뺄까요? 이미 남긴 의견은 그대로 남습니다.`)) return;
-                    if (reviewer.id === activeId) onSelect(null);
-                    onChange(reviewers.filter((entry) => entry.id !== reviewer.id));
-                  }}
-                  type="button"
-                >
-                  ×
-                </button>
-              ) : null}
+              <button
+                aria-label={`${reviewer.name} 위원 제거`}
+                className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full border border-white bg-[#475569] text-[11px] font-bold leading-none text-white shadow group-hover:flex hover:bg-[#b91c1c]"
+                onClick={() => {
+                  if (count > 0 && !window.confirm(`${reviewer.name} 위원을 목록에서 뺄까요? 이미 남긴 의견 ${count}건은 그대로 남습니다.`)) return;
+                  if (reviewer.id === activeId) onSelect(null);
+                  onChange(reviewers.filter((entry) => entry.id !== reviewer.id));
+                }}
+                title="위원 제거"
+                type="button"
+              >
+                ×
+              </button>
             </span>
           );
         })}
-      </div>
-      {editing ? (
-        <div className="mt-3 flex gap-2">
-          <input
-            className="h-9 flex-1 rounded-md border border-[#d7dee8] px-3 text-sm outline-none focus:border-[#b45309]"
-            onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                add();
-              }
-            }}
-            placeholder="위원 이름 (여러 명은 쉼표로: 홍길동, 김철수)"
-            value={name}
-          />
-          <button className="h-9 rounded-md bg-[#15345b] px-4 text-sm font-bold text-white" onClick={add} type="button">
-            추가
+
+        {/* 추가용 빈 이름표 (스켈레톤) */}
+        {adding ? (
+          <span className="flex h-10 items-center gap-1 rounded-full border-2 border-[#2463b3] bg-white pl-3 pr-1">
+            <input
+              autoFocus
+              className="w-44 bg-transparent text-sm outline-none"
+              onBlur={() => add()}
+              onChange={(event) => setName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  add();
+                }
+                if (event.key === "Escape") {
+                  setName("");
+                  setAdding(false);
+                }
+              }}
+              placeholder="위원 이름 (쉼표로 여러 명)"
+              value={name}
+            />
+            <button
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2463b3] text-base font-bold text-white"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => add()}
+              title="추가"
+              type="button"
+            >
+              ✓
+            </button>
+          </span>
+        ) : (
+          <button
+            className="flex h-10 items-center gap-2 rounded-full border-2 border-dashed border-[#9db6d8] bg-[#f8fbff] pl-1.5 pr-4 text-sm font-bold text-[#2463b3] transition hover:border-[#2463b3] hover:bg-[#eef4fb]"
+            onClick={() => setAdding(true)}
+            title="심사위원 추가"
+            type="button"
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-dashed border-[#9db6d8] text-base leading-none">+</span>
+            {reviewers.length === 0 ? "심사위원 추가" : "추가"}
           </button>
-        </div>
-      ) : null}
+        )}
+      </div>
     </div>
   );
 }

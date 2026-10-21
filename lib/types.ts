@@ -65,7 +65,7 @@ export type ExpertMemo = {
 };
 
 /** 심의 단계 — 1 도서접수 · 2 사전심의 · 3 본심의 (반려 시 종료) */
-export type ProjectStage = "RECEPTION" | "PRE_REVIEW" | "MAIN_REVIEW" | "REJECTED";
+export type ProjectStage = "RECEPTION" | "PRE_REVIEW" | "MAIN_REVIEW" | "CLOSED" | "REJECTED";
 
 /** 지원자(또는 공무원)가 접수한 도서 1건 */
 export type DocumentSubmission = {

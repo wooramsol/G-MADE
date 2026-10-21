@@ -27,12 +27,14 @@ export const STAGE_LABELS: Record<ProjectStage, string> = {
   RECEPTION: "도서접수",
   PRE_REVIEW: "사전심의",
   MAIN_REVIEW: "본심의",
+  CLOSED: "심의종료",
   REJECTED: "반려",
 };
 
 /** 목록·헤더용 상태 문구 */
 export function projectStageStatus(project: Project): string {
   const stage = projectStage(project);
+  if (stage === "CLOSED") return "심의종료 · 결과 통지 예정";
   if (stage !== "PRE_REVIEW") return STAGE_LABELS[stage];
   const decisions = project.preReviewDecisions ?? [];
   const last = decisions[decisions.length - 1];

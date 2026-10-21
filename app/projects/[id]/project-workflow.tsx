@@ -14,17 +14,19 @@ import { showToast } from "../../toast";
 import ChecklistReviewSection from "./checklist-review-section";
 import ExpertReviewSection, { type ExpertVersionInfo } from "./expert-review-section";
 
-type StepId = 1 | 2 | 3;
+type StepId = 1 | 2 | 3 | 4;
 
 const STEPS: Array<{ id: StepId; label: string; desc: string }> = [
   { id: 1, label: "도서접수", desc: "기본정보 · 도서 제출" },
   { id: 2, label: "사전심의", desc: "AI 에이전트 분석 · 보완" },
   { id: 3, label: "본심의", desc: "인간 전문가 분석" },
+  { id: 4, label: "심의종료", desc: "결과 통지" },
 ];
 
 function stageStep(stage: ProjectStage): StepId {
   if (stage === "RECEPTION") return 1;
   if (stage === "MAIN_REVIEW") return 3;
+  if (stage === "CLOSED") return 4;
   return 2;
 }
 
@@ -156,7 +158,7 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
 
       {!official ? <ApplicantStatus project={project} /> : null}
 
-      <div className={`rounded-md border-2 bg-white p-5 panel-shadow ${viewStep === 3 ? "border-[#b45309]" : viewStep === 2 ? "border-[#2463b3]" : "border-[#15345b]"}`}>
+      <div className={`rounded-md border-2 bg-white p-5 panel-shadow ${viewStep >= 3 ? "border-[#b45309]" : viewStep === 2 ? "border-[#2463b3]" : "border-[#15345b]"}`}>
         {viewStep === 1 || !official ? <ReceptionPanel official={official} project={project} /> : null}
         {official ? (
           <>
@@ -171,7 +173,8 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
               <DecisionPanel project={project} />
             </div>
             <div hidden={viewStep !== 3}>
-              {currentStep === 3 ? (
+              {currentStep === 3 ? <CloseReviewBar project={project} /> : null}
+              {currentStep >= 3 ? (
                 <ExpertReviewSection
                   active={viewStep === 3}
                   activeVersion={finalVersion}
@@ -184,6 +187,7 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
                 </p>
               )}
             </div>
+            {viewStep === 4 ? <ClosedPanel project={project} /> : null}
           </>
         ) : null}
       </div>
@@ -205,7 +209,7 @@ function Stepper({
   onSelect: (step: StepId) => void;
 }) {
   return (
-    <ol className="grid grid-cols-3 gap-3">
+    <ol className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {STEPS.map((step) => {
         const done = step.id < current;
         const isCurrent = step.id === current;
@@ -274,6 +278,10 @@ function ApplicantStatus({ project }: { project: Project }) {
     tone = "border-[#bbf7d0] bg-[#ecfdf5] text-[#047857]";
     title = "사전심의 통과 · 본심의 진행 중";
     body = "최종 도서로 본심의가 진행됩니다.";
+  } else if (stage === "CLOSED") {
+    tone = "border-[#c9d6e6] bg-[#f3f7fc] text-[#15345b]";
+    title = "심의가 종료되었습니다";
+    body = "심의 결과는 담당부서에서 별도로 통지해 드릴 예정입니다.";
   } else if (stage === "REJECTED") {
     tone = "border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]";
     title = "반려되었습니다";
@@ -557,3 +565,59 @@ function DecisionPanel({ project }: { project: Project }) {
   );
 }
 
+
+/** 3단계 상단 — 본심의를 마치고 심의 종료 처리 (지원자에게 결과 통지 예정 안내 알림) */
+function CloseReviewBar({ project }: { project: Project }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const close = async () => {
+    if (!window.confirm("본심의를 마치고 심의를 종료할까요?\n지원자에게 '심의 결과는 별도로 통지할 예정'이라는 알림이 갑니다.")) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: "CLOSED" }),
+      });
+      if (!response.ok) throw new Error("처리하지 못했습니다.");
+      showToast({ message: "심의를 종료했습니다.", tone: "success" });
+      router.refresh();
+    } catch (error) {
+      showToast({ message: error instanceof Error ? error.message : "처리하지 못했습니다.", tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3">
+      <p className="text-sm text-[#475569]">심사위원 의견 입력을 마쳤으면 심의를 종료하세요. 지원자에게 결과 통지 예정 안내가 전달됩니다.</p>
+      <button className="rounded-md bg-[#15345b] px-4 py-2 text-sm font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void close()} type="button">
+        본심의 종료 → 심의종료
+      </button>
+    </div>
+  );
+}
+
+/** 4단계 — 심의 종료 */
+function ClosedPanel({ project }: { project: Project }) {
+  const router = useRouter();
+  const reopen = async () => {
+    if (!window.confirm("본심의 단계로 되돌릴까요?")) return;
+    await fetch(`/api/projects/${project.id}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: "MAIN_REVIEW" }),
+    });
+    router.refresh();
+  };
+  return (
+    <section className="py-6 text-center">
+      <p className="text-lg font-bold text-[#15345b]">심의가 종료되었습니다</p>
+      <p className="mt-2 text-sm text-[#475569]">지원자에게 &lsquo;심의 결과는 별도로 통지할 예정&rsquo;이라는 안내가 전달되었습니다.</p>
+      <p className="mt-1 text-sm text-[#475569]">심사위원 의견은 3단계 본심의에서 계속 확인·다운로드할 수 있습니다.</p>
+      <button className="mt-4 text-xs font-semibold text-[#64748b] underline" onClick={() => void reopen()} type="button">
+        본심의로 되돌리기
+      </button>
+    </section>
+  );
+}

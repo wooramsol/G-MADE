@@ -77,7 +77,7 @@ function drawAnnotations(ctx: CanvasRenderingContext2D, width: number, height: n
     let contentWidth = Math.max(...textLines.map((line) => ctx.measureText(line).width));
     ctx.font = `600 ${10 * u}px ${fontFamily}`;
     contentWidth = Math.max(contentWidth, ctx.measureText(meta).width);
-    const boxW = Math.min(240 * u, Math.max(120 * u, contentWidth + 16 * u));
+    const boxW = Math.min(240 * u, Math.max(120 * u, contentWidth + 20 * u));
     const boxH = 6 * u + textLines.length * 16 * u + 4 * u + 12 * u + 6 * u;
     const flipLeft = point.x > 0.72;
     const flipUp = point.y > 0.75;
@@ -92,6 +92,16 @@ function drawAnnotations(ctx: CanvasRenderingContext2D, width: number, height: n
     ctx.fillStyle = "rgba(255,255,255,0.96)";
     ctx.fill();
     ctx.restore();
+    // 위원 색 테마 — 옅은 바탕 + 왼쪽 색 막대 (화면과 동일)
+    roundRect(ctx, boxX, boxY, boxW, boxH, 6 * u);
+    ctx.fillStyle = `${color}12`;
+    ctx.fill();
+    ctx.save();
+    roundRect(ctx, boxX, boxY, boxW, boxH, 6 * u);
+    ctx.clip();
+    ctx.fillStyle = color;
+    ctx.fillRect(boxX, boxY, 4 * u, boxH);
+    ctx.restore();
     roundRect(ctx, boxX, boxY, boxW, boxH, 6 * u);
     ctx.lineWidth = 1 * u;
     ctx.strokeStyle = `${color}66`;
@@ -100,10 +110,10 @@ function drawAnnotations(ctx: CanvasRenderingContext2D, width: number, height: n
     ctx.textBaseline = "top";
     ctx.fillStyle = "#1e293b";
     ctx.font = `${12 * u}px ${fontFamily}`;
-    textLines.forEach((line, index) => ctx.fillText(line, boxX + 8 * u, boxY + 6 * u + index * 16 * u + 2 * u));
-    ctx.fillStyle = "#64748b";
-    ctx.font = `600 ${10 * u}px ${fontFamily}`;
-    ctx.fillText(meta, boxX + 8 * u, boxY + 6 * u + textLines.length * 16 * u + 4 * u);
+    textLines.forEach((line, index) => ctx.fillText(line, boxX + 10 * u, boxY + 6 * u + index * 16 * u + 2 * u));
+    ctx.fillStyle = color;
+    ctx.font = `700 ${10 * u}px ${fontFamily}`;
+    ctx.fillText(meta, boxX + 10 * u, boxY + 6 * u + textLines.length * 16 * u + 4 * u);
 
     // 핀 (끝이 지점을 가리킴)
     ctx.save();

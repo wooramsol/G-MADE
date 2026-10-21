@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DECISIONS = new Set<PreReviewDecision["decision"]>(["보완요청", "반려", "통과"]);
-const STAGES = new Set<ProjectStage>(["RECEPTION", "PRE_REVIEW", "MAIN_REVIEW", "REJECTED"]);
+const STAGES = new Set<ProjectStage>(["RECEPTION", "PRE_REVIEW", "MAIN_REVIEW", "CLOSED", "REJECTED"]);
 
 /**
  * 사전심의 판정 (공무원) — 보완요청 / 반려 / 통과(→ 본심의).
@@ -25,7 +25,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (body?.stage && !body.decision) {
     if (!STAGES.has(body.stage as ProjectStage)) return NextResponse.json({ error: "단계 값이 올바르지 않습니다." }, { status: 400 });
+    const previousStage = access.project.stage;
     const updated = await setProjectStage(id, body.stage as ProjectStage);
+    // 본심의 종료 → 지원자에게 '심의 종료, 결과 별도 통지' 안내
+    if (updated?.ownerId && body.stage === "CLOSED" && previousStage !== "CLOSED") {
+      await notifyUsers([updated.ownerId], {
+        kind: "CLOSED",
+        title: `심의가 종료되었습니다 · ${updated.name}`,
+        body: "심의 결과는 담당부서에서 별도로 통지해 드릴 예정입니다.",
+        link: `/projects/${id}`,
+        projectId: id,
+      });
+    }
     revalidateProjectViews(id);
     return NextResponse.json({ project: updated });
   }

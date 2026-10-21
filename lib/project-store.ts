@@ -208,7 +208,11 @@ export async function addPreReviewDecision(id: string, decision: PreReviewDecisi
 
 /** 단계 직접 변경 (공무원 — 판정 되돌리기 등) */
 export async function setProjectStage(id: string, stage: ProjectStage): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({ ...project, stage }));
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    stage,
+    status: stage === "CLOSED" || stage === "REJECTED" ? "완료" : stage === "RECEPTION" ? "접수" : "심사 진행중",
+  }));
 }
 
 /** 본심의 심사위원 목록 저장 */

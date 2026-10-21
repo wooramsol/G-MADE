@@ -11,6 +11,7 @@ const KIND_STYLE: Record<string, { label: string; className: string }> = {
   PRE_REVIEW: { label: "사전심의", className: "bg-[#eef4fb] text-[#15345b]" },
   REVISION_REQUESTED: { label: "보완 요청", className: "bg-[#fff8ed] text-[#b45309]" },
   MAIN_REVIEW: { label: "본심의", className: "bg-[#ecfdf5] text-[#047857]" },
+  CLOSED: { label: "심의종료", className: "bg-[#f1f5f9] text-[#15345b]" },
   REJECTED: { label: "반려", className: "bg-[#fef2f2] text-[#b91c1c]" },
 };
 
