@@ -29,6 +29,7 @@ export const STAGE_LABELS: Record<ProjectStage, string> = {
   MAIN_REVIEW: "본심의",
   CLOSED: "심의종료",
   REJECTED: "반려",
+  WITHDRAWN: "신청 철회",
 };
 
 /** 목록·헤더용 상태 문구 */
@@ -44,6 +45,18 @@ export function projectStageStatus(project: Project): string {
     return lastSubmission && lastSubmission.submittedAt > last.decidedAt ? "사전심의 · 보완 제출됨" : "사전심의 · 보완 요청";
   }
   return "사전심의";
+}
+
+/** 기본정보 수정 — 공무원은 언제나, 지원자는 도서 접수 전까지만 */
+export function canEditProjectInfo(user: { role?: RoleCode } | undefined | null, project: Project): boolean {
+  if (isOfficialRole(user?.role)) return true;
+  return projectStage(project) === "RECEPTION" && (project.submissions ?? []).length === 0;
+}
+
+/** 지원자가 신청을 취소(접수 전)·철회(접수 후)할 수 있는가 */
+export function applicantCanWithdraw(project: Project): boolean {
+  const stage = projectStage(project);
+  return stage === "RECEPTION" || stage === "PRE_REVIEW" || stage === "MAIN_REVIEW";
 }
 
 /** 지원자가 지금 도서를 올릴 수 있는가 — 최초 접수 전, 또는 보완 요청을 받은 뒤 */

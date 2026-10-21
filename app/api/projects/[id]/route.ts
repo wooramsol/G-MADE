@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiRole } from "@/lib/api-auth";
 import { requireProjectAccess } from "@/lib/project-access";
+import { canEditProjectInfo } from "@/lib/roles";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import {
   getProjectById,
@@ -55,7 +56,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.summary = String(payload.summary).trim() || undefined;
     }
 
-    // 지원자는 기본정보만 수정 (상태·접수일은 공무원만)
+    // 지원자는 도서 접수 전까지만 기본정보 수정 가능 (접수 후에는 공무원만)
+    if (!canEditProjectInfo(access.session.user, access.project)) {
+      return NextResponse.json({ error: "도서 접수 후에는 담당 공무원만 기본정보를 수정할 수 있습니다." }, { status: 403 });
+    }
+    // 상태·접수일은 공무원만
     if (!access.official) {
       delete patch.status;
       delete patch.receivedAt;

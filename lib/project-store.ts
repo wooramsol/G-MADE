@@ -215,6 +215,16 @@ export async function setProjectStage(id: string, stage: ProjectStage): Promise<
   }));
 }
 
+/** 지원자 신청 철회 (접수 후) */
+export async function withdrawProjectApplication(id: string): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({
+    ...project,
+    stage: "WITHDRAWN",
+    status: "완료",
+    withdrawnAt: new Date().toISOString(),
+  }));
+}
+
 /** 본심의 심사위원 목록 저장 */
 export async function setProjectReviewers(id: string, reviewers: ReviewerMarker[]): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => ({ ...project, reviewers }));

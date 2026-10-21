@@ -65,7 +65,7 @@ export type ExpertMemo = {
 };
 
 /** 심의 단계 — 1 도서접수 · 2 사전심의 · 3 본심의 (반려 시 종료) */
-export type ProjectStage = "RECEPTION" | "PRE_REVIEW" | "MAIN_REVIEW" | "CLOSED" | "REJECTED";
+export type ProjectStage = "RECEPTION" | "PRE_REVIEW" | "MAIN_REVIEW" | "CLOSED" | "REJECTED" | "WITHDRAWN";
 
 /** 지원자(또는 공무원)가 접수한 도서 1건 */
 export type DocumentSubmission = {
@@ -129,6 +129,8 @@ export type Project = {
   stage?: ProjectStage;
   /** 도서 접수·보완 제출 이력 */
   submissions?: DocumentSubmission[];
+  /** 지원자가 신청을 철회한 시각 */
+  withdrawnAt?: string;
   /** 사전심의 판정 이력 */
   preReviewDecisions?: PreReviewDecision[];
   /** 본심의 심사위원 목록 */

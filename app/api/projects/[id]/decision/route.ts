@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DECISIONS = new Set<PreReviewDecision["decision"]>(["보완요청", "반려", "통과"]);
-const STAGES = new Set<ProjectStage>(["RECEPTION", "PRE_REVIEW", "MAIN_REVIEW", "CLOSED", "REJECTED"]);
+const STAGES = new Set<ProjectStage>(["RECEPTION", "PRE_REVIEW", "MAIN_REVIEW", "CLOSED", "REJECTED", "WITHDRAWN"]);
 
 /**
  * 사전심의 판정 (공무원) — 보완요청 / 반려 / 통과(→ 본심의).

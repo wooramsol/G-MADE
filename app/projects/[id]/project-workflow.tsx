@@ -6,7 +6,7 @@ import { buildDocumentVersions, type DocumentVersion } from "@/lib/checklist-rev
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
 import { formatBytes } from "@/lib/format-bytes";
 import { formatUploadDateTime } from "@/lib/format-datetime";
-import { applicantCanSubmit, projectStage } from "@/lib/roles";
+import { applicantCanSubmit, applicantCanWithdraw, projectStage } from "@/lib/roles";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { Project, ProjectStage } from "@/lib/types";
 import { getMaxUploadFileLabel, getOversizedUploadFiles, buildOversizedUploadMessage } from "@/lib/upload-limits";
@@ -160,7 +160,7 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
 
   return (
     <div className="space-y-4">
-      <Stepper current={currentStep} official={official} onSelect={setViewStep} rejected={stage === "REJECTED"} view={viewStep} />
+      <Stepper current={currentStep} official={official} onSelect={setViewStep} rejected={stage === "REJECTED" || stage === "WITHDRAWN"} rejectedLabel={stage === "WITHDRAWN" ? "철회" : "반려"} view={viewStep} />
 
       {!official ? <ApplicantStatus project={project} /> : null}
 
@@ -206,8 +206,10 @@ function Stepper({
   view,
   official,
   rejected,
+  rejectedLabel = "반려",
   onSelect,
 }: {
+  rejectedLabel?: string;
   current: StepId;
   view: StepId;
   official: boolean;
@@ -247,7 +249,7 @@ function Stepper({
               <span className="min-w-0">
                 <span className="block text-lg font-bold leading-6">
                   {step.id}단계 · {step.label}
-                  {isCurrent && rejected && step.id === 2 ? <span className="ml-2 rounded bg-red-100 px-1.5 text-xs text-red-700">반려</span> : null}
+                  {isCurrent && rejected && step.id === 2 ? <span className="ml-2 rounded bg-red-100 px-1.5 text-xs text-red-700">{rejectedLabel}</span> : null}
                 </span>
                 <span className={`block text-xs ${selected ? "text-white/80" : "opacity-75"}`}>{step.desc}</span>
               </span>
@@ -288,6 +290,10 @@ function ApplicantStatus({ project }: { project: Project }) {
     tone = "border-[#c9d6e6] bg-[#f3f7fc] text-[#15345b]";
     title = "심의가 종료되었습니다";
     body = "심의 결과는 담당부서에서 별도로 통지해 드릴 예정입니다.";
+  } else if (stage === "WITHDRAWN") {
+    tone = "border-[#e2e8f0] bg-[#f8fafc] text-[#475569]";
+    title = "신청을 철회했습니다";
+    body = "철회한 신청은 더 이상 심의가 진행되지 않습니다. 다시 신청하려면 새 심의 신청을 해 주세요.";
   } else if (stage === "REJECTED") {
     tone = "border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]";
     title = "반려되었습니다";
@@ -295,6 +301,7 @@ function ApplicantStatus({ project }: { project: Project }) {
   }
   return (
     <div className={`rounded-md border px-5 py-4 ${tone}`}>
+      {applicantCanWithdraw(project) ? <WithdrawButton project={project} /> : null}
       <p className="text-base font-bold">{title}</p>
       <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{body}</p>
       {last && (last.decision !== "통과") ? (
@@ -551,7 +558,7 @@ function DecisionPanel({ project, pendingSubmission }: { project: Project; pendi
         </>
       ) : (
         <p className="mt-2 text-sm text-[#475569]">
-          {stage === "MAIN_REVIEW" ? "사전심의를 통과해 본심의 단계입니다." : stage === "REJECTED" ? "반려되어 심의가 종료되었습니다." : "도서 접수 후 판정할 수 있습니다."}
+          {stage === "MAIN_REVIEW" ? "사전심의를 통과해 본심의 단계입니다." : stage === "WITHDRAWN" ? "지원자가 신청을 철회했습니다." : stage === "REJECTED" ? "반려되어 심의가 종료되었습니다." : "도서 접수 후 판정할 수 있습니다."}
         </p>
       )}
       {decisions.length > 0 ? (
@@ -629,5 +636,41 @@ function ClosedPanel({ project }: { project: Project }) {
         본심의로 되돌리기
       </button>
     </section>
+  );
+}
+
+/** 지원자 — 신청 취소(접수 전) / 신청 철회(접수 후) */
+function WithdrawButton({ project }: { project: Project }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const submitted = (project.submissions ?? []).length > 0;
+  const run = async () => {
+    const message = submitted
+      ? "심의 신청을 철회할까요?\n철회하면 심의가 더 이상 진행되지 않으며 되돌릴 수 없습니다. 담당부서에 철회 사실이 전달됩니다."
+      : "아직 도서를 제출하지 않은 신청입니다. 신청을 취소하고 목록에서 지울까요?";
+    if (!window.confirm(message)) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/withdraw`, { method: "POST" });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; deleted?: boolean };
+      if (!response.ok) throw new Error(payload.error ?? "처리하지 못했습니다.");
+      showToast({ message: payload.deleted ? "신청을 취소했습니다." : "신청을 철회했습니다.", tone: "success" });
+      if (payload.deleted) router.push("/projects");
+      else router.refresh();
+    } catch (error) {
+      showToast({ message: error instanceof Error ? error.message : "처리하지 못했습니다.", tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      className="float-right ml-3 rounded-md border border-[#d7dee8] bg-white px-3 py-1.5 text-xs font-bold text-[#64748b] hover:border-[#fecaca] hover:text-[#b91c1c] disabled:opacity-50"
+      disabled={busy}
+      onClick={() => void run()}
+      type="button"
+    >
+      {submitted ? "신청 철회" : "신청 취소"}
+    </button>
   );
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Badge, Eyebrow, MutedText, PageTitle, SubsectionTitle } from "@/components/typography";
 import { auth } from "@/auth";
 import { getProjectById } from "@/lib/project-store";
-import { canAccessProject, isOfficialRole, projectStageStatus } from "@/lib/roles";
+import { canAccessProject, canEditProjectInfo, isOfficialRole, projectStageStatus } from "@/lib/roles";
 import DeleteProjectButton from "../delete-project-button";
 import ProjectWorkflow from "./project-workflow";
 import LandscapeZonePanel from "./landscape-zone-panel";
@@ -18,6 +18,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   // 지원자는 자기 프로젝트만 — 남의 프로젝트는 '없음'으로 표시
   const project = found && canAccessProject(session?.user, found) ? found : undefined;
   const official = isOfficialRole(session?.user?.role);
+  const editable = project ? canEditProjectInfo(session?.user, project) : false;
 
   if (!project) {
     return (
@@ -58,7 +59,11 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
       <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
         <section id="project-management" className="space-y-5">
           <Panel title="프로젝트 개요" action="프로젝트 정보">
-            <ProjectMetadataEditor project={project} />
+            {editable ? (
+              <ProjectMetadataEditor project={project} />
+            ) : (
+              <p className="text-xs text-[#94a3b8]">도서가 접수되어 기본정보는 담당 공무원만 수정할 수 있습니다.</p>
+            )}
             <div className="mt-4">
               {/* 1행: 사업명 (접수일) (상태) */}
               <div className="flex flex-wrap items-center gap-2.5">
@@ -93,7 +98,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                   <p className={`text-sm font-semibold leading-5 text-[#172033] ${project.locationPoint?.adminRegion ? "mt-1" : "mt-2"}`}>
                     {project.location}
                   </p>
-                  <ProjectLocationEditor project={project} />
+                  {editable ? <ProjectLocationEditor project={project} /> : null}
                 </div>
                 <Info label="시행자" value={project.client} />
                 <Info label="심의종류" value={project.reviewType} />

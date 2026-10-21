@@ -7,7 +7,7 @@ import { getPrismaClient, isDatabaseAvailable } from "./prisma";
  * 알림 저장 실패가 본 작업(접수·판정)을 막지 않도록 모든 함수는 오류를 삼킨다.
  */
 
-export type NotificationKind = "NEW_SUBMISSION" | "RESUBMISSION" | "PRE_REVIEW" | "REVISION_REQUESTED" | "MAIN_REVIEW" | "CLOSED" | "REJECTED";
+export type NotificationKind = "NEW_SUBMISSION" | "RESUBMISSION" | "PRE_REVIEW" | "REVISION_REQUESTED" | "MAIN_REVIEW" | "CLOSED" | "REJECTED" | "WITHDRAWN";
 
 export type NotificationItem = {
   id: string;
