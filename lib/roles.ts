@@ -55,5 +55,8 @@ export function applicantCanSubmit(project: Project): boolean {
   if (submissions.length === 0) return true;
   const decisions = project.preReviewDecisions ?? [];
   const last = decisions[decisions.length - 1];
-  return last?.decision === "보완요청";
+  if (last?.decision !== "보완요청") return false;
+  // 보완 요청 1건당 보완 제출 1회 — 이미 냈으면 공무원 검토(다음 판정)를 기다림
+  const lastSubmission = submissions[submissions.length - 1];
+  return !lastSubmission || lastSubmission.submittedAt < last.decidedAt;
 }

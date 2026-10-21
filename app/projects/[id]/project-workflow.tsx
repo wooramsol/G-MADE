@@ -65,6 +65,12 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
   const stage = projectStage(project);
   const currentStep = stageStep(stage);
   const [viewStep, setViewStep] = useState<StepId>(official ? currentStep : 1);
+  // 판정·종료로 단계가 바뀌면 화면도 새 단계로 이동
+  const [shownStep, setShownStep] = useState(currentStep);
+  if (shownStep !== currentStep) {
+    setShownStep(currentStep);
+    if (official) setViewStep(currentStep);
+  }
 
   const versions = useMemo(
     () => buildDocumentVersions(project.checklistReviews ?? []),
@@ -170,7 +176,7 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
                 project={project}
                 versionPicker={versionPicker}
               />
-              <DecisionPanel project={project} />
+              <DecisionPanel pendingSubmission={pendingSubmission} project={project} />
             </div>
             <div hidden={viewStep !== 3}>
               {currentStep === 3 ? <CloseReviewBar project={project} /> : null}
@@ -418,7 +424,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
         </button>
       ) : (
         <p className="mt-4 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
-          {stage === "PRE_REVIEW" ? "사전심의 중에는 보완 요청을 받은 뒤 보완 도서를 제출할 수 있습니다." : "도서 제출 기간이 아닙니다."}
+          {stage === "PRE_REVIEW" ? "제출한 도서를 담당부서에서 검토하고 있습니다. 보완 요청을 받으면 보완 도서를 제출할 수 있습니다." : "도서 제출 기간이 아닙니다."}
         </p>
       )}
       <input
@@ -465,7 +471,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
 }
 
 /** 2단계 — 사전심의 판정 (공무원) */
-function DecisionPanel({ project }: { project: Project }) {
+function DecisionPanel({ project, pendingSubmission }: { project: Project; pendingSubmission: StoredFileRef | null }) {
   const router = useRouter();
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -475,6 +481,10 @@ function DecisionPanel({ project }: { project: Project }) {
   const decide = async (decision: "보완요청" | "반려" | "통과") => {
     if (decision !== "통과" && !note.trim()) {
       showToast({ message: "보완요청·반려 사유를 적어 주세요. 지원자 화면에 그대로 표시됩니다.", tone: "error" });
+      return;
+    }
+    if (decision === "통과" && pendingSubmission) {
+      showToast({ message: "최근 접수된 도서를 아직 AI 분석하지 않았습니다. 위의 'AI 에이전트 분석 시작'을 먼저 눌러 주세요. (본심의는 분석된 최종 도서로 진행됩니다)", tone: "error" });
       return;
     }
     const confirmText =

@@ -44,6 +44,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const decision = body?.decision as PreReviewDecision["decision"];
   if (!DECISIONS.has(decision)) return NextResponse.json({ error: "판정 값이 올바르지 않습니다." }, { status: 400 });
   const note = String(body?.note ?? "").trim().slice(0, 2_000);
+  // 통과 → 본심의는 'AI 분석된 최종 도서'로 진행되므로, 최근 접수본이 분석 전이면 막음
+  if (decision === "통과") {
+    const submissions = access.project.submissions ?? [];
+    const latest = submissions[submissions.length - 1];
+    const analyzed = new Set((access.project.checklistReviews ?? []).flatMap((review) => review.files.map((file) => file.storageKey)));
+    if (latest && !analyzed.has(latest.file.storageKey)) {
+      return NextResponse.json({ error: "최근 접수된 도서를 먼저 AI 분석한 뒤 통과 처리해 주세요." }, { status: 409 });
+    }
+  }
   if (decision !== "통과" && !note) {
     return NextResponse.json({ error: "보완요청·반려 사유를 적어 주세요. 지원자 화면에 표시됩니다." }, { status: 400 });
   }

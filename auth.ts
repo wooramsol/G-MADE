@@ -29,10 +29,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id ?? token.id;
         token.role = user.role ?? token.role;
+        token.checkedAt = Date.now();
+        return token;
+      }
+      // 사용 중지된 계정·변경된 역할을 5분마다 반영 (로그인 상태가 7일 유지되므로)
+      const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
+      if (typeof token.id === "string" && token.id !== "env-admin" && Date.now() - checkedAt > 5 * 60_000) {
+        try {
+          const { getPrismaClient } = await import("@/lib/prisma");
+          const prisma = getPrismaClient();
+          if (prisma) {
+            const record = await prisma.user.findUnique({ where: { id: token.id }, include: { role: true } });
+            if (!record || !record.active) return null;
+            token.role = record.role.code;
+          }
+          token.checkedAt = Date.now();
+        } catch {
+          // DB 오류 시 기존 로그인 유지
+        }
       }
       return token;
     },

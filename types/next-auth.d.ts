@@ -18,5 +18,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     role?: RoleCode;
+    /** 계정 상태를 마지막으로 확인한 시각 (ms) */
+    checkedAt?: number;
   }
 }
