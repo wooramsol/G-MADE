@@ -1,6 +1,6 @@
 "use client";
 
-import { memo as reactMemo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo as reactMemo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import type { ChecklistReview } from "@/lib/checklist-review/types";
 import type { ExpertMemo, Project, ReviewerMarker } from "@/lib/types";
@@ -634,6 +634,7 @@ export default function ExpertReviewSection({
               onPageCount={setPageCount}
               overlay={overlay}
               page={page}
+              cursorColor={activeReviewer?.color ?? "#111827"}
               pinMode
               prefetchPages={memoPages}
               zoom={1}
@@ -733,20 +734,23 @@ function ReviewerBar({
           return (
             <span className="group relative" key={reviewer.id}>
               <button
+                aria-pressed={selected}
                 className={`flex h-10 items-center gap-2 rounded-full border-2 pl-1.5 pr-3.5 text-sm font-bold transition ${
-                  selected ? "text-white shadow-md" : "text-[#334155] hover:shadow-sm"
+                  selected ? "text-white shadow-md ring-2 ring-offset-1" : "border-[#d7dee8] bg-white text-[#94a3b8] hover:border-[#9aa6b6] hover:text-[#475569]"
                 }`}
                 onClick={() => onSelect(selected ? null : reviewer.id)}
-                style={
-                  selected
-                    ? { background: reviewer.color, borderColor: reviewer.color }
-                    : { borderColor: `${reviewer.color}66`, background: `color-mix(in srgb, ${reviewer.color} 8%, white)` }
-                }
+                // 선택: 위원 색으로 채움 / 미선택: 회색 바탕에 작은 색 점만
+                style={selected ? ({ background: reviewer.color, borderColor: reviewer.color, "--tw-ring-color": reviewer.color } as CSSProperties) : undefined}
                 type="button"
               >
-                <span className="h-6 w-6 rounded-full border-2 border-white shadow-sm" style={{ background: reviewer.color }} />
+                <span
+                  className={`flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[11px] text-white ${selected ? "" : "opacity-40"}`}
+                  style={{ background: selected ? "rgba(255,255,255,0.25)" : reviewer.color }}
+                >
+                  {selected ? "✓" : ""}
+                </span>
                 {reviewer.name}
-                <span className={`text-xs font-semibold ${selected ? "text-white/85" : "text-[#94a3b8]"}`}>{count}</span>
+                <span className={`text-xs font-semibold ${selected ? "text-white/85" : "text-[#cbd5e1]"}`}>{count}</span>
               </button>
               <button
                 aria-label={`${reviewer.name} 위원 제거`}
