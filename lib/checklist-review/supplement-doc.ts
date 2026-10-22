@@ -109,9 +109,7 @@ function itemTitleLine(sequence: number, text: string, status: ChecklistItemStat
     new TextRun({ text: `${sequence}. ${text}  `, font: FONT, bold: true, size: 20 }),
     new TextRun({ text: `[${status}]`, font: FONT, bold: true, size: 20, color: STATUS_COLORS[status] }),
   ];
-  if (flagged) {
-    children.push(new TextRun({ text: "  [확인 필요]", font: FONT, bold: true, size: 20, color: "B45309" }));
-  }
+  void flagged; // 판정 배지는 '확인불가' 하나로 통일 (별도 '확인 필요' 표기 안 함)
   return new Paragraph({ spacing: { before: 160, after: 80 }, children });
 }
 

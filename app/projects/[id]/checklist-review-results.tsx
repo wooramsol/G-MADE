@@ -137,11 +137,6 @@ export default function ChecklistReviewResults({
   }, [review.findings]);
 
   // 회차 비교 — 직전 회차와 항목 원문(공백 무시) 기준으로 매칭해 상태 변화를 계산
-  const reviewFlagCount = useMemo(
-    () => review.findings.filter((finding) => finding.reviewFlag).length,
-    [review.findings],
-  );
-
   const changesByItemId = useMemo(() => {
     const map = new Map<string, ItemChange>();
     if (!previousReview) return map;
@@ -314,11 +309,7 @@ export default function ChecklistReviewResults({
             tone={status}
           />
         ))}
-        {reviewFlagCount > 0 ? (
-          <span className="mb-1.5 ml-auto inline-flex items-center gap-1 rounded-[4px] border border-amber-400 bg-white px-3 py-1 text-xs font-bold text-amber-800">
-            직접 확인 필요 {reviewFlagCount}
-          </span>
-        ) : null}
+
       </div>
 
       {/* 카테고리 제목은 전체 폭(col-span), 카드들은 하나의 2열 그리드로 이어 흐름 —
@@ -497,14 +488,7 @@ function FindingCard({
             )
           ) : null}
           <span className={`rounded-[3px] border px-2.5 py-0.5 text-xs font-bold ${style.badge}`}>{status}</span>
-          {finding?.reviewFlag ? (
-            <span
-              className="rounded-[3px] border border-amber-400 bg-white px-2 py-0.5 text-[11px] font-bold text-amber-800"
-              title={finding.reviewFlag}
-            >
-              확인 필요
-            </span>
-          ) : null}
+
         </span>
       </div>
 
@@ -513,6 +497,7 @@ function FindingCard({
           {[finding?.rationale, finding?.recommendation].filter(Boolean).join(" ")}
         </p>
       ) : null}
+      {finding?.reviewFlag ? <p className="mt-1 text-xs leading-5 text-[#94a3b8]">※ {finding.reviewFlag}</p> : null}
 
       {finding && finding.evidence.length > 0 ? (
         <div className="mt-3 flex flex-wrap items-start gap-x-4 gap-y-3">
