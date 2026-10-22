@@ -33,10 +33,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ko">
       <body>
-        <div className="fixed left-0 right-0 top-0 z-50 border-b border-amber-300 bg-amber-100 px-4 py-1.5 text-center text-xs font-semibold text-amber-950 shadow-sm">
+        <div className="fixed left-0 right-0 top-0 z-50 border-b print:hidden border-amber-300 bg-amber-100 px-4 py-1.5 text-center text-xs font-semibold text-amber-950 shadow-sm">
           <span className="font-bold tracking-wide">STAGING:</span> 정식 서비스 배포 전 검증용 시범 운영 환경입니다. 문의: G-MADE HIVE 연구소장 정우람솔
         </div>
-        <div className="pt-9">
+        <div className="pt-9 print:pt-0">
           <ClearLegacyLocalProjects />
           <ToastHost />
           <GlobalHeader />

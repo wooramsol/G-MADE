@@ -11,7 +11,7 @@ export default async function GlobalHeader() {
   const user = session?.user;
 
   return (
-    <header className="bg-white">
+    <header className="bg-white print:hidden">
       <div className="bg-gradient-to-r from-[#0f4d87] via-[#176dab] to-[#15345b] px-6 py-3 text-white shadow-sm">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
           <Link className="flex items-center gap-4" href="/">

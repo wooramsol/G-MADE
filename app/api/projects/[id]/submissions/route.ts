@@ -44,7 +44,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       id: `submission-${randomUUID()}`,
       file: {
         id: ref.id,
-        originalName: ref.originalName,
+        // 맥 업로드 파일명(NFD — 자모 분리)을 일반 형식으로 저장 (문서·다운로드에서 글자 깨짐 방지)
+        originalName: ref.originalName.normalize("NFC"),
         fileType: ref.fileType || "application/pdf",
         sizeBytes: Number(ref.sizeBytes) || 0,
         storageKey: ref.storageKey,

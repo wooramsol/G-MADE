@@ -1,6 +1,6 @@
 export default function SiteFooter() {
   return (
-    <footer className="border-t border-[#d7dee8] bg-[#f8fafc] px-6 py-5 text-xs text-[#64748b]">
+    <footer className="print:hidden border-t border-[#d7dee8] bg-[#f8fafc] px-6 py-5 text-xs text-[#64748b]">
       <div className="mx-auto flex max-w-[1500px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <p className="leading-6">
           문의 및 이용 안내: G-MADE HIVE 운영지원팀으로 문의하거나 프로젝트 관리자에게 연락하세요.

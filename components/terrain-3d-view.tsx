@@ -74,7 +74,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
 
         const camera = new THREE.PerspectiveCamera(42, width / height, 1, 10_000);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(width, height);
         renderer.localClippingEnabled = true;

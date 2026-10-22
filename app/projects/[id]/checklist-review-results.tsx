@@ -53,7 +53,10 @@ export default function ChecklistReviewResults({
   review,
   previousReview,
   projectId,
+  printMode = false,
 }: {
+  /** PDF 보고서용 — 버튼·필터 숨김, 이미지 즉시 로드 */
+  printMode?: boolean;
   review: ChecklistReview;
   /** 직전 회차 검토 — 회차 간 변화(개선/하락/신규) 비교용. 첫 회차면 undefined. */
   previousReview?: ChecklistReview;
@@ -211,12 +214,26 @@ export default function ChecklistReviewResults({
               {review.checklistPages.map((page) => `p.${page.page}`).join(", ")}
             </Caption>
           ) : null}
-          <a
-            className="primary-action-blue inline-flex items-center rounded-lg px-3.5 py-2 text-xs font-bold hover:opacity-90"
-            href={`/api/checklist-reviews/supplement-doc?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}`}
-          >
-            AI 분석 다운로드
-          </a>
+          {printMode ? null : (
+            <>
+              <a
+                className="primary-action-blue inline-flex items-center rounded-lg px-3.5 py-2 text-xs font-bold hover:opacity-90"
+                href={`/projects/${encodeURIComponent(projectId)}/report?reviewId=${encodeURIComponent(review.id)}`}
+                rel="noreferrer"
+                target="_blank"
+                title="화면 그대로(프로젝트 개요·대상지 현황·지형 분석·체크리스트 결과) PDF로 저장"
+              >
+                AI 분석 다운로드 (PDF)
+              </a>
+              <a
+                className="text-[11px] font-semibold text-[#64748b] underline"
+                href={`/api/checklist-reviews/supplement-doc?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}`}
+                title="편집 가능한 보완요구서 초안 (Word)"
+              >
+                Word
+              </a>
+            </>
+          )}
         </div>
       </div>
 
@@ -277,7 +294,7 @@ export default function ChecklistReviewResults({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-end gap-1 border-b border-[#c9d2dd] px-1">
+      <div className={`flex flex-wrap items-end gap-1 border-b border-[#c9d2dd] px-1 ${printMode ? "hidden" : ""}`}>
         <FilterTab
           active={filter === "전체"}
           label={`전체 ${review.items.length}`}
@@ -319,6 +336,7 @@ export default function ChecklistReviewResults({
                 key={item.id}
                 onSaveComment={saveComment}
                 pageHref={pageHref}
+                printMode={printMode}
               />
             ))}
           </Fragment>
@@ -342,7 +360,7 @@ export default function ChecklistReviewResults({
       ) : null}
 
       {review.referenceLaws.length > 0 ? (
-        <details className="rounded-md border border-[#d7dee8] bg-white p-4">
+        <details className="rounded-md border border-[#d7dee8] bg-white p-4" open={printMode || undefined}>
           <summary className="cursor-pointer text-sm font-bold text-[#15345b]">
             검토에 참조한 법령·지침 {review.referenceLaws.length}건 (국가법령정보센터)
           </summary>
@@ -412,7 +430,9 @@ function FindingCard({
   comment,
   onSaveComment,
   change,
+  printMode = false,
 }: {
+  printMode?: boolean;
   /** 카드 상단에 표시할 카테고리 경로 (그리드 흐름을 끊지 않기 위해 카드 내부 표기) */
   category?: string;
   item: ChecklistItem;
@@ -523,6 +543,7 @@ function FindingCard({
                   <EvidenceSnippet
                     alt={`p.${evidence.page} 근거 캡처`}
                     fullSrc={snippet.fullSrc}
+                    eager={printMode}
                     hasRegion={Boolean(evidence.region)}
                     thumbSrc={snippet.thumbSrc}
                   />
@@ -558,7 +579,7 @@ function FindingCard({
               </span>
             ),
           )}
-          {!editing && !comment ? (
+          {!editing && !comment && !printMode ? (
             <button
               className="ml-auto rounded-[3px] border border-[#c9d6e6] bg-white px-2.5 py-0.5 text-xs font-bold text-[#2463b3] hover:bg-[#dcebfb]"
               onClick={startEditing}
@@ -642,7 +663,9 @@ function EvidenceSnippet({
   fullSrc,
   alt,
   hasRegion,
+  eager = false,
 }: {
+  eager?: boolean;
   thumbSrc: string;
   fullSrc: string;
   alt: string;
@@ -692,7 +715,7 @@ function EvidenceSnippet({
         className={`max-h-44 max-w-full rounded-lg border shadow-sm transition-opacity duration-300 ${
           hasRegion ? "border-[#e2c5c5]" : "border-[#d7dee8]"
         } ${status === "loaded" ? "opacity-100" : "absolute h-0 w-0 opacity-0"}`}
-        loading="lazy"
+        loading={eager ? "eager" : "lazy"}
         onError={() => setStatus("error")}
         onLoad={() => setStatus("loaded")}
         ref={(node) => {
