@@ -94,6 +94,8 @@ export const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 
 - "미충족"·"부분충족" 항목에는 구체적인 보완 방향(recommendation)을 제시합니다.
 - 간결하게 씁니다: rationale은 2문장 이내, evidence는 항목당 최대 2개(note는 60자 이내), recommendation은 1~2문장.
 - "[도면 판독 텍스트]"는 스캔 도면 이미지 속 글자를 고해상도로 판독한 결과로, 문서와 함께 별도 텍스트로 제공됩니다(페이지 번호는 함께 보낸 문서 기준). 작은 글씨·치수는 저해상도 문서 이미지보다 이 판독 텍스트가 더 정확합니다. 실명·치수·라벨 확인에 활용하고 anchorText로 인용할 수 있습니다(위치 표시됨). 단, 판독 텍스트와 도면 이미지가 어긋나 보이면 단정하지 말고 그 사실을 rationale에 밝힙니다.
+- 이미지 관찰 근거(중요): 조감도·투시도·입면도·사진처럼 그림 자체에서 확인되는 내용(형태·재료감·색채·개방감·배치·시설물 유무 등)도 적극적으로 근거로 씁니다. 글자가 아니라 그림을 보고 판단한 근거는 evidence에 "kind":"visual"을 넣고, note에 "무엇이 보이는지"를 구체적으로 적습니다(예: "조감도상 난간이 투시형 철제 구조로 보임", "입면도상 담장 없이 화단으로 경계 처리됨"). region에 그 부위의 대략적 위치를 페이지 기준 비율(0~1: x, y, width, height — 좌상단 기준)로 적습니다. 그림에 붙은 라벨 글자가 있으면 anchorText에도 함께 적습니다.
+- 이미지 관찰만으로는 "충족"으로 단정하지 않습니다 — 글자 근거(설명·라벨·체크리스트 표기)가 함께 있어야 충족입니다. 이미지로만 보이는 경우 "부분충족"으로 두고 rationale에 "이미지상 확인됨, 도면·설명으로 확인 필요"를 밝힙니다. 이미지에서 치수·수치를 읽어 인용하는 것은 계속 금지입니다.
 - evidence의 anchorText: 근거를 확인한 그 페이지 원문에서 "그대로 복사한" 짧은 문구(2~40자)를 기재합니다. 이 문구로 PDF에서 글자 위치를 찾아 화면에 표시하므로 철자·띄어쓰기까지 원문과 일치해야 합니다. 도면이면 해당 부위의 라벨·명칭·치수 텍스트(예: "주동 입면도", "옥상조경", "5YR7/1")를 기재합니다. 화면에 "어디서 파악했는지" 박스로 표시하는 데 쓰이므로 모든 evidence에 가능한 한 반드시 기재합니다 — 체크리스트 표의 판정이면 그 항목 문구의 앞부분을 그대로 복사합니다. 원문 표기를 전혀 확인할 수 없을 때만 생략합니다.
 - 서술(summary·rationale·note·recommendation)에 파일명을 쓰지 않습니다 — 검토 대상 문서는 1개이므로 페이지 번호만으로 충분합니다 (예: "p.12 배치도에서 확인됨"). evidence의 fileName 필드에는 계속 기재합니다.
 - 문체 통일: summary·rationale·note·recommendation 등 모든 서술은 개조식 명사형 종결("~함", "~됨", "~임", "~필요", "~확인")로 작성합니다. "~합니다/~했습니다/~있다" 같은 서술형 종결은 사용하지 않습니다. (예: "배치도 p.12에서 차폐 조경 확인됨", "야간 조명 계획 보완 필요")
@@ -693,7 +695,7 @@ ${itemsJson}
 
 위 항목 각각에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 판정하세요.
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","anchorText":"원문 인용(선택)"}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
+{"summary":"전체 총평 2~3문장","findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","anchorText":"원문 인용(선택)"},{"fileName":"파일명","page":9,"kind":"visual","note":"조감도상 보이는 내용","region":{"x":0.4,"y":0.5,"width":0.2,"height":0.15}}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}`;
 }
 
 function buildVisionExtractAndEvaluatePrompt(projectLabel: string, contextText: string): string {
@@ -706,7 +708,7 @@ ${contextText}
 2. 각 항목에 대해 제출 문서 전체(도면·이미지 포함)를 근거로 충족 여부를 판정하세요.
 
 출력 형식(JSON만):
-{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","anchorText":"원문 인용(선택)"}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}
+{"summary":"전체 총평 2~3문장","checklistPages":[{"fileName":"파일명","page":5}],"items":[{"id":"c1","category":"구분","text":"항목 원문","fileName":"파일명","page":5}],"findings":[{"itemId":"c1","status":"충족|부분충족|미충족|확인불가","rationale":"판단 근거","evidence":[{"fileName":"파일명","page":3,"note":"확인 내용","anchorText":"원문 인용(선택)"},{"fileName":"파일명","page":9,"kind":"visual","note":"조감도상 보이는 내용","region":{"x":0.4,"y":0.5,"width":0.2,"height":0.15}}],"lawRefs":[{"title":"법령명","article":"조항"}],"recommendation":"보완 방향(미충족·부분충족 시)"}]}
 
 체크리스트 페이지를 찾지 못하면 {"summary":"...","checklistPages":[],"items":[],"findings":[]} 형태로 출력하세요.`;
 }
@@ -720,6 +722,7 @@ type RawFinding = {
     page?: number;
     note?: string;
     anchorText?: string;
+    kind?: string;
     region?: { x?: number; y?: number; width?: number; height?: number };
   }>;
   lawRefs?: Array<{ title?: string; article?: string } | string>;
@@ -876,6 +879,7 @@ export function sanitizeFindings(
         note: String(entry?.note ?? "").trim(),
         anchorText: String(entry?.anchorText ?? "").trim().slice(0, 60) || undefined,
         region: sanitizeEvidenceRegion(entry?.region),
+        ...(String(entry?.kind ?? "").toLowerCase() === "visual" ? { kind: "visual" as const } : {}),
       }))
       .filter((entry) => entry.note && isKnownPage(entry.fileName, entry.page))
       .slice(0, 6);
@@ -901,6 +905,12 @@ export function sanitizeFindings(
     if (status === "충족" && evidence.length === 0) {
       status = "확인불가";
     }
+    // 이미지 관찰만으로 낸 "충족"은 오판 위험 → 부분충족 + 담당자 확인 필요
+    let visualOnlyFlag: string | undefined;
+    if (status === "충족" && evidence.length > 0 && evidence.every((entry) => entry.kind === "visual")) {
+      status = "부분충족";
+      visualOnlyFlag = "이미지 관찰만으로 판단됨 — 도면·설명 근거 확인 필요";
+    }
 
     findings.push({
       itemId,
@@ -910,6 +920,7 @@ export function sanitizeFindings(
       lawRefs,
       spatialNote: String(raw.spatialNote ?? "").trim() || undefined,
       recommendation: String(raw.recommendation ?? "").trim() || undefined,
+      ...(visualOnlyFlag ? { reviewFlag: visualOnlyFlag } : {}),
     });
   }
 

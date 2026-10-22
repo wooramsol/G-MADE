@@ -89,7 +89,7 @@ export default function ChecklistReviewSection({
     void handleRun(incoming);
   }
 
-  async function handleRun(newFiles: File[], refs: StoredFileRef[] = []) {
+  async function handleRun(newFiles: File[], refs: StoredFileRef[] = [], forceFresh = false) {
     if (newFiles.length === 0 && refs.length === 0) return;
 
     setRunning(true);
@@ -119,6 +119,7 @@ export default function ChecklistReviewSection({
       formData.set("projectId", project.id);
       formData.set("projectSnapshot", JSON.stringify(project));
       formData.set("fileRefs", JSON.stringify([...refs, ...uploadedRefs]));
+      if (forceFresh) formData.set("forceFresh", "1");
 
       const result = await submitChecklistReviewStream(formData, (event) => setProgress(event));
 
@@ -220,6 +221,27 @@ export default function ChecklistReviewSection({
         </div>
 
         <div className="min-w-0">
+          {selectedReview?.files[0]?.storageKey ? (
+            <div className="mb-3 flex justify-end">
+              <button
+                className="rounded-md border border-[#d7dee8] bg-white px-3 py-1.5 text-xs font-bold text-[#475569] hover:bg-[#f8fafc] disabled:opacity-50"
+                disabled={running}
+                onClick={() => {
+                  const file = selectedReview.files[0];
+                  if (!window.confirm("이 도서를 처음부터 다시 분석할까요? (이전 결과를 재사용하지 않아 시간·비용이 다시 듭니다)")) return;
+                  void handleRun(
+                    [],
+                    [{ id: file.id, originalName: file.originalName, fileType: file.fileType, sizeBytes: file.sizeBytes, storageKey: file.storageKey ?? "", blobUrl: file.blobUrl }],
+                    true,
+                  );
+                }}
+                title="분석 방식이 개선됐을 때 같은 도서를 새로 분석합니다"
+                type="button"
+              >
+                ↻ 이 도서 다시 분석
+              </button>
+            </div>
+          ) : null}
           {selectedReview ? (
             <ChecklistReviewResults previousReview={previousReview} projectId={project.id} review={selectedReview} />
           ) : (

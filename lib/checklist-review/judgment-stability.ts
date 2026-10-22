@@ -13,7 +13,10 @@ import type { ChecklistFinding } from "./types";
  */
 export function isJustifiedChange(finding: ChecklistFinding): boolean {
   const marked = finding.rationale.includes("[판정 변경]");
-  const anchored = finding.evidence.some((entry) => (entry.anchorText ?? "").trim().length >= 2);
+  // 원문 인용(anchorText) 또는 위치를 짚은 이미지 관찰 근거가 있으면 뒤집을 근거를 명시한 것으로 봄
+  const anchored = finding.evidence.some(
+    (entry) => (entry.anchorText ?? "").trim().length >= 2 || (entry.kind === "visual" && Boolean(entry.region)),
+  );
   const zoomBacked = finding.evidence.some((entry) => /^\s*확대 판독/.test(entry.note ?? ""));
   return (marked && anchored) || zoomBacked;
 }

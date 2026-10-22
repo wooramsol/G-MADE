@@ -6,7 +6,9 @@
  * 우선순위: ① 모델이 명시한 anchorText(원문 그대로 복사 지시)
  *          ② note 안의 따옴표 인용구('반영', "옥상조경" 등) — 과거 검토 소급 적용
  */
-export function buildEvidenceAnchors(evidence: { note?: string; anchorText?: string }): string[] {
+export function buildEvidenceAnchors(evidence: { note?: string; anchorText?: string; kind?: string; region?: unknown }): string[] {
+  // 이미지 관찰 근거는 글자가 아니라 그림 부위(region)를 표시 — 위치가 있으면 글자 검색을 하지 않음
+  if (evidence.kind === "visual" && evidence.region) return [];
   const anchors: string[] = [];
   const push = (value: string | undefined) => {
     // 긴 인용(체크리스트 항목 원문 등)은 버리지 않고 앞 60자만 사용 — 위치 탐색은 앞부분으로 충분

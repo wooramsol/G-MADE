@@ -512,6 +512,11 @@ function FindingCard({
                   <span className="font-bold text-[#15345b]">
                     p.{evidence.page}
                   </span>{" "}
+                  {evidence.kind === "visual" ? (
+                    <span className="mr-1 rounded-[3px] bg-[#f3e8ff] px-1.5 py-0.5 text-[11px] font-bold text-[#7c3aed]" title="글자가 아니라 그림·사진을 보고 판단한 근거 — 점선은 대략적 위치">
+                      이미지 관찰
+                    </span>
+                  ) : null}
                   — {evidence.note}
                 </p>
                 {snippet ? (
