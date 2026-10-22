@@ -161,32 +161,6 @@ body {
   }
 }
 
-@media print {
-  body * {
-    visibility: hidden;
-  }
-
-  #pre-review-summary-print,
-  #pre-review-summary-print * {
-    visibility: visible;
-  }
-
-  #pre-review-summary-print {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    padding: 1rem;
-  }
-
-  .no-print {
-    display: none !important;
-  }
-
-  .print-only {
-    display: block !important;
-  }
-}
 
 /* 터치 기기(아이패드 등): 입력 포커스 시 사파리 자동 확대 방지를 위해 16px 보장 */
 @media (pointer: coarse) {
