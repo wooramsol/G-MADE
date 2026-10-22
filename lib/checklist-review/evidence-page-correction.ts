@@ -40,6 +40,9 @@ export function correctEvidencePages(
   }));
   for (const finding of result) {
     for (const evidence of finding.evidence) {
+      // 이미지 관찰 근거는 그림 속 내용을 본 것 — 같은 글자가 다른 페이지(색채계획 등)에 있다고
+      // 옮기면 엉뚱한 페이지를 가리키게 됨 (실제 오류 사례). 페이지·위치를 그대로 둔다.
+      if (evidence.kind === "visual") continue;
       const needle = normalize(evidence.anchorText ?? "");
       if (needle.length < 6) continue;
       const pages = pagesByFile.get(evidence.fileName) ?? (pagesByFile.size === 1 ? allPages : []);
