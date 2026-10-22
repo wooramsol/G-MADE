@@ -36,7 +36,7 @@ export default function ReportView({ project, review, statusLabel }: { project: 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#172033] print:bg-white">
       <div className="sticky top-9 z-[1500] border-b border-[#d7dee8] bg-white/95 px-6 py-3 print:hidden">
-        <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-3">
+        <div className="mx-auto flex w-[1240px] items-center justify-between gap-3">
           <p className="text-sm text-[#475569]">
             {ready
               ? "인쇄 창에서 대상을 ‘PDF로 저장’으로 선택해 저장하세요."
@@ -53,7 +53,8 @@ export default function ReportView({ project, review, statusLabel }: { project: 
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1100px] space-y-5 px-6 py-6 print:max-w-none print:px-0 print:py-0">
+      {/* 화면과 같은 비율 유지: 화면에서도 인쇄에서도 폭 1240px로 고정 배치하고, 인쇄할 때는 A4 폭에 맞게 통째로 축소 */}
+      <div className="report-sheet mx-auto w-[1240px] space-y-5 px-6 py-6 print:px-0 print:py-0">
         {/* 표지 정보 */}
         <section className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
           <p className="text-xs font-bold tracking-[0.14em] text-[#2463b3]">경관심의 사전검토 결과 · AI 에이전트 분석</p>

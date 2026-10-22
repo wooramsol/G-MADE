@@ -193,6 +193,11 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  /* 보고서: 1240px 화면 배치를 A4 인쇄 폭(약 718px)에 맞게 축소 — 좌우 비율이 화면과 같게 */
+  .report-sheet {
+    zoom: 0.578;
+    margin: 0 !important;
+  }
   .print-avoid-break,
   .panel-shadow {
     break-inside: avoid;
