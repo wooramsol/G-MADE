@@ -314,7 +314,8 @@ export default function ChecklistReviewResults({
 
       {/* 카테고리 제목은 전체 폭(col-span), 카드들은 하나의 2열 그리드로 이어 흐름 —
           항목 1개짜리 카테고리 때문에 열이 비어 보이지 않게 */}
-      <ul className="grid items-start gap-3 xl:grid-cols-2">
+      {/* PDF 보고서는 인쇄 폭(A4)이 좁아 반응형 기준이 1열로 떨어지므로 화면과 같은 2열로 고정 */}
+      <ul className={`grid items-start gap-3 ${printMode ? "grid-cols-2" : "xl:grid-cols-2"}`}>
         {groupedItems.map(([category, items]) => (
           <Fragment key={category}>
             {items.map((item) => (
@@ -333,7 +334,7 @@ export default function ChecklistReviewResults({
           </Fragment>
         ))}
         {groupedItems.length === 0 ? (
-          <li className="list-none xl:col-span-2">
+          <li className={`list-none ${printMode ? "col-span-2" : "xl:col-span-2"}`}>
             <MutedText>해당 상태의 항목이 없습니다.</MutedText>
           </li>
         ) : null}
