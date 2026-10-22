@@ -515,9 +515,19 @@ function findPageMapping(
   fileName: string,
 ): number[] | undefined {
   if (!pageMaps || pageMaps.length === 0) return undefined;
-  const exact = pageMaps.find((entry) => entry.fileName === fileName);
+  // macOS 업로드 파일명(NFD)과 모델 출력(NFC)이 달라 매핑을 못 찾으면 발췌본 번호가 그대로
+  // 남아 엉뚱한 페이지를 가리켰음 (실제 오류: 발췌 14번째 → 원본 p.14로 표시) — 정규화 후 비교
+  const normalize = (value: string) => value.normalize("NFC").replace(/\s+/g, "").toLowerCase();
+  const target = normalize(fileName);
+  const exact = pageMaps.find((entry) => normalize(entry.fileName) === target);
   if (exact) return exact.mapping;
-  return pageMaps.find((entry) => entry.fileName.includes(fileName) || fileName.includes(entry.fileName))?.mapping;
+  const partial = pageMaps.find((entry) => {
+    const name = normalize(entry.fileName);
+    return target.length > 0 && (name.includes(target) || target.includes(name));
+  });
+  if (partial) return partial.mapping;
+  // 발췌 파일이 하나뿐이면 그 매핑 사용 (모델이 파일명을 다르게 적어도 같은 문서)
+  return pageMaps.length === 1 ? pageMaps[0].mapping : undefined;
 }
 
 /**
