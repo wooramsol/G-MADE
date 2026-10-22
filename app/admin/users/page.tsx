@@ -4,7 +4,7 @@ import { PageTitle, SectionDescription, SubsectionTitle } from "@/components/typ
 import { getRoleLabel } from "@/lib/role-labels";
 import { formatPhone, listAccounts } from "@/lib/user-accounts";
 import { toggleAccountAction } from "./actions";
-import { CreateOfficerForm, DeleteApplicantButton, ResetPasswordForm } from "./account-forms";
+import { AccountNameField, CreateOfficerForm, DeleteApplicantButton, ResetPasswordForm } from "./account-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,9 @@ export default async function AdminUsersPage() {
               <tbody>
                 {accounts.map((account) => (
                   <tr className="border-b border-[#f1f5f9]" key={account.id}>
-                    <td className="py-2.5 pr-3 font-semibold">{account.name}</td>
+                    <td className="py-2.5 pr-3">
+                      <AccountNameField id={account.id} name={account.name} />
+                    </td>
                     <td className="py-2.5 pr-3 text-[#475569]">{account.email}</td>
                     <td className="py-2.5 pr-3 text-[#475569]">{formatPhone(account.phone) || "—"}</td>
                     <td className="py-2.5 pr-3">

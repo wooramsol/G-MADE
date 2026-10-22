@@ -143,3 +143,13 @@ export async function deleteApplicantAccount(id: string): Promise<{ ok: true; pr
   await prisma.user.delete({ where: { id } });
   return { ok: true, projects: owned.length };
 }
+
+/** 계정 이름 변경 (관리자) */
+export async function renameAccount(id: string, name: string): Promise<string | null> {
+  const trimmed = name.trim().slice(0, 60);
+  if (!trimmed) return "이름을 입력해 주세요.";
+  const prisma = getPrismaClient();
+  if (!prisma) return "계정 저장소(DB)를 사용할 수 없습니다.";
+  await prisma.user.update({ where: { id }, data: { name: trimmed } });
+  return null;
+}

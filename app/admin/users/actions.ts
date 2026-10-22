@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { createAccount, deleteApplicantAccount, resetAccountPassword, setAccountActive } from "@/lib/user-accounts";
+import { createAccount, deleteApplicantAccount, renameAccount, resetAccountPassword, setAccountActive } from "@/lib/user-accounts";
 
 export type AccountActionState = { error?: string; ok?: string };
 
@@ -46,4 +46,13 @@ export async function deleteApplicantAction(formData: FormData): Promise<void> {
   if (!result.ok) throw new Error(result.error);
   revalidatePath("/admin/users");
   revalidatePath("/projects");
+}
+
+/** 계정 이름 변경 */
+export async function renameAccountAction(_previous: AccountActionState, formData: FormData): Promise<AccountActionState> {
+  await requireAdmin();
+  const error = await renameAccount(String(formData.get("id") ?? ""), String(formData.get("name") ?? ""));
+  if (error) return { error };
+  revalidatePath("/admin/users");
+  return { ok: "저장됨" };
 }

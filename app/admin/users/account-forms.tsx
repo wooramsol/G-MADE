@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { createOfficerAction, deleteApplicantAction, resetPasswordAction, type AccountActionState } from "./actions";
+import { createOfficerAction, deleteApplicantAction, renameAccountAction, resetPasswordAction, type AccountActionState } from "./actions";
 
 const inputClass =
   "w-full rounded-md border border-[#d7dee8] bg-[#f8fafc] px-3 py-2 text-sm outline-none focus:border-[#2463b3] focus:bg-white";
@@ -65,6 +65,26 @@ export function DeleteApplicantButton({ id, name }: { id: string; name: string }
       <button className="rounded-md border border-[#fecaca] px-2 py-1 text-xs font-bold text-[#b91c1c] hover:bg-[#fef2f2]" type="submit">
         계정 삭제
       </button>
+    </form>
+  );
+}
+
+/** 이름 칸 — 그 자리에서 고치고 Enter(또는 저장)로 반영 */
+export function AccountNameField({ id, name }: { id: string; name: string }) {
+  const [state, action, pending] = useActionState<AccountActionState, FormData>(renameAccountAction, {});
+  return (
+    <form action={action} className="flex items-center gap-1.5">
+      <input name="id" type="hidden" value={id} />
+      <input
+        aria-label="이름"
+        className="w-44 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm font-semibold hover:border-[#d7dee8] focus:border-[#2463b3] focus:bg-white focus:outline-none"
+        defaultValue={name}
+        name="name"
+        title="눌러서 이름 수정 후 Enter"
+      />
+      {pending ? <span className="text-[11px] text-[#94a3b8]">저장 중…</span> : null}
+      {state.error ? <span className="text-[11px] text-red-700">{state.error}</span> : null}
+      {state.ok && !pending ? <span className="text-[11px] text-[#047857]">{state.ok}</span> : null}
     </form>
   );
 }
