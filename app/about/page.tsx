@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "G-MADE HIVE란? | G-MADE HIVE",
@@ -40,13 +39,6 @@ export default function AboutPage() {
           <Role title="AI 에이전트" items={["체크리스트 항목별 판정 (충족·부분충족·미충족·확인불가)", "판단 근거 페이지·위치 표시", "수정 도서 재분석과 회차 비교"]} />
         </section>
 
-        <p className="text-center text-xs text-[#94a3b8]">
-          도서와 분석 데이터의 전송·보관·삭제는{" "}
-          <Link className="font-semibold text-[#2463b3] underline" href="/data-processing">
-            AI 데이터 처리 안내
-          </Link>
-          에서 확인할 수 있습니다.
-        </p>
       </div>
     </main>
   );

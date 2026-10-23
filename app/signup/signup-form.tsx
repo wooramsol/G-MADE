@@ -49,10 +49,7 @@ export default function SignupForm() {
       <label className="flex items-start gap-2 text-sm text-[#334155]">
         <input className="mt-1" name="agree" type="checkbox" />
         <span>
-          심의 신청 처리와 진행 안내를 위해 이름·이메일·휴대폰 번호를 수집·이용하는 데 동의합니다.{" "}
-          <Link className="font-semibold !text-[#2463b3] underline" href="/data-processing" target="_blank">
-            자세히
-          </Link>
+          심의 신청 처리와 진행 안내를 위해 이름·이메일·휴대폰 번호를 수집·이용하는 데 동의합니다.
         </span>
       </label>
       {state.error ? <ErrorText className="rounded-md bg-red-50 px-4 py-3">{state.error}</ErrorText> : null}

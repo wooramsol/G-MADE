@@ -11,6 +11,7 @@ type NavItem = { label: string; href: "/projects" | "/mypage" | "/admin/users" |
 export default function TopNavigation({ isAuthenticated, role }: { isAuthenticated: boolean; role: RoleCode | null }) {
   const pathname = usePathname();
   const navItems: NavItem[] = [
+    { label: "G-MADE HIVE란?", href: "/about", match: (path) => path === "/about" },
     {
       label: role === "APPLICANT" ? "내 심의 신청" : "프로젝트 관리",
       href: "/projects",
@@ -18,7 +19,6 @@ export default function TopNavigation({ isAuthenticated, role }: { isAuthenticat
     },
     ...(role === "ADMIN" ? [{ label: "계정 관리", href: "/admin/users" as const, match: (path: string) => path.startsWith("/admin") }] : []),
     { label: "내 정보", href: "/mypage", match: (path) => path === "/mypage" },
-    { label: "G-MADE HIVE란?", href: "/about", match: (path) => path === "/about" },
   ];
 
   return (
