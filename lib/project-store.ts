@@ -11,6 +11,7 @@ import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import { isProjectPurged, isProjectTrashed } from "./trash";
+import { applicantSubmissionKind, projectStage, type SubmissionKind } from "./roles";
 import type { ChecklistReview } from "./checklist-review/types";
 import type { DocumentSubmission, ExpertMemo, PreReviewDecision, Project, ProjectFile, ProjectStage, ReviewerMarker, ReviewPhase } from "./types";
 
@@ -186,16 +187,18 @@ export async function addProjectSubmission(
   id: string,
   submission: Omit<DocumentSubmission, "round">,
   file: ProjectFile,
-  options: { asMain?: boolean } = {},
+  options: { asMain?: boolean; expectKind?: SubmissionKind } = {},
 ): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => {
+    // 저장 직전 상태로 다시 확인 — 중복 클릭·동시 제출로 같은 단계에 두 번 내는 것 방지
+    if (options.expectKind && applicantSubmissionKind(project) !== options.expectKind) return project;
     const submissions = project.submissions ?? [];
     const next: Project = {
       ...project,
       files: mergeProjectFiles(project.files, [file]),
       submissions: [...submissions, { ...submission, round: submissions.length + 1 }],
     };
-    if (!project.stage || project.stage === "RECEPTION") {
+    if (projectStage(project) === "RECEPTION") {
       next.stage = "SCREENING";
       next.status = "심사 진행중";
     }
@@ -219,7 +222,15 @@ export async function addPreReviewDecision(id: string, decision: PreReviewDecisi
       preReviewDecisions: [...(project.preReviewDecisions ?? []), decision],
       stage: nextStage,
       status: nextStage === "REJECTED" ? "완료" : "심사 진행중",
-      ...(decision.decision === "통과" ? { preReviewSubmissionId: submissions[submissions.length - 1]?.id } : {}),
+      ...(decision.decision === "통과"
+        ? {
+            preReviewSubmissionId: submissions[submissions.length - 1]?.id,
+            // 되돌린 뒤 다시 통과한 경우 — 이전 회차의 결과 통보·본심의 도서 지정은 무효
+            preReviewNotifiedAt: undefined,
+            preReviewNote: undefined,
+            mainReviewSubmissionId: undefined,
+          }
+        : {}),
     };
   });
 }
@@ -240,11 +251,20 @@ export async function setProjectDepartments(id: string, departments: string[]): 
 
 /** 단계 직접 변경 (공무원 — 판정 되돌리기 등) */
 export async function setProjectStage(id: string, stage: ProjectStage): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    stage,
-    status: stage === "CLOSED" || stage === "REJECTED" ? "완료" : stage === "RECEPTION" ? "접수" : "심사 진행중",
-  }));
+  return updateStoredProject(id, (project) => {
+    const next: Project = {
+      ...project,
+      stage,
+      status: stage === "CLOSED" || stage === "REJECTED" ? "완료" : stage === "RECEPTION" ? "접수" : "심사 진행중",
+    };
+    // 되돌리면 그 뒤 단계의 진행 기록을 풀어 다시 진행할 수 있게 함 (도서·분석·의견 기록은 보존)
+    if (stage === "SCREENING" || stage === "PRE_REVIEW") {
+      next.preReviewNotifiedAt = undefined;
+      next.preReviewNote = undefined;
+      next.mainReviewSubmissionId = undefined;
+    }
+    return next;
+  });
 }
 
 /** 지원자 신청 철회 (접수 후) */
@@ -252,6 +272,7 @@ export async function withdrawProjectApplication(id: string): Promise<Project | 
   return updateStoredProject(id, (project) => ({
     ...project,
     stage: "WITHDRAWN",
+    withdrawnFromStage: projectStage(project),
     status: "완료",
     withdrawnAt: new Date().toISOString(),
   }));

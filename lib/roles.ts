@@ -87,6 +87,27 @@ export function applicantCanSubmit(project: Project): boolean {
   return applicantSubmissionKind(project) !== null;
 }
 
+/**
+ * 공무원의 단계 직접 변경 — 정해진 되돌리기·종료만 허용 (임의 건너뛰기 차단)
+ * - 본심의 → 심의종료 / 심의종료 → 본심의(재개)
+ * - 본심의 → 사전심의, 사전심의(통보 후) → 사전심의(통보 취소)
+ * - 사전심의·본심의·심의종료·반려 → 사전검토 (철회된 신청은 되살리지 않음)
+ */
+export function canSetStage(from: ProjectStage, to: ProjectStage): boolean {
+  if (to === "CLOSED") return from === "MAIN_REVIEW";
+  if (to === "MAIN_REVIEW") return from === "CLOSED";
+  if (to === "PRE_REVIEW") return from === "MAIN_REVIEW" || from === "PRE_REVIEW";
+  if (to === "SCREENING") return from === "PRE_REVIEW" || from === "MAIN_REVIEW" || from === "CLOSED" || from === "REJECTED";
+  return false;
+}
+
+/** 사전심의·본심의 작업(AI 분석·전문가 의견)이 가능한 단계인가 — 아직 도달하지 않은 단계·반려·철회는 불가 */
+export function phaseWritable(project: Project, phase: ReviewPhase): boolean {
+  const stage = projectStage(project);
+  if (phase === "pre") return stage === "PRE_REVIEW" || stage === "MAIN_REVIEW" || stage === "CLOSED";
+  return stage === "MAIN_REVIEW" || stage === "CLOSED";
+}
+
 /** 단계별 심사 대상 도서 — 사전심의: 사전검토 통과본, 본심의: 수정 도서 */
 export function phaseSubmission(project: Project, phase: ReviewPhase): DocumentSubmission | undefined {
   const submissions = project.submissions ?? [];

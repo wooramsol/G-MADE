@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireOfficial } from "@/lib/project-access";
+import { phaseWritable, projectStage } from "@/lib/roles";
 import { deleteExpertMemo, getExpertMemo, listExpertMemos, saveExpertMemo } from "@/lib/expert-memo-store";
 import { findStoredFileInProject } from "@/lib/project-file-pool";
 import { getProjectById } from "@/lib/project-store";
-import type { ExpertMemo } from "@/lib/types";
+import type { ExpertMemo, Project, ReviewPhase } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "도서 파일을 찾을 수 없습니다." }, { status: 404 });
   }
   const phase = body?.phase === "pre" ? "pre" : "main";
+  if (!phaseWritable(project, phase)) return phaseLockedResponse(project, phase);
 
   const user = authResult.session.user;
   // 본심의 — 공무원이 고른 심사위원 이름으로 기록
@@ -111,11 +113,24 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ memo });
 }
 
+function phaseLockedResponse(project: Project, phase: ReviewPhase) {
+  const stage = projectStage(project);
+  const reason =
+    stage === "WITHDRAWN" || stage === "REJECTED"
+      ? `${stage === "WITHDRAWN" ? "철회" : "반려"}된 신청이라 의견을 고칠 수 없습니다.`
+      : `아직 ${phase === "pre" ? "사전심의" : "본심의"} 단계가 아닙니다.`;
+  return NextResponse.json({ error: reason }, { status: 409 });
+}
+
 async function loadOwnMemo(projectId: string, memoId: string, userId: string, isAdmin: boolean) {
   const memo = projectId && memoId ? await getExpertMemo(projectId, memoId) : null;
   if (!memo) {
     return { error: NextResponse.json({ error: "메모를 찾을 수 없습니다." }, { status: 404 }) };
   }
+  const project = await getProjectById(projectId);
+  if (!project) return { error: NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 }) };
+  const phase = memo.phase ?? "main";
+  if (!phaseWritable(project, phase)) return { error: phaseLockedResponse(project, phase) };
   // 본심의 의견은 공무원이 심사위원 대신 입력하므로, 공무원이면 누구나 수정·삭제 가능
   void userId;
   void isAdmin;

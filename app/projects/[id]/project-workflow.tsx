@@ -31,7 +31,33 @@ function stageStep(stage: ProjectStage): StepId {
   if (stage === "PRE_REVIEW") return 3;
   if (stage === "MAIN_REVIEW") return 4;
   if (stage === "CLOSED") return 5;
-  return 2; // SCREENING · 반려 · 철회
+  return 2; // SCREENING · 반려
+}
+
+/** 진행 표시용 단계 — 철회는 철회 당시 단계에 표시 (그 전 단계 기록은 계속 열람) */
+function progressStep(project: Project, stage: ProjectStage): StepId {
+  if (stage === "WITHDRAWN") {
+    const from = project.withdrawnFromStage;
+    return from && from !== "WITHDRAWN" ? stageStep(from) : 2;
+  }
+  return stageStep(stage);
+}
+
+/** 단계 되돌리기·종료 (공무원) — 서버가 허용하지 않는 이동이면 사유를 알림 */
+async function requestStage(projectId: string, stage: ProjectStage): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/projects/${projectId}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) throw new Error(payload.error ?? "처리하지 못했습니다.");
+    return true;
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : "처리하지 못했습니다.", tone: "error" });
+    return false;
+  }
 }
 
 /** 단계(사전심의/본심의)별 심사 대상 도서와 그 도서의 AI 분석 결과 */
@@ -86,7 +112,7 @@ function usePhaseDocument(project: Project, phase: ReviewPhase) {
  */
 export default function ProjectWorkflow({ project, official }: { project: Project; official: boolean }) {
   const stage = projectStage(project);
-  const currentStep = stageStep(stage);
+  const currentStep = progressStep(project, stage);
   const [viewStep, setViewStep] = useState<StepId>(official ? currentStep : 1);
   // 판정·종료로 단계가 바뀌면 화면도 새 단계로 이동
   const [shownStep, setShownStep] = useState(currentStep);
@@ -544,21 +570,25 @@ function DecisionPanel({ project }: { project: Project }) {
   };
 
   const reopen = async () => {
-    if (!window.confirm("사전검토 단계로 되돌릴까요?")) return;
-    await fetch(`/api/projects/${project.id}/decision`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage: "SCREENING" }),
-    });
-    router.refresh();
+    const warning =
+      stage === "REJECTED"
+        ? "반려를 취소하고 사전검토 단계로 되돌릴까요?"
+        : "사전검토 단계로 되돌릴까요?\n사전심의 결과 통보와 본심의 진행이 취소되고, 다시 '통과'하면 그때의 최신 도서로 사전심의를 진행합니다.\n(접수 도서·AI 분석·전문가 의견 기록은 그대로 남습니다.)";
+    if (!window.confirm(warning)) return;
+    setBusy(true);
+    if (await requestStage(project.id, "SCREENING")) {
+      showToast({ message: "사전검토 단계로 되돌렸습니다.", tone: "success" });
+      router.refresh();
+    }
+    setBusy(false);
   };
 
   return (
     <section className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-bold text-[#15345b]">사전검토 판정</h3>
-        {stage !== "SCREENING" && stage !== "RECEPTION" ? (
-          <button className="text-xs font-semibold text-[#64748b] underline" onClick={() => void reopen()} type="button">
+        {stage === "PRE_REVIEW" || stage === "MAIN_REVIEW" || stage === "CLOSED" || stage === "REJECTED" ? (
+          <button className="text-xs font-semibold text-[#64748b] underline disabled:opacity-50" disabled={busy} onClick={() => void reopen()} type="button">
             사전검토로 되돌리기
           </button>
         ) : null}
@@ -676,27 +706,42 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
           versions={doc.expertVersion ? [doc.expertVersion] : []}
         />
       </div>
-      {phase === "pre" && stage === "PRE_REVIEW" ? <PreReviewNotifyBar project={project} /> : null}
-      {phase === "main" && stage === "MAIN_REVIEW" ? <CloseReviewBar project={project} /> : null}
+      {phase === "pre" && stage === "PRE_REVIEW" ? <PreReviewNotifyBar analyzed={Boolean(doc.latestReview)} project={project} /> : null}
+      {phase === "main" && stage === "MAIN_REVIEW" ? <CloseReviewBar analyzed={Boolean(doc.latestReview)} project={project} /> : null}
     </section>
   );
 }
 
 /** 사전심의 마무리 — 결과 통보(지원자에게 수정 도서 제출 요청) */
-function PreReviewNotifyBar({ project }: { project: Project }) {
+function PreReviewNotifyBar({ project, analyzed }: { project: Project; analyzed: boolean }) {
   const router = useRouter();
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   if (project.preReviewNotifiedAt) {
+    const cancel = async () => {
+      if (!window.confirm("사전심의 결과 통보를 취소할까요?\n지원자는 다시 통보를 받을 때까지 수정 도서를 낼 수 없습니다.")) return;
+      setBusy(true);
+      if (await requestStage(project.id, "PRE_REVIEW")) {
+        showToast({ message: "결과 통보를 취소했습니다.", tone: "success" });
+        router.refresh();
+      }
+      setBusy(false);
+    };
     return (
       <div className="rounded-md border border-[#f2c48d] bg-[#fff8ed] px-4 py-3 text-sm text-[#92400e]">
-        {formatUploadDateTime(project.preReviewNotifiedAt)}에 사전심의 결과를 통보했습니다. 지원자가 수정 도서를 제출하면 본심의로 넘어갑니다.
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <span>{formatUploadDateTime(project.preReviewNotifiedAt)}에 사전심의 결과를 통보했습니다. 지원자가 수정 도서를 제출하면 본심의로 넘어갑니다.</span>
+          <button className="shrink-0 text-xs font-semibold text-[#b45309] underline disabled:opacity-50" disabled={busy} onClick={() => void cancel()} type="button">
+            통보 취소
+          </button>
+        </div>
         {project.preReviewNote ? <span className="mt-1 block text-xs text-[#b45309]">안내: {project.preReviewNote}</span> : null}
       </div>
     );
   }
   const notify = async () => {
-    if (!window.confirm("사전심의를 마치고 지원자에게 결과를 통보할까요?\n지원자에게 수정 도서 제출 요청 알림이 갑니다.")) return;
+    const lead = analyzed ? "" : "⚠ 사전심의 AI 분석을 아직 하지 않았습니다.\n\n";
+    if (!window.confirm(`${lead}사전심의를 마치고 지원자에게 결과를 통보할까요?\n지원자에게 수정 도서 제출 요청 알림이 갑니다.`)) return;
     setBusy(true);
     try {
       const response = await fetch(`/api/projects/${project.id}/decision`, {
@@ -734,30 +779,41 @@ function PreReviewNotifyBar({ project }: { project: Project }) {
 }
 
 /** 본심의 마무리 — 심의 종료 (지원자에게 결과 통지 예정 안내) */
-function CloseReviewBar({ project }: { project: Project }) {
+function CloseReviewBar({ project, analyzed }: { project: Project; analyzed: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const close = async () => {
-    if (!window.confirm("본심의를 마치고 심의를 종료할까요?\n지원자에게 '심의 결과는 별도로 통지할 예정'이라는 알림이 갑니다.")) return;
+    const lead = analyzed ? "" : "⚠ 본심의 AI 분석을 아직 하지 않았습니다.\n\n";
+    if (!window.confirm(`${lead}본심의를 마치고 심의를 종료할까요?\n지원자에게 '심의 결과는 별도로 통지할 예정'이라는 알림이 갑니다.`)) return;
     setBusy(true);
-    try {
-      const response = await fetch(`/api/projects/${project.id}/decision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: "CLOSED" }),
-      });
-      if (!response.ok) throw new Error("처리하지 못했습니다.");
+    if (await requestStage(project.id, "CLOSED")) {
       showToast({ message: "심의를 종료했습니다.", tone: "success" });
       router.refresh();
-    } catch (error) {
-      showToast({ message: error instanceof Error ? error.message : "처리하지 못했습니다.", tone: "error" });
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
+  };
+  const backToPre = async () => {
+    if (
+      !window.confirm(
+        "사전심의 단계로 되돌릴까요?\n본심의 수정 도서 지정과 사전심의 결과 통보가 취소됩니다. 사전심의를 마친 뒤 다시 통보하면 지원자가 수정 도서를 새로 제출합니다.\n(제출된 도서·분석·의견 기록은 그대로 남습니다.)",
+      )
+    )
+      return;
+    setBusy(true);
+    if (await requestStage(project.id, "PRE_REVIEW")) {
+      showToast({ message: "사전심의 단계로 되돌렸습니다.", tone: "success" });
+      router.refresh();
+    }
+    setBusy(false);
   };
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3">
-      <p className="text-sm text-[#475569]">본심의 AI 분석과 심사위원 의견 입력을 마쳤으면 심의를 종료하세요. 지원자에게 결과 통지 예정 안내가 전달됩니다.</p>
+      <p className="text-sm text-[#475569]">
+        본심의 AI 분석과 심사위원 의견 입력을 마쳤으면 심의를 종료하세요. 지원자에게 결과 통지 예정 안내가 전달됩니다.
+        <button className="ml-2 text-xs font-semibold text-[#64748b] underline disabled:opacity-50" disabled={busy} onClick={() => void backToPre()} type="button">
+          사전심의로 되돌리기
+        </button>
+      </p>
       <button className="rounded-md bg-[#111827] px-4 py-2 text-sm font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void close()} type="button">
         본심의 종료 → 심의종료
       </button>
@@ -769,13 +825,8 @@ function CloseReviewBar({ project }: { project: Project }) {
 function ClosedPanel({ project }: { project: Project }) {
   const router = useRouter();
   const reopen = async () => {
-    if (!window.confirm("본심의 단계로 되돌릴까요?")) return;
-    await fetch(`/api/projects/${project.id}/decision`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage: "MAIN_REVIEW" }),
-    });
-    router.refresh();
+    if (!window.confirm("본심의 단계로 되돌릴까요?\n지원자에게 단계 변경 알림이 갑니다.")) return;
+    if (await requestStage(project.id, "MAIN_REVIEW")) router.refresh();
   };
   return (
     <section className="py-6 text-center">

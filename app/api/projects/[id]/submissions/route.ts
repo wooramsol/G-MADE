@@ -22,11 +22,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { project, session, official } = access;
 
   // 제출 종류 — 최초 접수 / 사전검토 보완 / 본심의용 수정 도서
-  let kind: SubmissionKind | null = applicantSubmissionKind(project);
+  const applicantKind = applicantSubmissionKind(project);
+  let kind: SubmissionKind | null = applicantKind;
   if (official && !kind) {
-    // 공무원 대리 제출: 단계에 맞는 종류로 (그 외에는 단계 변화 없이 기록만)
+    // 공무원 대리 제출 — 도서접수·사전검토 단계에서만 (사전심의 이후·종료·반려·철회 상태에는 도서 추가 불가)
     const stage = projectStage(project);
-    kind = stage === "RECEPTION" ? "initial" : stage === "SCREENING" ? "revision" : "revision";
+    kind = stage === "RECEPTION" ? "initial" : stage === "SCREENING" ? "revision" : null;
   }
   if (!kind) {
     return NextResponse.json({ error: "지금은 도서를 제출할 수 없습니다. 담당부서의 요청을 받은 뒤 제출할 수 있습니다." }, { status: 409 });
@@ -45,10 +46,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const now = new Date().toISOString();
+  const submissionId = `submission-${randomUUID()}`;
   const updated = await addProjectSubmission(
     id,
     {
-      id: `submission-${randomUUID()}`,
+      id: submissionId,
       file: {
         id: ref.id,
         // 맥 업로드 파일명(NFD — 자모 분리)을 일반 형식으로 저장 (문서·다운로드에서 글자 깨짐 방지)
@@ -66,9 +68,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     },
     storedRefsToProjectFiles([ref], now)[0],
-    { asMain: kind === "main" },
+    { asMain: kind === "main", expectKind: applicantKind ?? undefined },
   );
   if (!updated) return NextResponse.json({ error: "접수를 저장하지 못했습니다." }, { status: 500 });
+  if (!(updated.submissions ?? []).some((entry) => entry.id === submissionId)) {
+    return NextResponse.json({ error: "이미 제출되었거나 단계가 바뀌었습니다. 화면을 새로고침해 주세요." }, { status: 409 });
+  }
 
   // 알림 — 공무원: 신규 접수/보완 제출/수정 도서 제출, 지원자(소유자): 단계 안내
   const round = (updated.submissions ?? []).length;

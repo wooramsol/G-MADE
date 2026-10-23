@@ -140,6 +140,8 @@ export type Project = {
   submissions?: DocumentSubmission[];
   /** 지원자가 신청을 철회한 시각 */
   withdrawnAt?: string;
+  /** 철회 당시 단계 — 진행 표시·이전 단계 열람용 */
+  withdrawnFromStage?: ProjectStage;
   /** 사전검토에서 할당한 유관부서 (이름 태그) */
   departments?: string[];
   /** 사전검토를 통과해 사전심의에 올라간 도서(접수 기록 id) */

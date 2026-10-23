@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireProjectAccess } from "@/lib/project-access";
 import { notifyUsers } from "@/lib/notifications";
 import { addPreReviewDecision, notifyPreReviewResult, setProjectStage } from "@/lib/project-store";
+import { canSetStage, projectStage, STAGE_LABELS } from "@/lib/roles";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import type { PreReviewDecision, ProjectStage } from "@/lib/types";
 
@@ -28,10 +29,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     notifyPreReview?: boolean;
   } | null;
 
+  const currentStage = projectStage(access.project);
+
   // 사전심의 결과 통보 → 지원자에게 본심의용 수정 도서 제출 요청
   if (body?.notifyPreReview) {
-    if (access.project.stage !== "PRE_REVIEW") {
+    if (currentStage !== "PRE_REVIEW") {
       return NextResponse.json({ error: "사전심의 단계에서만 결과를 통보할 수 있습니다." }, { status: 409 });
+    }
+    if (access.project.preReviewNotifiedAt) {
+      return NextResponse.json({ error: "이미 결과를 통보했습니다." }, { status: 409 });
     }
     const note = String(body.note ?? "").trim().slice(0, 2_000);
     const updated = await notifyPreReviewResult(id, note);
@@ -50,8 +56,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (body?.stage && !body.decision) {
     if (!STAGES.has(body.stage as ProjectStage)) return NextResponse.json({ error: "단계 값이 올바르지 않습니다." }, { status: 400 });
-    const previousStage = access.project.stage;
-    const updated = await setProjectStage(id, body.stage as ProjectStage);
+    const target = body.stage as ProjectStage;
+    const previousStage = currentStage;
+    if (!canSetStage(previousStage, target)) {
+      return NextResponse.json(
+        { error: `${STAGE_LABELS[previousStage]} 단계에서 ${STAGE_LABELS[target]}(으)로 바꿀 수 없습니다. 화면을 새로고침해 주세요.` },
+        { status: 409 },
+      );
+    }
+    // 사전심의 → 사전심의 = 결과 통보 취소 (지원자가 아직 수정 도서를 내기 전만)
+    if (previousStage === "PRE_REVIEW" && target === "PRE_REVIEW") {
+      if (!access.project.preReviewNotifiedAt) return NextResponse.json({ error: "통보한 결과가 없습니다." }, { status: 409 });
+      if (access.project.mainReviewSubmissionId) {
+        return NextResponse.json({ error: "지원자가 이미 수정 도서를 제출했습니다." }, { status: 409 });
+      }
+    }
+    const updated = await setProjectStage(id, target);
     // 본심의 종료 → 지원자에게 '심의 종료, 결과 별도 통지' 안내
     if (updated?.ownerId && body.stage === "CLOSED" && previousStage !== "CLOSED") {
       await notifyUsers([updated.ownerId], {
@@ -61,12 +81,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         link: `/projects/${id}`,
         projectId: id,
       });
+    } else if (updated?.ownerId && target !== "CLOSED") {
+      // 되돌리기·재개 — 지원자 화면 상태가 바뀌므로 알림
+      const title =
+        previousStage === "PRE_REVIEW" && target === "PRE_REVIEW"
+          ? `사전심의 결과 통보가 취소되었습니다 · ${updated.name}`
+          : `심의 단계가 ${STAGE_LABELS[target]}(으)로 변경되었습니다 · ${updated.name}`;
+      await notifyUsers([updated.ownerId], {
+        kind: target === "SCREENING" ? "SCREENING" : target === "PRE_REVIEW" ? "PRE_REVIEW" : "MAIN_REVIEW",
+        title,
+        body:
+          target === "PRE_REVIEW" && previousStage === "MAIN_REVIEW"
+            ? "담당부서에서 사전심의를 다시 진행합니다. 결과 통보 후 수정 도서를 다시 제출해 주세요."
+            : undefined,
+        link: `/projects/${id}`,
+        projectId: id,
+      });
     }
     revalidateProjectViews(id);
     return NextResponse.json({ project: updated });
   }
 
-  if (access.project.stage && access.project.stage !== "SCREENING") {
+  if (currentStage !== "SCREENING") {
     return NextResponse.json({ error: "사전검토 단계에서만 판정할 수 있습니다." }, { status: 409 });
   }
   const decision = body?.decision as PreReviewDecision["decision"];

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOfficial } from "@/lib/project-access";
+import { phaseWritable } from "@/lib/roles";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import {
@@ -46,6 +47,13 @@ export async function POST(request: NextRequest) {
     const projectId = String(formData.get("projectId") ?? "").trim();
     if (!projectId) {
       return NextResponse.json({ error: "projectId가 필요합니다." }, { status: 400 });
+    }
+
+    // 사전심의·본심의 단계에서만 분석 (도서접수·사전검토 중이거나 반려·철회된 신청은 불가)
+    const targetProject = await getProjectById(projectId);
+    if (!targetProject) return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+    if (!phaseWritable(targetProject, "pre")) {
+      return NextResponse.json({ error: "사전심의 단계부터 AI 분석을 할 수 있습니다." }, { status: 409 });
     }
 
     const fileRefs = parseStoredFileRefs(formData.get("fileRefs"));
