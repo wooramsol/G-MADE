@@ -26,8 +26,7 @@ export default function AboutPage() {
         </section>
 
         <section className="rounded-md border border-[#d7dee8] bg-white p-6 panel-shadow">
-          <h2 className="text-lg font-bold text-[#15345b]">심의 진행 흐름</h2>
-          <p className="mt-1 text-sm text-[#64748b]">단계마다 누가 무엇을 하는지 표시했습니다.</p>
+          <h2 className="text-lg font-bold text-[#15345b]">AI-인간전문가 하이브리드 평가 시스템 소개</h2>
           <div className="mx-auto mt-5 max-w-[720px]">
             <WorkflowDiagram />
           </div>
