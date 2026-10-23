@@ -15,12 +15,14 @@ type TrashManagementProps = {
 
 type ConfirmAction =
   | { type: "restore"; project: Project }
-  | { type: "purge"; project: Project };
+  | { type: "purge"; project: Project }
+  | { type: "purgeAll" };
 
 export default function TrashManagement({ serverTrashedProjects }: TrashManagementProps) {
   const router = useRouter();
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
 
   const trashedProjects = useMemo(
     () =>
@@ -45,6 +47,17 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
         }
 
         showToast({ message: "프로젝트가 복원되었습니다.", tone: "success" });
+      } else if (confirmAction.type === "purgeAll") {
+        // 휴지통 비우기 — 하나씩 영구 삭제 (실패한 건은 남기고 개수만 알림)
+        let failed = 0;
+        for (const [index, project] of trashedProjects.entries()) {
+          setProgress(`${index + 1}/${trashedProjects.length}`);
+          const response = await fetch(`/api/projects/${project.id}?permanent=true`, { method: "DELETE" }).catch(() => null);
+          if (!response?.ok) failed += 1;
+        }
+        setProgress(null);
+        if (failed > 0) throw new Error(`${trashedProjects.length - failed}개를 삭제했고 ${failed}개는 삭제하지 못했습니다.`);
+        showToast({ message: `휴지통을 비웠습니다 (${trashedProjects.length}개).`, tone: "success" });
       } else {
         const project = confirmAction.project;
         const response = await fetch(`/api/projects/${project.id}?permanent=true`, {
@@ -62,6 +75,10 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
       setConfirmAction(null);
       router.refresh();
     } catch (error) {
+      if (confirmAction.type === "purgeAll") {
+        setConfirmAction(null);
+        router.refresh();
+      }
       showToast({
         message: error instanceof Error ? error.message : "요청 처리에 실패했습니다.",
         tone: "error",
@@ -84,6 +101,16 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
 
   return (
     <>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <MutedText>휴지통에 {trashedProjects.length}개가 있습니다.</MutedText>
+        <button
+          className="rounded-lg border border-red-300 bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
+          onClick={() => setConfirmAction({ type: "purgeAll" })}
+          type="button"
+        >
+          휴지통 비우기
+        </button>
+      </div>
       <div className="grid gap-4">
         {trashedProjects.map((project) => {
 
@@ -120,18 +147,20 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
       </div>
 
       <ConfirmDialog
-        confirmLabel={confirmAction?.type === "restore" ? "복원" : "영구 삭제"}
+        confirmLabel={confirmAction?.type === "restore" ? "복원" : progress ? `삭제 중 ${progress}` : "영구 삭제"}
         confirmTone={confirmAction?.type === "restore" ? "primary" : "danger"}
         description={
           confirmAction
-            ? confirmAction.type === "restore"
-              ? `"${confirmAction.project.name}" 프로젝트를 복원합니다.`
-              : `"${confirmAction.project.name}" 프로젝트를 영구 삭제합니다. 되돌릴 수 없습니다.`
+            ? confirmAction.type === "purgeAll"
+              ? `휴지통의 프로젝트 ${trashedProjects.length}개와 첨부 도서·분석 기록을 모두 영구 삭제합니다. 되돌릴 수 없습니다.`
+              : confirmAction.type === "restore"
+                ? `"${confirmAction.project.name}" 프로젝트를 복원합니다.`
+                : `"${confirmAction.project.name}" 프로젝트를 영구 삭제합니다. 되돌릴 수 없습니다.`
             : ""
         }
         loading={loading}
         open={Boolean(confirmAction)}
-        title={confirmAction?.type === "restore" ? "프로젝트 복원" : "프로젝트 영구 삭제"}
+        title={confirmAction?.type === "restore" ? "프로젝트 복원" : confirmAction?.type === "purgeAll" ? "휴지통 비우기" : "프로젝트 영구 삭제"}
         onCancel={() => {
           if (!loading) setConfirmAction(null);
         }}
