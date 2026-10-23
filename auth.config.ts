@@ -16,7 +16,7 @@ export const authConfig = {
       const isLoggedIn = Boolean(auth?.user);
       const isLoginPage = pathname === "/login" || pathname === "/signup";
       // 도입 검토 기관 담당자가 로그인 없이 확인할 수 있는 공개 안내 페이지
-      const isPublicNotice = pathname === "/data-processing";
+      const isPublicNotice = pathname === "/data-processing" || pathname === "/about";
       const isAuthApi = pathname.startsWith("/api/auth");
       const isApiRoute = pathname.startsWith("/api/");
 

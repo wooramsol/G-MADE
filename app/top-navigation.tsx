@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import type { RoleCode } from "@/lib/types";
 import NotificationBell from "./notification-bell";
 
-type NavItem = { label: string; href: "/projects" | "/mypage" | "/admin/users"; match: (pathname: string) => boolean };
+type NavItem = { label: string; href: "/projects" | "/mypage" | "/admin/users" | "/about"; match: (pathname: string) => boolean };
 
 export default function TopNavigation({ isAuthenticated, role }: { isAuthenticated: boolean; role: RoleCode | null }) {
   const pathname = usePathname();
@@ -18,6 +18,7 @@ export default function TopNavigation({ isAuthenticated, role }: { isAuthenticat
     },
     ...(role === "ADMIN" ? [{ label: "계정 관리", href: "/admin/users" as const, match: (path: string) => path.startsWith("/admin") }] : []),
     { label: "내 정보", href: "/mypage", match: (path) => path === "/mypage" },
+    { label: "G-MADE HIVE란?", href: "/about", match: (path) => path === "/about" },
   ];
 
   return (
