@@ -38,6 +38,8 @@ function loadPdfjs() {
   return pdfjsPromise;
 }
 
+const LANDSCAPE_RATIO = 1 / 1.414;
+
 async function openDocument(source: DocSource, onProgress: (ratio: number) => void): Promise<PDFDocumentProxy> {
   const pdfjs = await loadPdfjs();
   const common = {
@@ -146,12 +148,13 @@ function ExpertPdfViewerImpl({
   const [containerWidth, setContainerWidth] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   // 뷰어 높이 = 폭 × 페이지 비율 → 상하·좌우 여백이 같아짐 (첫 페이지 비율 기준, 기본 A4 가로)
-  const [pageRatio, setPageRatio] = useState(1 / 1.414);
+  // 도서는 가로가 기본 — 세로 페이지가 있어도 틀은 가로 비율을 넘지 않고, 세로 페이지는 그 안에 맞춰 넣음
+  const [pageRatio, setPageRatio] = useState(LANDSCAPE_RATIO);
   useEffect(() => {
     let cancelled = false;
     void doc.getPage(1).then((first) => {
       const viewport = first.getViewport({ scale: 1 });
-      if (!cancelled && viewport.width > 0) setPageRatio(viewport.height / viewport.width);
+      if (!cancelled && viewport.width > 0) setPageRatio(Math.min(LANDSCAPE_RATIO, viewport.height / viewport.width));
     });
     return () => {
       cancelled = true;
