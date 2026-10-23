@@ -136,8 +136,30 @@ function ExpertPageNavigatorImpl({
   }, [page]);
 
   const pages = Array.from({ length: doc.numPages }, (_, index) => index + 1);
+  // 키보드 ↑↓(←→)로 페이지 이동 — 목록을 한 번 클릭하면 동작. 목록 스크롤 대신 페이지를 넘김
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step =
+      event.key === "ArrowDown" || event.key === "ArrowRight" || event.key === "PageDown"
+        ? 1
+        : event.key === "ArrowUp" || event.key === "ArrowLeft" || event.key === "PageUp"
+          ? -1
+          : 0;
+    const jump = event.key === "Home" ? 1 : event.key === "End" ? doc.numPages : 0;
+    if (!step && !jump) return;
+    event.preventDefault();
+    const next = jump || Math.max(1, Math.min(doc.numPages, page + step));
+    if (next !== page) onSelect(next);
+  };
   return (
-    <div className="absolute inset-x-0 bottom-0 top-[41px] space-y-1.5 overflow-y-auto p-2" ref={listRef}>
+    <div
+      aria-label="페이지 목록 — 위아래 화살표로 이동"
+      className="absolute inset-x-0 bottom-0 top-[41px] space-y-1.5 overflow-y-auto p-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#cbd5e1]"
+      onKeyDown={onKeyDown}
+      // 사파리는 버튼 클릭 시 포커스를 주지 않으므로 목록 자체에 포커스
+      onMouseDown={() => listRef.current?.focus({ preventScroll: true })}
+      ref={listRef}
+      tabIndex={0}
+    >
       {pages.map((pageNumber) => (
         <Thumb
           active={pageNumber === page}
