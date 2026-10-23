@@ -3,7 +3,7 @@
 import { memo as reactMemo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import type { ChecklistReview } from "@/lib/checklist-review/types";
-import type { ExpertMemo, Project, ReviewerMarker } from "@/lib/types";
+import type { ExpertMemo, Project, ReviewerMarker, ReviewPhase } from "@/lib/types";
 import { exportExpertPdf, type ExportMemo } from "./expert-export";
 import ExpertPageNavigator from "./expert-page-navigator";
 import ExpertPdfViewer, { useExpertPdf } from "./expert-pdf-viewer";
@@ -192,12 +192,18 @@ export default function ExpertReviewSection({
   active = true,
   activeVersion = null,
   versions = [],
+  phase = "main",
+  aiReview: aiReviewProp,
 }: {
   project: Project;
   /** 탭이 보일 때만 PDF를 받는다 */
   active?: boolean;
   activeVersion?: ExpertVersionInfo | null;
   versions?: ExpertVersionInfo[];
+  /** 사전심의(pre) / 본심의(main) — 심사위원 목록·의견을 단계별로 따로 */
+  phase?: ReviewPhase;
+  /** 이 도서의 AI 분석 결과 (오른쪽 패널) */
+  aiReview?: ChecklistReview | null;
 }) {
   const [memos, setMemos] = useState<ExpertMemo[]>(project.expertMemos ?? []);
   const [me, setMe] = useState<{ id: string; isAdmin: boolean } | null>(null);
@@ -209,7 +215,8 @@ export default function ExpertReviewSection({
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
   // 본심의 심사위원 마커 — 공무원이 고른 위원 이름으로 의견이 기록됨
-  const [reviewers, setReviewers] = useState<ReviewerMarker[]>(project.reviewers ?? []);
+  const phaseReviewers = (phase === "pre" ? project.preReviewers : project.reviewers) ?? [];
+  const [reviewers, setReviewers] = useState<ReviewerMarker[]>(phaseReviewers);
   const [activeReviewerId, setActiveReviewerId] = useState<string | null>(null);
   const [onlyActiveReviewer, setOnlyActiveReviewer] = useState(false);
   const activeReviewer = reviewers.find((reviewer) => reviewer.id === activeReviewerId) ?? null;
@@ -222,7 +229,7 @@ export default function ExpertReviewSection({
   const reviewersSaveRef = useRef<{ seq: number; chain: Promise<void>; confirmed: ReviewerMarker[] }>({
     seq: 0,
     chain: Promise.resolve(),
-    confirmed: project.reviewers ?? [],
+    confirmed: phaseReviewers,
   });
   const saveReviewers = (next: ReviewerMarker[]) => {
     setReviewers(next);
@@ -236,7 +243,7 @@ export default function ExpertReviewSection({
         const response = await fetch(`/api/projects/${project.id}/reviewers`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reviewers: next }),
+          body: JSON.stringify({ reviewers: next, phase }),
         });
         const payload = (await response.json().catch(() => ({}))) as { reviewers?: ReviewerMarker[]; error?: string };
         if (!response.ok || !payload.reviewers) throw new Error(payload.error ?? "심사위원 목록을 저장하지 못했습니다.");
@@ -295,8 +302,9 @@ export default function ExpertReviewSection({
   );
 
   const versionMemos = useMemo(
-    () => memos.filter((memo) => memo.versionKey === versionKey).sort(byPosition),
-    [memos, versionKey],
+    // 단계(사전심의/본심의)와 도서가 모두 같은 의견만 — 과거 의견(단계 없음)은 본심의로 간주
+    () => memos.filter((memo) => memo.versionKey === versionKey && (memo.phase ?? "main") === phase).sort(byPosition),
+    [memos, versionKey, phase],
   );
   const versionByKey = useMemo(() => new Map(versions.map((version) => [version.key, version])), [versions]);
   const previousMemos = useMemo(() => {
@@ -313,8 +321,8 @@ export default function ExpertReviewSection({
     return counts;
   }, [versionMemos]);
   const aiReview = useMemo(
-    () => (project.checklistReviews ?? []).find((review) => review.id === activeVersion?.reviewId) ?? null,
-    [project.checklistReviews, activeVersion?.reviewId],
+    () => aiReviewProp ?? (project.checklistReviews ?? []).find((review) => review.id === activeVersion?.reviewId) ?? null,
+    [aiReviewProp, project.checklistReviews, activeVersion?.reviewId],
   );
 
   const memoCounts = useMemo(() => {
@@ -329,16 +337,17 @@ export default function ExpertReviewSection({
     Boolean(me && (memo.authorId === me.id || me.isAdmin)) && !memo.id.startsWith("pending-");
 
   const createMemo = async (point: Point, text: string) => {
-    if (!activeVersion?.reviewId || !activeVersion.fileId || !me) return;
+    if (!activeVersion?.fileId || !me) return;
     const reviewer = activeReviewerRef.current;
     const region = { x: point.x, y: point.y, width: 0, height: 0 };
     const tempId = `pending-${Date.now()}`;
     const optimistic: ExpertMemo = {
       id: tempId,
       versionKey: activeVersion.key,
-      reviewId: activeVersion.reviewId,
+      reviewId: activeVersion.reviewId ?? "",
       fileId: activeVersion.fileId,
       fileName: activeVersion.fileName,
+      phase,
       page,
       region,
       text,
@@ -363,6 +372,7 @@ export default function ExpertReviewSection({
           region,
           text,
           reviewerId: reviewer?.id,
+          phase,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { memo?: ExpertMemo; error?: string };
@@ -493,7 +503,7 @@ export default function ExpertReviewSection({
     </>
   );
 
-  const hasFile = Boolean(activeVersion?.reviewId && activeVersion.fileId);
+  const hasFile = Boolean(activeVersion?.fileId);
 
   // 전문가 분석 다운로드 — 원본 PDF 위에 화면 그대로 핀·의견을 새겨 저장
   const downloadExpertPdf = async () => {
@@ -512,7 +522,7 @@ export default function ExpertReviewSection({
       await exportExpertPdf({
         doc: pdf.doc,
         byPage,
-        fileName: `${base}_본심의_전문가분석.pdf`,
+        fileName: `${base}_${phase === "pre" ? "사전심의" : "본심의"}_전문가분석.pdf`,
         onProgress: (done, total) => setExporting(`${done}/${total}쪽`),
       });
     } catch (error) {
@@ -524,7 +534,7 @@ export default function ExpertReviewSection({
   const previousCount = previousMemos.length;
 
   return (
-    <WorkspaceSectionCard id="expert-review" title="본심의: 인간 전문가 분석" bare>
+    <WorkspaceSectionCard id="expert-review" title={phase === "pre" ? "사전심의: 인간 전문가 분석" : "본심의: 인간 전문가 분석"} bare>
       <ReviewerBar
         activeId={activeReviewerId}
         counts={reviewerCounts}

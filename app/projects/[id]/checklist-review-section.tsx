@@ -150,7 +150,7 @@ export default function ChecklistReviewSection({
   return (
     <WorkspaceSectionCard
       id="checklist-review"
-      title="사전심의: AI 에이전트 분석"
+      title="AI 에이전트 분석"
       bare
     >
       {running ? <AnalysisBlockingOverlay progress={progress} startedAt={startedAt} statusMessage={uploadMessage ?? undefined} /> : null}

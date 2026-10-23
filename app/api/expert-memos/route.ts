@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireOfficial } from "@/lib/project-access";
 import { deleteExpertMemo, getExpertMemo, listExpertMemos, saveExpertMemo } from "@/lib/expert-memo-store";
+import { findStoredFileInProject } from "@/lib/project-file-pool";
 import { getProjectById } from "@/lib/project-store";
 import type { ExpertMemo } from "@/lib/types";
 
@@ -63,22 +64,25 @@ export async function POST(request: NextRequest) {
   const page = Number(body?.page);
   const region = parseRegion(body?.region);
 
-  if (!projectId || !versionKey || !reviewId || !fileId || !Number.isInteger(page) || page < 1 || !region) {
+  if (!projectId || !versionKey || !fileId || !Number.isInteger(page) || page < 1 || !region) {
     return NextResponse.json({ error: "메모 위치 정보가 올바르지 않습니다." }, { status: 400 });
   }
   if (!text) return NextResponse.json({ error: "메모 내용을 입력해 주세요." }, { status: 400 });
 
   const project = await getProjectById(projectId);
-  const review = (project?.checklistReviews ?? []).find((entry) => entry.id === reviewId);
-  const file = review?.files.find((entry) => entry.id === fileId);
-  if (!project || !review || !file) {
+  // 의견을 다는 도서 — 접수 도서(프로젝트 파일) 또는 AI 검토에 쓰인 파일
+  const file = project ? findStoredFileInProject(project, fileId) : null;
+  if (!project || !file) {
     return NextResponse.json({ error: "도서 파일을 찾을 수 없습니다." }, { status: 404 });
   }
+  const phase = body?.phase === "pre" ? "pre" : "main";
 
   const user = authResult.session.user;
   // 본심의 — 공무원이 고른 심사위원 이름으로 기록
   const reviewerId = typeof body?.reviewerId === "string" ? body.reviewerId.trim() : "";
-  const reviewer = reviewerId ? (project.reviewers ?? []).find((entry) => entry.id === reviewerId) : undefined;
+  const reviewer = reviewerId
+    ? ((phase === "pre" ? project.preReviewers : project.reviewers) ?? []).find((entry) => entry.id === reviewerId)
+    : undefined;
   if (reviewerId && !reviewer) {
     return NextResponse.json({ error: "심사위원을 찾을 수 없습니다. 목록을 새로고침해 주세요." }, { status: 400 });
   }
@@ -87,13 +91,14 @@ export async function POST(request: NextRequest) {
     versionKey,
     reviewId,
     fileId,
-    fileName: file.originalName,
+    fileName: file.originalName.normalize("NFC"),
     page,
     region,
     text,
     authorId: user.id,
     authorName: user.name?.trim() || user.email?.split("@")[0] || "검토자",
     createdAt: new Date().toISOString(),
+    phase,
     ...(reviewer ? { reviewerId: reviewer.id, reviewerName: reviewer.name, reviewerColor: reviewer.color } : {}),
   };
 

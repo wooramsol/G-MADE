@@ -56,7 +56,9 @@ export type ExpertMemo = {
   text: string;
   authorId: string;
   authorName: string;
-  /** 본심의 — 이 의견을 낸 심사위원 (공무원이 대신 입력) */
+  /** 사전심의/본심의 구분 (없으면 본심의 — 과거 의견) */
+  phase?: ReviewPhase;
+  /** 이 의견을 낸 심사위원 (공무원이 대신 입력) */
   reviewerId?: string;
   reviewerName?: string;
   reviewerColor?: string;
@@ -65,7 +67,14 @@ export type ExpertMemo = {
 };
 
 /** 심의 단계 — 1 도서접수 · 2 사전심의 · 3 본심의 (반려 시 종료) */
-export type ProjectStage = "RECEPTION" | "PRE_REVIEW" | "MAIN_REVIEW" | "CLOSED" | "REJECTED" | "WITHDRAWN";
+/**
+ * 심의 단계 — 1 도서접수 · 2 사전검토(공무원 직접 확인) · 3 사전심의(AI+전문가) · 4 본심의(수정 도서로 AI+전문가) · 5 심의종료
+ * (반려·철회 시 종료)
+ */
+export type ProjectStage = "RECEPTION" | "SCREENING" | "PRE_REVIEW" | "MAIN_REVIEW" | "CLOSED" | "REJECTED" | "WITHDRAWN";
+
+/** 인간 전문가 분석 차수 — 사전심의 / 본심의 */
+export type ReviewPhase = "pre" | "main";
 
 /** 지원자(또는 공무원)가 접수한 도서 1건 */
 export type DocumentSubmission = {
@@ -131,7 +140,18 @@ export type Project = {
   submissions?: DocumentSubmission[];
   /** 지원자가 신청을 철회한 시각 */
   withdrawnAt?: string;
-  /** 사전심의 판정 이력 */
+  /** 사전검토에서 할당한 유관부서 (이름 태그) */
+  departments?: string[];
+  /** 사전검토를 통과해 사전심의에 올라간 도서(접수 기록 id) */
+  preReviewSubmissionId?: string;
+  /** 사전심의 결과 통보(수정 도서 요청) 시각·안내문 */
+  preReviewNotifiedAt?: string;
+  preReviewNote?: string;
+  /** 본심의 대상 수정 도서(접수 기록 id) */
+  mainReviewSubmissionId?: string;
+  /** 사전심의 심사위원 (본심의는 reviewers) */
+  preReviewers?: ReviewerMarker[];
+  /** 사전검토 판정 이력 (필드명은 과거 호환상 유지) */
   preReviewDecisions?: PreReviewDecision[];
   /** 본심의 심사위원 목록 */
   reviewers?: ReviewerMarker[];

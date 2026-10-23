@@ -4,7 +4,7 @@ import { requireProjectAccess } from "@/lib/project-access";
 import { addProjectSubmission } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { notifyOfficials, notifyUsers } from "@/lib/notifications";
-import { applicantCanSubmit } from "@/lib/roles";
+import { applicantSubmissionKind, projectStage, type SubmissionKind } from "@/lib/roles";
 import { storedRefsToProjectFiles } from "@/lib/save-uploaded-files";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 
@@ -21,8 +21,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (access.response) return access.response;
   const { project, session, official } = access;
 
-  if (!official && !applicantCanSubmit(project)) {
-    return NextResponse.json({ error: "지금은 도서를 제출할 수 없습니다. 보완 요청을 받은 뒤 제출할 수 있습니다." }, { status: 409 });
+  // 제출 종류 — 최초 접수 / 사전검토 보완 / 본심의용 수정 도서
+  let kind: SubmissionKind | null = applicantSubmissionKind(project);
+  if (official && !kind) {
+    // 공무원 대리 제출: 단계에 맞는 종류로 (그 외에는 단계 변화 없이 기록만)
+    const stage = projectStage(project);
+    kind = stage === "RECEPTION" ? "initial" : stage === "SCREENING" ? "revision" : "revision";
+  }
+  if (!kind) {
+    return NextResponse.json({ error: "지금은 도서를 제출할 수 없습니다. 담당부서의 요청을 받은 뒤 제출할 수 있습니다." }, { status: 409 });
   }
 
   const body = (await request.json().catch(() => null)) as { file?: StoredFileRef } | null;
@@ -59,24 +66,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     },
     storedRefsToProjectFiles([ref], now)[0],
+    { asMain: kind === "main" },
   );
   if (!updated) return NextResponse.json({ error: "접수를 저장하지 못했습니다." }, { status: 500 });
 
-  // 알림 — 공무원: 신규 접수/보완 제출, 지원자(소유자): 사전심의 진행
+  // 알림 — 공무원: 신규 접수/보완 제출/수정 도서 제출, 지원자(소유자): 단계 안내
   const round = (updated.submissions ?? []).length;
   const link = `/projects/${id}`;
+  const submitter = `${session.user.name ?? "지원자"} · ${ref.originalName.normalize("NFC")}`;
   if (!official) {
     await notifyOfficials(
-      round === 1
-        ? { kind: "NEW_SUBMISSION", title: `신규 도서 접수 · ${updated.name}`, body: `${session.user.name ?? "지원자"} · ${ref.originalName}`, link, projectId: id }
-        : { kind: "RESUBMISSION", title: `보완 도서 제출 (${round - 1}차) · ${updated.name}`, body: `${session.user.name ?? "지원자"} · ${ref.originalName}`, link, projectId: id },
+      kind === "initial"
+        ? { kind: "NEW_SUBMISSION", title: `신규 도서 접수 · ${updated.name}`, body: submitter, link, projectId: id }
+        : kind === "main"
+          ? { kind: "MAIN_SUBMISSION", title: `본심의 수정 도서 제출 · ${updated.name}`, body: submitter, link, projectId: id }
+          : { kind: "RESUBMISSION", title: `보완 도서 제출 (${round - 1}차) · ${updated.name}`, body: submitter, link, projectId: id },
       session.user.id,
     );
   }
   if (updated.ownerId) {
     await notifyUsers([updated.ownerId], {
-      kind: "PRE_REVIEW",
-      title: round === 1 ? `도서가 접수되어 사전심의 중입니다 · ${updated.name}` : `보완 도서가 접수되어 사전심의 중입니다 · ${updated.name}`,
+      kind: kind === "main" ? "MAIN_REVIEW" : "SCREENING",
+      title:
+        kind === "main"
+          ? `수정 도서가 접수되어 본심의 중입니다 · ${updated.name}`
+          : kind === "initial"
+            ? `도서가 접수되어 사전검토 중입니다 · ${updated.name}`
+            : `보완 도서가 접수되어 사전검토 중입니다 · ${updated.name}`,
       link,
       projectId: id,
     });

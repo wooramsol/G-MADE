@@ -14,7 +14,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const access = await requireProjectAccess(id, { officialOnly: true });
   if (access.response) return access.response;
 
-  const body = (await request.json().catch(() => null)) as { reviewers?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { reviewers?: unknown; phase?: unknown } | null;
+  const phase = body?.phase === "pre" ? "pre" : "main";
   if (!Array.isArray(body?.reviewers)) return NextResponse.json({ error: "심사위원 목록이 필요합니다." }, { status: 400 });
 
   const reviewers: ReviewerMarker[] = [];
@@ -33,7 +34,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     reviewers.push({ id: reviewerId, name, color });
   }
 
-  const updated = await setProjectReviewers(id, reviewers);
+  const updated = await setProjectReviewers(id, reviewers, phase);
   if (!updated) return NextResponse.json({ error: "저장하지 못했습니다." }, { status: 500 });
-  return NextResponse.json({ reviewers: updated.reviewers ?? [] });
+  return NextResponse.json({ reviewers: (phase === "pre" ? updated.preReviewers : updated.reviewers) ?? [] });
 }

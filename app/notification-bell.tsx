@@ -8,7 +8,10 @@ type Item = { id: string; kind: string; title: string; body: string | null; link
 const KIND_STYLE: Record<string, { label: string; className: string }> = {
   NEW_SUBMISSION: { label: "신규 접수", className: "bg-[#e8f1ff] text-[#2463b3]" },
   RESUBMISSION: { label: "보완 제출", className: "bg-[#e8f1ff] text-[#2463b3]" },
+  SCREENING: { label: "사전검토", className: "bg-[#eef4fb] text-[#15345b]" },
   PRE_REVIEW: { label: "사전심의", className: "bg-[#eef4fb] text-[#15345b]" },
+  PRE_REVIEW_DONE: { label: "수정 도서 요청", className: "bg-[#fff8ed] text-[#b45309]" },
+  MAIN_SUBMISSION: { label: "수정 도서 제출", className: "bg-[#e8f1ff] text-[#2463b3]" },
   REVISION_REQUESTED: { label: "보완 요청", className: "bg-[#fff8ed] text-[#b45309]" },
   MAIN_REVIEW: { label: "본심의", className: "bg-[#ecfdf5] text-[#047857]" },
   CLOSED: { label: "심의종료", className: "bg-[#f1f5f9] text-[#15345b]" },

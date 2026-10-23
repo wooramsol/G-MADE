@@ -71,10 +71,11 @@ export function useExpertPdf(params: { projectId: string; reviewId: string | nul
     progress: number;
     error: string | null;
   }>({ key: null, doc: null, progress: 0, error: null });
-  const key = reviewId && fileId ? `${reviewId}/${fileId}` : null;
+  // AI 검토 없이도(접수 도서만으로) 열람 — reviewId는 있으면 쓰는 보조 정보
+  const key = fileId ? `${reviewId ?? "-"}/${fileId}` : null;
 
   useEffect(() => {
-    if (!enabled || !key || !reviewId || !fileId) return;
+    if (!enabled || !key || !fileId) return;
     if (state.key === key && (state.doc || state.error)) return;
     let cancelled = false;
     let opened: PDFDocumentProxy | null = null;
@@ -82,7 +83,7 @@ export function useExpertPdf(params: { projectId: string; reviewId: string | nul
     setState({ key, doc: null, progress: 0, error: null });
     (async () => {
       try {
-        const query = new URLSearchParams({ projectId, reviewId, fileId });
+        const query = new URLSearchParams({ projectId, fileId, ...(reviewId ? { reviewId } : {}) });
         const response = await fetch(`/api/expert-review/document?${query}`);
         const payload = (await response.json().catch(() => ({}))) as Partial<DocSource> & { error?: string };
         if (!response.ok || !payload.fallbackUrl) throw new Error(payload.error ?? "도서 파일 주소를 받지 못했습니다.");

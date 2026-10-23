@@ -2,64 +2,87 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
-import { buildDocumentVersions, type DocumentVersion } from "@/lib/checklist-review/document-versions";
+import { buildDocumentVersions, versionKeyOfReview } from "@/lib/checklist-review/document-versions";
+import type { ChecklistReview } from "@/lib/checklist-review/types";
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
 import { formatBytes } from "@/lib/format-bytes";
 import { formatUploadDateTime } from "@/lib/format-datetime";
-import { applicantCanSubmit, applicantCanWithdraw, projectStage } from "@/lib/roles";
+import { applicantSubmissionKind, applicantCanWithdraw, phaseSubmission, projectStage } from "@/lib/roles";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
-import type { Project, ProjectStage } from "@/lib/types";
+import type { Project, ProjectStage, ReviewPhase } from "@/lib/types";
 import { getMaxUploadFileLabel, getOversizedUploadFiles, buildOversizedUploadMessage } from "@/lib/upload-limits";
 import { showToast } from "../../toast";
 import ChecklistReviewSection from "./checklist-review-section";
 import ExpertReviewSection, { type ExpertVersionInfo } from "./expert-review-section";
+import ScreeningViewer from "./screening-viewer";
 
-type StepId = 1 | 2 | 3 | 4;
+type StepId = 1 | 2 | 3 | 4 | 5;
 
 const STEPS: Array<{ id: StepId; label: string; desc: string }> = [
-  { id: 1, label: "도서접수", desc: "기본정보 · 도서 제출" },
-  { id: 2, label: "사전심의", desc: "AI 에이전트 분석 · 보완" },
-  { id: 3, label: "본심의", desc: "인간 전문가 분석" },
-  { id: 4, label: "심의종료", desc: "결과 통지" },
+  { id: 1, label: "도서접수", desc: "지원자 도서 제출" },
+  { id: 2, label: "사전검토", desc: "도서 확인 · 유관부서 · 판정" },
+  { id: 3, label: "사전심의", desc: "AI 분석 · 전문가 분석" },
+  { id: 4, label: "본심의", desc: "수정 도서 · AI · 전문가" },
+  { id: 5, label: "심의종료", desc: "결과 통지" },
 ];
 
 function stageStep(stage: ProjectStage): StepId {
   if (stage === "RECEPTION") return 1;
-  if (stage === "MAIN_REVIEW") return 3;
-  if (stage === "CLOSED") return 4;
-  return 2;
+  if (stage === "PRE_REVIEW") return 3;
+  if (stage === "MAIN_REVIEW") return 4;
+  if (stage === "CLOSED") return 5;
+  return 2; // SCREENING · 반려 · 철회
 }
 
-/** "26.09.04 16:15" 형식 (한국 시간) */
-function shortDateTime(iso: string): string {
-  const parts = new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    year: "2-digit",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date(iso));
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return `${get("year")}.${get("month")}.${get("day")} ${get("hour")}:${get("minute")}`;
+/** 단계(사전심의/본심의)별 심사 대상 도서와 그 도서의 AI 분석 결과 */
+function usePhaseDocument(project: Project, phase: ReviewPhase) {
+  return useMemo(() => {
+    const reviews = project.checklistReviews ?? [];
+    let submission = phaseSubmission(project, phase);
+    // 과거 프로젝트(접수 기록 없이 공무원이 직접 분석) — 사전심의는 가장 최근 분석 도서로
+    if (!submission && phase === "pre" && reviews.length > 0) {
+      const lastReview = [...reviews].sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt))[0];
+      const file = lastReview.files[0];
+      if (file?.storageKey) {
+        submission = {
+          id: `review-${lastReview.id}`,
+          round: 1,
+          file: { id: file.id, originalName: file.originalName, fileType: file.fileType, sizeBytes: file.sizeBytes, storageKey: file.storageKey, blobUrl: file.blobUrl },
+          submittedAt: lastReview.reviewedAt,
+          submittedBy: { id: "", name: "", role: "OFFICER" },
+        };
+      }
+    }
+    const matching = submission
+      ? reviews.filter((review) => review.files.some((file) => file.storageKey === submission.file.storageKey))
+      : [];
+    const latestReview: ChecklistReview | undefined = [...matching].sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt))[0];
+    const pending: StoredFileRef | null =
+      submission && matching.length === 0 ? { ...submission.file, uploadedAt: submission.submittedAt } : null;
+    const expertVersion: ExpertVersionInfo | null = submission
+      ? {
+          key: `sub:${submission.id}`,
+          label: phase === "pre" ? "사전심의 도서" : "본심의 수정 도서",
+          order: phase === "pre" ? 1 : 2,
+          fileName: submission.file.originalName.normalize("NFC"),
+          reviewId: latestReview?.id ?? null,
+          fileId: submission.file.id,
+          changedPages: [],
+        }
+      : null;
+    return {
+      submission,
+      latestReview,
+      pending,
+      expertVersion,
+      versionKey: latestReview ? versionKeyOfReview(latestReview) : null,
+    };
+  }, [project, phase]);
 }
-
-function changeSummary(version: DocumentVersion): string | null {
-  if (version.order === 1) return version.pageCount ? `${version.pageCount}쪽` : null;
-  const change = version.change;
-  if (!change) return "이전 버전과 페이지 비교 불가";
-  const parts: string[] = [];
-  if (change.modified > 0) parts.push(`수정 ${change.modified}`);
-  if (change.added > 0) parts.push(`추가 ${change.added}`);
-  if (change.removed > 0) parts.push(`삭제 ${change.removed}`);
-  return parts.length > 0 ? `이전 대비 ${parts.join(" · ")}쪽` : "이전 버전과 페이지 내용 동일";
-}
-
 
 /**
- * 심의 진행 — 1 도서접수 · 2 사전심의 · 3 본심의.
- * 지원자: 1단계(도서 접수·보완 제출)와 진행 상태만. 공무원: 모든 단계.
+ * 심의 진행 — 1 도서접수 · 2 사전검토 · 3 사전심의 · 4 본심의 · 5 심의종료.
+ * 지원자: 도서 제출과 진행 상태만. 공무원: 모든 단계.
  */
 export default function ProjectWorkflow({ project, official }: { project: Project; official: boolean }) {
   const stage = projectStage(project);
@@ -71,134 +94,54 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
     setShownStep(currentStep);
     if (official) setViewStep(currentStep);
   }
-
-  const versions = useMemo(
-    () => buildDocumentVersions(project.checklistReviews ?? []),
-    [project.checklistReviews],
-  );
-  const [versionKey, setVersionKey] = useState<string | null>(null);
-  const currentVersion = versions.find((version) => version.key === versionKey) ?? versions[versions.length - 1];
-
-  const expertVersions: ExpertVersionInfo[] = useMemo(
-    () =>
-      versions.map((version) => {
-        const review = version.reviews.find((entry) => entry.files[0]) ?? version.reviews[0];
-        return {
-          key: version.key,
-          label: version.label,
-          order: version.order,
-          fileName: version.fileName,
-          reviewId: review?.id ?? null,
-          fileId: review?.files[0]?.id ?? null,
-          changedPages: version.change?.changedPages ?? [],
-        };
-      }),
-    [versions],
-  );
-  // 본심의는 최종(가장 최근) 도서 기준
-  const finalVersion = expertVersions[expertVersions.length - 1] ?? null;
-
-  // 아직 AI 분석하지 않은 최신 접수 도서
-  const submissions = project.submissions ?? [];
-  const latestSubmission = submissions[submissions.length - 1];
-  const analyzedKeys = new Set((project.checklistReviews ?? []).flatMap((review) => review.files.map((file) => file.storageKey)));
-  const pendingSubmission: StoredFileRef | null =
-    latestSubmission && !analyzedKeys.has(latestSubmission.file.storageKey)
-      ? { ...latestSubmission.file, uploadedAt: latestSubmission.submittedAt }
-      : null;
-
-  // 도서 버전 선택 — 두 탭의 "검토 자료 선택" 카드 안에 같은 것을 넣는다 (상태는 여기서 공유)
-  const versionPicker =
-    versions.length === 0 ? (
-      <p className="pt-1.5 text-xs text-[#94a3b8]">
-        PDF를 업로드하면 도서 버전이 만들어지고 검토가 시작됩니다.
-      </p>
-    ) : (
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          {versions.map((version) => {
-            const selected = version.key === currentVersion?.key;
-            const summary = changeSummary(version);
-            return (
-              <button
-                className={`flex h-12 min-w-[200px] flex-col justify-center rounded-md border px-3 text-left transition ${
-                  selected
-                    ? "border-[#15345b] bg-[#15345b] text-white"
-                    : "border-[#d7dee8] bg-white text-[#334155] hover:border-[#9fb3cc] hover:bg-[#f8fafc]"
-                }`}
-                key={version.key}
-                onClick={() => setVersionKey(version.key)}
-                title={`${version.fileName}\n최근 분석 ${formatUploadDateTime(version.lastReviewedAt)} · 검토 ${version.reviews.length}회`}
-                type="button"
-              >
-                <span className="flex items-baseline justify-between gap-3 text-xs font-bold leading-4">
-                  {version.label}
-                  <span className={`text-[11px] font-medium ${selected ? "text-[#c9d6e6]" : "text-[#94a3b8]"}`}>
-                    {shortDateTime(version.lastReviewedAt)}
-                  </span>
-                </span>
-                <span className={`mt-0.5 block truncate text-[11px] leading-4 ${selected ? "text-[#dbe4f0]" : "text-[#64748b]"}`}>
-                  {[version.sizeBytes > 0 ? formatBytes(version.sizeBytes) : null, summary].filter(Boolean).join(" · ") || "\u00a0"}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {currentVersion ? (
-          <p className="mt-2 truncate text-[11px] text-[#94a3b8]">
-            {currentVersion.fileName}
-            {currentVersion.change && currentVersion.change.changedPages.length > 0
-              ? ` · 바뀐 페이지 ${currentVersion.change.changedPages.slice(0, 20).map((page) => `p.${page}`).join(", ")}${
-                  currentVersion.change.changedPages.length > 20 ? " …" : ""
-                }`
-              : ""}
-          </p>
-        ) : null}
-      </div>
-    );
-
+  const ended = stage === "REJECTED" || stage === "WITHDRAWN";
 
   return (
     <div className="space-y-4">
-      <Stepper current={currentStep} official={official} onSelect={setViewStep} rejected={stage === "REJECTED" || stage === "WITHDRAWN"} rejectedLabel={stage === "WITHDRAWN" ? "철회" : "반려"} view={viewStep} />
+      <Stepper
+        current={currentStep}
+        official={official}
+        onSelect={setViewStep}
+        rejected={ended}
+        rejectedLabel={stage === "WITHDRAWN" ? "철회" : "반려"}
+        view={viewStep}
+      />
 
       {!official ? <ApplicantStatus project={project} /> : null}
 
-      <div className={`rounded-md border-2 bg-white p-5 panel-shadow ${viewStep >= 3 ? "border-[#111827]" : viewStep === 2 ? "border-[#2463b3]" : "border-[#15345b]"}`}>
+      <div
+        className={`rounded-md border-2 bg-white p-5 panel-shadow ${
+          viewStep >= 4 ? "border-[#111827]" : viewStep === 3 ? "border-[#2463b3]" : "border-[#15345b]"
+        }`}
+      >
         {viewStep === 1 || !official ? <ReceptionPanel official={official} project={project} /> : null}
+        {official && viewStep === 2 ? <ScreeningPanel project={project} /> : null}
         {official ? (
           <>
-            <div hidden={viewStep !== 2}>
-              <ChecklistReviewSection
-                activeVersionKey={currentVersion?.key ?? null}
-                onActiveVersionChange={setVersionKey}
-                pendingSubmission={pendingSubmission}
-                project={project}
-                versionPicker={versionPicker}
-              />
-              <DecisionPanel pendingSubmission={pendingSubmission} project={project} />
-            </div>
             <div hidden={viewStep !== 3}>
-              {currentStep === 3 ? <CloseReviewBar project={project} /> : null}
               {currentStep >= 3 ? (
-                <ExpertReviewSection
-                  active={viewStep === 3}
-                  activeVersion={finalVersion}
-                  project={project}
-                  versions={expertVersions}
-                />
+                <PhasePanel active={viewStep === 3} phase="pre" project={project} />
               ) : (
-                <p className="rounded-md border border-dashed border-[#d0d5dd] bg-[#f8fafc] px-4 py-10 text-center text-sm text-[#64748b]">
-                  사전심의를 &lsquo;통과&rsquo;하면 최종 도서로 본심의(인간 전문가 분석)를 진행할 수 있습니다.
-                </p>
+                <EmptyStep text="사전검토를 ‘통과’하면 그 도서로 사전심의(AI 분석 · 전문가 분석)를 진행합니다." />
               )}
             </div>
-            {viewStep === 4 ? <ClosedPanel project={project} /> : null}
+            <div hidden={viewStep !== 4}>
+              {currentStep >= 4 ? (
+                <PhasePanel active={viewStep === 4} phase="main" project={project} />
+              ) : (
+                <EmptyStep text="사전심의 결과를 통보하고 지원자가 수정 도서를 제출하면 본심의를 진행합니다." />
+              )}
+            </div>
+            {viewStep === 5 ? <ClosedPanel project={project} /> : null}
           </>
         ) : null}
       </div>
     </div>
   );
+}
+
+function EmptyStep({ text }: { text: string }) {
+  return <p className="rounded-md border border-dashed border-[#d0d5dd] bg-[#f8fafc] px-4 py-10 text-center text-sm text-[#64748b]">{text}</p>;
 }
 
 function Stepper({
@@ -209,15 +152,15 @@ function Stepper({
   rejectedLabel = "반려",
   onSelect,
 }: {
-  rejectedLabel?: string;
   current: StepId;
   view: StepId;
   official: boolean;
   rejected: boolean;
+  rejectedLabel?: string;
   onSelect: (step: StepId) => void;
 }) {
   return (
-    <ol className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <ol className="grid grid-cols-5 gap-2.5">
       {STEPS.map((step) => {
         const done = step.id < current;
         const isCurrent = step.id === current;
@@ -226,7 +169,7 @@ function Stepper({
         return (
           <li key={step.id}>
             <button
-              className={`flex w-full items-center gap-4 rounded-lg border-2 px-5 py-5 text-left transition ${
+              className={`flex h-full w-full items-center gap-3 rounded-lg border-2 px-3.5 py-4 text-left transition ${
                 selected
                   ? "border-[#15345b] bg-[#15345b] text-white shadow-lg"
                   : isCurrent
@@ -240,18 +183,18 @@ function Stepper({
               type="button"
             >
               <span
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg font-black ${
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-black ${
                   selected ? "bg-white/20" : done ? "bg-[#15345b] text-white" : isCurrent ? "bg-[#2463b3] text-white" : "bg-[#e2e8f0]"
                 }`}
               >
                 {done ? "✓" : step.id}
               </span>
               <span className="min-w-0">
-                <span className="block text-lg font-bold leading-6">
-                  {step.id}단계 · {step.label}
-                  {isCurrent && rejected && step.id === 2 ? <span className="ml-2 rounded bg-red-100 px-1.5 text-xs text-red-700">{rejectedLabel}</span> : null}
+                <span className="block text-base font-bold leading-5">
+                  {step.label}
+                  {isCurrent && rejected ? <span className="ml-1.5 rounded bg-red-100 px-1.5 text-[11px] text-red-700">{rejectedLabel}</span> : null}
                 </span>
-                <span className={`block text-xs ${selected ? "text-white/80" : "opacity-75"}`}>{step.desc}</span>
+                <span className={`mt-0.5 block text-[11px] leading-4 ${selected ? "text-white/80" : "opacity-75"}`}>{step.desc}</span>
               </span>
             </button>
           </li>
@@ -266,28 +209,34 @@ function ApplicantStatus({ project }: { project: Project }) {
   const stage = projectStage(project);
   const decisions = project.preReviewDecisions ?? [];
   const last = decisions[decisions.length - 1];
-  const submissions = project.submissions ?? [];
-  const lastSubmission = submissions[submissions.length - 1];
-  const resubmitted = last && lastSubmission && lastSubmission.submittedAt > last.decidedAt;
+  const kind = applicantSubmissionKind(project);
 
   let tone = "border-[#c9d6e6] bg-[#f3f7fc] text-[#15345b]";
   let title = "도서를 접수해 주세요";
-  let body = "아래에서 심의 도서(PDF)를 제출하면 사전심의가 시작됩니다.";
-  if (stage === "PRE_REVIEW") {
-    if (last?.decision === "보완요청" && !resubmitted) {
+  let body = "아래에서 심의 도서(PDF)를 제출하면 담당부서의 사전검토가 시작됩니다.";
+  if (stage === "SCREENING") {
+    if (kind === "revision") {
       tone = "border-[#f2c48d] bg-[#fff8ed] text-[#92400e]";
       title = "보완 요청이 있습니다";
-      body = last.note ?? "담당 공무원이 전달한 보완요구서를 확인하고 보완 도서를 제출해 주세요.";
+      body = last?.note ?? "담당부서의 요청 사항을 반영한 보완 도서를 제출해 주세요.";
     } else {
-      title = resubmitted ? "보완 도서가 제출되었습니다" : "사전심의 진행 중";
-      body = "담당 공무원이 도서를 검토하고 있습니다. 보완이 필요하면 이 화면에 안내됩니다.";
+      title = "사전검토 중";
+      body = "담당부서에서 제출한 도서를 확인하고 있습니다. 보완이 필요하면 이 화면과 알림으로 안내됩니다.";
+    }
+  } else if (stage === "PRE_REVIEW") {
+    if (kind === "main") {
+      tone = "border-[#f2c48d] bg-[#fff8ed] text-[#92400e]";
+      title = "사전심의가 끝났습니다 — 수정 도서를 제출해 주세요";
+      body = project.preReviewNote ?? "사전심의 결과를 반영한 수정 도서를 제출하면 본심의가 진행됩니다.";
+    } else {
+      title = "사전심의 중";
+      body = "사전검토를 통과해 AI 분석과 전문가 분석이 진행되고 있습니다. 결과는 담당부서가 안내합니다.";
     }
   } else if (stage === "MAIN_REVIEW") {
     tone = "border-[#bbf7d0] bg-[#ecfdf5] text-[#047857]";
-    title = "사전심의 통과 · 본심의 진행 중";
-    body = "최종 도서로 본심의가 진행됩니다.";
+    title = "본심의 중";
+    body = "제출한 수정 도서로 본심의가 진행되고 있습니다.";
   } else if (stage === "CLOSED") {
-    tone = "border-[#c9d6e6] bg-[#f3f7fc] text-[#15345b]";
     title = "심의가 종료되었습니다";
     body = "심의 결과는 담당부서에서 별도로 통지해 드릴 예정입니다.";
   } else if (stage === "WITHDRAWN") {
@@ -304,11 +253,6 @@ function ApplicantStatus({ project }: { project: Project }) {
       {applicantCanWithdraw(project) ? <WithdrawButton project={project} /> : null}
       <p className="text-base font-bold">{title}</p>
       <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{body}</p>
-      {last && (last.decision !== "통과") ? (
-        <p className="mt-1 text-xs opacity-75">
-          {formatUploadDateTime(last.decidedAt)} · {last.decidedBy.name}
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -323,7 +267,10 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const submissions = project.submissions ?? [];
   const stage = projectStage(project);
-  const canSubmit = official ? stage === "RECEPTION" || stage === "PRE_REVIEW" : applicantCanSubmit(project);
+  // 지금 낼 수 있는 도서 종류 — 최초 접수 / 사전검토 보완 / 본심의용 수정 도서
+  const kind = applicantSubmissionKind(project) ?? (official && (stage === "RECEPTION" || stage === "SCREENING") ? (stage === "RECEPTION" ? "initial" : "revision") : null);
+  const canSubmit = kind !== null;
+  const kindLabel = kind === "main" ? "본심의 수정 도서" : kind === "revision" ? "보완 도서" : "심의 도서";
 
   const choose = (file: File | undefined) => {
     if (!file || busy) return;
@@ -352,7 +299,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "접수에 실패했습니다.");
-      showToast({ message: submissions.length === 0 ? "도서가 제출되었습니다." : "보완 도서가 제출되었습니다.", tone: "success" });
+      showToast({ message: `${kindLabel}가 제출되었습니다.`, tone: "success" });
       setPendingFile(null);
       router.refresh();
     } catch (error) {
@@ -372,7 +319,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
       {canSubmit && pendingFile ? (
         <div className="mt-4 rounded-md border-2 border-[#2463b3] bg-[#f0f7ff] p-5">
           <p className="text-base font-bold text-[#15345b]">
-            {submissions.length === 0 ? "이 도서를 제출하시겠습니까?" : "이 보완 도서를 제출하시겠습니까?"}
+            {`이 ${kindLabel}를 제출하시겠습니까?`}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[#c9d6e6] bg-white px-4 py-3 text-sm">
             <span className="rounded-[3px] bg-[#15345b] px-2 py-0.5 text-xs font-bold text-white">PDF</span>
@@ -382,7 +329,8 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-[#334155]">
             <li>제출한 도서는 담당부서로 전달되며, 제출 후에는 취소하거나 바꿀 수 없습니다.</li>
             <li>접수가 완료되면 알림으로 안내해 드립니다.</li>
-            {submissions.length > 0 ? <li>보완 요청 사항이 모두 반영되었는지 다시 한 번 확인해 주세요.</li> : null}
+            {kind === "revision" ? <li>보완 요청 사항이 모두 반영되었는지 다시 한 번 확인해 주세요.</li> : null}
+            {kind === "main" ? <li>사전심의 결과를 반영한 수정 도서로 본심의가 진행됩니다.</li> : null}
           </ul>
           <div className="mt-4 flex justify-end gap-2">
             <button
@@ -423,7 +371,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
           type="button"
         >
           <span className="text-base font-bold text-[#2463b3]">
-            {submissions.length === 0 ? "+ 심의 도서 PDF 첨부 (클릭 또는 드래그)" : "+ 보완 도서 PDF 첨부 (클릭 또는 드래그)"}
+            {`+ ${kindLabel} PDF 첨부 (클릭 또는 드래그)`}
           </span>
           <span className="mt-1 text-xs text-[#64748b]">
             첨부한 뒤 내용을 확인하고 제출합니다.
@@ -431,7 +379,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
         </button>
       ) : (
         <p className="mt-4 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
-          {stage === "PRE_REVIEW" ? "제출한 도서를 담당부서에서 검토하고 있습니다. 보완 요청을 받으면 보완 도서를 제출할 수 있습니다." : "도서 제출 기간이 아닙니다."}
+          {stage === "RECEPTION" ? "도서를 제출할 수 없습니다." : "제출한 도서를 담당부서에서 검토하고 있습니다. 보완·수정 요청을 받으면 이곳에서 도서를 제출할 수 있습니다."}
         </p>
       )}
       <input
@@ -454,7 +402,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
             {[...submissions].reverse().map((submission) => (
               <li className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm" key={submission.id}>
                 <span className="rounded-[3px] bg-[#15345b] px-2 py-0.5 text-xs font-bold text-white">
-                  {submission.round === 1 ? "최초 접수" : `${submission.round - 1}차 보완`}
+                  {submission.id === project.mainReviewSubmissionId ? "본심의 수정본" : submission.round === 1 ? "최초 접수" : `${submission.round - 1}차 보완`}
                 </span>
                 <a
                   className="min-w-0 flex-1 truncate font-semibold !text-[#2463b3] hover:underline"
@@ -477,8 +425,91 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
   );
 }
 
-/** 2단계 — 사전심의 판정 (공무원) */
-function DecisionPanel({ project, pendingSubmission }: { project: Project; pendingSubmission: StoredFileRef | null }) {
+/** 2단계 — 사전검토: 도서 직접 확인 · 유관부서 할당 · 통과/보완/반려 판정 */
+function ScreeningPanel({ project }: { project: Project }) {
+  const submissions = project.submissions ?? [];
+  const latest = submissions[submissions.length - 1];
+  return (
+    <section className="space-y-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-lg font-bold text-[#15345b]">사전검토</h3>
+        {latest ? (
+          <p className="text-xs text-[#64748b]">
+            검토 도서: {latest.file.originalName.normalize("NFC")} · {formatUploadDateTime(latest.submittedAt)} 접수
+          </p>
+        ) : null}
+      </div>
+      {latest ? (
+        <ScreeningViewer fileId={latest.file.id} key={latest.id} projectId={project.id} />
+      ) : (
+        <EmptyStep text="아직 접수된 도서가 없습니다." />
+      )}
+      <DepartmentsEditor project={project} />
+      <DecisionPanel project={project} />
+    </section>
+  );
+}
+
+/** 유관부서 할당 — 부서 이름 태그 */
+function DepartmentsEditor({ project }: { project: Project }) {
+  const [departments, setDepartments] = useState<string[]>(project.departments ?? []);
+  const [value, setValue] = useState("");
+  const save = async (next: string[]) => {
+    const before = departments;
+    setDepartments(next);
+    const response = await fetch(`/api/projects/${project.id}/departments`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ departments: next }),
+    }).catch(() => null);
+    if (!response?.ok) {
+      setDepartments(before);
+      showToast({ message: "유관부서를 저장하지 못했습니다.", tone: "error" });
+    }
+  };
+  const add = () => {
+    const names = value.split(/[,\n]/).map((entry) => entry.trim()).filter(Boolean);
+    setValue("");
+    const next = [...departments];
+    for (const name of names) if (!next.some((entry) => entry.replace(/\s+/g, "") === name.replace(/\s+/g, ""))) next.push(name);
+    if (next.length !== departments.length) void save(next);
+  };
+  return (
+    <section className="rounded-md border border-[#d7dee8] bg-white p-4">
+      <p className="text-sm font-bold text-[#15345b]">유관부서 할당</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {departments.map((name) => (
+          <span className="flex items-center gap-1.5 rounded-full border border-[#c9d6e6] bg-[#f3f7fc] py-1 pl-3 pr-1.5 text-sm font-semibold text-[#15345b]" key={name}>
+            {name}
+            <button
+              aria-label={`${name} 제거`}
+              className="flex h-5 w-5 items-center justify-center rounded-full text-xs text-[#64748b] hover:bg-[#fee2e2] hover:text-[#b91c1c]"
+              onClick={() => void save(departments.filter((entry) => entry !== name))}
+              type="button"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          className="h-8 w-56 rounded-full border border-dashed border-[#9db6d8] px-3 text-sm outline-none focus:border-[#2463b3]"
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              add();
+            }
+          }}
+          placeholder="+ 부서 이름 입력 후 Enter (예: 건축과)"
+          value={value}
+        />
+      </div>
+    </section>
+  );
+}
+
+/** 사전검토 판정 (공무원) */
+function DecisionPanel({ project }: { project: Project }) {
   const router = useRouter();
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -490,12 +521,8 @@ function DecisionPanel({ project, pendingSubmission }: { project: Project; pendi
       showToast({ message: "보완요청·반려 사유를 적어 주세요. 지원자 화면에 그대로 표시됩니다.", tone: "error" });
       return;
     }
-    if (decision === "통과" && pendingSubmission) {
-      showToast({ message: "최근 접수된 도서를 아직 AI 분석하지 않았습니다. 위의 'AI 에이전트 분석 시작'을 먼저 눌러 주세요. (본심의는 분석된 최종 도서로 진행됩니다)", tone: "error" });
-      return;
-    }
     const confirmText =
-      decision === "통과" ? "사전심의를 통과 처리하고 본심의로 넘길까요?" : decision === "반려" ? "반려 처리할까요? 심의가 종료됩니다." : "지원자에게 보완을 요청할까요?";
+      decision === "통과" ? "사전검토를 통과 처리하고 사전심의로 넘길까요?" : decision === "반려" ? "반려 처리할까요? 심의가 종료됩니다." : "지원자에게 보완을 요청할까요?";
     if (!window.confirm(confirmText)) return;
     setBusy(true);
     try {
@@ -517,31 +544,31 @@ function DecisionPanel({ project, pendingSubmission }: { project: Project; pendi
   };
 
   const reopen = async () => {
-    if (!window.confirm("사전심의 단계로 되돌릴까요?")) return;
+    if (!window.confirm("사전검토 단계로 되돌릴까요?")) return;
     await fetch(`/api/projects/${project.id}/decision`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage: "PRE_REVIEW" }),
+      body: JSON.stringify({ stage: "SCREENING" }),
     });
     router.refresh();
   };
 
   return (
-    <section className="mt-6 rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
+    <section className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-base font-bold text-[#15345b]">사전심의 판정</h3>
-        {stage !== "PRE_REVIEW" ? (
+        <h3 className="text-base font-bold text-[#15345b]">사전검토 판정</h3>
+        {stage !== "SCREENING" && stage !== "RECEPTION" ? (
           <button className="text-xs font-semibold text-[#64748b] underline" onClick={() => void reopen()} type="button">
-            사전심의로 되돌리기
+            사전검토로 되돌리기
           </button>
         ) : null}
       </div>
-      {stage === "PRE_REVIEW" ? (
+      {stage === "SCREENING" ? (
         <>
           <textarea
             className="mt-3 h-20 w-full resize-y rounded-md border border-[#d7dee8] bg-white p-3 text-sm outline-none focus:border-[#2463b3]"
             onChange={(event) => setNote(event.target.value)}
-            placeholder="보완요청·반려 사유 (지원자 화면에 표시됩니다). 보완요구서는 'AI 분석 다운로드'로 받아 함께 전달하세요."
+            placeholder="보완요청·반려 사유 (지원자 화면에 표시됩니다)"
             value={note}
           />
           <div className="mt-2 flex flex-wrap justify-end gap-2">
@@ -552,13 +579,19 @@ function DecisionPanel({ project, pendingSubmission }: { project: Project; pendi
               반려
             </button>
             <button className="primary-action-blue rounded-md px-4 py-2 text-sm font-bold disabled:opacity-50" disabled={busy} onClick={() => void decide("통과")} type="button">
-              통과 → 본심의
+              통과 → 사전심의
             </button>
           </div>
         </>
       ) : (
         <p className="mt-2 text-sm text-[#475569]">
-          {stage === "MAIN_REVIEW" ? "사전심의를 통과해 본심의 단계입니다." : stage === "WITHDRAWN" ? "지원자가 신청을 철회했습니다." : stage === "REJECTED" ? "반려되어 심의가 종료되었습니다." : "도서 접수 후 판정할 수 있습니다."}
+          {stage === "WITHDRAWN"
+            ? "지원자가 신청을 철회했습니다."
+            : stage === "REJECTED"
+              ? "반려되어 심의가 종료되었습니다."
+              : stage === "RECEPTION"
+                ? "도서 접수 후 판정할 수 있습니다."
+                : "사전검토를 통과했습니다."}
         </p>
       )}
       {decisions.length > 0 ? (
@@ -582,8 +615,125 @@ function DecisionPanel({ project, pendingSubmission }: { project: Project; pendi
   );
 }
 
+/** 3·4단계 — 사전심의 / 본심의: AI 에이전트 분석과 인간 전문가 분석을 병렬로 */
+function PhasePanel({ project, phase, active }: { project: Project; phase: ReviewPhase; active: boolean }) {
+  const [tab, setTab] = useState<"ai" | "expert">("ai");
+  const doc = usePhaseDocument(project, phase);
+  const [versionKey, setVersionKey] = useState<string | null>(null);
+  const versions = useMemo(() => buildDocumentVersions(project.checklistReviews ?? []), [project.checklistReviews]);
+  const phaseName = phase === "pre" ? "사전심의" : "본심의";
 
-/** 3단계 상단 — 본심의를 마치고 심의 종료 처리 (지원자에게 결과 통지 예정 안내 알림) */
+  if (!doc.submission) {
+    return <EmptyStep text={phase === "main" ? "지원자가 수정 도서를 제출하면 본심의를 진행할 수 있습니다." : "심사할 도서가 없습니다."} />;
+  }
+  const stage = projectStage(project);
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-lg font-bold text-[#15345b]">{phaseName}</h3>
+        <p className="text-xs text-[#64748b]">
+          심사 도서: {doc.submission.file.originalName.normalize("NFC")} · {formatBytes(doc.submission.file.sizeBytes)} ·{" "}
+          {formatUploadDateTime(doc.submission.submittedAt)} 접수
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3" role="tablist">
+        {(
+          [
+            ["ai", "AI 에이전트 분석", doc.latestReview ? `분석 완료 · ${formatUploadDateTime(doc.latestReview.reviewedAt)}` : "분석 전"],
+            ["expert", "인간 전문가 분석", "심사위원 의견"],
+          ] as const
+        ).map(([id, label, sub]) => (
+          <button
+            aria-selected={tab === id}
+            className={`flex flex-col items-start rounded-lg border-2 px-5 py-3.5 text-left transition ${
+              tab === id ? (id === "ai" ? "border-[#2463b3] bg-[#2463b3] text-white" : "border-[#111827] bg-[#111827] text-white") : "border-[#d7dee8] bg-white text-[#334155] hover:border-[#9fb3cc]"
+            }`}
+            key={id}
+            onClick={() => setTab(id)}
+            role="tab"
+            type="button"
+          >
+            <span className="text-base font-bold">{label}</span>
+            <span className={`text-xs ${tab === id ? "text-white/80" : "text-[#94a3b8]"}`}>{sub}</span>
+          </button>
+        ))}
+      </div>
+      <div hidden={tab !== "ai"}>
+        <ChecklistReviewSection
+          activeVersionKey={versionKey ?? doc.versionKey ?? versions[versions.length - 1]?.key ?? null}
+          onActiveVersionChange={setVersionKey}
+          pendingSubmission={doc.pending}
+          project={project}
+        />
+      </div>
+      <div hidden={tab !== "expert"}>
+        <ExpertReviewSection
+          active={active && tab === "expert"}
+          activeVersion={doc.expertVersion}
+          aiReview={doc.latestReview ?? null}
+          phase={phase}
+          project={project}
+          versions={doc.expertVersion ? [doc.expertVersion] : []}
+        />
+      </div>
+      {phase === "pre" && stage === "PRE_REVIEW" ? <PreReviewNotifyBar project={project} /> : null}
+      {phase === "main" && stage === "MAIN_REVIEW" ? <CloseReviewBar project={project} /> : null}
+    </section>
+  );
+}
+
+/** 사전심의 마무리 — 결과 통보(지원자에게 수정 도서 제출 요청) */
+function PreReviewNotifyBar({ project }: { project: Project }) {
+  const router = useRouter();
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (project.preReviewNotifiedAt) {
+    return (
+      <div className="rounded-md border border-[#f2c48d] bg-[#fff8ed] px-4 py-3 text-sm text-[#92400e]">
+        {formatUploadDateTime(project.preReviewNotifiedAt)}에 사전심의 결과를 통보했습니다. 지원자가 수정 도서를 제출하면 본심의로 넘어갑니다.
+        {project.preReviewNote ? <span className="mt-1 block text-xs text-[#b45309]">안내: {project.preReviewNote}</span> : null}
+      </div>
+    );
+  }
+  const notify = async () => {
+    if (!window.confirm("사전심의를 마치고 지원자에게 결과를 통보할까요?\n지원자에게 수정 도서 제출 요청 알림이 갑니다.")) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notifyPreReview: true, note }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "처리하지 못했습니다.");
+      showToast({ message: "사전심의 결과를 통보했습니다.", tone: "success" });
+      router.refresh();
+    } catch (error) {
+      showToast({ message: error instanceof Error ? error.message : "처리하지 못했습니다.", tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-md border border-[#e2e8f0] bg-[#f8fafc] p-4">
+      <p className="text-sm font-bold text-[#15345b]">사전심의 결과 통보</p>
+      <p className="mt-1 text-xs text-[#64748b]">AI 분석과 전문가 의견을 정리해 지원자에게 전달한 뒤 통보하세요. 지원자가 수정 도서를 내면 본심의가 시작됩니다.</p>
+      <textarea
+        className="mt-2 h-16 w-full resize-y rounded-md border border-[#d7dee8] bg-white p-2.5 text-sm outline-none focus:border-[#2463b3]"
+        onChange={(event) => setNote(event.target.value)}
+        placeholder="지원자에게 보일 안내 (선택) — 예: 첨부한 사전심의 의견을 반영해 수정 도서를 제출해 주세요."
+        value={note}
+      />
+      <div className="mt-2 flex justify-end">
+        <button className="rounded-md bg-[#15345b] px-4 py-2 text-sm font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void notify()} type="button">
+          사전심의 종료 · 결과 통보
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** 본심의 마무리 — 심의 종료 (지원자에게 결과 통지 예정 안내) */
 function CloseReviewBar({ project }: { project: Project }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -606,16 +756,16 @@ function CloseReviewBar({ project }: { project: Project }) {
     }
   };
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3">
-      <p className="text-sm text-[#475569]">심사위원 의견 입력을 마쳤으면 심의를 종료하세요. 지원자에게 결과 통지 예정 안내가 전달됩니다.</p>
-      <button className="rounded-md bg-[#15345b] px-4 py-2 text-sm font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void close()} type="button">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3">
+      <p className="text-sm text-[#475569]">본심의 AI 분석과 심사위원 의견 입력을 마쳤으면 심의를 종료하세요. 지원자에게 결과 통지 예정 안내가 전달됩니다.</p>
+      <button className="rounded-md bg-[#111827] px-4 py-2 text-sm font-bold text-white disabled:opacity-50" disabled={busy} onClick={() => void close()} type="button">
         본심의 종료 → 심의종료
       </button>
     </div>
   );
 }
 
-/** 4단계 — 심의 종료 */
+/** 5단계 — 심의 종료 */
 function ClosedPanel({ project }: { project: Project }) {
   const router = useRouter();
   const reopen = async () => {
@@ -631,7 +781,7 @@ function ClosedPanel({ project }: { project: Project }) {
     <section className="py-6 text-center">
       <p className="text-lg font-bold text-[#15345b]">심의가 종료되었습니다</p>
       <p className="mt-2 text-sm text-[#475569]">지원자에게 &lsquo;심의 결과는 별도로 통지할 예정&rsquo;이라는 안내가 전달되었습니다.</p>
-      <p className="mt-1 text-sm text-[#475569]">심사위원 의견은 3단계 본심의에서 계속 확인·다운로드할 수 있습니다.</p>
+      <p className="mt-1 text-sm text-[#475569]">사전심의·본심의 결과는 각 단계에서 계속 확인·다운로드할 수 있습니다.</p>
       <button className="mt-4 text-xs font-semibold text-[#64748b] underline" onClick={() => void reopen()} type="button">
         본심의로 되돌리기
       </button>

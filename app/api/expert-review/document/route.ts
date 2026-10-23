@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOfficial } from "@/lib/project-access";
+import { findStoredFileInProject } from "@/lib/project-file-pool";
 import { getProjectById } from "@/lib/project-store";
 import { isR2Configured, r2HeadObject, r2PresignGetUrl } from "@/lib/r2-storage";
 
@@ -20,18 +21,20 @@ export async function GET(request: NextRequest) {
   const projectId = params.get("projectId")?.trim() ?? "";
   const reviewId = params.get("reviewId")?.trim() ?? "";
   const fileId = params.get("fileId")?.trim() ?? "";
-  if (!projectId || !reviewId || !fileId) {
-    return NextResponse.json({ error: "projectId·reviewId·fileId가 필요합니다." }, { status: 400 });
+  if (!projectId || !fileId) {
+    return NextResponse.json({ error: "projectId·fileId가 필요합니다." }, { status: 400 });
   }
 
   const project = await getProjectById(projectId);
-  const review = (project?.checklistReviews ?? []).find((entry) => entry.id === reviewId);
-  const file = review?.files.find((entry) => entry.id === fileId);
-  if (!project || !review || !file) {
+  // 접수 도서(프로젝트 파일) 또는 AI 검토에 쓰인 파일 — AI 분석 전에도 열람 가능
+  const file = project ? findStoredFileInProject(project, fileId) : null;
+  if (!project || !file) {
     return NextResponse.json({ error: "파일을 찾을 수 없습니다." }, { status: 404 });
   }
 
-  const fallbackUrl = `/api/checklist-reviews/original-file?${new URLSearchParams({ projectId, reviewId, fileId })}`;
+  const fallbackUrl = reviewId
+    ? `/api/checklist-reviews/original-file?${new URLSearchParams({ projectId, reviewId, fileId })}`
+    : `/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}`;
   let directUrl: string | null = null;
   if (isR2Configured() && file.storageKey) {
     try {

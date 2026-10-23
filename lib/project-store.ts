@@ -12,7 +12,7 @@ import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import { isProjectPurged, isProjectTrashed } from "./trash";
 import type { ChecklistReview } from "./checklist-review/types";
-import type { DocumentSubmission, ExpertMemo, PreReviewDecision, Project, ProjectFile, ProjectStage, ReviewerMarker } from "./types";
+import type { DocumentSubmission, ExpertMemo, PreReviewDecision, Project, ProjectFile, ProjectStage, ReviewerMarker, ReviewPhase } from "./types";
 
 type ProjectInput = Omit<Project, "id" | "status" | "files">;
 
@@ -177,33 +177,65 @@ export async function setProjectExpertMemos(id: string, memos: ExpertMemo[]): Pr
   return updateStoredProject(id, (project) => ({ ...project, expertMemos: memos }));
 }
 
-/** 도서 접수·보완 제출 기록 — 접수되면 사전심의 단계로 */
+/**
+ * 도서 접수 기록
+ * - 최초 접수 → 2단계 사전검토
+ * - asMain(사전심의 결과 통보 후 수정 도서) → 4단계 본심의 대상 도서로 지정
+ */
 export async function addProjectSubmission(
   id: string,
   submission: Omit<DocumentSubmission, "round">,
   file: ProjectFile,
+  options: { asMain?: boolean } = {},
 ): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    const submissions = project.submissions ?? [];
+    const next: Project = {
+      ...project,
+      files: mergeProjectFiles(project.files, [file]),
+      submissions: [...submissions, { ...submission, round: submissions.length + 1 }],
+    };
+    if (!project.stage || project.stage === "RECEPTION") {
+      next.stage = "SCREENING";
+      next.status = "심사 진행중";
+    }
+    if (options.asMain) {
+      next.stage = "MAIN_REVIEW";
+      next.mainReviewSubmissionId = submission.id;
+      next.status = "심사 진행중";
+    }
+    return next;
+  });
+}
+
+/** 사전검토 판정 — 통과 → 사전심의(현재 최신 도서 기준), 반려 → 종료, 보완요청 → 사전검토 유지 */
+export async function addPreReviewDecision(id: string, decision: PreReviewDecision): Promise<Project | undefined> {
+  const nextStage: ProjectStage =
+    decision.decision === "통과" ? "PRE_REVIEW" : decision.decision === "반려" ? "REJECTED" : "SCREENING";
   return updateStoredProject(id, (project) => {
     const submissions = project.submissions ?? [];
     return {
       ...project,
-      files: mergeProjectFiles(project.files, [file]),
-      submissions: [...submissions, { ...submission, round: submissions.length + 1 }],
-      stage: !project.stage || project.stage === "RECEPTION" ? "PRE_REVIEW" : project.stage,
+      preReviewDecisions: [...(project.preReviewDecisions ?? []), decision],
+      stage: nextStage,
+      status: nextStage === "REJECTED" ? "완료" : "심사 진행중",
+      ...(decision.decision === "통과" ? { preReviewSubmissionId: submissions[submissions.length - 1]?.id } : {}),
     };
   });
 }
 
-/** 사전심의 판정 — 통과 → 본심의, 반려 → 종료, 보완요청 → 사전심의 유지 */
-export async function addPreReviewDecision(id: string, decision: PreReviewDecision): Promise<Project | undefined> {
-  const nextStage: ProjectStage =
-    decision.decision === "통과" ? "MAIN_REVIEW" : decision.decision === "반려" ? "REJECTED" : "PRE_REVIEW";
+/** 사전심의 결과 통보 — 지원자에게 본심의용 수정 도서 제출 요청 */
+export async function notifyPreReviewResult(id: string, note: string): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => ({
     ...project,
-    preReviewDecisions: [...(project.preReviewDecisions ?? []), decision],
-    stage: nextStage,
-    status: nextStage === "MAIN_REVIEW" || nextStage === "PRE_REVIEW" ? "심사 진행중" : "완료",
+    preReviewNotifiedAt: new Date().toISOString(),
+    preReviewNote: note || undefined,
   }));
+}
+
+/** 유관부서 태그 저장 */
+export async function setProjectDepartments(id: string, departments: string[]): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => ({ ...project, departments }));
 }
 
 /** 단계 직접 변경 (공무원 — 판정 되돌리기 등) */
@@ -225,9 +257,13 @@ export async function withdrawProjectApplication(id: string): Promise<Project | 
   }));
 }
 
-/** 본심의 심사위원 목록 저장 */
-export async function setProjectReviewers(id: string, reviewers: ReviewerMarker[]): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({ ...project, reviewers }));
+/** 심사위원 목록 저장 — 사전심의(preReviewers) / 본심의(reviewers) 따로 */
+export async function setProjectReviewers(
+  id: string,
+  reviewers: ReviewerMarker[],
+  phase: ReviewPhase = "main",
+): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => (phase === "pre" ? { ...project, preReviewers: reviewers } : { ...project, reviewers }));
 }
 
 /** 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. */
