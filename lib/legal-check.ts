@@ -137,8 +137,11 @@ export function findZoneLimit(articles: LawArticle[], zone: string, keyword: "�
 async function loadLocalPlanningOrdinance(location: string): Promise<LawArticle[]> {
   const parsed = parseJurisdiction(location);
   const queries: Array<{ query: string; owner: string }> = [];
-  if (parsed.city?.endsWith("군")) queries.push({ query: `${parsed.city} 군계획 조례`, owner: parsed.city });
-  if (parsed.city?.endsWith("시")) queries.push({ query: `${parsed.city} 도시계획 조례`, owner: parsed.city });
+  // 군 지역도 "도시계획 조례"로 둔 곳이 많음 (예: 양평군 도시계획 조례)
+  if (parsed.city) {
+    queries.push({ query: `${parsed.city} 도시계획 조례`, owner: parsed.city });
+    if (parsed.city.endsWith("군")) queries.push({ query: `${parsed.city} 군계획 조례`, owner: parsed.city });
+  }
   if (parsed.province) queries.push({ query: `${parsed.province} 도시계획 조례`, owner: parsed.province });
   for (const { query, owner } of queries) {
     const hits = await searchOrdins(query, { display: 5 }).catch(() => []);

@@ -104,7 +104,9 @@ function mapOrdinSearchHit(row: Record<string, unknown>): OrdinSearchHit | null 
 
 function isLandscapeRelatedOrdinance(hit: OrdinSearchHit): boolean {
   const normalized = hit.title.replace(/\s+/g, "");
-  return LANDSCAPE_KEYWORDS.some((keyword) => normalized.includes(keyword.replace(/\s+/g, "")));
+  // "환경관련"처럼 다른 단어 안에 우연히 들어간 "경관"은 제외
+  const cleaned = normalized.replace(/환경관/g, "");
+  return LANDSCAPE_KEYWORDS.some((keyword) => cleaned.includes(keyword.replace(/\s+/g, "")));
 }
 
 function pickString(row: Record<string, unknown>, keys: string[]): string | null {

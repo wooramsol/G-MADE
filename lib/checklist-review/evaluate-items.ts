@@ -151,7 +151,7 @@ export function buildContextText(context: EvaluationContext): string {
   if (laws.length > 0) {
     parts.push(
       `[조회된 법령·지침 (국가법령정보센터 — 조문 원문)]\n${laws
-        .map((law) => `- ${law.title} ${law.article}: ${law.summary.slice(0, 450)}`)
+        .map((law) => `- ${law.title} ${law.article}: ${law.summary.slice(0, law.summary.length > 900 ? 2500 : 450)}`)
         .join("\n")}`,
     );
   }

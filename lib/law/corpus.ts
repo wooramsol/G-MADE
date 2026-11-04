@@ -108,8 +108,30 @@ export function parseOrdinArticles(payload: Record<string, unknown>, source: { t
   return articles;
 }
 
-/** 심의 기준과 무관한 절차·벌칙 조문 (선정에서 제외) */
-const PROCEDURAL_TITLE = /^(목적|정의|시행일|벌칙|과태료|양벌규정|권한의 위임|위임|위탁|수수료|청문|벌칙 적용에서 공무원 의제|다른 법률과의 관계|적용 범위|규제의 재검토|비밀 누설 금지|위원의 제척|회의록|수당|운영세칙|간사)/;
+/** 심의 기준과 무관한 절차·조직·벌칙 조문 (선정에서 제외) */
+const PROCEDURAL_TITLE =
+  /(목적|정의|시행일|벌칙|과태료|양벌|위임|위탁|수수료|청문|공무원 의제|다른 법률과의 관계|적용 범위|적용 제외|규제의 재검토|비밀|제척|회의|수당|운영세칙|간사|위원|협정|시상|디자인상|포상|사용승인|특별가로구역|특별건축구역|통합적용계획|산정|책무|기본방향|기본원칙|경관계획의|공청회|열람|공고|신청|절차|보고|비용|지원|교육|홍보|조사|자료|기록|이행|감독|취소|승계|준수|폐지|변경|재심의|사전협의)/;
+
+/** 국가 법률은 심의 실무 기준 조문만 (그 외 조문은 너무 일반적) */
+const NATIONAL_ALLOWED: Record<string, RegExp> = {
+  건축법: /^(42|43|44|46|47|58|60|61)$/,
+  경관법: /^(26|27|28)$/,
+  "경관법 시행령": /^(18|19|20|21|22)$/,
+};
+
+function isUsable(article: LawArticle): boolean {
+  if (PROCEDURAL_TITLE.test(article.title)) return false;
+  if (article.kind === "law") {
+    const allowed = NATIONAL_ALLOWED[article.lawTitle.trim()];
+    if (allowed && !allowed.test(article.no)) return false;
+  }
+  return true;
+}
+
+/** 심의 기준을 직접 정한 조문인가 (본문이 길어도 더 많이 전달) */
+export function isStandardArticle(article: Pick<LawArticle, "title">): boolean {
+  return /(심의기준|심의 기준|기준|가이드라인|색채|조명|조경|옥외광고|높이|건축선)/.test(article.title);
+}
 
 /** 항목 문구 → 조문 검색어 확장 (경관 심의에서 자주 쓰는 표현) */
 const SYNONYMS: Array<[RegExp, string[]]> = [
@@ -148,14 +170,16 @@ function tokensOf(text: string): string[] {
 }
 
 function scoreArticle(article: LawArticle, tokens: string[]): number {
-  if (PROCEDURAL_TITLE.test(article.title)) return 0;
+  if (!isUsable(article)) return 0;
   let score = 0;
   for (const token of tokens) {
     if (article.title.includes(token)) score += 4;
     else if (article.text.includes(token)) score += 1;
   }
-  // 조례는 지역 실무 기준이라 가중
-  if (article.kind === "ordin" && score > 0) score += 1;
+  if (score === 0) return 0;
+  // 조례는 지역 실무 기준이라 가중, 심의 기준 조문은 더 가중
+  if (article.kind === "ordin") score += 1;
+  if (/(심의기준|심의 기준|가이드라인)/.test(article.title)) score += 4;
   return score;
 }
 

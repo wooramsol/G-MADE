@@ -17,7 +17,7 @@ import {
 } from "./law/warnings";
 import { searchAdmbylsBatch, searchAdmrulsBatch, searchLawsBatch, searchOrdinsBatch } from "./law/search-batch";
 import { getProjectById } from "./project-store";
-import { articleKey, articleLabel, loadLawArticles, selectRelevantArticles, type LawArticle, type LawSourceRef } from "./law/corpus";
+import { articleKey, articleLabel, isStandardArticle, loadLawArticles, selectRelevantArticles, type LawArticle, type LawSourceRef } from "./law/corpus";
 import { parseJurisdiction } from "./law/jurisdiction";
 import type { Project, ProjectLocationPoint } from "./types";
 import { geocodeAddress } from "./vworld/geocode";
@@ -584,7 +584,8 @@ export async function attachRelevantLawArticles(
       id: `article-${articleKey(article)}`,
       title: article.lawTitle,
       article: articleLabel(article),
-      summary: article.text.slice(0, 700),
+      // 심의 기준 조문(예: 색채·조명·조경 기준을 담은 시행규칙)은 본문을 더 길게 전달
+      summary: article.text.slice(0, isStandardArticle(article) ? 2500 : 700),
       ministry: "",
       enforcementDate: "",
       sourceUrl: article.sourceUrl,
