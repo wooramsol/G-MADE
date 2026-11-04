@@ -1,4 +1,6 @@
+import { isR2Configured, r2GetObject, r2PutObject } from "../r2-storage";
 import { getLawOc } from "./config";
+import { extractHwpText } from "./hwp-text";
 import { lawGetJson } from "./http";
 
 /**
@@ -43,6 +45,10 @@ export async function loadLawArticles(source: LawSourceRef): Promise<LawArticle[
   if (!result.ok) return [];
   const articles =
     source.kind === "law" ? parseLawArticles(result.data, source) : parseOrdinArticles(result.data, source);
+  if (source.kind === "ordin") {
+    // 조례 별표(심의기준표 등) — 본문 글자가 비어 있고 HWP 첨부로만 제공되므로 내려받아 글자를 읽음
+    articles.push(...(await loadOrdinAttachments(result.data, source).catch(() => [])));
+  }
   if (articles.length > 0) {
     if (memoryCache.size > 200) memoryCache.clear();
     memoryCache.set(key, { at: Date.now(), articles });
@@ -254,6 +260,90 @@ export function articleKey(article: Pick<LawArticle, "lawTitle" | "no" | "part">
 }
 
 export function articleLabel(article: Pick<LawArticle, "no" | "title" | "part">): string {
+  if (article.no.startsWith("별표")) {
+    const head = `[별표 ${article.no.slice(2)}] ${article.title}`;
+    return article.part ? `${head} (${article.part.name})` : head;
+  }
   if (article.part) return `제${article.no}조제${article.part.no}호(${article.part.name})`;
   return article.title ? `제${article.no}조(${article.title})` : `제${article.no}조`;
+}
+
+
+type AttachmentRow = { title: string; fileUrl: string; kind: string; no: string; text: string };
+
+/** 심의 기준을 담은 별표만 (신청서·서식·심의 대상 목록 제외) */
+const USEFUL_ATTACHMENT = /(기준|가이드|지침|색채|조명|조경|옥외광고|디자인|경관관리)/;
+const SKIP_ATTACHMENT = /(서식|신청|대상|위원|수당|수수료|과태료)/;
+
+export async function loadOrdinAttachments(payload: Record<string, unknown>, source: { title: string; sourceUrl: string }): Promise<LawArticle[]> {
+  const service = (payload.LawService ?? {}) as Record<string, unknown>;
+  const lawTitle = str((service["자치법규기본정보"] as Record<string, unknown> | undefined)?.["자치법규명"]) || source.title;
+  const rows: AttachmentRow[] = asArray<Record<string, unknown>>((service["별표"] as Record<string, unknown> | undefined)?.["별표단위"]).map((row) => ({
+    title: str(row["별표제목"]),
+    fileUrl: str(row["별표첨부파일명"]),
+    kind: str(row["별표첨부파일구분"]).toLowerCase(),
+    no: String(Number(str(row["별표번호"])) || ""),
+    text: clean(str(row["별표내용"])),
+  }));
+  const wanted = rows
+    .filter((row) => /^\[별표/.test(row.title) && USEFUL_ATTACHMENT.test(row.title) && !SKIP_ATTACHMENT.test(row.title))
+    .slice(0, 8);
+  const loaded = await Promise.all(
+    wanted.map(async (row) => {
+      const text = row.text || (await fetchAttachmentText(row).catch(() => ""));
+      if (!text) return [] as LawArticle[];
+      const name = row.title.replace(/^\[별표\s*\d+[^\]]*\]\s*/, "").trim() || row.title;
+      const base: LawArticle = { lawTitle, kind: "ordin", no: `별표${row.no}`, title: name, text, sourceUrl: source.sourceUrl };
+      return chunkAttachment(base);
+    }),
+  );
+  return loaded.flat();
+}
+
+/** 긴 별표는 약 1,500자 단위로 나눠 항목마다 관련 부분만 전달 */
+function chunkAttachment(article: LawArticle): LawArticle[] {
+  const size = 1500;
+  if (article.text.length <= 2500) return [article];
+  const pieces: string[] = [];
+  let rest = article.text;
+  while (rest.length > 0) {
+    if (rest.length <= size * 1.3) {
+      pieces.push(rest);
+      break;
+    }
+    const cut = Math.max(rest.lastIndexOf(" ", size), Math.floor(size * 0.7));
+    pieces.push(rest.slice(0, cut));
+    rest = rest.slice(cut).trim();
+  }
+  return pieces.map((text, index) => ({ ...article, part: { no: String(index + 1), name: `${index + 1}/${pieces.length}` }, text }));
+}
+
+async function fetchAttachmentText(row: AttachmentRow): Promise<string> {
+  if (row.kind && !["hwp", "hwpx"].includes(row.kind)) return "";
+  let url: URL;
+  try {
+    url = new URL(row.fileUrl.replace(/^http:/, "https:"));
+  } catch {
+    return "";
+  }
+  // 국가법령정보센터 첨부만 내려받음
+  if (!/(^|\.)law\.go\.kr$/.test(url.hostname)) return "";
+  const cacheKey = `law-attachments/${url.searchParams.get("flSeq") ?? encodeURIComponent(row.title)}.txt`;
+  if (isR2Configured()) {
+    const cached = await r2GetObject(cacheKey).catch(() => null);
+    if (cached) return cached.toString("utf8");
+  }
+  const response = await fetch(url, { signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "G-MADE-HIVE/1.0" } });
+  if (!response.ok) return "";
+  const buffer = new Uint8Array(await response.arrayBuffer());
+  if (buffer.length === 0 || buffer.length > 8 * 1024 * 1024) return "";
+  let text = "";
+  try {
+    text = extractHwpText(buffer).slice(0, 40_000);
+  } catch (error) {
+    console.warn(`[law-corpus] 별표 글자 추출 실패 (${row.title}):`, error instanceof Error ? error.message : error);
+    return "";
+  }
+  if (text && isR2Configured()) await r2PutObject(cacheKey, Buffer.from(text, "utf8"), "text/plain; charset=utf-8").catch(() => undefined);
+  return text;
 }
