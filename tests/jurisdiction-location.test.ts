@@ -46,7 +46,8 @@ test("buildOrdinSearchPlans includes town and county labels", () => {
     },
   );
 
-  assert.ok(plans.some((plan) => plan.query === "양평읍 경관 조례"));
+  // 읍·면·동에는 자치법규가 없으므로 검색하지 않음
+  assert.ok(!plans.some((plan) => plan.query === "양평읍 경관 조례"));
   assert.ok(plans.some((plan) => plan.query === "양평군 경관 조례"));
   assert.ok(plans.some((plan) => plan.query === "경기도 경관 조례"));
   assert.equal(plans[0]?.orgCode, "6410000");

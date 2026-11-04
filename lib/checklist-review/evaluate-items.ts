@@ -88,6 +88,8 @@ export const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 
 - evidence의 fileName·page는 실제로 근거를 확인한 페이지만 기재합니다. 도면·이미지 속 글자도 근거로 인정합니다.
 - 공간정보(경관지구·용도지역·문화재)가 판단에 실제로 영향을 준 경우에만 rationale에 반영합니다.
 - lawRefs는 아래 '조회된 법령·지침' 목록에 있는 것만 인용합니다. 목록에 없는 법령은 절대 언급하지 않습니다.
+- 법령 기준 대조(중요): '조회된 법령·지침'에는 조문 원문이 들어 있습니다. 각 항목의 '관련 조문 후보'를 확인해, 조문이 정한 구체 기준(색채·높이·건축선·조경·광고물 등)과 도서 내용을 대조합니다. 도서 내용이 조문 기준에 어긋나 보이면 그 항목을 "미충족" 또는 "부분충족"으로 두고, rationale에 "○○ 조례 제N조(…) 기준 대비 …"처럼 어긋나는 점을 밝히며 해당 조문을 lawRefs에 넣습니다. 기준을 충족함을 확인했다면 그 조문을 근거로 lawRefs에 넣을 수 있습니다. 조문 원문에 없는 수치·기준을 지어내지 않습니다.
+- lawRefs의 article은 목록에 적힌 조문 표기(예: "제12조(색채)")를 그대로 씁니다.
 - lawRefs는 그 항목의 내용과 직접 관련된 "가장 구체적인" 조항만 인용합니다 (예: 색채 항목이면 색채 관련 조례·지침 조항, 조경 항목이면 조경 관련 조항). 심의 절차의 일반 근거인 "경관법 제28조" 같은 포괄 조항을 모든 항목에 기계적으로 반복하지 않습니다 — 항목 내용과 직접 관련된 조항이 목록에 없으면 lawRefs를 빈 배열로 둡니다.
 - '심의 매뉴얼 발췌'가 제공되면 판정 기준·보완 방향의 근거로 우선 참조합니다. 매뉴얼 기준을 인용할 때는 rationale·recommendation에 "매뉴얼 p.N" 형식으로 출처를 표기합니다. 발췌에 없는 내용을 매뉴얼 출처로 지어내지 않습니다.
 - 치수·수치·축척 인용 규칙(오류 방지 최우선): (a) 문서의 "추출 텍스트"에 있는 수치는 인용 가능 — 반드시 anchorText에 그 수치를 원문 그대로 기재합니다(좌표 검증됨). (b) 이미지·도면을 눈으로 보고 어림잡은 수치는 절대 인용 금지 — 저해상도에서 숫자가 불명확하면 추정하지 말고 "확인불가"로 판정하고 rationale에 판독 불가 사실을 밝힙니다.
@@ -145,11 +147,19 @@ export function buildContextText(context: EvaluationContext): string {
     }
   }
 
-  const laws = context.referenceLaws.slice(0, 12);
+  const laws = context.referenceLaws.slice(0, 24);
   if (laws.length > 0) {
     parts.push(
-      `[조회된 법령·지침 (국가법령정보센터)]\n${laws
-        .map((law) => `- ${law.title} ${law.article}: ${law.summary.slice(0, 160)}`)
+      `[조회된 법령·지침 (국가법령정보센터 — 조문 원문)]\n${laws
+        .map((law) => `- ${law.title} ${law.article}: ${law.summary.slice(0, 450)}`)
+        .join("\n")}`,
+    );
+  }
+  const hints = Object.entries(context.articleHints ?? {});
+  if (hints.length > 0) {
+    parts.push(
+      `[항목별 관련 조문 후보 (항목 문구와 조문 내용의 관련도로 자동 선정 — 실제 관련 있을 때만 인용)]\n${hints
+        .map(([itemId, labels]) => `- ${itemId}: ${labels.join(" / ")}`)
         .join("\n")}`,
     );
   }

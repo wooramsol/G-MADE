@@ -20,7 +20,8 @@ export type OrdinSearchOptions = {
 
 type OrdinSearchResponse = Record<string, unknown>;
 
-const LANDSCAPE_KEYWORDS = ["경관", "공공디자인", "도시관리", "건축", "조례"];
+// 심의와 관련 있는 자치법규만 (예: "대기 위반업소 공개 조례" 같은 무관한 조례 제외)
+const LANDSCAPE_KEYWORDS = ["경관", "공공디자인", "도시관리", "건축", "옥외광고", "도시계획", "군계획", "시계획"];
 
 export async function searchOrdins(
   query: string,
@@ -66,7 +67,8 @@ function parseOrdinSearchHits(payload: OrdinSearchResponse): OrdinSearchHit[] {
   const container = (payload.OrdinSearch ?? payload.ordinSearch) as Record<string, unknown> | undefined;
   if (!container) return [];
 
-  const ruleNode = container.ordin ?? container.Ordin;
+  // 국가법령정보센터 자치법규 검색 응답의 목록 키는 "law" (ordin 아님)
+  const ruleNode = container.law ?? container.ordin ?? container.Ordin;
   if (!ruleNode) return [];
 
   const rows = Array.isArray(ruleNode) ? ruleNode : [ruleNode];
@@ -82,7 +84,7 @@ function mapOrdinSearchHit(row: Record<string, unknown>): OrdinSearchHit | null 
   if (!ordinSeq || !title) return null;
 
   const ordinId = pickString(row, ["자치법규ID", "ordinId"]) ?? ordinSeq;
-  const jurisdiction = pickString(row, ["자치법규종류", "지자체명", "소관부처명"]) ?? "";
+  const jurisdiction = pickString(row, ["지자체기관명", "지자체명", "소관부처명"]) ?? "";
   const enforcementDate = pickString(row, ["시행일자", "공포일자", "발령일자"]) ?? "";
   const ordinanceType = pickString(row, ["자치법규종류", "법령구분명"]) ?? "조례";
   const detailLink = pickString(row, ["자치법규상세링크"]);

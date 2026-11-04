@@ -17,6 +17,8 @@ import {
 } from "./law/warnings";
 import { searchAdmbylsBatch, searchAdmrulsBatch, searchLawsBatch, searchOrdinsBatch } from "./law/search-batch";
 import { getProjectById } from "./project-store";
+import { articleKey, articleLabel, loadLawArticles, selectRelevantArticles, type LawArticle, type LawSourceRef } from "./law/corpus";
+import { parseJurisdiction } from "./law/jurisdiction";
 import type { Project, ProjectLocationPoint } from "./types";
 import { geocodeAddress } from "./vworld/geocode";
 import { isVWorldConfigured } from "./vworld/config";
@@ -53,6 +55,10 @@ export type EvaluationContext = {
   guidelineSource: "law.go.kr" | "demo-fallback";
   fetchedAt: string;
   warnings: string[];
+  /** 조문 전문을 불러올 법령·조례 (검색 결과) */
+  lawSources?: LawSourceRef[];
+  /** 체크리스트 항목 id → 관련 조문 후보 라벨 (예: "양평군 경관 조례 제12조(색채)") */
+  articleHints?: Record<string, string[]>;
 };
 
 export async function buildEvaluationContext(projectId?: string): Promise<EvaluationContext> {
@@ -60,9 +66,10 @@ export async function buildEvaluationContext(projectId?: string): Promise<Evalua
   const warnings: string[] = [];
   const project = projectId ? await getProjectById(projectId) : undefined;
 
+  const lawSources: LawSourceRef[] = [];
   const [spatial, referenceLaws, referenceGuidelines] = await Promise.all([
     project ? loadSpatialContext(project, warnings) : Promise.resolve(null),
-    loadReferenceLaws(project, warnings),
+    loadReferenceLaws(project, warnings, lawSources),
     loadReferenceGuidelines(project, warnings),
   ]);
 
@@ -103,6 +110,7 @@ export async function buildEvaluationContext(projectId?: string): Promise<Evalua
     guidelineSource: referenceGuidelines[0]?.source === "law.go.kr" ? "law.go.kr" : "demo-fallback",
     fetchedAt,
     warnings,
+    lawSources,
   };
 }
 
@@ -192,6 +200,7 @@ async function loadSpatialContext(
 async function loadReferenceLaws(
   project: Project | undefined,
   warnings: string[],
+  sources: LawSourceRef[] = [],
 ): Promise<FetchedLawReference[]> {
   if (!isLawApiConfigured()) {
     warnings.push(LAW_OC_MISSING_WARNING);
@@ -199,8 +208,8 @@ async function loadReferenceLaws(
   }
 
   const [nationalReferences, ordinanceReferences] = await Promise.all([
-    loadNationalLawReferences(project, warnings),
-    loadOrdinanceReferences(project, warnings),
+    loadNationalLawReferences(project, warnings, sources),
+    loadOrdinanceReferences(project, warnings, sources),
   ]);
 
   const merged = [...nationalReferences, ...ordinanceReferences];
@@ -215,6 +224,7 @@ async function loadReferenceLaws(
 async function loadNationalLawReferences(
   project: Project | undefined,
   warnings: string[],
+  sources: LawSourceRef[] = [],
 ): Promise<FetchedLawReference[]> {
   const queries = buildLawQueries(project);
   const { hits, failures } = await searchLawsBatch(queries, 4);
@@ -224,6 +234,12 @@ async function loadNationalLawReferences(
 
   const uniqueHits = dedupeLawHits(hits);
   if (uniqueHits.length === 0) return [];
+  // 조문 전문을 볼 법령 — 경관 심의 기준이 들어 있는 법률 본법 위주 (시행규칙·정의 위주 법령 제외)
+  for (const hit of uniqueHits) {
+    if (/^(경관법|경관법 시행령|건축법|공공디자인의 진흥에 관한 법률|공공디자인의 진흥에 관한 법률 시행령)$/.test(hit.title.trim())) {
+      sources.push({ kind: "law", id: hit.lawId, title: hit.title, sourceUrl: hit.sourceUrl });
+    }
+  }
 
   const references = (await fetchLawReferences(uniqueHits, 8)).filter(
     (reference) => buildLawReferenceUrl(reference.title, reference.sourceUrl) !== null,
@@ -239,6 +255,7 @@ async function loadNationalLawReferences(
 async function loadOrdinanceReferences(
   project: Project | undefined,
   warnings: string[],
+  sources: LawSourceRef[] = [],
 ): Promise<FetchedLawReference[]> {
   const plans = buildOrdinSearchPlans(project);
   const { hits, failures } = await searchOrdinsBatch(plans, 4);
@@ -246,7 +263,18 @@ async function loadOrdinanceReferences(
     warnings.push(formatOrdinSearchFailure(failure.query, failure.error));
   }
 
-  const uniqueHits = dedupeOrdinHits(hits);
+  // 사업 위치의 시·군·구와 그 상위 도의 자치법규만 (다른 지역 조례 제외)
+  const parsedLocation = parseJurisdiction(project ? resolveOrdinanceLocation(project) : "");
+  const localUnits = [parsedLocation.city, parsedLocation.district].filter((unit): unit is string => Boolean(unit));
+  const uniqueHits = dedupeOrdinHits(hits).filter((hit) => {
+    const owner = hit.jurisdiction.replace(/\s+/g, " ").trim();
+    if (!owner) return true;
+    if (localUnits.some((unit) => owner.endsWith(unit))) return true;
+    return Boolean(parsedLocation.province && owner === parsedLocation.province);
+  });
+  for (const hit of uniqueHits.slice(0, 6)) {
+    sources.push({ kind: "ordin", mst: hit.ordinSeq, title: hit.title, sourceUrl: hit.sourceUrl });
+  }
   if (uniqueHits.length === 0) {
     if (project?.location) {
       warnings.push(
@@ -516,4 +544,63 @@ function uniqueHitsToReferences(
       },
     ];
   });
+}
+
+
+/** 항목이 아직 없을 때(한 번에 추출·평가하는 경로) 쓰는 경관 심의 주요 주제 */
+const GENERIC_TOPICS = [
+  "건축물 색채 외벽", "야간경관 조명", "옥외광고물 간판", "조경 녹지 식재", "높이 층수 스카이라인",
+  "건축선 후퇴", "담장 울타리", "옹벽 지형", "보행 가로 공개공지", "옥상 설비", "조망 통경축", "재료 마감",
+  "자연경관 하천 산림", "공공시설물", "경관심의 대상",
+].map((text, index) => ({ id: `topic-${index + 1}`, text }));
+
+/**
+ * 법령·조례 전문을 불러와 체크리스트 항목과 관련된 조문 원문만 평가 맥락에 넣는다.
+ * 실패해도 기존 요약 목록으로 진행 (평가를 막지 않음).
+ */
+export async function attachRelevantLawArticles(
+  context: EvaluationContext,
+  items: Array<{ id: string; text: string; category?: string }> | null,
+): Promise<void> {
+  const sources = context.lawSources ?? [];
+  if (sources.length === 0) return;
+  try {
+    const loaded = await Promise.race([
+      Promise.all(sources.map((source) => loadLawArticles(source).catch(() => [] as LawArticle[]))),
+      new Promise<LawArticle[][]>((resolve) => setTimeout(() => resolve([]), 25_000)),
+    ]);
+    const corpus = loaded.flat();
+    if (corpus.length === 0) {
+      context.warnings.push("법령·조례 조문 전문을 불러오지 못해 법령 목록 요약만 참고했습니다.");
+      return;
+    }
+    const { articles, byItem } = selectRelevantArticles(corpus, items && items.length > 0 ? items : GENERIC_TOPICS, {
+      perItem: 2,
+      limit: 24,
+    });
+    if (articles.length === 0) return;
+    const labelByKey = new Map(articles.map((article) => [articleKey(article), `${article.lawTitle} ${articleLabel(article)}`]));
+    context.referenceLaws = articles.map((article) => ({
+      id: `article-${articleKey(article)}`,
+      title: article.lawTitle,
+      article: articleLabel(article),
+      summary: article.text.slice(0, 700),
+      ministry: "",
+      enforcementDate: "",
+      sourceUrl: article.sourceUrl,
+      source: "law.go.kr" as const,
+    }));
+    if (items && items.length > 0) {
+      const hints: Record<string, string[]> = {};
+      for (const [itemId, keys] of byItem) {
+        const labels = keys.map((key) => labelByKey.get(key)).filter((label): label is string => Boolean(label));
+        if (labels.length > 0) hints[itemId] = labels;
+      }
+      context.articleHints = hints;
+    }
+    const ordinCount = new Set(articles.filter((article) => article.kind === "ordin").map((article) => article.lawTitle)).size;
+    console.log(`[law-corpus] 조문 ${corpus.length}개 중 ${articles.length}개 선정 (조례 ${ordinCount}종)`);
+  } catch (error) {
+    console.warn("[law-corpus] 조문 선정 실패:", error instanceof Error ? error.message : error);
+  }
 }

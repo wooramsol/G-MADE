@@ -1,7 +1,7 @@
 import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { isAiAnalysisError } from "@/lib/ai/analysis-error";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
-import { buildEvaluationContext } from "@/lib/evaluation-context";
+import { attachRelevantLawArticles, buildEvaluationContext } from "@/lib/evaluation-context";
 import { hashPdfPages } from "@/lib/pdf/split-pdf";
 import { addProjectChecklistReview, getProjectById } from "@/lib/project-store";
 import {
@@ -373,6 +373,8 @@ export async function runChecklistReview(
     // 있으므로 항상 새로 조회합니다.
     emitStep(emit, "context");
     const context = await buildEvaluationContext(projectId);
+    // 법령·조례 조문 원문 — 항목을 아직 모르는 단계라 경관 심의 주요 주제로 먼저 선정 (항목 확정 후 다시 선정)
+    await attachRelevantLawArticles(context, null);
 
     let items: ChecklistReview["items"];
     let itemSource: ChecklistReview["itemSource"];
@@ -559,6 +561,8 @@ export async function runChecklistReview(
           if (prior) priorFindingsById.set(item.id, prior);
         }
       }
+      // 항목이 확정됐으므로 항목별로 관련 조문을 다시 골라 원문을 붙임
+      await attachRelevantLawArticles(context, items);
       const evaluation = await evaluateChecklistItems({
         priorFindings: priorFindingsById.size > 0 ? priorFindingsById : undefined,
         files: filesForAnalysis,
@@ -707,7 +711,7 @@ export async function runChecklistReview(
         .map((entry) => ({ page: entry.page, types: entry.types, scale: entry.scale })),
       metrics,
       summary,
-      referenceLaws: context.referenceLaws.slice(0, 12).map((law) => ({
+      referenceLaws: context.referenceLaws.slice(0, 24).map((law) => ({
         title: law.title,
         article: law.article,
         summary: law.summary,

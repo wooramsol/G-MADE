@@ -47,7 +47,9 @@ export function buildOrdinSearchPlans(project?: Project ): OrdinSearchPlan[] {
   const plans: OrdinSearchPlan[] = [];
   const seen = new Set<string>();
 
-  for (const label of parsed.labels) {
+  // 읍·면·동·리에는 자치법규가 없으므로 시·군·구·도 단위만 검색
+  const ordinanceLabels = parsed.labels.filter((label) => !/(읍|면|동|리)$/.test(label) || label === parsed.province);
+  for (const label of ordinanceLabels) {
     for (const topic of topics) {
       const query = `${label} ${topic} 조례`;
       const key = `${query}::${parsed.orgCode ?? ""}`;
