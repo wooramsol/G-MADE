@@ -14,14 +14,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const access = await requireProjectAccess(id, { officialOnly: true });
   if (access.response) return access.response;
 
-  const body = (await request.json().catch(() => null)) as { reviewers?: unknown; phase?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { reviewers?: unknown; phase?: unknown; base?: unknown } | null;
   const phase = body?.phase === "pre" ? "pre" : "main";
   if (!Array.isArray(body?.reviewers)) return NextResponse.json({ error: "심사위원 목록이 필요합니다." }, { status: 400 });
 
+  const reviewers = sanitizeReviewers(body.reviewers);
+  // base = 화면이 마지막으로 받은 저장본 — 있으면 그 이후 바꾼 부분만 병합 (동시에 다른 공무원이 바꾼 위원은 유지)
+  const base = Array.isArray(body.base) ? sanitizeReviewers(body.base) : undefined;
+
+  const updated = await setProjectReviewers(id, reviewers, phase, base);
+  if (!updated) return NextResponse.json({ error: "저장하지 못했습니다." }, { status: 500 });
+  return NextResponse.json({ reviewers: (phase === "pre" ? updated.preReviewers : updated.reviewers) ?? [] });
+}
+
+function sanitizeReviewers(list: unknown[]): ReviewerMarker[] {
   const reviewers: ReviewerMarker[] = [];
   const seen = new Set<string>();
   const seenNames = new Set<string>();
-  for (const raw of body.reviewers.slice(0, MAX_REVIEWERS)) {
+  for (const raw of list.slice(0, MAX_REVIEWERS)) {
     const entry = raw as Partial<ReviewerMarker>;
     const name = String(entry.name ?? "").trim().slice(0, 30);
     const reviewerId = String(entry.id ?? "").trim().slice(0, 64);
@@ -33,8 +43,5 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     seenNames.add(nameKey);
     reviewers.push({ id: reviewerId, name, color });
   }
-
-  const updated = await setProjectReviewers(id, reviewers, phase);
-  if (!updated) return NextResponse.json({ error: "저장하지 못했습니다." }, { status: 500 });
-  return NextResponse.json({ reviewers: (phase === "pre" ? updated.preReviewers : updated.reviewers) ?? [] });
+  return reviewers;
 }

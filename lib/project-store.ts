@@ -12,7 +12,8 @@ import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import { isProjectPurged, isProjectTrashed } from "./trash";
-import { applicantSubmissionKind, projectStage, type SubmissionKind } from "./roles";
+import { mergeListChanges } from "./merge-list";
+import { applicantCanWithdraw, applicantSubmissionKind, canSetStage, projectStage, type SubmissionKind } from "./roles";
 import type { ChecklistReview } from "./checklist-review/types";
 import type { DocumentSubmission, ExpertMemo, PreReviewDecision, Project, ProjectFile, ProjectStage, ReviewerMarker, ReviewPhase } from "./types";
 
@@ -188,11 +189,12 @@ export async function addProjectSubmission(
   id: string,
   submission: Omit<DocumentSubmission, "round">,
   file: ProjectFile,
-  options: { asMain?: boolean; expectKind?: SubmissionKind } = {},
+  options: { asMain?: boolean; expectKind?: SubmissionKind; allowedStages?: ProjectStage[] } = {},
 ): Promise<Project | undefined> {
   return updateStoredProject(id, (project) => {
     // 저장 직전 상태로 다시 확인 — 중복 클릭·동시 제출로 같은 단계에 두 번 내는 것 방지
     if (options.expectKind && applicantSubmissionKind(project) !== options.expectKind) return project;
+    if (options.allowedStages && !options.allowedStages.includes(projectStage(project))) return project;
     const submissions = project.submissions ?? [];
     const next: Project = {
       ...project,
@@ -212,11 +214,25 @@ export async function addProjectSubmission(
   });
 }
 
+/**
+ * 저장 직전(행 잠금 안) 상태로 다시 확인했더니 요청이 더 이상 맞지 않을 때 — 동시에 다른 사람이 먼저 처리한 경우.
+ * 이 오류가 나면 아무것도 저장되지 않는다. API는 409로 응답한다.
+ */
+export class ProjectConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProjectConflictError";
+  }
+}
+
 /** 사전검토 판정 — 통과 → 사전심의(현재 최신 도서 기준), 반려 → 종료, 보완요청 → 사전검토 유지 */
 export async function addPreReviewDecision(id: string, decision: PreReviewDecision): Promise<Project | undefined> {
   const nextStage: ProjectStage =
     decision.decision === "통과" ? "PRE_REVIEW" : decision.decision === "반려" ? "REJECTED" : "SCREENING";
   return updateStoredProject(id, (project) => {
+    if (projectStage(project) !== "SCREENING") {
+      throw new ProjectConflictError("이미 다른 사람이 판정했거나 단계가 바뀌었습니다. 화면을 새로고침해 주세요.");
+    }
     const submissions = project.submissions ?? [];
     return {
       ...project,
@@ -238,23 +254,42 @@ export async function addPreReviewDecision(id: string, decision: PreReviewDecisi
 
 /** 사전심의 결과 통보 — 지원자에게 본심의용 수정 도서 제출 요청 */
 export async function notifyPreReviewResult(id: string, note: string): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    if (projectStage(project) !== "PRE_REVIEW") throw new ProjectConflictError("사전심의 단계에서만 결과를 통보할 수 있습니다.");
+    if (project.preReviewNotifiedAt) throw new ProjectConflictError("이미 결과를 통보했습니다.");
+    return { ...project, preReviewNotifiedAt: new Date().toISOString(), preReviewNote: note || undefined };
+  });
+}
+
+/** 유관부서 태그 저장 — base를 주면 변경분만 병합 */
+export async function setProjectDepartments(id: string, departments: string[], base?: string[]): Promise<Project | undefined> {
+  const key = (name: string) => name.replace(/\s+/g, "");
   return updateStoredProject(id, (project) => ({
     ...project,
-    preReviewNotifiedAt: new Date().toISOString(),
-    preReviewNote: note || undefined,
+    departments: base ? mergeListChanges(project.departments ?? [], base, departments, key).slice(0, 30) : departments,
   }));
 }
 
-/** 유관부서 태그 저장 */
-export async function setProjectDepartments(id: string, departments: string[]): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({ ...project, departments }));
-}
-
-/** 단계 직접 변경 (공무원 — 판정 되돌리기 등) */
-export async function setProjectStage(id: string, stage: ProjectStage): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => {
+/**
+ * 단계 직접 변경 (공무원 — 되돌리기·종료) — 허용 여부를 잠금 안에서 다시 확인.
+ * 반환: 변경 전 단계와 변경된 프로젝트
+ */
+export async function setProjectStage(
+  id: string,
+  stage: ProjectStage,
+): Promise<{ project: Project; previousStage: ProjectStage } | undefined> {
+  let previousStage: ProjectStage = "RECEPTION";
+  const project = await updateStoredProject(id, (current) => {
+    previousStage = projectStage(current);
+    if (!canSetStage(previousStage, stage)) {
+      throw new ProjectConflictError("지금 단계에서는 그렇게 바꿀 수 없습니다. 화면을 새로고침해 주세요.");
+    }
+    if (previousStage === "PRE_REVIEW" && stage === "PRE_REVIEW") {
+      if (!current.preReviewNotifiedAt) throw new ProjectConflictError("통보한 결과가 없습니다.");
+      if (current.mainReviewSubmissionId) throw new ProjectConflictError("지원자가 이미 수정 도서를 제출했습니다.");
+    }
     const next: Project = {
-      ...project,
+      ...current,
       stage,
       status: stage === "CLOSED" || stage === "REJECTED" ? "완료" : stage === "RECEPTION" ? "접수" : "심사 진행중",
     };
@@ -266,26 +301,43 @@ export async function setProjectStage(id: string, stage: ProjectStage): Promise<
     }
     return next;
   });
+  return project ? { project, previousStage } : undefined;
 }
 
 /** 지원자 신청 철회 (접수 후) */
 export async function withdrawProjectApplication(id: string): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    stage: "WITHDRAWN",
-    withdrawnFromStage: projectStage(project),
-    status: "완료",
-    withdrawnAt: new Date().toISOString(),
-  }));
+  return updateStoredProject(id, (project) => {
+    if (!applicantCanWithdraw(project)) throw new ProjectConflictError("심의가 끝난 신청은 철회할 수 없습니다.");
+    return {
+      ...project,
+      stage: "WITHDRAWN",
+      withdrawnFromStage: projectStage(project),
+      status: "완료",
+      withdrawnAt: new Date().toISOString(),
+    };
+  });
 }
 
-/** 심사위원 목록 저장 — 사전심의(preReviewers) / 본심의(reviewers) 따로 */
+/** 심사위원 목록 저장 — 사전심의(preReviewers) / 본심의(reviewers) 따로. base를 주면 변경분만 병합 */
 export async function setProjectReviewers(
   id: string,
   reviewers: ReviewerMarker[],
   phase: ReviewPhase = "main",
+  base?: ReviewerMarker[],
 ): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => (phase === "pre" ? { ...project, preReviewers: reviewers } : { ...project, reviewers }));
+  return updateStoredProject(id, (project) => {
+    const current = (phase === "pre" ? project.preReviewers : project.reviewers) ?? [];
+    let next = base ? mergeListChanges(current, base, reviewers, (entry) => entry.id) : reviewers;
+    // 병합 후에도 같은 이름은 한 명만 (먼저 있던 쪽 유지)
+    const seenNames = new Set<string>();
+    next = next.filter((entry) => {
+      const key = entry.name.replace(/\s+/g, "").toLowerCase();
+      if (seenNames.has(key)) return false;
+      seenNames.add(key);
+      return true;
+    }).slice(0, 40);
+    return phase === "pre" ? { ...project, preReviewers: next } : { ...project, reviewers: next };
+  });
 }
 
 /** 프로젝트의 체크리스트 검토 기록을 영구 삭제합니다. */
@@ -334,29 +386,16 @@ export async function purgeAllProjectChecklistReviews(options?: {
 }): Promise<{ projectsUpdated: number }> {
   const excluded = new Set(options?.excludeProjectIds ?? []);
 
-  return withProjectStoreLock(async () => {
-    const allProjects = await getAllProjectsIncludingTrashed();
-    const updatedAt = new Date().toISOString();
-    let projectsUpdated = 0;
-
-    for (const source of allProjects) {
-      if (isProjectPurged(source)) continue;
-      if (excluded.has(source.id)) continue;
-
-      if ((source.checklistReviews ?? []).length === 0) continue;
-
-      const nextProject: Project = {
-        ...source,
-        checklistReviews: [],
-        updatedAt,
-      };
-
-      await persistProjectRecord(nextProject);
-      projectsUpdated += 1;
-    }
-
-    return { projectsUpdated };
-  });
+  // 프로젝트마다 잠금 안에서 따로 비움 — 동시에 진행 중인 다른 수정이 덮어써지지 않도록
+  const allProjects = await getAllProjectsIncludingTrashed();
+  let projectsUpdated = 0;
+  for (const source of allProjects) {
+    if (isProjectPurged(source) || excluded.has(source.id)) continue;
+    if ((source.checklistReviews ?? []).length === 0) continue;
+    const updated = await updateStoredProject(source.id, (project) => ({ ...project, checklistReviews: [] }));
+    if (updated) projectsUpdated += 1;
+  }
+  return { projectsUpdated };
 }
 
 async function updateStoredProject(

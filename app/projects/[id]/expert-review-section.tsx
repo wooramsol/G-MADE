@@ -243,11 +243,14 @@ export default function ExpertReviewSection({
         const response = await fetch(`/api/projects/${project.id}/reviewers`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reviewers: next, phase }),
+          // base = 마지막으로 서버가 확인한 목록 → 서버는 그 이후 바꾼 부분만 병합 (다른 공무원의 동시 변경 유지)
+          body: JSON.stringify({ reviewers: next, phase, base: store.confirmed }),
         });
         const payload = (await response.json().catch(() => ({}))) as { reviewers?: ReviewerMarker[]; error?: string };
         if (!response.ok || !payload.reviewers) throw new Error(payload.error ?? "심사위원 목록을 저장하지 못했습니다.");
         store.confirmed = payload.reviewers;
+        // 그 사이 화면에서 더 바꾼 게 없으면 서버 병합 결과(다른 사람 변경 포함)로 맞춤
+        if (seq === store.seq) setReviewers(payload.reviewers);
       } catch (error) {
         // 실패 시에만, 그 사이 다른 변경이 없을 때 마지막으로 저장된 목록으로 되돌림
         if (seq === store.seq) setReviewers(store.confirmed);

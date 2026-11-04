@@ -6,7 +6,7 @@ export const authConfig = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60 * 12, // 12시간 — 공용 PC 등에서 로그인이 오래 남지 않도록
   },
   providers: [],
   trustHost: true,

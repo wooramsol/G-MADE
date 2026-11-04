@@ -11,19 +11,26 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const access = await requireProjectAccess(id, { officialOnly: true });
   if (access.response) return access.response;
-  const body = (await request.json().catch(() => null)) as { departments?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { departments?: unknown; base?: unknown } | null;
   if (!Array.isArray(body?.departments)) return NextResponse.json({ error: "부서 목록이 필요합니다." }, { status: 400 });
+  const departments = sanitizeDepartments(body.departments);
+  // base가 있으면 변경분만 병합 (동시에 다른 공무원이 추가한 부서 유지)
+  const base = Array.isArray(body.base) ? sanitizeDepartments(body.base) : undefined;
+  const updated = await setProjectDepartments(id, departments, base);
+  if (!updated) return NextResponse.json({ error: "저장하지 못했습니다." }, { status: 500 });
+  revalidateProjectViews(id);
+  return NextResponse.json({ departments: updated.departments ?? [] });
+}
+
+function sanitizeDepartments(list: unknown[]): string[] {
   const seen = new Set<string>();
   const departments: string[] = [];
-  for (const raw of body.departments.slice(0, 30)) {
+  for (const raw of list.slice(0, 30)) {
     const name = String(raw ?? "").trim().slice(0, 40);
     const key = name.replace(/\s+/g, "");
     if (!name || seen.has(key)) continue;
     seen.add(key);
     departments.push(name);
   }
-  const updated = await setProjectDepartments(id, departments);
-  if (!updated) return NextResponse.json({ error: "저장하지 못했습니다." }, { status: 500 });
-  revalidateProjectViews(id);
-  return NextResponse.json({ departments: updated.departments ?? [] });
+  return departments;
 }

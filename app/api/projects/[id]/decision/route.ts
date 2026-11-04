@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireProjectAccess } from "@/lib/project-access";
 import { notifyUsers } from "@/lib/notifications";
-import { addPreReviewDecision, notifyPreReviewResult, setProjectStage } from "@/lib/project-store";
+import { addPreReviewDecision, notifyPreReviewResult, ProjectConflictError, setProjectStage } from "@/lib/project-store";
 import { canSetStage, projectStage, STAGE_LABELS } from "@/lib/roles";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import type { PreReviewDecision, ProjectStage } from "@/lib/types";
@@ -17,7 +17,17 @@ const STAGES = new Set<ProjectStage>(["RECEPTION", "SCREENING", "PRE_REVIEW", "M
  * 사전검토 판정 (공무원) — 보완요청 / 반려 / 통과(→ 사전심의).
  * { stage } 만 보내면 단계를 직접 되돌린다 (판정 번복 등).
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  try {
+    return await handle(request, context);
+  } catch (error) {
+    // 저장 직전 재확인에서 어긋남(다른 사람이 먼저 처리) — 아무것도 저장되지 않음
+    if (error instanceof ProjectConflictError) return NextResponse.json({ error: error.message }, { status: 409 });
+    throw error;
+  }
+}
+
+async function handle(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const access = await requireProjectAccess(id, { officialOnly: true });
   if (access.response) return access.response;
@@ -71,9 +81,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({ error: "지원자가 이미 수정 도서를 제출했습니다." }, { status: 409 });
       }
     }
-    const updated = await setProjectStage(id, target);
+    const result = await setProjectStage(id, target);
+    const updated = result?.project;
+    const changedFrom = result?.previousStage ?? previousStage;
     // 본심의 종료 → 지원자에게 '심의 종료, 결과 별도 통지' 안내
-    if (updated?.ownerId && body.stage === "CLOSED" && previousStage !== "CLOSED") {
+    if (updated?.ownerId && body.stage === "CLOSED" && changedFrom !== "CLOSED") {
       await notifyUsers([updated.ownerId], {
         kind: "CLOSED",
         title: `심의가 종료되었습니다 · ${updated.name}`,
@@ -84,14 +96,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } else if (updated?.ownerId && target !== "CLOSED") {
       // 되돌리기·재개 — 지원자 화면 상태가 바뀌므로 알림
       const title =
-        previousStage === "PRE_REVIEW" && target === "PRE_REVIEW"
+        changedFrom === "PRE_REVIEW" && target === "PRE_REVIEW"
           ? `사전심의 결과 통보가 취소되었습니다 · ${updated.name}`
           : `심의 단계가 ${STAGE_LABELS[target]}(으)로 변경되었습니다 · ${updated.name}`;
       await notifyUsers([updated.ownerId], {
         kind: target === "SCREENING" ? "SCREENING" : target === "PRE_REVIEW" ? "PRE_REVIEW" : "MAIN_REVIEW",
         title,
         body:
-          target === "PRE_REVIEW" && previousStage === "MAIN_REVIEW"
+          target === "PRE_REVIEW" && changedFrom === "MAIN_REVIEW"
             ? "담당부서에서 사전심의를 다시 진행합니다. 결과 통보 후 수정 도서를 다시 제출해 주세요."
             : undefined,
         link: `/projects/${id}`,

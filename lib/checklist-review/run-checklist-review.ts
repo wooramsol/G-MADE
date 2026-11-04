@@ -2,9 +2,8 @@ import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { isAiAnalysisError } from "@/lib/ai/analysis-error";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { buildEvaluationContext } from "@/lib/evaluation-context";
-import { ensureProjectRecordFromSnapshot } from "@/lib/ensure-project-record";
 import { hashPdfPages } from "@/lib/pdf/split-pdf";
-import { addProjectChecklistReview, getProjectById, upsertProjectRecord } from "@/lib/project-store";
+import { addProjectChecklistReview, getProjectById } from "@/lib/project-store";
 import {
   deleteSavedUploadFiles,
   readSavedUploadFile,
@@ -220,10 +219,9 @@ export async function runChecklistReview(
       throw new Error("CLAUDE_API_KEY(또는 ANTHROPIC_API_KEY)가 설정되지 않았습니다.");
     }
 
-    let project = await getProjectById(projectId);
-    if (!project && projectSnapshot?.id === projectId) {
-      project = await ensureProjectRecordFromSnapshot(projectSnapshot);
-    }
+    // 브라우저가 보낸 스냅샷으로 프로젝트를 만들지 않음 — 삭제된 프로젝트가 되살아나는 것 방지
+    void projectSnapshot;
+    const project = await getProjectById(projectId);
     if (!project) {
       throw new Error("프로젝트를 찾을 수 없습니다. 페이지를 새로고침해 주세요.");
     }
@@ -724,13 +722,9 @@ export async function runChecklistReview(
     };
 
     emitStep(emit, "save");
-    const updatedProject =
-      (await addProjectChecklistReview(projectId, review, persistedFiles)) ??
-      (await upsertProjectRecord({
-        ...project,
-        files: [...project.files, ...persistedFiles],
-        checklistReviews: [...(project.checklistReviews ?? []), review],
-      }));
+    // 분석 중에 프로젝트가 영구 삭제됐으면 저장하지 않음 (예전 스냅샷으로 되살리지 않기)
+    const updatedProject = await addProjectChecklistReview(projectId, review, persistedFiles);
+    if (!updatedProject) throw new Error("분석 중 프로젝트가 삭제되어 결과를 저장하지 못했습니다.");
 
     newlySavedFiles = [];
 

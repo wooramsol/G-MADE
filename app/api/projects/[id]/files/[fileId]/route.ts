@@ -1,6 +1,7 @@
 import { get } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { requireProjectAccess } from "@/lib/project-access";
+import { projectForViewer } from "@/lib/roles";
 import { getBlobAccess } from "@/lib/blob-config";
 import { isBlobStorageEnabled } from "@/lib/blob-file-storage";
 import { findStoredFileInProject } from "@/lib/project-file-pool";
@@ -18,7 +19,8 @@ export async function GET(
   const { id: projectId, fileId } = await context.params;
   const access = await requireProjectAccess(projectId);
   if (access.response) return access.response;
-  const project = access.project;
+  // 지원자는 자기가 제출한 도서만 열람 (분석용·내부 파일 제외)
+  const project = projectForViewer(access.project, access.official);
 
   const file = findStoredFileInProject(project, fileId);
   if (!file) {

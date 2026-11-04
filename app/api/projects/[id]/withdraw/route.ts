@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { notifyOfficials } from "@/lib/notifications";
 import { requireProjectAccess } from "@/lib/project-access";
-import { trashProjectRecord, withdrawProjectApplication } from "@/lib/project-store";
+import { ProjectConflictError, trashProjectRecord, withdrawProjectApplication } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { applicantCanWithdraw, projectForViewer } from "@/lib/roles";
 
@@ -31,7 +31,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ deleted: true });
   }
 
-  const updated = await withdrawProjectApplication(id);
+  let updated;
+  try {
+    updated = await withdrawProjectApplication(id);
+  } catch (error) {
+    if (error instanceof ProjectConflictError) return NextResponse.json({ error: error.message }, { status: 409 });
+    throw error;
+  }
   if (!updated) return NextResponse.json({ error: "처리하지 못했습니다." }, { status: 500 });
   await notifyOfficials({
     kind: "WITHDRAWN",

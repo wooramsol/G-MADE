@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { isOfficialRole, projectForViewer } from "@/lib/roles";
-import { ensureProjectRecordFromSnapshot } from "@/lib/ensure-project-record";
-import type { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  request: Request,
+  _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const authResult = await requireApiSession();
@@ -25,16 +23,9 @@ export async function POST(
     return NextResponse.json({ project: projectForViewer(existing, false) });
   }
 
-  try {
-    const snapshot = (await request.json()) as Project;
-    if (!snapshot?.id || snapshot.id !== projectId) {
-      return NextResponse.json({ error: "유효하지 않은 프로젝트 정보입니다." }, { status: 400 });
-    }
-
-    const project = await ensureProjectRecordFromSnapshot(snapshot);
-    return NextResponse.json({ project });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "프로젝트 동기화에 실패했습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  // 브라우저 스냅샷으로 서버 기록을 만들거나 덮어쓰지 않음 — 서버에 있는 기록만 확인
+  const { getProjectById } = await import("@/lib/project-store");
+  const existing = await getProjectById(projectId);
+  if (!existing) return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다. 페이지를 새로고침해 주세요." }, { status: 404 });
+  return NextResponse.json({ project: existing });
 }

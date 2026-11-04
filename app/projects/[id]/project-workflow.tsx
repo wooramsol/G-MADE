@@ -480,18 +480,24 @@ function ScreeningPanel({ project }: { project: Project }) {
 function DepartmentsEditor({ project }: { project: Project }) {
   const [departments, setDepartments] = useState<string[]>(project.departments ?? []);
   const [value, setValue] = useState("");
+  // 서버가 마지막으로 확인해 준 목록 — 저장 시 이 목록 대비 바꾼 부분만 보내 병합 (동시 수정 덮어쓰기 방지)
+  const confirmedRef = useRef<string[]>(project.departments ?? []);
   const save = async (next: string[]) => {
     const before = departments;
     setDepartments(next);
     const response = await fetch(`/api/projects/${project.id}/departments`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ departments: next }),
+      body: JSON.stringify({ departments: next, base: confirmedRef.current }),
     }).catch(() => null);
-    if (!response?.ok) {
+    const payload = response?.ok ? ((await response.json().catch(() => null)) as { departments?: string[] } | null) : null;
+    if (!payload?.departments) {
       setDepartments(before);
       showToast({ message: "유관부서를 저장하지 못했습니다.", tone: "error" });
+      return;
     }
+    confirmedRef.current = payload.departments;
+    setDepartments(payload.departments);
   };
   const add = () => {
     const names = value.split(/[,\n]/).map((entry) => entry.trim()).filter(Boolean);

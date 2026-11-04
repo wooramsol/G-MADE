@@ -85,3 +85,10 @@ export async function deleteExpertMemo(projectId: string, memoId: string): Promi
     );
   }
 }
+
+/** 프로젝트 영구 삭제 시 전문가 의견도 모두 삭제 (저장소에 남지 않도록) */
+export async function deleteAllExpertMemos(projectId: string): Promise<void> {
+  if (!isR2Configured()) return;
+  const keys = await r2ListKeys(prefixOf(projectId));
+  await Promise.all(keys.map((key) => r2DeleteObject(key)));
+}

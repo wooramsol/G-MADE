@@ -72,7 +72,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     },
     storedRefsToProjectFiles([ref], now)[0],
-    { asMain: kind === "main", expectKind: applicantKind ?? undefined },
+    {
+      asMain: kind === "main",
+      expectKind: applicantKind ?? undefined,
+      // 공무원 대리 제출은 도서접수·사전검토 단계에서만 (잠금 안에서 다시 확인)
+      allowedStages: applicantKind ? undefined : ["RECEPTION", "SCREENING"],
+    },
   );
   if (!updated) return NextResponse.json({ error: "접수를 저장하지 못했습니다." }, { status: 500 });
   if (!(updated.submissions ?? []).some((entry) => entry.id === submissionId)) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiRole } from "@/lib/api-auth";
 import { requireProjectAccess } from "@/lib/project-access";
+import { deleteAllExpertMemos } from "@/lib/expert-memo-store";
 import { canEditProjectInfo, projectForViewer } from "@/lib/roles";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import {
@@ -143,6 +144,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       const storedFiles = collectProjectStoredFiles(record);
       await deleteSavedUploadFiles(storedRefsToSavedFiles(storedFiles)).catch(() => undefined);
     }
+    // 전문가 의견(별도 저장)도 함께 삭제
+    await deleteAllExpertMemos(id).catch(() => undefined);
 
     revalidateProjectViews(id);
     return NextResponse.json({ ok: true });

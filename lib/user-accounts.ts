@@ -132,13 +132,17 @@ export async function deleteApplicantAccount(id: string): Promise<{ ok: true; pr
   if (!user) return { ok: false, error: "계정을 찾을 수 없습니다." };
   if (user.role.code !== "APPLICANT") return { ok: false, error: "지원자 계정만 삭제할 수 있습니다. 공무원 계정은 사용 중지하세요." };
 
+  // 먼저 사용 중지 — 삭제하는 동안 새 프로젝트를 만들거나 제출하지 못하도록
+  await prisma.user.update({ where: { id }, data: { active: false } });
   const { getAllProjects, getTrashedProjects, purgeProjectRecord } = await import("./project-store");
+  const { deleteAllExpertMemos } = await import("./expert-memo-store");
   const { collectProjectStoredFiles } = await import("./project-file-pool");
   const { deleteSavedUploadFiles, storedRefsToSavedFiles } = await import("./save-uploaded-files");
   const owned = [...(await getAllProjects()), ...(await getTrashedProjects())].filter((project) => project.ownerId === id);
   for (const project of owned) {
     await purgeProjectRecord(project.id);
     await deleteSavedUploadFiles(storedRefsToSavedFiles(collectProjectStoredFiles(project))).catch(() => undefined);
+    await deleteAllExpertMemos(project.id).catch(() => undefined);
   }
   await prisma.user.delete({ where: { id } });
   return { ok: true, projects: owned.length };

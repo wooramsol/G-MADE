@@ -36,9 +36,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.checkedAt = Date.now();
         return token;
       }
-      // 사용 중지된 계정·변경된 역할을 5분마다 반영 (로그인 상태가 7일 유지되므로)
+      // 사용 중지·삭제된 계정과 변경된 역할을 1분 안에 반영
       const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
-      if (typeof token.id === "string" && token.id !== "env-admin" && Date.now() - checkedAt > 5 * 60_000) {
+      if (typeof token.id === "string" && token.id !== "env-admin" && Date.now() - checkedAt > 60_000) {
         try {
           const { getPrismaClient } = await import("@/lib/prisma");
           const prisma = getPrismaClient();
