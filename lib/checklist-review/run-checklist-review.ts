@@ -2,6 +2,7 @@ import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { isAiAnalysisError } from "@/lib/ai/analysis-error";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { attachRelevantLawArticles, buildEvaluationContext } from "@/lib/evaluation-context";
+import { buildLegalCheck } from "@/lib/legal-check";
 import { hashPdfPages } from "@/lib/pdf/split-pdf";
 import { addProjectChecklistReview, getProjectById } from "@/lib/project-store";
 import {
@@ -681,6 +682,25 @@ export async function runChecklistReview(
       `[checklist-review] regions saved=${regionRefs.length}${regionRefs.length > 0 ? ` examples=[${regionRefs.slice(0, 8).join(", ")}]` : ""}`,
     );
 
+    // 법정 기준 자동 대조 — 용도지역별 건폐율·용적률 한도와 도서 수치를 코드로 비교 (실패해도 검토 결과에는 영향 없음)
+    emitStep(emit, "save", "용도지역·건폐율·용적률 기준 대조 중");
+    const legalCheck = await Promise.race([
+      buildLegalCheck({
+        point: context.spatial?.point ?? project.locationPoint ?? null,
+        location: project.location,
+        metrics: (metrics ?? []).map((metric) => ({ label: metric.label, value: metric.value })),
+      }).catch((error) => {
+        console.warn("[legal-check] 실패:", error instanceof Error ? error.message : error);
+        return null;
+      }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 20_000)),
+    ]);
+    if (legalCheck) {
+      console.log(
+        `[legal-check] zone=${legalCheck.zone ?? "-"} ${legalCheck.rows.map((row) => `${row.label}:${row.planned ?? "-"}/${row.limit ?? "-"}=${row.status}`).join(" ")}`,
+      );
+    }
+
     const usageSummary = estimateUsageSummary(usageByModel);
     console.log(
       `[checklist-review] cost-summary totalTokens=${usageSummary.totalTokens} costUsd=${usageSummary.costUsd.toFixed(4)}`,
@@ -710,6 +730,7 @@ export async function runChecklistReview(
         .slice(0, 200)
         .map((entry) => ({ page: entry.page, types: entry.types, scale: entry.scale })),
       metrics,
+      legalCheck,
       summary,
       referenceLaws: context.referenceLaws.slice(0, 24).map((law) => ({
         title: law.title,

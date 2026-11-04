@@ -110,6 +110,8 @@ export type ChecklistReview = {
   drawingIndex?: Array<{ page: number; types: string[]; scale?: string }>;
   /** 문서에서 자동 추출한 사업 규모 지표 */
   metrics?: ChecklistReviewMetric[];
+  /** 법정 기준 자동 대조 (용도지역 → 건폐율·용적률 한도와 도서 수치 비교) */
+  legalCheck?: import("../legal-check").LegalCheck | null;
   /** 전체 총평 */
   summary: string;
   referenceLaws: Array<{ title: string; article: string; summary: string; sourceUrl: string }>;

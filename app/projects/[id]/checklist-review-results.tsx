@@ -136,6 +136,19 @@ export default function ChecklistReviewResults({
     return map;
   }, [review.findings]);
 
+  // 법령·조례 기준 미달 의심 — 미충족·부분충족이면서 근거 조문이 달린 항목
+  const lawFlagged = useMemo(
+    () =>
+      review.items
+        .map((item) => ({ item, finding: findingsByItemId.get(item.id) }))
+        .filter(
+          (entry): entry is { item: ChecklistReview["items"][number]; finding: ChecklistFinding } =>
+            Boolean(entry.finding && (entry.finding.status === "미충족" || entry.finding.status === "부분충족") && entry.finding.lawRefs.length > 0),
+        )
+        .sort((a, b) => (a.finding.status === b.finding.status ? 0 : a.finding.status === "미충족" ? -1 : 1)),
+    [review.items, findingsByItemId],
+  );
+
   // 회차 비교 — 직전 회차와 항목 원문(공백 무시) 기준으로 매칭해 상태 변화를 계산
   const changesByItemId = useMemo(() => {
     const map = new Map<string, ItemChange>();
@@ -275,6 +288,33 @@ export default function ChecklistReviewResults({
           <p className="mt-2 text-xs leading-5 text-[#94a3b8]">
             제출 문서에 명시된 값을 원문 그대로 추출한 결과입니다. 최종 수치는 도서 원본으로 확인해 주세요.
           </p>
+        </div>
+      ) : null}
+
+      {review.legalCheck ? <LegalCheckCard check={review.legalCheck} /> : null}
+
+      {lawFlagged.length > 0 ? (
+        <div className="rounded-md border border-[#fecaca] bg-[#fffafa] p-4">
+          <p className="text-sm font-bold text-[#b91c1c]">법령·조례 기준 미달 의심 {lawFlagged.length}건</p>
+          <p className="mt-0.5 text-xs text-[#94a3b8]">조문 원문과 대조해 미충족·부분충족으로 판정되고 근거 조문이 달린 항목입니다.</p>
+          <ul className="mt-2 space-y-1.5">
+            {lawFlagged.map(({ item, finding }) => (
+              <li className="flex flex-wrap items-center gap-1.5 text-[13px]" key={item.id}>
+                <span className={`rounded-[3px] px-1.5 py-0.5 text-[11px] font-bold ${finding.status === "미충족" ? "bg-[#fee2e2] text-[#b91c1c]" : "bg-[#fef3c7] text-[#b45309]"}`}>
+                  {finding.status}
+                </span>
+                <a className="min-w-0 flex-1 truncate font-semibold text-[#172033] hover:underline" href={`#finding-${item.id}`} title={item.text}>
+                  {item.text}
+                </a>
+                {finding.lawRefs.slice(0, 2).map((law) => (
+                  <span className="rounded-[3px] border border-[#c9d6e6] bg-white px-2 py-0.5 text-[11px] font-bold text-[#2463b3]" key={`${law.title}-${law.article ?? ""}`}>
+                    {law.title}
+                    {law.article ? ` ${law.article}` : ""}
+                  </span>
+                ))}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -468,7 +508,7 @@ function FindingCard({
   };
 
   return (
-    <li className={`rounded-md border p-4 ${style.card}`}>
+    <li className={`scroll-mt-24 rounded-md border p-4 ${style.card}`} id={`finding-${item.id}`}>
       {category ? (
         <p className="mb-1.5 text-[11px] font-semibold leading-4 text-[#94a3b8]">{category}</p>
       ) : null}
@@ -809,4 +849,52 @@ function SnippetLightbox({
 function formatTokens(value: number): string {
   if (value >= 10_000) return `${(value / 10_000).toFixed(1)}만`;
   return value.toLocaleString("ko-KR");
+}
+
+/** 법정 기준 자동 대조 — 용도지역별 건폐율·용적률 한도와 도서 수치 비교 (코드 계산) */
+function LegalCheckCard({ check }: { check: NonNullable<ChecklistReview["legalCheck"]> }) {
+  const tone = (status: string) =>
+    status === "초과 의심"
+      ? "border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]"
+      : status === "적합"
+        ? "border-[#bbf7d0] bg-[#f0fdf4] text-[#047857]"
+        : "border-[#fde68a] bg-[#fffbeb] text-[#b45309]";
+  return (
+    <div className="rounded-md border border-[#d7dee8] bg-white p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-bold text-[#15345b]">법정 기준 대조 (자동 계산)</p>
+        <p className="text-xs text-[#64748b]">
+          용도지역 <span className="font-bold text-[#172033]">{check.zone ?? "확인 안 됨"}</span>
+          {check.parcel?.address ? <span className="ml-2">· {check.parcel.address}{check.parcel.jibun ? ` (지목 ${check.parcel.jibun.replace(/^[\d-]+/, "") || "-"})` : ""}</span> : null}
+        </p>
+      </div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {check.rows.map((row) => (
+          <div className="rounded-lg bg-[#f8fafc] px-3 py-2 text-[13px]" key={row.label}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-bold text-[#475569]">{row.label}</p>
+              <span className={`rounded-[3px] border px-1.5 py-0.5 text-[11px] font-bold ${tone(row.status)}`}>{row.status}</span>
+            </div>
+            <p className="mt-1 font-semibold text-[#172033]">
+              계획 {row.planned ?? "—"} <span className="font-normal text-[#94a3b8]">/</span> 기준 {row.limit ?? "—"}
+            </p>
+            {row.basis ? (
+              <p className="mt-0.5 text-[11px] text-[#64748b]">
+                근거:{" "}
+                {row.basisUrl ? (
+                  <a className="text-[#2463b3] underline" href={row.basisUrl} rel="noreferrer" target="_blank">
+                    {row.basis}
+                  </a>
+                ) : (
+                  row.basis
+                )}
+              </p>
+            ) : null}
+            {row.note ? <p className="mt-0.5 text-[11px] text-[#b45309]">{row.note}</p> : null}
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-xs leading-5 text-[#94a3b8]">{check.disclaimer}</p>
+    </div>
+  );
 }
