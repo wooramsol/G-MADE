@@ -11,6 +11,7 @@ import type {
 import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { buildArticleJumpUrl } from "@/lib/reference-links";
+import LawViewer, { type CitedLaw } from "./law-viewer";
 import { buildEvidenceAnchors } from "@/lib/checklist-review/evidence-anchors";
 
 // 행정문서 톤 — 흰 카드에 판정색 테두리(전체 스트로크), 뱃지는 각진 외곽선 태그
@@ -135,6 +136,8 @@ export default function ChecklistReviewResults({
     for (const finding of review.findings) map.set(finding.itemId, finding);
     return map;
   }, [review.findings]);
+
+  const [openLaw, setOpenLaw] = useState<CitedLaw | null>(null);
 
   // 법령·조례 기준 미달 의심 — 미충족·부분충족이면서 근거 조문이 달린 항목
   const lawFlagged = useMemo(
@@ -307,10 +310,16 @@ export default function ChecklistReviewResults({
                   {item.text}
                 </a>
                 {finding.lawRefs.slice(0, 2).map((law) => (
-                  <span className="rounded-[3px] border border-[#c9d6e6] bg-white px-2 py-0.5 text-[11px] font-bold text-[#2463b3]" key={`${law.title}-${law.article ?? ""}`}>
+                  <button
+                    className="max-w-[360px] truncate rounded-[3px] border border-[#c9d6e6] bg-white px-2 py-0.5 text-[11px] font-bold text-[#2463b3] hover:underline"
+                    key={`${law.title}-${law.article ?? ""}`}
+                    onClick={() => setOpenLaw(law)}
+                    title={`${law.title} ${law.article ?? ""}`}
+                    type="button"
+                  >
                     {law.title}
                     {law.article ? ` ${law.article}` : ""}
-                  </span>
+                  </button>
                 ))}
               </li>
             ))}
@@ -366,6 +375,7 @@ export default function ChecklistReviewResults({
                 finding={findingsByItemId.get(item.id)}
                 item={item}
                 key={item.id}
+                onOpenLaw={setOpenLaw}
                 onSaveComment={saveComment}
                 pageHref={pageHref}
                 printMode={printMode}
@@ -379,6 +389,8 @@ export default function ChecklistReviewResults({
           </li>
         ) : null}
       </ul>
+
+      {openLaw ? <LawViewer cited={openLaw} laws={review.referenceLaws ?? []} onClose={() => setOpenLaw(null)} /> : null}
 
       {review.warnings.length > 0 ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
@@ -463,8 +475,11 @@ function FindingCard({
   onSaveComment,
   change,
   printMode = false,
+  onOpenLaw,
 }: {
   printMode?: boolean;
+  /** 법령 근거를 누르면 앱 안에서 조문 원문을 열고 인용 문구를 강조 */
+  onOpenLaw?: (law: CitedLaw) => void;
   /** 카드 상단에 표시할 카테고리 경로 (그리드 흐름을 끊지 않기 위해 카드 내부 표기) */
   category?: string;
   item: ChecklistItem;
@@ -584,7 +599,18 @@ function FindingCard({
       {(finding && finding.lawRefs.length > 0) || (!editing && !comment) ? (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {(finding?.lawRefs ?? []).map((law) =>
-            law.sourceUrl ? (
+            onOpenLaw && !printMode ? (
+              <button
+                className="rounded-[3px] border border-[#c9d6e6] bg-white px-2.5 py-0.5 text-left text-xs font-bold text-[#2463b3] hover:bg-[#f3f7fc] hover:underline"
+                key={`${law.title}-${law.article ?? ""}`}
+                onClick={() => onOpenLaw(law)}
+                title="조문 원문 보기 (인용 문구 강조)"
+                type="button"
+              >
+                {law.title}
+                {law.article ? ` ${law.article}` : ""}
+              </button>
+            ) : law.sourceUrl ? (
               <a
                 className="rounded-[3px] border border-[#c9d6e6] bg-white px-2.5 py-0.5 text-xs font-bold text-[#2463b3] hover:underline"
                 href={buildArticleJumpUrl(law.sourceUrl, law.article) ?? law.sourceUrl}
