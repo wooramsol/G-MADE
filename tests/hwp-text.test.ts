@@ -35,3 +35,8 @@ test("HWPX 본문 글자 추출", () => {
   const text = extractHwpText(zip);
   assert.match(text, /조명 심의기준\n눈부심 없는 조명/);
 });
+
+test("한컴 전용 글머리 기호를 일반 글머리표로", async () => {
+  const { replaceHwpBullets } = await import("../lib/law/hwp-text");
+  assert.equal(replaceHwpBullets("인근 건축물과 조화"), "• 인근 건축물과 조화");
+});

@@ -1,6 +1,6 @@
 import { isR2Configured, r2GetObject, r2PutObject } from "../r2-storage";
 import { getLawOc } from "./config";
-import { extractHwpText } from "./hwp-text";
+import { extractHwpText, replaceHwpBullets } from "./hwp-text";
 import { lawGetJson } from "./http";
 
 /**
@@ -331,7 +331,7 @@ async function fetchAttachmentText(row: AttachmentRow): Promise<string> {
   const cacheKey = `law-attachments/${url.searchParams.get("flSeq") ?? encodeURIComponent(row.title)}.txt`;
   if (isR2Configured()) {
     const cached = await r2GetObject(cacheKey).catch(() => null);
-    if (cached) return cached.toString("utf8");
+    if (cached) return replaceHwpBullets(cached.toString("utf8"));
   }
   const response = await fetch(url, { signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "G-MADE-HIVE/1.0" } });
   if (!response.ok) return "";

@@ -101,8 +101,13 @@ function extractHwpxText(bytes: Uint8Array): string {
   return normalize(parts.join("\n"));
 }
 
+/** 한컴 글꼴 전용 글머리 기호(유니코드 사용자 정의 영역) → 일반 글머리표 */
+export function replaceHwpBullets(text: string): string {
+  return text.replace(/[\uE000-\uF8FF]+\s*/g, "• ");
+}
+
 function normalize(text: string): string {
-  return text
+  return replaceHwpBullets(text)
     .replace(/\r/g, "")
     .replace(/[\t ]+/g, " ")
     .replace(/\n\s*\n+/g, "\n")

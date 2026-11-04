@@ -92,7 +92,8 @@ export default function LawViewer({ cited, laws, onClose }: { cited: CitedLaw; l
   }, [onClose]);
 
   const externalUrl = lawExternalUrl(cited, phrase);
-  const text = law?.summary.replace(/^※[^—]*—[^.]*\.\s*/, "") ?? "";
+  // 예전 분석에 저장된 한컴 전용 글머리 기호도 일반 글머리표로 (길이 변화 없이 1:1 치환해 강조 위치 유지)
+  const text = (law?.summary.replace(/^※[^—]*—[^.]*\.\s*/, "") ?? "").replace(/[\uE000-\uF8FF]+/g, (run) => "•" + " ".repeat(run.length - 1));
   const shift = (law?.summary.length ?? 0) - text.length;
   const start = range ? range[0] - shift : -1;
   const end = range ? range[1] - shift : -1;
