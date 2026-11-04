@@ -881,7 +881,7 @@ export function sanitizeFindings(
   const isKnownPage = buildKnownPagesIndex(files);
 
   const lawIndex = [
-    ...context.referenceLaws.map((law) => ({ title: law.title, sourceUrl: law.sourceUrl })),
+    ...context.referenceLaws.map((law) => ({ title: law.title, sourceUrl: law.sourceUrl, article: law.article, summary: law.summary })),
     ...context.referenceGuidelines.map((guide) => ({ title: guide.title, sourceUrl: guide.sourceUrl })),
   ];
 
@@ -917,7 +917,8 @@ export function sanitizeFindings(
           (law) => law.title.includes(ref.title) || ref.title.includes(law.title),
         );
         // 조회된 법령 목록에 없는 인용은 제거 (환각 방지)
-        return matched ? [{ ...ref, title: matched.title, sourceUrl: matched.sourceUrl }] : [];
+        if (!matched) return [];
+        return [{ ...ref, title: matched.title, sourceUrl: matched.sourceUrl, article: normalizeArticleRef(ref.article, matched.title, lawIndex) }];
       })
       .slice(0, 4);
 
@@ -1373,4 +1374,26 @@ export async function evaluateChecklistItems(options: {
     warnings,
     usageByModel,
   };
+}
+
+
+/**
+ * AI가 조문 표기 대신 기준 문구(예: "색채계획(기존 주변 환경 고려)")를 article에 쓴 경우,
+ * 그 문구가 들어 있는 조문·별표를 찾아 "[별표 3] 색채 심의기준 — 색채계획(…)" 형태로 바로잡는다.
+ */
+export function normalizeArticleRef(
+  article: string | undefined,
+  title: string,
+  index: Array<{ title: string; article?: string; summary?: string }>,
+): string | undefined {
+  if (!article) return article;
+  if (/제\s*\d+\s*조|별표/.test(article)) return article.slice(0, 100);
+  const head = article.split(/[(（]/)[0].replace(/\s+/g, "");
+  const inner = (article.match(/[(（]([^)）]+)/)?.[1] ?? "").replace(/\s+/g, "").slice(0, 14);
+  const candidates = index.filter((entry) => entry.title === title && entry.article && entry.summary);
+  const owner =
+    candidates.find((entry) => inner && entry.summary!.replace(/\s+/g, "").includes(inner)) ??
+    candidates.find((entry) => head && entry.summary!.replace(/\s+/g, "").includes(head));
+  const label = owner?.article?.replace(/\s*\(\d+\/\d+\)$/, "");
+  return (label ? `${label} — ${article}` : article).slice(0, 100);
 }

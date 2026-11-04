@@ -64,3 +64,16 @@ test("긴 심의기준 조문은 호 단위로 나눔", async () => {
   assert.equal(articleLabel(parts[2]), "제6조제3호(색채)");
   assert.match(parts[2].text, /저채도/);
 });
+
+test("기준 문구로 쓴 인용을 별표 표기로 바로잡음", async () => {
+  const { normalizeArticleRef } = await import("../lib/checklist-review/evaluate-items");
+  const index = [
+    { title: "양평군 경관 조례 시행규칙", article: "[별표 3] 색채 심의기준 (1/2)", summary: "색채계획 기업 고유의 색채계획을 지양하고 기존 주변 환경 및 지역 특성을 고려한 색채계획" },
+    { title: "양평군 경관 조례 시행규칙", article: "[별표 4] 조명 심의기준", summary: "경관조명 옥탑층 일변도의 고휘도 경관조명 지양" },
+  ];
+  assert.equal(
+    normalizeArticleRef("색채계획(기업 고유의 색채계획을 지양하고 기존 주변 환경)", "양평군 경관 조례 시행규칙", index),
+    "[별표 3] 색채 심의기준 — 색채계획(기업 고유의 색채계획을 지양하고 기존 주변 환경)",
+  );
+  assert.equal(normalizeArticleRef("제12조(색채)", "x", index), "제12조(색채)");
+});
