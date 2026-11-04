@@ -3,6 +3,8 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { attachRelevantLawArticles, buildEvaluationContext } from "@/lib/evaluation-context";
 import { buildLegalCheck } from "@/lib/legal-check";
 import { getProjectById } from "@/lib/project-store";
+import { getLawOc } from "@/lib/law/config";
+import { lawGetJson } from "@/lib/law/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +15,13 @@ export const preferredRegion = "icn1";
 export async function GET(request: NextRequest) {
   const auth = await requireAdminSession();
   if (auth.response) return auth.response;
+  const mst = request.nextUrl.searchParams.get("mst");
+  if (mst) {
+    const oc = getLawOc();
+    const result = await lawGetJson<Record<string, unknown>>("/DRF/lawService.do", { OC: oc ?? "", target: "ordin", type: "JSON", MST: mst }, "진단");
+    const service = result.ok ? ((result.data.LawService ?? {}) as Record<string, unknown>) : {};
+    return NextResponse.json({ ok: result.ok, byl: JSON.stringify(service["별표"] ?? null).slice(0, 4000) });
+  }
   const projectId = request.nextUrl.searchParams.get("projectId") ?? "";
   const project = await getProjectById(projectId);
   if (!project) return NextResponse.json({ error: "프로젝트 없음" }, { status: 404 });
