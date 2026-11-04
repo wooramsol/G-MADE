@@ -17,3 +17,12 @@ test("다른 사람이 이미 지운 항목을 내가 되살리지 않음", () =
   // 저장본에서 B가 지워졌는데 내 화면은 [A,B]를 보고 C 추가
   assert.deepEqual(mergeListChanges(["A"], ["A", "B"], ["A", "B", "C"], key), ["A", "C"]);
 });
+
+test("내가 안 건드린 항목은 다른 사람이 바꾼 현재값 유지", () => {
+  type R = { id: string; name: string };
+  const keyOf = (r: R) => r.id;
+  const base: R[] = [{ id: "1", name: "갑" }];
+  const current: R[] = [{ id: "1", name: "갑(수정)" }];
+  const next: R[] = [{ id: "1", name: "갑" }, { id: "2", name: "을" }];
+  assert.deepEqual(mergeListChanges(current, base, next, keyOf), [{ id: "1", name: "갑(수정)" }, { id: "2", name: "을" }]);
+});

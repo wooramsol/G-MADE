@@ -1,4 +1,6 @@
 import { handleUpload, handleUploadPresigned, type HandleUploadBody, type HandleUploadPresignedBody } from "@vercel/blob/client";
+import { isProjectFileKey } from "@/lib/storage-keys";
+import { applicantCanSubmit } from "@/lib/roles";
 import { issueSignedToken } from "@vercel/blob";
 import { r2HeadObject, r2PresignPutUrl } from "@/lib/r2-storage";
 import { NextResponse } from "next/server";
@@ -28,7 +30,7 @@ const allowedContentTypes = [
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 function validateProjectUploadPath(projectId: string, pathname: string) {
-  if (!pathname.startsWith(`projects/${projectId}/files/`)) {
+  if (!isProjectFileKey(projectId, pathname)) {
     throw new Error("허용되지 않은 업로드 경로입니다.");
   }
 
@@ -82,6 +84,10 @@ export async function POST(
       };
       if (!pathname || !contentType || !Number.isFinite(sizeBytes)) {
         return NextResponse.json({ error: "pathname·contentType·sizeBytes가 필요합니다." }, { status: 400 });
+      }
+      // 지원자는 PDF 도서만, 도서를 낼 수 있는 단계에서만 업로드
+      if (!access.official && (contentType !== "application/pdf" || !/\.pdf$/i.test(pathname) || !applicantCanSubmit(access.project))) {
+        return NextResponse.json({ error: "지금은 도서(PDF)를 올릴 수 없습니다." }, { status: 403 });
       }
       if (!allowedContentTypes.includes(contentType)) {
         return NextResponse.json({ error: "허용되지 않은 파일 형식입니다." }, { status: 400 });

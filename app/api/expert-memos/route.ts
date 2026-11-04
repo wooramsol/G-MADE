@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireOfficial } from "@/lib/project-access";
+import { isMemoId } from "@/lib/storage-keys";
 import { phaseWritable, projectStage } from "@/lib/roles";
 import { deleteExpertMemo, getExpertMemo, listExpertMemos, saveExpertMemo } from "@/lib/expert-memo-store";
 import { findStoredFileInProject } from "@/lib/project-file-pool";
@@ -123,7 +124,8 @@ function phaseLockedResponse(project: Project, phase: ReviewPhase) {
 }
 
 async function loadOwnMemo(projectId: string, memoId: string, userId: string, isAdmin: boolean) {
-  const memo = projectId && memoId ? await getExpertMemo(projectId, memoId) : null;
+  // 저장소 경로에 그대로 쓰이므로 형식이 맞는 id만 (경로 조작 방지)
+  const memo = projectId && isMemoId(memoId) ? await getExpertMemo(projectId, memoId) : null;
   if (!memo) {
     return { error: NextResponse.json({ error: "메모를 찾을 수 없습니다." }, { status: 404 }) };
   }

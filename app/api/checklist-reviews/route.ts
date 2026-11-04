@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isTrustedBlobUrl } from "@/lib/trusted-blob-url";
+import { isProjectFileKey } from "@/lib/storage-keys";
 import { requireOfficial } from "@/lib/project-access";
 import { phaseWritable } from "@/lib/roles";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
@@ -20,7 +22,6 @@ import {
   updateProjectDocumentVersionLabel,
 } from "@/lib/project-store";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
-import type { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -57,9 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     const fileRefs = parseStoredFileRefs(formData.get("fileRefs"));
-    const invalidRef = fileRefs.find(
-      (ref) => !ref.storageKey.startsWith(`projects/${projectId}/files/`),
-    );
+    const invalidRef = fileRefs.find((ref) => !isProjectFileKey(projectId, ref.storageKey));
     if (invalidRef) {
       return NextResponse.json(
         { error: "다른 프로젝트의 파일은 참조할 수 없습니다." },
@@ -79,7 +78,7 @@ export async function POST(request: NextRequest) {
       projectId,
       fileRefs,
       files,
-      projectSnapshot: parseProjectSnapshot(formData.get("projectSnapshot")),
+      projectSnapshot: null,
       forceFresh: String(formData.get("forceFresh") ?? "") === "1",
     };
 
@@ -239,16 +238,6 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ project: updated ?? null });
 }
 
-function parseProjectSnapshot(value: FormDataEntryValue | null): Project | null {
-  if (typeof value !== "string" || !value.trim()) return null;
-
-  try {
-    const parsed = JSON.parse(value) as Project;
-    return parsed?.id ? parsed : null;
-  } catch {
-    return null;
-  }
-}
 
 function parseStoredFileRefs(value: FormDataEntryValue | null): StoredFileRef[] {
   if (typeof value !== "string" || !value.trim()) return [];
@@ -264,7 +253,7 @@ function parseStoredFileRefs(value: FormDataEntryValue | null): StoredFileRef[] 
             fileType: String(ref.fileType ?? ""),
             sizeBytes: Math.max(0, Number(ref.sizeBytes) || 0),
             storageKey: String(ref.storageKey),
-            blobUrl: ref.blobUrl ? String(ref.blobUrl) : undefined,
+            blobUrl: isTrustedBlobUrl(ref.blobUrl) ? String(ref.blobUrl) : undefined,
             uploadedAt: ref.uploadedAt ? String(ref.uploadedAt) : undefined,
           }))
       : [];

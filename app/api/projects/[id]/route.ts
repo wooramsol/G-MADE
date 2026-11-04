@@ -113,10 +113,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  // 삭제(휴지통 이동 포함)는 공무원만
-  const access = await requireProjectAccess(id, { officialOnly: true });
-  if (access.response) return access.response;
   const permanent = request.nextUrl.searchParams.get("permanent") === "true";
+  // 휴지통 이동은 공무원만 (휴지통 안 프로젝트는 일반 조회에서 빠지므로 영구 삭제는 아래에서 따로 확인)
+  if (!permanent) {
+    const access = await requireProjectAccess(id, { officialOnly: true });
+    if (access.response) return access.response;
+  }
 
   if (permanent) {
     // 영구 삭제는 관리자·공무원만 수행할 수 있다.

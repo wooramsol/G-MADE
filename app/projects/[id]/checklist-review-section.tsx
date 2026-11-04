@@ -117,7 +117,6 @@ export default function ChecklistReviewSection({
 
       const formData = new FormData();
       formData.set("projectId", project.id);
-      formData.set("projectSnapshot", JSON.stringify(project));
       formData.set("fileRefs", JSON.stringify([...refs, ...uploadedRefs]));
       if (forceFresh) formData.set("forceFresh", "1");
 

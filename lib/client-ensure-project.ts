@@ -6,9 +6,8 @@ import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
 export async function ensureProjectOnServer(project: Project): Promise<void> {
   const response = await clientFetchWithTimeout(`/api/projects/${project.id}/ensure`, {
+    // 서버 기록 확인만 — 프로젝트 전체를 보내지 않음(요청 크기 한도·덮어쓰기 방지)
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(project),
   });
 
   const payload = (await response.json().catch(() => ({}))) as { error?: string };

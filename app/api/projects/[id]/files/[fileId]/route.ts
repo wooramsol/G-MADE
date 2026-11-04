@@ -1,4 +1,6 @@
 import { get } from "@vercel/blob";
+import { isR2Configured, r2HeadObject, r2PresignGetUrl } from "@/lib/r2-storage";
+import { isTrustedBlobUrl } from "@/lib/trusted-blob-url";
 import { NextResponse } from "next/server";
 import { requireProjectAccess } from "@/lib/project-access";
 import { projectForViewer } from "@/lib/roles";
@@ -27,6 +29,17 @@ export async function GET(
     return NextResponse.json({ error: "파일을 찾을 수 없습니다." }, { status: 404 });
   }
 
+  // R2 저장 파일 — 5분짜리 열람 주소로 이동
+  if (file.storageKey && isR2Configured()) {
+    try {
+      if (await r2HeadObject(file.storageKey)) {
+        return NextResponse.redirect(await r2PresignGetUrl(file.storageKey, 300));
+      }
+    } catch {
+      // 아래 레거시 경로로
+    }
+  }
+
   if (file.storageKey && isBlobStorageEnabled()) {
     // private blob은 인증된 서버에서 스트리밍한다.
     try {
@@ -45,7 +58,8 @@ export async function GET(
     }
   }
 
-  if (file.blobUrl) {
+  // 저장소 주소일 때만 이동 (외부 사이트로 보내지 않음)
+  if (isTrustedBlobUrl(file.blobUrl)) {
     return NextResponse.redirect(file.blobUrl);
   }
 
@@ -72,6 +86,10 @@ export async function DELETE(
   // 검토 이력이 이 파일을 참조하면 삭제를 막습니다 — 지워버리면 그 이력의 근거
   // "원본 페이지 열기" 링크가 깨지고, 이력 목록의 자료 표시도 남아 혼란을 줍니다.
   // (이력을 먼저 지우면 참조가 사라져 깨끗하게 삭제 가능)
+  // 접수된 도서는 삭제 불가 — 접수 기록·심의 대상 도서가 깨지지 않도록
+  if ((project.submissions ?? []).some((entry) => entry.file.id === fileId || (file.storageKey && entry.file.storageKey === file.storageKey))) {
+    return NextResponse.json({ error: "접수된 도서 파일은 삭제할 수 없습니다." }, { status: 409 });
+  }
   const referencingReviews = (project.checklistReviews ?? []).filter((review) =>
     review.files.some(
       (entry) => entry.id === fileId || (file.storageKey && entry.storageKey === file.storageKey),

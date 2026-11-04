@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireProjectAccess } from "@/lib/project-access";
 import { requireApiSession } from "@/lib/api-auth";
-import { getProjectById } from "@/lib/project-store";
 import { getNearbyBuildingFootprints } from "@/lib/vworld/nearby-buildings";
 import { isR2Configured, r2GetObject, r2PutObject } from "@/lib/r2-storage";
 
@@ -20,8 +20,10 @@ export async function GET(request: NextRequest) {
 
   const projectId = request.nextUrl.searchParams.get("projectId")?.trim() ?? "";
   if (!projectId) return NextResponse.json({ error: "projectId가 필요합니다." }, { status: 400 });
-  const project = await getProjectById(projectId);
-  if (!project) return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+  // 지원자는 자기 프로젝트 위치만 조회
+  const access = await requireProjectAccess(projectId);
+  if (access.response) return access.response;
+  const project = access.project;
   const point = project.locationPoint;
   if (!point) {
     return NextResponse.json({ error: "사업 위치 좌표가 설정되지 않았습니다." }, { status: 422 });

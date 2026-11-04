@@ -7,7 +7,19 @@ import {
   upsertManagedProjectToDatabase,
   writeManagedProjectsToDatabase,
 } from "./project-db-persistence";
-import { isDatabaseAvailable } from "./prisma";
+import { getPrismaClient, isDatabaseAvailable as probeDatabase } from "./prisma";
+
+/**
+ * 프로젝트 저장소로 DB를 쓰는가 — DB가 설정돼 있는데 잠깐 연결이 안 되면 임시 JSON 파일로
+ * 빠지지 않고 오류로 처리한다(임시 파일에 저장된 내용은 사라지므로).
+ */
+async function isDatabaseAvailable(): Promise<boolean> {
+  if (!getPrismaClient()) return false;
+  if (await probeDatabase()) return true;
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  if (await probeDatabase()) return true;
+  throw new Error("데이터베이스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+}
 import { withProjectStoreLock } from "./project-store-lock";
 import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
@@ -132,11 +144,18 @@ export async function addProjectChecklistReview(
   review: ChecklistReview,
   files: ProjectFile[],
 ): Promise<Project | undefined> {
-  return updateStoredProject(id, (project) => ({
-    ...project,
-    files: mergeProjectFiles(project.files, files),
-    checklistReviews: [...(project.checklistReviews ?? []), review],
-  }));
+  return updateStoredProject(id, (project) => {
+    // 분석하는 동안 신청이 철회·반려됐으면 결과를 붙이지 않음
+    const stage = projectStage(project);
+    if (stage === "WITHDRAWN" || stage === "REJECTED") {
+      throw new ProjectConflictError("분석 중 신청이 철회되었거나 반려되어 결과를 저장하지 않았습니다.");
+    }
+    return {
+      ...project,
+      files: mergeProjectFiles(project.files, files),
+      checklistReviews: [...(project.checklistReviews ?? []), review],
+    };
+  });
 }
 
 /** 검토 기록의 특정 항목 코멘트를 저장(빈 문자열이면 삭제)합니다. */
@@ -195,6 +214,8 @@ export async function addProjectSubmission(
     // 저장 직전 상태로 다시 확인 — 중복 클릭·동시 제출로 같은 단계에 두 번 내는 것 방지
     if (options.expectKind && applicantSubmissionKind(project) !== options.expectKind) return project;
     if (options.allowedStages && !options.allowedStages.includes(projectStage(project))) return project;
+    // 같은 파일을 두 번 등록하지 않음 (동시 요청 포함)
+    if ((project.submissions ?? []).some((entry) => entry.file.storageKey === submission.file.storageKey)) return project;
     const submissions = project.submissions ?? [];
     const next: Project = {
       ...project,
@@ -302,6 +323,16 @@ export async function setProjectStage(
     return next;
   });
   return project ? { project, previousStage } : undefined;
+}
+
+/** 지원자 신청 취소 (도서 접수 전) — 휴지통으로. 그 사이 도서가 접수됐으면 취소하지 않음 */
+export async function cancelApplicationBeforeSubmission(id: string): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    if ((project.submissions ?? []).length > 0) {
+      throw new ProjectConflictError("이미 도서가 접수되었습니다. 화면을 새로고침한 뒤 '신청 철회'를 이용해 주세요.");
+    }
+    return { ...project, deletedAt: new Date().toISOString() };
+  });
 }
 
 /** 지원자 신청 철회 (접수 후) */
@@ -468,8 +499,8 @@ export async function purgeProjectRecord(id: string): Promise<boolean> {
     }
 
     if (await isDatabaseAvailable()) {
-      const deleted = await deleteManagedProjectFromDatabase(id);
-      if (deleted) return true;
+      // DB 사용 중에는 예전 JSON 파일을 절대 건드리지 않음 (전체 덮어쓰기 위험)
+      return deleteManagedProjectFromDatabase(id);
     }
 
     const createdProjects = await readCreatedProjectsFromJsonFile();
@@ -573,18 +604,8 @@ async function persistProjectRecord(project: Project): Promise<void> {
 
 async function readCreatedProjects(): Promise<Project[]> {
   if (await isDatabaseAvailable()) {
-    const fromDatabase = await readManagedProjectsFromDatabase();
-    if (fromDatabase.length > 0) {
-      return fromDatabase;
-    }
-
-    const fromJson = await readCreatedProjectsFromJsonFile();
-    if (fromJson.length > 0) {
-      await writeManagedProjectsToDatabase(fromJson);
-      return fromJson;
-    }
-
-    return [];
+    // DB가 비어 있어도 예전 JSON 파일을 다시 들여오지 않음 (지운 프로젝트가 되살아나는 것 방지)
+    return readManagedProjectsFromDatabase();
   }
 
   return readCreatedProjectsFromJsonFile();

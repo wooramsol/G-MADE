@@ -6,6 +6,9 @@ import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { notifyOfficials, notifyUsers } from "@/lib/notifications";
 import { applicantSubmissionKind, projectForViewer, projectStage, type SubmissionKind } from "@/lib/roles";
 import { storedRefsToProjectFiles } from "@/lib/save-uploaded-files";
+import { isR2Configured, r2HeadObject } from "@/lib/r2-storage";
+import { isTrustedBlobUrl } from "@/lib/trusted-blob-url";
+import { isProjectFileKey } from "@/lib/storage-keys";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 
 export const runtime = "nodejs";
@@ -38,9 +41,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!ref?.id || !ref.storageKey || !ref.originalName) {
     return NextResponse.json({ error: "파일 정보가 올바르지 않습니다." }, { status: 400 });
   }
-  if (!ref.storageKey.startsWith(`projects/${id}/files/`)) {
+  if (!isProjectFileKey(id, ref.storageKey)) {
     return NextResponse.json({ error: "다른 프로젝트의 파일은 등록할 수 없습니다." }, { status: 400 });
   }
+  // 실제로 올라간 파일만 등록 — 저장소에 없는 경로·외부 주소로 바꿔치기 방지
+  if (isR2Configured() && !(await r2HeadObject(ref.storageKey))) {
+    return NextResponse.json({ error: "업로드된 파일을 찾을 수 없습니다. 다시 올려 주세요." }, { status: 400 });
+  }
+  const blobUrl = isTrustedBlobUrl(ref.blobUrl) ? ref.blobUrl : undefined;
   // 이미 접수된 도서 파일을 다시 등록하는 것 방지 (같은 파일로 단계만 넘기기 차단)
   if ((project.submissions ?? []).some((entry) => entry.file.storageKey === ref.storageKey || entry.file.id === ref.id)) {
     return NextResponse.json({ error: "이미 제출한 파일입니다. 새 도서 파일을 올려 주세요." }, { status: 409 });
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         fileType: ref.fileType || "application/pdf",
         sizeBytes: Number(ref.sizeBytes) || 0,
         storageKey: ref.storageKey,
-        blobUrl: ref.blobUrl,
+        blobUrl,
       },
       submittedAt: now,
       submittedBy: {
@@ -71,7 +79,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         role: session.user.role,
       },
     },
-    storedRefsToProjectFiles([ref], now)[0],
+    storedRefsToProjectFiles([{ ...ref, blobUrl }], now)[0],
     {
       asMain: kind === "main",
       expectKind: applicantKind ?? undefined,
