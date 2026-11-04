@@ -14,6 +14,8 @@ export type LawArticle = {
   /** 조문 번호 (예: "28", "10의2") */
   no: string;
   title: string;
+  /** 긴 심의기준 조문을 호 단위로 나눈 경우의 호 (예: { no: "3", name: "색채" }) */
+  part?: { no: string; name: string };
   /** 항·호·목까지 이어 붙인 본문 */
   text: string;
   sourceUrl: string;
@@ -103,9 +105,39 @@ export function parseOrdinArticles(payload: Record<string, unknown>, source: { t
     const match = body.match(/^제(\d+)조(?:의(\d+))?/);
     if (!match) continue;
     const no = match[2] ? `${match[1]}의${match[2]}` : match[1];
-    articles.push({ lawTitle, kind: "ordin", no, title: str(unit["조제목"]), text: body, sourceUrl: source.sourceUrl });
+    const article: LawArticle = { lawTitle, kind: "ordin", no, title: str(unit["조제목"]), text: body, sourceUrl: source.sourceUrl };
+    articles.push(...splitLongArticle(article));
   }
   return articles;
+}
+
+/**
+ * 여러 분야 기준을 한 조문에 담은 긴 조문(예: "심의기준은 공공건축물, 색채, 조명, 조경으로 구분…
+ * 1. 공공건축물 … 2. 공공시설물 … 3. 색채 …")을 호 단위로 나눠, 항목별로 정확한 호를 인용하게 한다.
+ */
+export function splitLongArticle(article: LawArticle): LawArticle[] {
+  if (article.text.length < 1500) return [article];
+  const positions: Array<{ index: number; no: number }> = [];
+  let expected = 1;
+  const pattern = /(?:^|[\s.)>])(\d{1,2})\.\s*(?=[가-힣])/g;
+  for (const match of article.text.matchAll(pattern)) {
+    const no = Number(match[1]);
+    if (no !== expected) continue;
+    positions.push({ index: (match.index ?? 0) + match[0].indexOf(match[1]), no });
+    expected += 1;
+  }
+  if (positions.length < 3) return [article];
+  const preface = article.text.slice(0, positions[0].index).trim();
+  return positions.map((position, index) => {
+    const end = index + 1 < positions.length ? positions[index + 1].index : article.text.length;
+    const body = article.text.slice(position.index, end).trim();
+    const name = body.replace(/^\d{1,2}\.\s*/, "").split(/[\s:：(（가]/)[0].slice(0, 12) || `${position.no}호`;
+    return {
+      ...article,
+      part: { no: String(position.no), name },
+      text: `${preface.slice(0, 120)} … ${body}`,
+    };
+  });
 }
 
 /** 심의 기준과 무관한 절차·조직·벌칙 조문 (선정에서 제외) */
@@ -172,8 +204,10 @@ function tokensOf(text: string): string[] {
 function scoreArticle(article: LawArticle, tokens: string[]): number {
   if (!isUsable(article)) return 0;
   let score = 0;
+  const heading = article.part ? `${article.title} ${article.part.name}` : article.title;
   for (const token of tokens) {
-    if (article.title.includes(token)) score += 4;
+    if (article.part && article.part.name.includes(token)) score += 6;
+    else if (heading.includes(token)) score += 4;
     else if (article.text.includes(token)) score += 1;
   }
   if (score === 0) return 0;
@@ -215,10 +249,11 @@ export function selectRelevantArticles(
   return { articles: selected, byItem };
 }
 
-export function articleKey(article: Pick<LawArticle, "lawTitle" | "no">): string {
-  return `${article.lawTitle}#${article.no}`;
+export function articleKey(article: Pick<LawArticle, "lawTitle" | "no" | "part">): string {
+  return `${article.lawTitle}#${article.no}${article.part ? `-${article.part.no}` : ""}`;
 }
 
-export function articleLabel(article: Pick<LawArticle, "no" | "title">): string {
+export function articleLabel(article: Pick<LawArticle, "no" | "title" | "part">): string {
+  if (article.part) return `제${article.no}조제${article.part.no}호(${article.part.name})`;
   return article.title ? `제${article.no}조(${article.title})` : `제${article.no}조`;
 }

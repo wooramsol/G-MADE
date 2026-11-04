@@ -54,3 +54,13 @@ test("자치법규 조문 파싱 + 항목별 관련 조문 선정", () => {
   assert.deepEqual(byItem.get("c1"), ["양평군 경관 조례#12"]);
   assert.deepEqual(byItem.get("c2"), ["양평군 경관 조례#13"]);
 });
+
+test("긴 심의기준 조문은 호 단위로 나눔", async () => {
+  const { splitLongArticle, articleLabel } = await import("../lib/law/corpus");
+  const filler = "가".repeat(400);
+  const text = `제6조(경관 심의기준) 심의기준은 다음 각 호에 의한다. 1. 공공건축물 ${filler} 2. 공공시설물 ${filler} 3. 색채 저채도 색상 사용 ${filler} 4. 조명 ${filler}`;
+  const parts = splitLongArticle({ lawTitle: "양평군 경관 조례 시행규칙", kind: "ordin", no: "6", title: "경관 심의기준", text, sourceUrl: "u" });
+  assert.equal(parts.length, 4);
+  assert.equal(articleLabel(parts[2]), "제6조제3호(색채)");
+  assert.match(parts[2].text, /저채도/);
+});
