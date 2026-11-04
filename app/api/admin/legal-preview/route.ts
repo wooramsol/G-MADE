@@ -25,6 +25,11 @@ export async function GET(request: NextRequest) {
     location: project.location,
     metrics: (latest?.metrics ?? []).map((metric) => ({ label: metric.label, value: metric.value })),
   });
+  const show = request.nextUrl.searchParams.get("show");
+  if (show) {
+    const match = context.referenceLaws.find((law) => `${law.title} ${law.article}`.includes(show));
+    return NextResponse.json({ found: Boolean(match), text: match?.summary ?? null });
+  }
   return NextResponse.json({
     sources,
     articles: context.referenceLaws.map((law) => `${law.title} ${law.article} — ${law.summary.slice(0, 80)}`),
