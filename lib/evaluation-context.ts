@@ -585,7 +585,10 @@ export async function attachRelevantLawArticles(
       title: article.lawTitle,
       article: articleLabel(article),
       // 심의 기준 조문(예: 색채·조명·조경 기준을 담은 시행규칙)은 본문을 더 길게 전달
-      summary: article.text.slice(0, isStandardArticle(article) ? 2500 : 700),
+      summary:
+        (/별표\s*\d+\s*에\s*(의한다|따른다)/.test(article.text)
+          ? "※ 세부 기준은 별표(첨부 파일)에 있으며 원문이 제공되지 않음 — 별표 내용을 추정해 인용하지 말 것. "
+          : "") + article.text.slice(0, isStandardArticle(article) ? 2500 : 700),
       ministry: "",
       enforcementDate: "",
       sourceUrl: article.sourceUrl,
