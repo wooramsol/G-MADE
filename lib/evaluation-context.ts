@@ -575,8 +575,8 @@ export async function attachRelevantLawArticles(
       return;
     }
     const { articles, byItem } = selectRelevantArticles(corpus, items && items.length > 0 ? items : GENERIC_TOPICS, {
-      perItem: 2,
-      limit: 24,
+      perItem: 3,
+      limit: 26,
     });
     if (articles.length === 0) return;
     const labelByKey = new Map(articles.map((article) => [articleKey(article), `${article.lawTitle} ${articleLabel(article)}`]));
