@@ -3,7 +3,7 @@ import { notifyOfficials } from "@/lib/notifications";
 import { requireProjectAccess } from "@/lib/project-access";
 import { trashProjectRecord, withdrawProjectApplication } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
-import { applicantCanWithdraw } from "@/lib/roles";
+import { applicantCanWithdraw, projectForViewer } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,5 +41,5 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     projectId: id,
   });
   revalidateProjectViews(id);
-  return NextResponse.json({ project: updated });
+  return NextResponse.json({ project: projectForViewer(updated, false) });
 }

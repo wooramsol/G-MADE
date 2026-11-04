@@ -3,7 +3,7 @@ import { FormLabel, MutedText, PageTitle, SectionDescription } from "@/component
 import ProjectManagementGrid from "./project-management-grid";
 import { auth } from "@/auth";
 import { getAllProjects } from "@/lib/project-store";
-import { canAccessProject, isOfficialRole } from "@/lib/roles";
+import { canAccessProject, isOfficialRole, projectForViewer } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,9 @@ export default async function ProjectManagementPage({
   const session = await auth();
   const official = isOfficialRole(session?.user?.role);
   // 지원자는 자기가 등록한 사업만
-  const projects = (await getAllProjects()).filter((project) => canAccessProject(session?.user, project));
+  const projects = (await getAllProjects())
+    .filter((project) => canAccessProject(session?.user, project))
+    .map((project) => projectForViewer(project, official));
   const params = await searchParams;
   const query = (params?.q ?? "").trim();
 
@@ -27,8 +29,8 @@ export default async function ProjectManagementPage({
             <PageTitle>{official ? "심의 프로젝트 목록" : "내 심의 신청"}</PageTitle>
             <SectionDescription>
               {official
-                ? "도서접수 → 사전심의 → 본심의 순서로 진행합니다. 프로젝트를 선택해 단계별 작업을 진행하세요."
-                : "사업을 등록하고 심의 도서를 접수하세요. 사전심의에서 보완 요청을 받으면 보완 도서를 다시 제출할 수 있습니다."}
+                ? "도서접수 → 사전검토 → 사전심의 → 본심의 → 심의종료 순서로 진행합니다. 프로젝트를 선택해 단계별 작업을 진행하세요."
+                : "사업을 등록하고 심의 도서를 접수하세요. 보완 요청이나 수정 도서 요청을 받으면 이곳에서 도서를 다시 제출할 수 있습니다."}
             </SectionDescription>
           </div>
           <div className="flex flex-wrap gap-3">

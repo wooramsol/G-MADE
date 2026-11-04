@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiRole } from "@/lib/api-auth";
 import { requireProjectAccess } from "@/lib/project-access";
-import { canEditProjectInfo } from "@/lib/roles";
+import { canEditProjectInfo, projectForViewer } from "@/lib/roles";
 import { collectProjectStoredFiles } from "@/lib/project-file-pool";
 import {
   getProjectById,
@@ -24,7 +24,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const access = await requireProjectAccess(id);
   if (access.response) return access.response;
-  return NextResponse.json({ project: access.project });
+  return NextResponse.json({ project: projectForViewer(access.project, access.official) });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -103,7 +103,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     revalidateProjectViews(id);
-    return NextResponse.json({ project });
+    return NextResponse.json({ project: projectForViewer(project, access.official) });
   } catch {
     return NextResponse.json({ error: "프로젝트 수정 중 오류가 발생했습니다." }, { status: 500 });
   }

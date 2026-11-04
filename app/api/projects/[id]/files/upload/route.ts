@@ -1,6 +1,6 @@
 import { handleUpload, handleUploadPresigned, type HandleUploadBody, type HandleUploadPresignedBody } from "@vercel/blob/client";
 import { issueSignedToken } from "@vercel/blob";
-import { r2PresignPutUrl } from "@/lib/r2-storage";
+import { r2HeadObject, r2PresignPutUrl } from "@/lib/r2-storage";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { getBlobUploadStatus } from "@/lib/blob-upload-status";
@@ -90,6 +90,10 @@ export async function POST(
         return NextResponse.json({ error: "파일 크기가 허용 범위를 벗어났습니다." }, { status: 400 });
       }
       validateProjectUploadPath(projectId, pathname);
+      // 이미 있는 파일은 덮어쓸 수 없음 — 접수·분석이 끝난 도서를 같은 경로로 바꿔치기하는 것 방지
+      if (await r2HeadObject(pathname)) {
+        return NextResponse.json({ error: "같은 이름의 파일이 이미 있습니다. 다시 시도해 주세요." }, { status: 409 });
+      }
 
       const url = await r2PresignPutUrl(pathname, contentType, sizeBytes as number);
       return NextResponse.json({ url, pathname });

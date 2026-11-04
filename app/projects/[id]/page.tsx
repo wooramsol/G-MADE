@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Eyebrow, MutedText, PageTitle } from "@/components/typography";
 import { auth } from "@/auth";
 import { getProjectById } from "@/lib/project-store";
-import { canAccessProject, canEditProjectInfo, isOfficialRole, projectStageStatus } from "@/lib/roles";
+import { canAccessProject, canEditProjectInfo, isOfficialRole, projectForViewer, projectStageStatus } from "@/lib/roles";
 import DeleteProjectButton from "../delete-project-button";
 import ProjectWorkflow from "./project-workflow";
 import LandscapeZonePanel from "./landscape-zone-panel";
@@ -16,8 +16,8 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   const session = await auth();
   const found = await getProjectById(id);
   // 지원자는 자기 프로젝트만 — 남의 프로젝트는 '없음'으로 표시
-  const project = found && canAccessProject(session?.user, found) ? found : undefined;
   const official = isOfficialRole(session?.user?.role);
+  const project = found && canAccessProject(session?.user, found) ? projectForViewer(found, official) : undefined;
   const editable = project ? canEditProjectInfo(session?.user, project) : false;
 
   if (!project) {

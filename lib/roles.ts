@@ -118,3 +118,22 @@ export function phaseSubmission(project: Project, phase: ReviewPhase): DocumentS
   if (phase === "pre" && !project.mainReviewSubmissionId) return lastOf(submissions);
   return undefined;
 }
+
+/**
+ * 지원자에게 보낼 프로젝트 데이터 — 내부 심의 자료(AI 분석·심사위원·전문가 의견·유관부서 등)는 제외.
+ * 화면에서 숨기는 것만으로는 브라우저로 전달된 데이터에 남으므로 서버에서 걸러 보낸다.
+ */
+export function projectForViewer(project: Project, official: boolean): Project {
+  if (official) return project;
+  const submissionFileIds = new Set((project.submissions ?? []).map((entry) => entry.file.id));
+  return {
+    ...project,
+    files: (project.files ?? []).filter((file) => submissionFileIds.has(file.id)),
+    checklistReviews: [],
+    expertMemos: undefined,
+    reviewers: undefined,
+    preReviewers: undefined,
+    departments: undefined,
+    documentVersionLabels: undefined,
+  };
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
-import { isOfficialRole } from "@/lib/roles";
+import { isOfficialRole, projectForViewer } from "@/lib/roles";
 import { ensureProjectRecordFromSnapshot } from "@/lib/ensure-project-record";
 import type { Project } from "@/lib/types";
 
@@ -22,7 +22,7 @@ export async function POST(
     if (!existing || existing.ownerId !== authResult.session.user.id) {
       return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
     }
-    return NextResponse.json({ project: existing });
+    return NextResponse.json({ project: projectForViewer(existing, false) });
   }
 
   try {

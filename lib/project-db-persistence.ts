@@ -105,6 +105,38 @@ export async function writeManagedProjectsToDatabase(projects: Project[]): Promi
   });
 }
 
+/**
+ * 한 프로젝트를 행 잠금(SELECT … FOR UPDATE) 안에서 읽고-고치고-저장한다.
+ * 서버 인스턴스가 여러 개여도 동시에 들어온 수정(예: 분석 결과 저장과 단계 변경)이 서로를 덮어쓰지 않는다.
+ * 행이 없으면 "missing" — 호출 측이 기존 방식(데모 원본 병합 등)으로 처리.
+ */
+export async function updateManagedProjectAtomically(
+  id: string,
+  updater: (project: Project) => Project | null,
+): Promise<Project | null | "missing"> {
+  const prisma = getPrismaClient();
+  if (!prisma) return "missing";
+  await migrateStoredProjectsOnce();
+  return prisma.$transaction(
+    async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string; data: Prisma.JsonValue; deleted_at: Date | null; updated_at: Date }>>`
+        SELECT id, data, deleted_at, updated_at FROM managed_projects WHERE id = ${id} FOR UPDATE`;
+      const row = rows[0];
+      if (!row) return "missing" as const;
+      const current = rowToProject({ id: row.id, data: row.data, deletedAt: row.deleted_at, updatedAt: row.updated_at });
+      const next = updater(current);
+      if (!next) return null;
+      const deletedAt = next.deletedAt ? new Date(next.deletedAt) : null;
+      await tx.managedProject.update({
+        where: { id },
+        data: { data: { ...next } as Prisma.InputJsonValue, deletedAt },
+      });
+      return next;
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
+}
+
 export async function upsertManagedProjectToDatabase(project: Project): Promise<void> {
   const prisma = getPrismaClient();
   if (!prisma) return;

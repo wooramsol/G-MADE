@@ -4,7 +4,7 @@ import { requireProjectAccess } from "@/lib/project-access";
 import { addProjectSubmission } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
 import { notifyOfficials, notifyUsers } from "@/lib/notifications";
-import { applicantSubmissionKind, projectStage, type SubmissionKind } from "@/lib/roles";
+import { applicantSubmissionKind, projectForViewer, projectStage, type SubmissionKind } from "@/lib/roles";
 import { storedRefsToProjectFiles } from "@/lib/save-uploaded-files";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 
@@ -40,6 +40,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   if (!ref.storageKey.startsWith(`projects/${id}/files/`)) {
     return NextResponse.json({ error: "다른 프로젝트의 파일은 등록할 수 없습니다." }, { status: 400 });
+  }
+  // 이미 접수된 도서 파일을 다시 등록하는 것 방지 (같은 파일로 단계만 넘기기 차단)
+  if ((project.submissions ?? []).some((entry) => entry.file.storageKey === ref.storageKey || entry.file.id === ref.id)) {
+    return NextResponse.json({ error: "이미 제출한 파일입니다. 새 도서 파일을 올려 주세요." }, { status: 409 });
   }
   if (!/\.pdf$/i.test(ref.originalName)) {
     return NextResponse.json({ error: "도서는 PDF 파일로 제출해 주세요." }, { status: 400 });
@@ -103,5 +107,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
   }
   revalidateProjectViews(id);
-  return NextResponse.json({ project: updated });
+  return NextResponse.json({ project: projectForViewer(updated, official) });
 }

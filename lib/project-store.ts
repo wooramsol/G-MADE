@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
 import {
   deleteManagedProjectFromDatabase,
+  updateManagedProjectAtomically,
   readManagedProjectsFromDatabase,
   upsertManagedProjectToDatabase,
   writeManagedProjectsToDatabase,
@@ -363,6 +364,15 @@ async function updateStoredProject(
   updater: (project: Project) => Project,
 ): Promise<Project | undefined> {
   return withProjectStoreLock(async () => {
+    // DB에 저장된 프로젝트는 행 잠금으로 원자적으로 갱신 (인스턴스 간 동시 수정 덮어쓰기 방지)
+    if (await isDatabaseAvailable()) {
+      const atomic = await updateManagedProjectAtomically(id, (stored) => {
+        if (isProjectPurged(stored)) return null;
+        return updater({ ...stored, checklistReviews: stored.checklistReviews ?? [], updatedAt: new Date().toISOString() });
+      });
+      if (atomic !== "missing") return atomic ?? undefined;
+    }
+
     const allProjects = await getAllProjectsIncludingTrashed();
     const existingProject = allProjects.find((project) => project.id === id);
 

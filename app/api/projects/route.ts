@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { createProject, getAllProjects } from "@/lib/project-store";
 import { revalidateProjectViews } from "@/lib/revalidate-project-paths";
-import { canAccessProject, isOfficialRole } from "@/lib/roles";
+import { canAccessProject, isOfficialRole, projectForViewer } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +12,10 @@ export async function GET() {
   if (authResult.response) return authResult.response;
 
   const user = authResult.session.user;
-  const projects = (await getAllProjects()).filter((project) => canAccessProject(user, project));
+  const official = isOfficialRole(user.role);
+  const projects = (await getAllProjects())
+    .filter((project) => canAccessProject(user, project))
+    .map((project) => projectForViewer(project, official));
   return NextResponse.json({ projects });
 }
 
