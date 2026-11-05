@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { isTrustedBlobUrl } from "@/lib/trusted-blob-url";
 import { isProjectFileKey } from "@/lib/storage-keys";
 import { requireOfficial } from "@/lib/project-access";
@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
       files,
       projectSnapshot: null,
       forceFresh: String(formData.get("forceFresh") ?? "") === "1",
+      runInBackground: (task) => after(task),
     };
 
     if (wantsStream) {

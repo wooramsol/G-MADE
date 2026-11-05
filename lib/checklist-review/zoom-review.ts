@@ -19,9 +19,9 @@ import { addUsage, type UsageByModel } from "./usage-cost";
  */
 
 /** 줌 대상 페이지 상한 (4타일/페이지) */
-const MAX_ZOOM_PAGES = 8;
+const MAX_ZOOM_PAGES = 5; // 8쪽 한 번에는 응답이 70초를 넘겨 실패하는 일이 있어 축소 (속도·성공률 우선)
 /** 줌 재판정 항목 상한 (출력 토큰 한도 내) */
-const MAX_ZOOM_ITEMS = 15;
+const MAX_ZOOM_ITEMS = 10;
 /** 줌 실행에 필요한 최소 남은 시간(ms) — 렌더링+호출 여유 */
 const MIN_REMAINING_MS_FOR_ZOOM = 110_000;
 

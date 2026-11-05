@@ -175,6 +175,8 @@ export type RunChecklistReviewInput = {
   projectSnapshot: Project | null;
   /** true면 이전 검토 결과를 재사용하지 않고 처음부터 판정 (도면 판독 효과 확인·재평가용) */
   forceFresh?: boolean;
+  /** 응답을 보낸 뒤 이어서 할 작업(근거 캡처 미리 만들기) — 사용자가 기다리지 않도록 */
+  runInBackground?: (task: () => Promise<void>) => void;
 };
 
 export type RunChecklistReviewResult = {
@@ -387,9 +389,6 @@ export async function runChecklistReview(
     // 법령·공간정보 조회는 Claude 호출이 아니라 비용이 들지 않고, 시간에 따라 최신화될 수
     // 있으므로 항상 새로 조회합니다.
     emitStep(emit, "context");
-    // 법령·조례 조문 원문 — 항목을 아직 모르는 단계라 경관 심의 주요 주제로 먼저 선정 (항목 확정 후 다시 선정)
-    const context = await contextPromise;
-    console.log(`[timing] extract+context done +${Math.round((Date.now() - startedAt) / 1000)}s`);
 
     let items: ChecklistReview["items"];
     let itemSource: ChecklistReview["itemSource"];
@@ -472,6 +471,9 @@ export async function runChecklistReview(
     // 도면 판독은 체크리스트 항목 추출과 병렬로 진행됐다 — 평가 직전에 합류
     if (!skipOcr) emitStep(emit, "context", "도면 이미지 속 글자·치수 판독 마무리 중");
     const ocrResult = await ocrPromise;
+    // 법령·조례·공간정보 — 항목 추출·도면 판독과 동시에 진행해 온 조회 결과를 여기서 받음
+    const context = await contextPromise;
+    console.log(`[timing] items+ocr+context done +${Math.round((Date.now() - startedAt) / 1000)}s`);
     for (const entry of ocrUsages) addUsage(usageByModel, entry.model, entry.usage);
     if (ocrResult) {
       mergeOcrIntoFiles(filesForAnalysis, ocrResult.byFileId);
@@ -775,27 +777,40 @@ export async function runChecklistReview(
     // 근거 캡처 선생성 — 분석에 쓴 버퍼 그대로 사용(원본 재다운로드 0회). 남은 서버
     // 시간 안에서 화면 표시 순서대로 생성하며, 실패해도 검토 결과에는 영향 없음.
     emitStep(emit, "save");
-    try {
-      for (const file of savedFiles) {
-        const bytes = fileBuffers.get(file.id);
-        if (!bytes) continue;
-        await prewarmEvidenceSnippets({
-          projectId,
-          fileId: file.id,
-          pdfBytes: bytes,
-          findings,
-          getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
-          ocrLinesByPage: ocrResult?.byFileId.get(file.id),
-        });
+    // 결과는 이미 저장됨 — 캡처 미리 만들기는 응답을 보낸 뒤 이어서 진행 (예전엔 약 30초를 더 기다렸음).
+    // 화면에서 아직 안 만들어진 캡처는 열 때 즉석 생성되므로 결과 표시에는 지장 없음.
+    const buffersForSnippets = new Map(fileBuffers);
+    fileBuffers.clear();
+    const prewarmTask = async () => {
+      try {
+        for (const file of savedFiles) {
+          const bytes = buffersForSnippets.get(file.id);
+          if (!bytes) continue;
+          await prewarmEvidenceSnippets({
+            projectId,
+            fileId: file.id,
+            pdfBytes: bytes,
+            findings,
+            getRemainingBudgetMs: () => Math.max(0, 285_000 - (Date.now() - startedAt)),
+            ocrLinesByPage: ocrResult?.byFileId.get(file.id),
+          });
+        }
+      } catch (error) {
+        console.warn("[checklist-review] 캡처 선생성 건너뜀:", error instanceof Error ? error.message : error);
+      } finally {
+        buffersForSnippets.clear();
       }
-    } catch (error) {
-      console.warn(
-        "[checklist-review] 캡처 선생성 건너뜀:",
-        error instanceof Error ? error.message : error,
-      );
-    } finally {
-      fileBuffers.clear();
+    };
+    let scheduled = false;
+    if (input.runInBackground) {
+      try {
+        input.runInBackground(prewarmTask);
+        scheduled = true;
+      } catch {
+        scheduled = false;
+      }
     }
+    if (!scheduled) await prewarmTask();
 
     return { review, project: updatedProject, warnings: review.warnings };
   } catch (error) {

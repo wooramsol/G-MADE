@@ -90,6 +90,43 @@ export async function extractChecklistItems(pages: PageSlice[]): Promise<{
   model: string;
   usage?: ClaudeUsage;
 }> {
+  // 속도 — 체크리스트 페이지가 여러 장이면 나눠서 동시에 추출 (한 번에 하면 출력이 길어 약 50초 걸림)
+  if (pages.length >= 2) {
+    const groupCount = Math.min(4, pages.length);
+    const size = Math.ceil(pages.length / groupCount);
+    const groups = Array.from({ length: groupCount }, (_, index) => pages.slice(index * size, (index + 1) * size)).filter(
+      (group) => group.length > 0,
+    );
+    if (groups.length >= 2) {
+      const results = await Promise.all(groups.map((group) => extractChecklistItemsOnce(group)));
+      const merged: ChecklistItem[] = [];
+      let lastCategory: string | undefined;
+      for (const result of results) {
+        for (const item of result.items) {
+          // 앞 페이지에서 이어지는 구분(카테고리)이 비어 있으면 직전 구분을 이어 씀
+          const category = item.category ?? lastCategory;
+          lastCategory = category;
+          merged.push({ ...item, id: `c${merged.length + 1}`, category });
+        }
+      }
+      const usage = results.reduce<ClaudeUsage | undefined>((sum, result) => addClaudeUsage(sum, result.usage), undefined);
+      return { items: merged, model: results[0]?.model ?? CLAUDE_FAST_MODEL, usage };
+    }
+  }
+  return extractChecklistItemsOnce(pages);
+}
+
+function addClaudeUsage(a: ClaudeUsage | undefined, b: ClaudeUsage | undefined): ClaudeUsage | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  const out: Record<string, number> = { ...(a as unknown as Record<string, number>) };
+  for (const [key, value] of Object.entries(b as unknown as Record<string, number>)) {
+    if (typeof value === "number") out[key] = (out[key] ?? 0) + value;
+  }
+  return out as unknown as ClaudeUsage;
+}
+
+async function extractChecklistItemsOnce(pages: PageSlice[]): Promise<{ items: ChecklistItem[]; model: string; usage?: ClaudeUsage }> {
   const pagesText = buildChecklistPagesText(pages);
   if (!pagesText.trim()) {
     return { items: [], model: CLAUDE_FAST_MODEL };
