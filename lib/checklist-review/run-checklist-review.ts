@@ -2,7 +2,7 @@ import { dedupeWarnings } from "@/lib/analysis-warnings";
 import { isAiAnalysisError } from "@/lib/ai/analysis-error";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { attachRelevantLawArticles, buildEvaluationContext } from "@/lib/evaluation-context";
-import { buildLegalCheck } from "@/lib/legal-check";
+import { buildLegalCheck, finishLegalCheck, prepareLegalCheck } from "@/lib/legal-check";
 import { hashPdfPages } from "@/lib/pdf/split-pdf";
 import { addProjectChecklistReview, getProjectById } from "@/lib/project-store";
 import {
@@ -230,6 +230,20 @@ export async function runChecklistReview(
       throw new Error("휴지통에 있는 프로젝트는 검토할 수 없습니다.");
     }
 
+    // 시간 단축 — 법령·조례(별표 포함)·공간정보 조회와 용도지역·도시계획 조례 조회는 도서와 무관하므로
+    // 업로드·문서 추출·항목 추출과 동시에 미리 시작해 둔다 (예전엔 차례로 기다렸음)
+    const phaseStart = Date.now();
+    const contextPromise = (async () => {
+      const built = await buildEvaluationContext(projectId);
+      await attachRelevantLawArticles(built, null);
+      console.log(`[timing] context ready +${Math.round((Date.now() - phaseStart) / 1000)}s`);
+      return built;
+    })();
+    contextPromise.catch(() => undefined);
+    const legalPrepPromise = prepareLegalCheck({ point: project.locationPoint ?? null, location: project.location }).catch(
+      () => null,
+    );
+
     emitStep(emit, "upload");
     const uploadedFiles = files.length > 0 ? await saveUploadedFiles(projectId, files) : [];
     newlySavedFiles = uploadedFiles;
@@ -373,9 +387,9 @@ export async function runChecklistReview(
     // 법령·공간정보 조회는 Claude 호출이 아니라 비용이 들지 않고, 시간에 따라 최신화될 수
     // 있으므로 항상 새로 조회합니다.
     emitStep(emit, "context");
-    const context = await buildEvaluationContext(projectId);
     // 법령·조례 조문 원문 — 항목을 아직 모르는 단계라 경관 심의 주요 주제로 먼저 선정 (항목 확정 후 다시 선정)
-    await attachRelevantLawArticles(context, null);
+    const context = await contextPromise;
+    console.log(`[timing] extract+context done +${Math.round((Date.now() - startedAt) / 1000)}s`);
 
     let items: ChecklistReview["items"];
     let itemSource: ChecklistReview["itemSource"];
@@ -564,6 +578,7 @@ export async function runChecklistReview(
       }
       // 항목이 확정됐으므로 항목별로 관련 조문을 다시 골라 원문을 붙임
       await attachRelevantLawArticles(context, items);
+      console.log(`[timing] evaluate start +${Math.round((Date.now() - startedAt) / 1000)}s`);
       const evaluation = await evaluateChecklistItems({
         priorFindings: priorFindingsById.size > 0 ? priorFindingsById : undefined,
         files: filesForAnalysis,
@@ -684,12 +699,16 @@ export async function runChecklistReview(
 
     // 법정 기준 자동 대조 — 용도지역별 건폐율·용적률 한도와 도서 수치를 코드로 비교 (실패해도 검토 결과에는 영향 없음)
     emitStep(emit, "save", "용도지역·건폐율·용적률 기준 대조 중");
+    console.log(`[timing] evaluate+zoom done +${Math.round((Date.now() - startedAt) / 1000)}s`);
+    const metricRows = (metrics ?? []).map((metric) => ({ label: metric.label, value: metric.value }));
     const legalCheck = await Promise.race([
-      buildLegalCheck({
-        point: context.spatial?.point ?? project.locationPoint ?? null,
-        location: project.location,
-        metrics: (metrics ?? []).map((metric) => ({ label: metric.label, value: metric.value })),
-      }).catch((error) => {
+      legalPrepPromise
+        .then(async (prep) =>
+          prep
+            ? finishLegalCheck(prep, metricRows)
+            : buildLegalCheck({ point: context.spatial?.point ?? null, location: project.location, metrics: metricRows }),
+        )
+        .catch((error) => {
         console.warn("[legal-check] 실패:", error instanceof Error ? error.message : error);
         return null;
       }),

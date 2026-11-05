@@ -201,16 +201,34 @@ function ratioRow(
   return { label, planned: plannedText, status: "확인 필요", note: "용도지역을 확인하지 못해 기준과 비교하지 못했습니다." };
 }
 
-export async function buildLegalCheck(input: {
-  point?: { x: number; y: number } | null;
-  location: string;
-  metrics: Array<{ label: string; value: string }>;
-}): Promise<LegalCheck | null> {
+export type LegalCheckPrep = {
+  landUse: Awaited<ReturnType<typeof lookupLandUse>>;
+  ordinance: LawArticle[];
+};
+
+/** 용도지역·도시계획 조례 조회 — 도서 수치와 무관하므로 분석 초반에 미리 시작 (시간 단축) */
+export async function prepareLegalCheck(input: { point?: { x: number; y: number } | null; location: string }): Promise<LegalCheckPrep | null> {
   if (!input.point) return null;
   const [landUse, ordinance] = await Promise.all([
     lookupLandUse(input.point).catch(() => ({ zone: undefined, parcel: undefined })),
     loadLocalPlanningOrdinance(input.location).catch(() => [] as LawArticle[]),
   ]);
+  return { landUse, ordinance };
+}
+
+export async function buildLegalCheck(input: {
+  point?: { x: number; y: number } | null;
+  location: string;
+  metrics: Array<{ label: string; value: string }>;
+}): Promise<LegalCheck | null> {
+  const prep = await prepareLegalCheck(input);
+  return prep ? finishLegalCheck(prep, input.metrics) : null;
+}
+
+/** 미리 조회한 기준과 도서 수치를 비교 (계산만 — 즉시 끝남) */
+export function finishLegalCheck(prep: LegalCheckPrep, metrics: Array<{ label: string; value: string }>): LegalCheck {
+  const { landUse, ordinance } = prep;
+  const input = { metrics };
   const zone = landUse.zone;
   const siteArea = parseArea(metricValue(input.metrics, /^대지면적/));
   const buildingArea = parseArea(metricValue(input.metrics, /^건축면적/));
