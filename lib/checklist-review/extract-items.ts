@@ -85,13 +85,16 @@ export function parseExtractedItems(raw: string, fallbackPage?: { fileName: stri
 }
 
 /** 체크리스트 페이지 텍스트에서 항목을 추출합니다 (경량 모델). */
+const PARALLEL_EXTRACTION = false;
+
 export async function extractChecklistItems(pages: PageSlice[]): Promise<{
   items: ChecklistItem[];
   model: string;
   usage?: ClaudeUsage;
 }> {
-  // 속도 — 체크리스트 페이지가 여러 장이면 나눠서 동시에 추출 (한 번에 하면 출력이 길어 약 50초 걸림)
-  if (pages.length >= 2) {
+  // 페이지별 병렬 추출은 약 30초 빠르지만 표 머리글이 항목 문구에 섞여 이전 분석과 항목 문구가
+  // 달라짐(판정 안정화·재사용이 깨짐) — 일관성을 위해 한 번에 추출 (PARALLEL_EXTRACTION=false)
+  if (PARALLEL_EXTRACTION && pages.length >= 2) {
     const groupCount = Math.min(4, pages.length);
     const size = Math.ceil(pages.length / groupCount);
     const groups = Array.from({ length: groupCount }, (_, index) => pages.slice(index * size, (index + 1) * size)).filter(

@@ -35,7 +35,7 @@ const EVALUATE_MAX_OUTPUT_TOKENS = 16_384;
  * 부작용이 확인됨. 회차별 개선 추이 비교가 이 기능의 핵심 가치이므로
  * 비용보다 일관성을 우선해 15로 되돌림.
  */
-const ITEMS_PER_BATCH = 10; // 15→10: 배치를 하나 더 늘려 병렬 처리 (출력이 짧아져 평가 시간 단축, 판정 일관성은 안정화 단계가 보완)
+const ITEMS_PER_BATCH = 15; // 10으로 줄이면 약 14초 빨라지나 비용 +33% — 15 유지
 /** 항목당 예상 출력 토큰 — 잘림(max_tokens)이 판정 누락·회차 간 편차를 만들므로 여유 있게 */
 const OUTPUT_TOKENS_PER_ITEM = 560; // 법령 근거(lawRefs) 인용분 포함
 const OUTPUT_TOKENS_BASE = 1_500;
