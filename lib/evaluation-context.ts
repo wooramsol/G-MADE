@@ -263,7 +263,8 @@ async function loadOrdinanceReferences(
   sources: LawSourceRef[] = [],
 ): Promise<FetchedLawReference[]> {
   const plans = buildOrdinSearchPlans(project);
-  const { hits, failures } = await searchOrdinsBatch(plans, 4);
+  // 검색 결과가 가나다순이라 같은 시·도의 다른 구 조례에 밀릴 수 있어 넉넉히 받은 뒤 관할로 거름
+  const { hits, failures } = await searchOrdinsBatch(plans, 20);
   for (const failure of failures) {
     warnings.push(formatOrdinSearchFailure(failure.query, failure.error));
   }
@@ -277,6 +278,8 @@ async function loadOrdinanceReferences(
     if (localUnits.some((unit) => owner.endsWith(unit))) return true;
     return Boolean(parsedLocation.province && owner === parsedLocation.province);
   });
+  // 경관 조례 → 그 시행규칙 → 자연경관 등 관련 조례 순, 시·군·구 조례를 시·도 조례보다 먼저
+  uniqueHits.sort((a, b) => ordinancePriority(a, localUnits) - ordinancePriority(b, localUnits));
   for (const hit of uniqueHits.slice(0, 6)) {
     sources.push({ kind: "ordin", mst: hit.ordinSeq, title: hit.title, sourceUrl: hit.sourceUrl });
   }
@@ -612,4 +615,15 @@ export async function attachRelevantLawArticles(
   } catch (error) {
     console.warn("[law-corpus] 조문 선정 실패:", error instanceof Error ? error.message : error);
   }
+}
+
+
+function ordinancePriority(hit: { title: string; jurisdiction: string }, localUnits: string[]): number {
+  const title = hit.title.replace(/\s+/g, "");
+  let score = 0;
+  if (!/경관/.test(title.replace(/환경관/g, ""))) score += 20;
+  if (/시행규칙/.test(title)) score += 2;
+  if (!/경관조례|경관조례시행규칙/.test(title)) score += 5;
+  if (!localUnits.some((unit) => hit.jurisdiction.trim().endsWith(unit))) score += 1;
+  return score;
 }

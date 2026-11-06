@@ -144,10 +144,16 @@ async function loadLocalPlanningOrdinance(location: string): Promise<LawArticle[
   }
   if (parsed.province) queries.push({ query: `${parsed.province} 도시계획 조례`, owner: parsed.province });
   for (const { query, owner } of queries) {
-    const hits = await searchOrdins(query, { display: 5 }).catch(() => []);
-    const hit = hits.find(
-      (entry) => /(도시|군)계획 조례$/.test(entry.title.trim()) && entry.jurisdiction.trim().endsWith(owner),
-    );
+    // 검색 결과가 가나다순이라 같은 이름의 구 조례들에 밀려 정확한 조례가 뒤로 감 — 넉넉히 받아 정확히 일치하는 것을 우선
+    const hits = await searchOrdins(query, { display: 30 }).catch(() => []);
+    const ownerOf = (jurisdiction: string) => jurisdiction.replace(/\s+/g, " ").trim();
+    const hit =
+      hits.find((entry) => entry.title.replace(/\s+/g, " ").trim() === query) ??
+      hits.find(
+        (entry) =>
+          /(도시|군)계획 조례$/.test(entry.title.trim()) &&
+          (ownerOf(entry.jurisdiction) === owner || ownerOf(entry.jurisdiction).endsWith(` ${owner}`)),
+      );
     if (!hit) continue;
     const articles = await loadLawArticles({ kind: "ordin", mst: hit.ordinSeq, title: hit.title, sourceUrl: hit.sourceUrl }).catch(() => []);
     if (articles.length > 0) return articles;
