@@ -24,6 +24,21 @@ export async function GET(request: NextRequest) {
     const service = result.ok ? ((result.data.LawService ?? {}) as Record<string, unknown>) : {};
     return NextResponse.json({ ok: result.ok, byl: JSON.stringify(service["별표"] ?? null).slice(0, 4000) });
   }
+  const lawTitle = request.nextUrl.searchParams.get("law");
+  if (lawTitle) {
+    const kw = request.nextUrl.searchParams.get("kw") ?? "";
+    const { searchOrdins } = await import("@/lib/law/ordin-search");
+    const { loadLawArticles } = await import("@/lib/law/corpus");
+    const hits = await searchOrdins(lawTitle, { display: 30 });
+    const hit = hits.find((entry) => entry.title.trim() === lawTitle) ?? hits[0];
+    if (!hit) return NextResponse.json({ error: "없음" });
+    const articles = await loadLawArticles({ kind: "ordin", mst: hit.ordinSeq, title: hit.title, sourceUrl: hit.sourceUrl });
+    return NextResponse.json({
+      title: hit.title,
+      count: articles.length,
+      matches: articles.filter((article) => article.title.includes(kw)).map((article) => `${article.no}${article.part ? "-" + article.part.no : ""} ${article.title}: ${article.text.slice(0, 700)}`),
+    });
+  }
   const ordq = request.nextUrl.searchParams.get("ordq");
   if (ordq) {
     const { searchOrdins } = await import("@/lib/law/ordin-search");
