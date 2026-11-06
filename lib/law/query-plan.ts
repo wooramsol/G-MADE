@@ -55,7 +55,8 @@ export function buildOrdinSearchPlans(project?: Project ): OrdinSearchPlan[] {
       const key = `${query}::${parsed.orgCode ?? ""}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      plans.push({ query, orgCode: parsed.orgCode });
+      // 시·도 기관코드 필터는 쓰지 않음 — 특별자치도 전환으로 코드가 바뀌어 결과가 0건이 되던 문제. 관할은 지자체명으로 거름
+      plans.push({ query, orgCode: null });
     }
   }
 

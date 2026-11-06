@@ -50,7 +50,7 @@ test("buildOrdinSearchPlans includes town and county labels", () => {
   assert.ok(!plans.some((plan) => plan.query === "양평읍 경관 조례"));
   assert.ok(plans.some((plan) => plan.query === "양평군 경관 조례"));
   assert.ok(plans.some((plan) => plan.query === "경기도 경관 조례"));
-  assert.equal(plans[0]?.orgCode, "6410000");
+  assert.equal(plans[0]?.orgCode, null); // 기관코드 필터 미사용(지자체명으로 관할 판별)
 });
 
 test("buildAdminRegion composes hierarchy from structure", () => {
