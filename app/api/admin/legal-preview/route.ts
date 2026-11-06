@@ -24,6 +24,12 @@ export async function GET(request: NextRequest) {
     const service = result.ok ? ((result.data.LawService ?? {}) as Record<string, unknown>) : {};
     return NextResponse.json({ ok: result.ok, byl: JSON.stringify(service["별표"] ?? null).slice(0, 4000) });
   }
+  const ordq = request.nextUrl.searchParams.get("ordq");
+  if (ordq) {
+    const { searchOrdins } = await import("@/lib/law/ordin-search");
+    const hits = await searchOrdins(ordq, { display: 10 }).catch((error) => [{ title: String(error), jurisdiction: "", ordinSeq: "" }]);
+    return NextResponse.json({ hits: hits.map((hit) => `${hit.title} / ${hit.jurisdiction} / ${hit.ordinSeq}`) });
+  }
   // 임의 주소로 지역별 조회 점검 (?address=...)
   const address = request.nextUrl.searchParams.get("address");
   if (address) {
