@@ -115,20 +115,39 @@ export function parsePercent(value: string | undefined): number | null {
   return match ? Number(match[1]) : null;
 }
 
-/** 조례 조문에서 해당 용도지역의 비율 한도 찾기 — "13. 계획관리지역 : 40퍼센트 이하" */
+/**
+ * 조례 조문에서 해당 용도지역의 비율 한도 찾기.
+ * 지역마다 표기가 달라 모두 처리: "계획관리지역 : 40퍼센트 이하", "일반상업지역：100분의 70",
+ * "제2종 일반주거지역: 60퍼센트"(띄어쓰기). 완화·특례·성장관리구역 등 예외 조문은 제외하고
+ * "용도지역 안에서의 건폐율" 같은 본 조문을 우선한다.
+ */
 export function findZoneLimit(articles: LawArticle[], zone: string, keyword: "건폐율" | "용적률"): { value: number; article: LawArticle } | null {
-  const candidates = articles.filter((article) => article.title.includes(keyword) && !/특례|완화|예외/.test(article.title));
+  const exception = /(특례|완화|예외|성장관리|지구단위|경관지구|취락|기존|공장|개발진흥|산업단지|녹지지역 등)/;
+  const candidates = articles
+    .filter((article) => article.title.includes(keyword) && !exception.test(article.title))
+    .sort((a, b) => Number(!a.title.includes("용도지역")) - Number(!b.title.includes("용도지역")));
+  const target = zone.replace(/\s+/g, "");
   for (const article of candidates) {
-    let index = article.text.indexOf(zone);
+    const compact = article.text.replace(/\s+/g, "");
+    let index = compact.indexOf(target);
     while (index >= 0) {
       // 더 긴 지역명의 일부인 경우 제외 (예: "관리지역"이 "계획관리지역" 안에 있는 경우)
-      const before = article.text.slice(Math.max(0, index - 2), index);
-      if (!/[가-힣]$/.test(before)) {
-        const window = article.text.slice(index + zone.length, index + zone.length + 40);
-        const match = window.match(/^[^0-9가-힣]*[:：]?\s*(?:[가-힣]+\s*)?(\d+(?:\.\d+)?)\s*(퍼센트|%)/);
-        if (match) return { value: Number(match[1]), article };
+      const before = compact.slice(Math.max(0, index - 1), index);
+      if (!/[가-힣]/.test(before)) {
+        const window = compact.slice(index + target.length, index + target.length + 24);
+        const match = window.match(/^[:：]?(?:(\d+(?:\.\d+)?)(?:퍼센트|%)|100분의(\d+))/);
+        if (match) {
+          let raw = match[1] ?? match[2];
+          // "100분의 70" 뒤에 다음 호 번호가 붙어 "100분의709." 처럼 이어진 경우 — 다음 호 번호를 떼어냄
+          const listNo = compact.slice(Math.max(0, index - 4), index).match(/(\d{1,2})\.$/)?.[1];
+          const after = window.slice(match[0].length, match[0].length + 1);
+          if (match[2] && listNo && after === "." && raw.endsWith(String(Number(listNo) + 1)) && raw.length > String(Number(listNo) + 1).length) {
+            raw = raw.slice(0, raw.length - String(Number(listNo) + 1).length);
+          }
+          return { value: Number(raw), article };
+        }
       }
-      index = article.text.indexOf(zone, index + zone.length);
+      index = compact.indexOf(target, index + target.length);
     }
   }
   return null;

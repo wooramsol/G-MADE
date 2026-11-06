@@ -22,3 +22,12 @@ test("조례에서 용도지역별 한도 찾기 (긴 이름 안의 짧은 이�
   assert.equal(findZoneLimit([bcr, far], "계획관리지역", "용적률")?.value, 100);
   assert.equal(findZoneLimit([bcr], "관리지역", "건폐율"), null);
 });
+
+test("지역별 표기 차이 — 100분의 N·전각 콜론·띄어쓴 지역명·완화 조문 제외", () => {
+  const jeonju = article("용도지역안에서의 건폐율", "제45조(용도지역안에서의 건폐율) 7. 중심상업지역：100분의 808. 일반상업지역：100분의 709. 근린상업지역：100분의 60");
+  assert.equal(findZoneLimit([jeonju], "일반상업지역", "건폐율")?.value, 70);
+  const growth = article("성장관리계획구역에서의 건폐율 및 용적률", "1. 계획관리지역: 50퍼센트 이하");
+  const jeju = article("용도지역에서의 건폐율", "4. 제2종 일반주거지역: 60퍼센트 이하 19. 계획관리지역: 40퍼센트 이하");
+  assert.equal(findZoneLimit([growth, jeju], "계획관리지역", "건폐율")?.value, 40);
+  assert.equal(findZoneLimit([jeju], "제2종일반주거지역", "건폐율")?.value, 60);
+});
