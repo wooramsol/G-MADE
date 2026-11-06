@@ -1,4 +1,4 @@
-import { articleLabel, loadLawArticles, type LawArticle } from "./law/corpus";
+import { loadLawArticles, type LawArticle } from "./law/corpus";
 import { parseJurisdiction } from "./law/jurisdiction";
 import { searchOrdins } from "./law/ordin-search";
 import { getVWorldApiKey } from "./vworld/config";
@@ -205,7 +205,7 @@ function ratioRow(
       label,
       planned: plannedText,
       limit: `${ordinanceLimit.value}% 이하`,
-      basis: `${ordinanceLimit.article.lawTitle} ${articleLabel(ordinanceLimit.article)}`,
+      basis: `${ordinanceLimit.article.lawTitle} 제${ordinanceLimit.article.no}조(${ordinanceLimit.article.title})`,
       basisUrl: ordinanceLimit.article.sourceUrl,
       status: value > ordinanceLimit.value ? "초과 의심" : "적합",
       note: notes.join(" ") || undefined,

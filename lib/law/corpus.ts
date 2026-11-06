@@ -28,12 +28,30 @@ export type LawSourceRef =
   | { kind: "ordin"; mst: string; title: string; sourceUrl: string };
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+/** 조례 개정 반영 주기 — 7일마다 새로 받음 */
+const STORE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const memoryCache = new Map<string, { at: number; articles: LawArticle[] }>();
 
 export async function loadLawArticles(source: LawSourceRef): Promise<LawArticle[]> {
   const key = source.kind === "law" ? `law:${source.id}` : `ordin:${source.mst}`;
   const cached = memoryCache.get(key);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.articles;
+  // 저장소 캐시 (7일) — 서버가 새로 떠도 법령정보센터를 다시 부르지 않아 빠르고, 센터 장애 시에도 동작
+  const storeKey = `law-corpus/${key.replace(/[^\w-]/g, "_")}.json`;
+  if (isR2Configured()) {
+    const stored = await r2GetObject(storeKey).catch(() => null);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored.toString("utf8")) as { at: number; articles: LawArticle[] };
+        if (Date.now() - parsed.at < STORE_TTL_MS && parsed.articles.length > 0) {
+          memoryCache.set(key, { at: Date.now(), articles: parsed.articles });
+          return parsed.articles;
+        }
+      } catch {
+        // 손상된 캐시는 무시하고 새로 조회
+      }
+    }
+  }
   const oc = getLawOc();
   if (!oc) return [];
 
@@ -52,6 +70,9 @@ export async function loadLawArticles(source: LawSourceRef): Promise<LawArticle[
   if (articles.length > 0) {
     if (memoryCache.size > 200) memoryCache.clear();
     memoryCache.set(key, { at: Date.now(), articles });
+    if (isR2Configured()) {
+      await r2PutObject(storeKey, Buffer.from(JSON.stringify({ at: Date.now(), articles }), "utf8"), "application/json").catch(() => undefined);
+    }
   }
   return articles;
 }
