@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
-import { attachRelevantLawArticles, buildEvaluationContext } from "@/lib/evaluation-context";
+import { attachRelevantLawArticles, buildEvaluationContext, buildEvaluationContextForProject } from "@/lib/evaluation-context";
+import { finishLegalCheck, prepareLegalCheck } from "@/lib/legal-check";
+import { geocodeAddress } from "@/lib/vworld/geocode";
 import { buildLegalCheck } from "@/lib/legal-check";
 import { getProjectById } from "@/lib/project-store";
 import { getLawOc } from "@/lib/law/config";
@@ -21,6 +23,40 @@ export async function GET(request: NextRequest) {
     const result = await lawGetJson<Record<string, unknown>>("/DRF/lawService.do", { OC: oc ?? "", target: "ordin", type: "JSON", MST: mst }, "진단");
     const service = result.ok ? ((result.data.LawService ?? {}) as Record<string, unknown>) : {};
     return NextResponse.json({ ok: result.ok, byl: JSON.stringify(service["별표"] ?? null).slice(0, 4000) });
+  }
+  // 임의 주소로 지역별 조회 점검 (?address=...)
+  const address = request.nextUrl.searchParams.get("address");
+  if (address) {
+    const point = await geocodeAddress(address).catch(() => null);
+    const fake = {
+      id: "preview",
+      name: "점검",
+      location: address,
+      locationPoint: point ? { x: point.x, y: point.y, source: "address" as const } : undefined,
+      client: "",
+      designer: "",
+      projectType: "",
+      scale: "",
+      reviewType: "경관심의",
+      receivedAt: "",
+      status: "접수" as const,
+      files: [],
+    };
+    const context = await buildEvaluationContextForProject(fake);
+    await attachRelevantLawArticles(context, null);
+    const prep = await prepareLegalCheck({ point: fake.locationPoint ?? null, location: address });
+    const legal = prep ? finishLegalCheck(prep, [{ label: "대지면적", value: "1000㎡" }, { label: "건축면적", value: "300㎡" }, { label: "연면적", value: "900㎡" }]) : null;
+    const articles = context.referenceLaws.map((law) => `${law.title} ${law.article}`);
+    return NextResponse.json({
+      address,
+      point: point ? [point.x, point.y] : null,
+      sources: (context.lawSources ?? []).map((source) => source.title),
+      attachments: articles.filter((label) => label.includes("[별표")),
+      articleCount: articles.length,
+      zone: legal?.zone ?? null,
+      limits: legal?.rows.map((row) => `${row.label} ${row.limit ?? "-"} (${row.basis ?? "-"})`) ?? [],
+      warnings: context.warnings,
+    });
   }
   const projectId = request.nextUrl.searchParams.get("projectId") ?? "";
   const project = await getProjectById(projectId);

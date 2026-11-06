@@ -62,9 +62,14 @@ export type EvaluationContext = {
 };
 
 export async function buildEvaluationContext(projectId?: string): Promise<EvaluationContext> {
+  const project = projectId ? await getProjectById(projectId) : undefined;
+  return buildEvaluationContextForProject(project);
+}
+
+/** 프로젝트 객체로 바로 조회 (점검용 미리보기에서 임의 주소로 시험할 때도 사용) */
+export async function buildEvaluationContextForProject(project: Project | undefined): Promise<EvaluationContext> {
   const fetchedAt = new Date().toISOString();
   const warnings: string[] = [];
-  const project = projectId ? await getProjectById(projectId) : undefined;
 
   const lawSources: LawSourceRef[] = [];
   const [spatial, referenceLaws, referenceGuidelines] = await Promise.all([
