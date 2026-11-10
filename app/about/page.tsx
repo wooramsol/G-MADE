@@ -32,10 +32,13 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className="grid gap-3 md:grid-cols-3">
-          <Role title="지원자" items={["회원가입 후 심의 신청", "도서 PDF 제출 · 보완 도서 제출", "사전심의 결과에 따른 수정 도서 제출", "진행 상황·알림 확인, 신청 철회"]} />
-          <Role title="공무원" items={["사전검토: 도서 열람 · 유관부서 지정 · 통과/보완/반려", "사전심의·본심의: AI 분석 실행, 심사위원 의견 입력", "사전심의 결과 통보, 심의 종료 처리"]} />
-          <Role title="AI 에이전트" items={["체크리스트 항목별 판정 (충족·부분충족·미충족·확인불가)", "판단 근거 페이지·위치 표시", "수정 도서 재분석과 회차 비교"]} />
+        <section className="rounded-md border border-[#d7dee8] bg-white p-6 panel-shadow">
+          <h2 className="text-lg font-bold text-[#15345b]">역할</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <Role title="지원자" items={["회원가입 후 심의 신청", "도서 PDF 제출 · 보완 도서 제출", "사전심의 결과에 따른 수정 도서 제출", "진행 상황·알림 확인, 신청 철회"]} />
+            <Role title="공무원" items={["사전검토: 도서 열람 · 유관부서 지정 · 통과/보완/반려", "사전심의·본심의: AI 분석 실행, 심사위원 의견 입력", "사전심의 결과 통보, 심의 종료 처리"]} />
+            <Role title="관리자" items={["공무원 계정 발급 · 사용 중지 · 비밀번호 재설정", "지원자 계정 관리 (이름 변경 · 삭제)", "공무원 업무 전체 수행 및 심의 진행 관리", "삭제된 프로젝트 복원 · 영구 삭제"]} />
+          </div>
         </section>
 
       </div>
@@ -54,7 +57,7 @@ function Feature({ title, body }: { title: string; body: string }) {
 
 function Role({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
+    <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
       <p className="text-sm font-bold text-[#15345b]">{title}</p>
       <ul className="mt-2 space-y-1.5 text-[13px] leading-5 text-[#475569]">
         {items.map((item) => (
