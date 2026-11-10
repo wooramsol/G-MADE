@@ -219,6 +219,7 @@ export default function ExpertReviewSection({
   const [reviewers, setReviewers] = useState<ReviewerMarker[]>(phaseReviewers);
   const [activeReviewerId, setActiveReviewerId] = useState<string | null>(null);
   const [onlyActiveReviewer, setOnlyActiveReviewer] = useState(false);
+  const [showByReviewer, setShowByReviewer] = useState(false);
   const activeReviewer = reviewers.find((reviewer) => reviewer.id === activeReviewerId) ?? null;
   const activeReviewerRef = useRef<ReviewerMarker | null>(null);
   useEffect(() => {
@@ -629,6 +630,15 @@ export default function ExpertReviewSection({
             >
               {exporting ? `만드는 중… ${exporting}` : "전문가 분석 다운로드"}
             </button>
+            <button
+              className="inline-flex items-center rounded-lg border border-[#d0d5dd] bg-white px-3.5 py-2 text-xs font-bold text-[#111827] hover:bg-[#f8fafc] disabled:opacity-50"
+              disabled={versionMemos.length === 0}
+              onClick={() => setShowByReviewer(true)}
+              title="심사위원별로 남긴 의견을 한곳에 모아 봅니다"
+              type="button"
+            >
+              위원별 의견 모아보기 {versionMemos.length > 0 ? versionMemos.length : ""}
+            </button>
             {previousCount > 0 ? (
               <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[#475569]">
                 <input checked={showPrevious} onChange={(event) => setShowPrevious(event.target.checked)} type="checkbox" />
@@ -677,6 +687,19 @@ export default function ExpertReviewSection({
         {/* AI 에이전트 분석 결과 — 이 페이지를 근거로 한 판정 */}
         <AiFindingsPanel onGoToPage={goToPage} page={page} review={aiReview} />
       </div>
+      {showByReviewer ? (
+        <ReviewerCommentsDialog
+          memos={versionMemos}
+          onClose={() => setShowByReviewer(false)}
+          onOpen={(memo) => {
+            setShowByReviewer(false);
+            if (memo.reviewerId) setActiveReviewerId(memo.reviewerId);
+            goToPage(memo.page);
+          }}
+          phaseName={phase === "pre" ? "사전심의" : "본심의"}
+          reviewers={reviewers}
+        />
+      ) : null}
     </WorkspaceSectionCard>
   );
 }
@@ -949,4 +972,116 @@ function AiFindingsPanel({
 function sameReviewerName(a: string, b: string): boolean {
   const normalize = (value: string) => value.replace(/\s+/g, "").toLowerCase();
   return normalize(a) === normalize(b);
+}
+
+
+/** 심사위원별 의견 모아보기 — 위원마다 남긴 의견을 페이지 순으로 묶어 보여주고, 누르면 그 핀으로 이동 */
+function ReviewerCommentsDialog({
+  memos,
+  reviewers,
+  phaseName,
+  onOpen,
+  onClose,
+}: {
+  memos: ExpertMemo[];
+  reviewers: ReviewerMarker[];
+  phaseName: string;
+  onOpen: (memo: ExpertMemo) => void;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const groups = useMemo(() => {
+    const saved = memos.filter((memo) => !memo.id.startsWith("pending-"));
+    const list = reviewers.map((reviewer) => ({
+      key: reviewer.id,
+      name: `${reviewer.name} 위원`,
+      color: reviewer.color,
+      memos: saved.filter((memo) => memo.reviewerId === reviewer.id).sort(byPosition),
+    }));
+    // 목록에서 빠진 위원(삭제됨)·위원 미지정 의견도 놓치지 않게
+    const known = new Set(reviewers.map((reviewer) => reviewer.id));
+    const orphans = new Map<string, ExpertMemo[]>();
+    for (const memo of saved) {
+      if (memo.reviewerId && known.has(memo.reviewerId)) continue;
+      const label = memo.reviewerName ? `${memo.reviewerName} 위원 (목록에서 삭제됨)` : `위원 미지정 (${memo.authorName})`;
+      orphans.set(label, [...(orphans.get(label) ?? []), memo]);
+    }
+    for (const [label, entries] of orphans) {
+      list.push({ key: label, name: label, color: entries[0]?.reviewerColor ?? "#64748b", memos: entries.sort(byPosition) });
+    }
+    return list.filter((group) => group.memos.length > 0);
+  }, [memos, reviewers]);
+
+  const copyGroup = async (group: (typeof groups)[number]) => {
+    const text = [`[${phaseName}] ${group.name} 의견 ${group.memos.length}건`, ...group.memos.map((memo) => `- p.${memo.page} ${memo.text}`)].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(group.key);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      // 클립보드 권한이 없으면 무시
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onMouseDown={onClose} role="presentation">
+      <div
+        aria-label="위원별 의견 모아보기"
+        aria-modal="true"
+        className="flex max-h-[82vh] w-full max-w-[760px] flex-col rounded-lg bg-white shadow-xl"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-[#e2e8f0] px-5 py-3">
+          <p className="text-sm font-bold text-[#111827]">
+            {phaseName} 위원별 의견 <span className="font-medium text-[#94a3b8]">{groups.reduce((sum, group) => sum + group.memos.length, 0)}건</span>
+          </p>
+          <button aria-label="닫기" className="rounded px-2 py-1 text-lg leading-none text-[#64748b] hover:bg-[#f1f5f9]" onClick={onClose} type="button">
+            ×
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {groups.length === 0 ? <p className="text-sm text-[#64748b]">아직 남긴 의견이 없습니다.</p> : null}
+          {groups.map((group) => (
+            <section key={group.key}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm font-bold" style={{ color: group.color }}>
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: group.color }} />
+                  {group.name}
+                  <span className="font-medium text-[#94a3b8]">{group.memos.length}건</span>
+                </p>
+                <button className="text-xs font-semibold text-[#64748b] hover:text-[#111827]" onClick={() => void copyGroup(group)} type="button">
+                  {copied === group.key ? "복사됨" : "텍스트 복사"}
+                </button>
+              </div>
+              <ul className="mt-2 divide-y divide-[#eef1f5] rounded-md border border-[#e2e8f0]">
+                {group.memos.map((memo) => (
+                  <li key={memo.id}>
+                    <button
+                      className="flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-[#f8fafc]"
+                      onClick={() => onOpen(memo)}
+                      title="이 의견이 있는 페이지로 이동"
+                      type="button"
+                    >
+                      <span className="shrink-0 rounded-[3px] bg-[#f1f5f9] px-1.5 py-0.5 text-[11px] font-bold text-[#475569]">p.{memo.page}</span>
+                      <span className="min-w-0 flex-1 whitespace-pre-wrap text-[13px] leading-5 text-[#172033]">{memo.text}</span>
+                      <span className="shrink-0 text-[11px] text-[#94a3b8]">{shortDateTime(memo.updatedAt ?? memo.createdAt)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

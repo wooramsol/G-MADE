@@ -554,6 +554,11 @@ function FindingCard({
         </p>
       ) : null}
       {finding?.reviewFlag ? <p className="mt-1 text-xs leading-5 text-[#94a3b8]">※ {finding.reviewFlag}</p> : null}
+      {finding?.evidence.some((evidence) => evidence.kind === "visual") ? (
+        <p className="mt-1.5 rounded-[3px] border border-[#e9d5ff] bg-[#faf5ff] px-2 py-1 text-xs font-semibold leading-5 text-[#7c3aed]">
+          ⚠ 이미지(그림·사진)를 보고 판단한 근거가 포함되어 있습니다. AI 분석 오류가 있을 수 있으니 도서 원본으로 수동 점검이 필요합니다.
+        </p>
+      ) : null}
 
       {finding && finding.evidence.length > 0 ? (
         <div className="mt-3 flex flex-wrap items-start gap-x-4 gap-y-3">
