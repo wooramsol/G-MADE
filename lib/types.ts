@@ -157,6 +157,8 @@ export type Project = {
   preReviewDecisions?: PreReviewDecision[];
   /** 본심의 심사위원 목록 */
   reviewers?: ReviewerMarker[];
+  /** 진행 중인 AI 분석 (중복 실행 방지·화면 표시용) — 끝나면 지워지고, 약 5분 반이 지나면 무효 */
+  analysisLock?: { startedAt: string; by: string; byId: string };
   /** 휴지통으로 이동한 시각 (ISO). 설정되면 목록에서 숨깁니다. */
   deletedAt?: string;
   /** 데모 프로젝트 영구 삭제 표식 (ISO). 설정되면 데모 원본이 다시 병합되지 않습니다. */

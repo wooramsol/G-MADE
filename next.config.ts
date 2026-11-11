@@ -38,6 +38,22 @@ const nextConfig: NextConfig = {
       "./node_modules/pdfjs-dist/standard_fonts/**",
     ],
   },
+  // 기본 보안 헤더 — 다른 사이트에 끼워 넣기(클릭재킹) 차단, 파일 형식 추측 차단, HTTPS 고정 등
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+        ],
+      },
+    ];
+  },
   env: {
     NEXT_PUBLIC_RELEASE_PR: resolveBuildReleasePr(),
     NEXT_PUBLIC_RELEASE_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? "",

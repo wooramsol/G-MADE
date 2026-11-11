@@ -34,13 +34,20 @@ export function mergeUsageByModel(target: UsageByModel, source: UsageByModel): v
  * 근사합니다(1시간 캐시 2배는 이 앱에서 사용하지 않음). 알 수 없는 모델명은 haiku가
  * 포함되어 있지 않으면 sonnet 단가로 근사합니다.
  */
-const PRICING_PER_MILLION: Record<"sonnet" | "haiku", { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
-  sonnet: { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
-  haiku: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
-};
+type Price = { input: number; output: number; cacheWrite: number; cacheRead: number };
+const price = (input: number, output: number): Price => ({ input, output, cacheWrite: input * 1.25, cacheRead: input * 0.1 });
+/** 모델별 단가 ($/1M 토큰) — 위에서부터 먼저 맞는 것을 사용 */
+const PRICING: Array<[RegExp, Price]> = [
+  [/sonnet-5-5/, price(2, 10)],
+  [/haiku-5-5/, price(0.1, 0.5)],
+  [/opus-5-5/, price(4, 20)],
+  [/haiku/, price(1, 5)],
+  [/./, price(3, 15)], // sonnet 4.x 및 알 수 없는 모델
+];
 
-function pricingTier(model: string): "sonnet" | "haiku" {
-  return model.toLowerCase().includes("haiku") ? "haiku" : "sonnet";
+export function pricingFor(model: string): Price {
+  const name = model.toLowerCase();
+  return (PRICING.find(([pattern]) => pattern.test(name)) ?? PRICING[PRICING.length - 1])[1];
 }
 
 export type UsageSummary = {
@@ -56,7 +63,7 @@ export function estimateUsageSummary(usageByModel: UsageByModel): UsageSummary {
   for (const [model, usage] of usageByModel) {
     totalTokens += usage.inputTokens + usage.outputTokens + usage.cacheCreationInputTokens + usage.cacheReadInputTokens;
 
-    const price = PRICING_PER_MILLION[pricingTier(model)];
+    const price = pricingFor(model);
     costUsd +=
       (usage.inputTokens / 1_000_000) * price.input +
       (usage.outputTokens / 1_000_000) * price.output +

@@ -1,135 +1,68 @@
-# G-MADE Hybrid Evaluation System
+# G-MADE HIVE — AI·인간전문가 하이브리드 경관 심의 시스템
 
-G-MADE Hybrid Evaluation System은 경관사전심의, 경관심의, 공공디자인심의 등 도시경관 관련 심의 업무를 지원하는 AI 기반 하이브리드 평가 시스템입니다.
+경관·공공디자인 심의도서를 온라인으로 접수하고, AI 에이전트 분석과 심사위원 의견을 한 화면에서 함께 검토하는 시스템입니다. AI는 심사를 대체하지 않고 판단을 돕습니다. 최종 결정은 사람이 합니다.
 
-## 핵심 원칙
+## 심의 흐름 (5단계)
 
-- AI는 심사를 대체하지 않습니다.
-- AI는 심사위원의 판단을 지원합니다.
-- 최종 결정권자는 인간 심사위원입니다.
-- 모든 AI 점수는 설명 가능해야 하며 점수 산정 근거를 추적할 수 있어야 합니다.
+1. **도서접수** — 지원자가 심의도서(PDF) 제출
+2. **사전검토** — 공무원이 도서 열람, 유관부서 지정, 통과/보완요청/반려
+3. **사전심의** — AI 에이전트 분석 + 인간 전문가(심사위원) 핀 의견
+4. **본심의** — 사전심의 결과 통보 후 지원자가 낸 수정 도서로 다시 AI·전문가 분석
+5. **심의종료** — 결과는 별도 통지
 
-## 구현 내용
+## 역할
 
-- Next.js App Router 기반 데스크탑 우선 웹 화면
-- 관리자, 심사위원, 공무원 권한 구조 표현
-- 프로젝트 등록/파일 업로드/AI 문서 분석 흐름
-- DB 기반 평가항목 구조를 반영한 Prisma schema
-- AI 평가, 인간 평가, Hybrid Score Engine 순수 계산 로직
-- Explainable AI 점수 추적, 법령/지침 연결, 유사사례 추천 화면
-- PDF 보고서 구성 항목과 통계 분석 화면
+| 역할 | 할 수 있는 일 |
+|---|---|
+| 지원자 | 회원가입, 신청, 도서 제출·보완, 진행 상황 확인, 철회 (자기 신청만) |
+| 공무원 | 사전검토 판정, AI 분석 실행, 심사위원 의견 입력, 단계 진행 |
+| 관리자 | 공무원 업무 전체 + 계정 발급·관리 |
 
-## 기술 스택
+## AI 분석이 하는 일
 
-- Frontend: Next.js, TypeScript, Tailwind CSS
-- Backend: Next.js API Route
-- Database ORM: Prisma
-- Database: PostgreSQL
-- AI: OpenAI API 연동을 위한 구조 준비
-- Storage: AWS S3 호환 저장소 환경 변수 구조
+- 도서의 경관 체크리스트 항목을 추출해 항목별로 충족·부분충족·미충족·확인불가 판정
+- 판단 근거가 된 페이지와 위치 표시 (글자 근거 / 이미지 관찰 근거 구분)
+- 사업지 관할 법령·조례·별표(HWP) 원문을 조회해 항목과 대조
+- 용도지역을 조회해 건폐율·용적률을 지역 도시계획 조례 기준과 자동 비교 (코드 계산)
+- 수정 도서 재분석 시 바뀐 부분만 다시 판단하고 회차 비교
 
-## 실행
+## 기술 구성
 
-```bash
-npm install
-npm run dev
-```
+- **웹**: Next.js(App Router) · React · TypeScript · Tailwind CSS, Vercel 배포(서울 리전)
+- **데이터**: PostgreSQL(Prisma) — 프로젝트(`managed_projects`), 분석 결과(`managed_project_reviews`), 계정, 알림
+- **파일**: Cloudflare R2 — 심의도서 PDF, 전문가 의견, 근거 캡처, 법령 원문 보관본
+- **AI**: Anthropic Claude API
+- **외부 조회**: 국가법령정보센터(법령·자치법규·별표), 브이월드(용도지역·필지·건물·지형)
 
-## 검증
+## 환경변수
 
-```bash
-npm run lint
-npm run build
-DATABASE_URL="postgresql://gmade:gmade@localhost:5432/gmade_hybrid_evaluation" npx prisma validate
-```
+| 이름 | 용도 |
+|---|---|
+| `DATABASE_URL` / `POSTGRES_URL` | PostgreSQL 연결 |
+| `AUTH_SECRET` | 로그인 세션 암호화 |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | 기본 관리자 계정 |
+| `CLAUDE_API_KEY` | AI 분석 |
+| `CLAUDE_MODEL` / `CLAUDE_FAST_MODEL` | (선택) 평가 모델 / 보조 모델 교체 |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | 파일 저장소 |
+| `LAW_OC` / `LAW_REFERER` | 국가법령정보센터 |
+| `VWORLD_API_KEY` / `VWORLD_DOMAIN` | 브이월드 |
 
-## 데이터 모델
-
-필수 테이블을 Prisma 모델로 정의했습니다.
-
-- users
-- roles
-- projects
-- project_files
-- evaluation_categories
-- evaluation_items
-- ai_evaluations
-- human_evaluations
-- hybrid_results
-- reports
-- laws
-- guidelines
-- case_studies
-- settings
-- audit_logs
-
-평가항목은 대분류, 중분류, 세부항목, 배점, 설명, 평가기준을 DB에서 관리하는 구조입니다. 화면의 샘플 항목은 초기 seed와 데모 표시를 위한 예시이며, 실제 운영에서는 관리자 화면에서 수정 가능한 레코드로 운용됩니다.
-
-## 파일 업로드와 AI 연동
-
-브라우저 화면의 "자료 업로드 및 AI 자동 분석" 영역에서 파일을 선택하고 분석할 수 있습니다. 업로드 파일은 로컬 개발 환경에서 `storage/uploads` 폴더에 저장됩니다.
-
-API 키가 없으면 데모 AI 분석 결과가 표시됩니다. 실제 ChatGPT/OpenAI 또는 Gemini 분석을 사용하려면 프로젝트 루트에 `.env` 파일을 만들고 아래 값 중 하나를 입력하세요.
+## 개발
 
 ```bash
-OPENAI_API_KEY="발급받은 OpenAI API 키"
-OPENAI_MODEL="gpt-4o-mini"
-
-GEMINI_API_KEY="발급받은 Gemini API 키"
-GEMINI_MODEL="gemini-2.5-flash-lite"
+npm ci
+npx prisma generate
+npm run dev        # 개발 서버
+npm test           # 자동 테스트
+npm run lint       # 린트
+npx tsc --noEmit   # 타입 검사
 ```
 
-그 다음 개발 서버를 다시 시작합니다.
+main에 올리면 Vercel이 빌드 중에 자동 테스트와 타입 검사를 돌리고, 실패하면 배포하지 않습니다.
 
-```bash
-npm run dev
-```
+## 알아둘 점
 
-## Vercel 배포와 gmadehive.com 연결
-
-팀 공유용으로 가장 빠른 배포 방식은 Vercel입니다.
-
-1. Vercel에서 GitHub 저장소 `G-MADE`를 Import합니다.
-2. Production Branch는 **`main`** 을 선택합니다. (`gmadehive.com` 도메인은 Production 배포만 연결됩니다. Preview URL과 코드가 다를 수 있습니다.)
-3. Framework Preset은 `Next.js`로 둡니다.
-4. Build Command는 `npm run build`, Install Command는 `npm install` 기본값을 사용합니다.
-5. API 키 없이도 데모 AI 분석으로 동작합니다. 아래 환경 변수는 Vercel Project Settings > Environment Variables에 **Production** 환경으로 추가합니다.
-
-| 변수 | 값 예시 | 용도 |
-| --- | --- | --- |
-| `LAW_OC` | (open.law.go.kr 발급 OC) | 국가법령정보센터 Open API 인증 |
-| `LAW_REFERER` | `https://www.gmadehive.com` | 법령 API Referer (미설정 시 거부될 수 있음) |
-| `OPENAI_API_KEY` 또는 `GEMINI_API_KEY` | (발급 키) | 실제 AI 문서 분석 |
-
-`LAW_OC`가 없으면 업로드 분석 시 **「내장 법령 요약」** 으로 대체되고, 법령 검색 API도 비활성화됩니다. 변수 추가 후 **Redeploy** 해야 반영됩니다.
-
-### DB 테이블 (Prisma)
-
-Vercel Postgres를 연결하면 `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING` 등이 자동 주입됩니다. **배포(Redeploy) 시** `prisma db push`를 시도합니다. 실패해도 **배포 자체는 계속**됩니다.
-
-PostgreSQL이 연결되면 **프로젝트·평가 데이터가 `stored_projects` 테이블에 영속 저장**됩니다 (재배포·콜드스타트에도 유지). DB가 없으면 로컬 JSON 파일 + 브라우저 localStorage로 동작하며, 이 모드는 개발·데모 용도로만 사용해야 합니다.
-
-로그인 히스토리 테이블이 없으면 Vercel Storage → Postgres → **Query** 탭에서 `prisma/sql/login_history.sql` 내용을 한 번 실행합니다.
-
-### 보안 관련 환경 변수
-
-- `AUTH_SECRET`: `openssl rand -base64 32` 등으로 생성한 긴 무작위 값 (필수)
-- `ADMIN_EMAIL` / `ADMIN_PASSWORD`: 환경 변수 기반 관리자 로그인 (강한 비밀번호 필수)
-- `ADMIN_INITIAL_PASSWORD`: `prisma db seed` 시 최초 관리자 계정 생성용 (기존 계정 비밀번호는 덮어쓰지 않음)
-- `BLOB_DEFAULT_ACCESS`: 기본값 `private` — 업로드 파일은 인증된 API를 통해서만 다운로드됩니다.
-
-### 가비아 DNS 설정
-
-Vercel Project Settings > Domains에 아래 도메인을 추가합니다.
-
-- `gmadehive.com`
-- `www.gmadehive.com`
-
-가비아 DNS 관리에서 아래 레코드를 설정합니다.
-
-| 타입 | 호스트 | 값 |
-| --- | --- | --- |
-| A | @ | 76.76.21.21 |
-| CNAME | www | cname.vercel-dns.com |
-
-참고: PostgreSQL과 Vercel Blob을 연결하면 프로젝트·평가 데이터와 업로드 파일이 영구 저장됩니다. 둘 다 연결하지 않은 경우 서버리스 환경 특성상 데이터가 재배포 시 사라질 수 있으므로 운영 배포 전 반드시 연결하세요. (마이페이지 → API 연동 상태에서 확인 가능)
+- 프로젝트 본문은 JSON으로 저장하고, 수정은 행 잠금 안에서 처리해 동시 수정이 서로를 덮어쓰지 않습니다.
+- 지원자에게는 AI 분석 결과·심사위원·유관부서 등 내부 자료를 서버에서 걸러 보냅니다.
+- 화면 최소 폭은 1280px입니다 (더 좁으면 가로 스크롤 또는 축소).
+- `prisma/schema.prisma`에는 초기 설계의 표가 남아 있습니다. 실제로 쓰는 것은 계정·역할·로그인 이력·알림·`managed_projects`·`managed_project_reviews`입니다.

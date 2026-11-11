@@ -3,7 +3,7 @@ import { FormLabel, MutedText, PageTitle, SectionDescription } from "@/component
 import ProjectManagementGrid from "./project-management-grid";
 import { auth } from "@/auth";
 import { getAllProjects } from "@/lib/project-store";
-import { canAccessProject, isOfficialRole, projectForViewer } from "@/lib/roles";
+import { canAccessProject, isOfficialRole, projectForViewer, projectStage } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,9 @@ export default async function ProjectManagementPage({
   // 지원자는 자기가 등록한 사업만
   const projects = (await getAllProjects())
     .filter((project) => canAccessProject(session?.user, project))
-    .map((project) => projectForViewer(project, official));
+    .map((project) => projectForViewer(project, official))
+    // 목록에는 분석 결과가 필요 없음 — 단계만 확정해 두고 무거운 분석 기록은 브라우저로 보내지 않음
+    .map((project) => ({ ...project, stage: projectStage(project), checklistReviews: [], files: [] }));
   const params = await searchParams;
   const query = (params?.q ?? "").trim();
 

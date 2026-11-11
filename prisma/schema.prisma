@@ -79,8 +79,23 @@ model ManagedProject {
   updatedAt DateTime  @updatedAt @map("updated_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
+  reviews   ManagedProjectReview[]
+
   @@index([deletedAt])
   @@map("managed_projects")
+}
+
+/// AI 분석 결과(회차) — 프로젝트 본문과 따로 저장해, 회차가 쌓여도 프로젝트 저장·조회가 무거워지지 않게 한다.
+model ManagedProjectReview {
+  id         String         @id
+  projectId  String         @map("project_id")
+  project    ManagedProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  data       Json
+  reviewedAt DateTime       @map("reviewed_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  @@index([projectId, reviewedAt])
+  @@map("managed_project_reviews")
 }
 
 /// 과도기(2026-07-02 PR #68~#69)에 사용된 프로젝트 저장 테이블.

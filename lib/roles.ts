@@ -135,5 +135,17 @@ export function projectForViewer(project: Project, official: boolean): Project {
     preReviewers: undefined,
     departments: undefined,
     documentVersionLabels: undefined,
+    analysisLock: undefined,
   };
+}
+
+/** 분석 잠금 유효 시간 — 서버 실행 한도(300초)보다 조금 길게 */
+export const ANALYSIS_LOCK_MS = 330_000;
+
+/** 지금 AI 분석이 진행 중인가 (오래된 잠금은 무시) */
+export function activeAnalysisLock(project: Pick<Project, "analysisLock">, now = Date.now()): Project["analysisLock"] | null {
+  const lock = project.analysisLock;
+  if (!lock) return null;
+  const startedAt = Date.parse(lock.startedAt);
+  return Number.isFinite(startedAt) && now - startedAt < ANALYSIS_LOCK_MS ? lock : null;
 }

@@ -812,7 +812,7 @@ export async function runChecklistReview(
     }
     if (!scheduled) await prewarmTask();
 
-    return { review, project: updatedProject, warnings: review.warnings };
+    return { review, project: { ...updatedProject, analysisLock: undefined }, warnings: review.warnings };
   } catch (error) {
     if (newlySavedFiles.length > 0) {
       await deleteSavedUploadFiles(newlySavedFiles);

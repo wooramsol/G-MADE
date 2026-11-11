@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import AnalysisBlockingOverlay from "@/components/analysis-blocking-overlay";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import { MutedText } from "@/components/typography";
@@ -14,6 +14,8 @@ import { ensureProjectOnServer } from "@/lib/client-ensure-project";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import { buildOversizedUploadMessage, getMaxUploadFileLabel, getOversizedUploadFiles } from "@/lib/upload-limits";
 import type { Project } from "@/lib/types";
+import { activeAnalysisLock } from "@/lib/roles";
+import { formatUploadDateTime } from "@/lib/format-datetime";
 import { showToast } from "../../toast";
 import ChecklistReviewResults from "./checklist-review-results";
 import { buildDocumentVersions, versionKeyOfReview } from "@/lib/checklist-review/document-versions";
@@ -47,6 +49,30 @@ export default function ChecklistReviewSection({
   const [liveProject, setLiveProject] = useState<Project | null>(null);
 
   const effectiveProject = liveProject ?? project;
+
+  // 분석 중에 탭을 닫거나 새로고침하려 하면 브라우저가 한 번 더 물어봄
+  useEffect(() => {
+    if (!running) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [running]);
+
+  // 다른 사람(또는 닫았던 이전 화면)이 돌리는 분석 — 끝날 때까지 10초마다 새로 확인
+  const [now, setNow] = useState(() => Date.now());
+  const remoteLock = running ? null : activeAnalysisLock(project, now);
+  useEffect(() => {
+    if (!remoteLock) return;
+    const timer = setInterval(() => {
+      setNow(Date.now());
+      router.refresh();
+    }, 10_000);
+    return () => clearInterval(timer);
+  }, [remoteLock, router]);
+  const busy = running || Boolean(remoteLock);
   // 도서 버전별 묶음 — 이력은 선택한 버전의 검토만 (같은 제출본의 재분석 기록)
   const versions = useMemo(
     () => buildDocumentVersions(effectiveProject.checklistReviews ?? []),
@@ -155,6 +181,14 @@ export default function ChecklistReviewSection({
       {running ? <AnalysisBlockingOverlay progress={progress} startedAt={startedAt} statusMessage={uploadMessage ?? undefined} /> : null}
 
       <div className="space-y-5">
+        {remoteLock ? (
+          <div className="flex items-center gap-3 rounded-md border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-sm text-[#1e3a8a]">
+            <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-[#2463b3]" />
+            <span>
+              <b>AI 분석이 진행 중입니다</b> — {remoteLock.by} · {formatUploadDateTime(remoteLock.startedAt)} 시작. 보통 4~5분 걸리며, 끝나면 결과가 자동으로 표시됩니다.
+            </span>
+          </div>
+        ) : null}
         {pendingSubmission ? (
           <div className="flex flex-wrap items-center gap-3 rounded-md border-2 border-[#2463b3] bg-[#f0f7ff] px-4 py-3">
             <div className="min-w-0 flex-1">
@@ -163,7 +197,7 @@ export default function ChecklistReviewSection({
             </div>
             <button
               className="primary-action-blue rounded-md px-4 py-2.5 text-sm font-bold disabled:opacity-60"
-              disabled={running}
+              disabled={busy}
               onClick={() => void handleRun([], [pendingSubmission])}
               type="button"
             >
@@ -193,7 +227,7 @@ export default function ChecklistReviewSection({
             className={`flex h-16 w-full shrink-0 flex-col items-center justify-center rounded-md border-2 border-dashed px-4 text-center transition-colors sm:w-[320px] disabled:cursor-not-allowed disabled:opacity-60 ${
               dragActive ? "border-[#2463b3] bg-[#eaf2fd]" : "border-[#9db6d8] bg-[#f8fbff] hover:bg-[#f0f7ff]"
             }`}
-            disabled={running}
+            disabled={busy}
             onClick={() => fileInputRef.current?.click()}
             type="button"
           >
@@ -224,7 +258,7 @@ export default function ChecklistReviewSection({
             <div className="mb-3 flex justify-end">
               <button
                 className="rounded-md border border-[#d7dee8] bg-white px-3 py-1.5 text-xs font-bold text-[#475569] hover:bg-[#f8fafc] disabled:opacity-50"
-                disabled={running}
+                disabled={busy}
                 onClick={() => {
                   const file = selectedReview.files[0];
                   if (!window.confirm("이 도서를 처음부터 다시 분석할까요? (이전 결과를 재사용하지 않아 시간·비용이 다시 듭니다)")) return;

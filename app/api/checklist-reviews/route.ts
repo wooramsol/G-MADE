@@ -15,7 +15,10 @@ import {
 } from "@/lib/checklist-review/progress";
 import { isFileLike } from "@/lib/save-uploaded-files";
 import {
+  acquireAnalysisLock,
   getProjectById,
+  ProjectConflictError,
+  releaseAnalysisLock,
   removeProjectChecklistReview,
   removeProjectChecklistReviews,
   updateProjectChecklistReviewComment,
@@ -74,6 +77,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "검토 자료는 한 번에 1개만 분석할 수 있습니다." }, { status: 400 });
     }
 
+    // 중복 실행 방지 — 같은 프로젝트의 분석은 한 번에 하나만
+    const analyst = authResult.session.user;
+    let lockStartedAt = "";
+    try {
+      const locked = await acquireAnalysisLock(projectId, { id: analyst.id, name: analyst.name ?? analyst.email ?? "공무원" });
+      lockStartedAt = locked?.analysisLock?.startedAt ?? "";
+    } catch (error) {
+      if (error instanceof ProjectConflictError) return NextResponse.json({ error: error.message }, { status: 409 });
+      throw error;
+    }
+    const unlock = () => (lockStartedAt ? releaseAnalysisLock(projectId, lockStartedAt) : Promise.resolve());
+
     const input: RunChecklistReviewInput = {
       projectId,
       fileRefs,
@@ -87,8 +102,13 @@ export async function POST(request: NextRequest) {
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         async start(controller) {
+          // 화면을 닫아 연결이 끊겨도 분석은 끝까지 진행해 결과를 저장 (전송 실패는 무시)
           const write = (payload: unknown) => {
-            controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
+            try {
+              controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
+            } catch {
+              // 수신자가 떠남
+            }
           };
 
           const heartbeat = setInterval(() => {
@@ -121,7 +141,12 @@ export async function POST(request: NextRequest) {
             });
           } finally {
             clearInterval(heartbeat);
-            controller.close();
+            await unlock();
+            try {
+              controller.close();
+            } catch {
+              // 이미 닫힘
+            }
           }
         },
       });
@@ -134,7 +159,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const result = await runChecklistReview(input);
+    const result = await runChecklistReview(input).finally(unlock);
     revalidateProjectViews(input.projectId);
     return NextResponse.json({
       review: result.review,

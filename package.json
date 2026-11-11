@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/copy-pdfjs-assets.mjs && next dev",
-    "build": "node scripts/copy-pdfjs-assets.mjs && prisma generate && node scripts/prisma-db-push-if-configured.mjs && next build",
+    "build": "node scripts/copy-pdfjs-assets.mjs && prisma generate && npm run test:ci && node scripts/prisma-db-push-if-configured.mjs && next build",
+    "test:ci": "tsx --test --test-concurrency=1 tests/*.test.ts",
     "start": "next start",
     "lint": "eslint .",
     "deploy:production": "node scripts/deploy-production.mjs",

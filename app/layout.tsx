@@ -23,8 +23,8 @@ export const metadata: Metadata = {
 
 export const viewport = {
   themeColor: "#15345b",
-  width: "device-width",
-  initialScale: 1,
+  // 최소 폭 1280px 고정 배치 — 폰·태블릿에서는 전체 화면을 축소해 보여 줌
+  width: 1280,
   // 아이패드에서 입력 포커스 시 과도한 확대 방지하되 접근성 위해 수동 확대는 허용
   viewportFit: "cover" as const,
 };

@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
 import {
   deleteManagedProjectFromDatabase,
+  readManagedProjectFromDatabase,
   updateManagedProjectAtomically,
   readManagedProjectsFromDatabase,
   upsertManagedProjectToDatabase,
@@ -13,9 +14,15 @@ import { getPrismaClient, isDatabaseAvailable as probeDatabase } from "./prisma"
  * 프로젝트 저장소로 DB를 쓰는가 — DB가 설정돼 있는데 잠깐 연결이 안 되면 임시 JSON 파일로
  * 빠지지 않고 오류로 처리한다(임시 파일에 저장된 내용은 사라지므로).
  */
+let databaseOkAt = 0;
 async function isDatabaseAvailable(): Promise<boolean> {
   if (!getPrismaClient()) return false;
-  if (await probeDatabase()) return true;
+  // 방금 확인했으면 다시 묻지 않음 (조회마다 확인 쿼리가 한 번씩 더 나가던 것 절약)
+  if (Date.now() - databaseOkAt < 30_000) return true;
+  if (await probeDatabase()) {
+    databaseOkAt = Date.now();
+    return true;
+  }
   await new Promise((resolve) => setTimeout(resolve, 300));
   if (await probeDatabase()) return true;
   throw new Error("데이터베이스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
@@ -25,7 +32,7 @@ import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import { isProjectPurged, isProjectTrashed } from "./trash";
 import { mergeListChanges } from "./merge-list";
-import { applicantCanWithdraw, applicantSubmissionKind, canSetStage, projectStage, type SubmissionKind } from "./roles";
+import { activeAnalysisLock, applicantCanWithdraw, applicantSubmissionKind, canSetStage, projectStage, type SubmissionKind } from "./roles";
 import type { ChecklistReview } from "./checklist-review/types";
 import type { DocumentSubmission, ExpertMemo, PreReviewDecision, Project, ProjectFile, ProjectStage, ReviewerMarker, ReviewPhase } from "./types";
 
@@ -60,6 +67,10 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
 }
 
 export async function getProjectRecordById(id: string): Promise<Project | undefined> {
+  // DB의 일반 프로젝트는 그 1건만 읽음 (예전엔 조회할 때마다 전체 프로젝트를 불러왔음)
+  if (!isDemoProjectId(id) && (await isDatabaseAvailable())) {
+    return (await readManagedProjectFromDatabase(id)) ?? undefined;
+  }
   const allProjects = await getAllProjectsIncludingTrashed();
   return allProjects.find((project) => project.id === id);
 }
@@ -323,6 +334,25 @@ export async function setProjectStage(
     return next;
   });
   return project ? { project, previousStage } : undefined;
+}
+
+/** AI 분석 시작 — 같은 프로젝트에서 이미 분석이 돌고 있으면 거절 (중복 실행·이중 비용 방지) */
+export async function acquireAnalysisLock(id: string, user: { id: string; name: string }): Promise<Project | undefined> {
+  return updateStoredProject(id, (project) => {
+    const active = activeAnalysisLock(project);
+    if (active) {
+      const who = active.byId === user.id ? "이미" : `${active.by}님이`;
+      throw new ProjectConflictError(`${who} 이 프로젝트의 AI 분석을 진행 중입니다. 끝난 뒤 다시 시도해 주세요.`);
+    }
+    return { ...project, analysisLock: { startedAt: new Date().toISOString(), by: user.name, byId: user.id } };
+  });
+}
+
+/** AI 분석 종료 — 잠금 해제 (내가 건 잠금만) */
+export async function releaseAnalysisLock(id: string, startedAt: string): Promise<void> {
+  await updateStoredProject(id, (project) =>
+    project.analysisLock?.startedAt === startedAt ? { ...project, analysisLock: undefined } : project,
+  ).catch(() => undefined);
 }
 
 /** 지원자 신청 취소 (도서 접수 전) — 휴지통으로. 그 사이 도서가 접수됐으면 취소하지 않음 */

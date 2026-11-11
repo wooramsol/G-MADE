@@ -3,7 +3,7 @@ import {
   buildAnthropicHeaders,
   isClaudePayloadOrContextError,
 } from "@/lib/ai/anthropic-request";
-import { getClaudeModelsToTry } from "@/lib/ai/claude-models";
+import { getClaudeModelsToTry, isAdaptiveThinkingModel } from "@/lib/ai/claude-models";
 import { getClaudeApiKey, getClaudeModel } from "@/lib/ai/env-keys";
 import { formatProviderApiError } from "@/lib/ai/format-api-error";
 import { isRetryableProviderError, retryDelayMs } from "@/lib/ai/retryable-api-error";
@@ -97,8 +97,13 @@ export async function callClaude(options: ClaudeCallOptions): Promise<ClaudeCall
             headers: buildAnthropicHeaders({ apiKey, includesPdf: options.includesPdf }),
             body: JSON.stringify({
               model,
-              max_tokens: options.maxOutputTokens,
-              temperature: options.temperature ?? 0,
+              ...(isAdaptiveThinkingModel(model)
+                ? {
+                    // 생각 분량이 출력 한도에 포함되므로 여유를 더 줌. 속도·비용을 위해 effort는 낮게 시작
+                    max_tokens: Math.min(64_000, options.maxOutputTokens + 12_000),
+                    output_config: { effort: /haiku/.test(model) ? "low" : "medium" },
+                  }
+                : { max_tokens: options.maxOutputTokens, temperature: options.temperature ?? 0 }),
               system: options.system,
               messages: [{ role: "user", content: options.userBlocks }],
             }),
