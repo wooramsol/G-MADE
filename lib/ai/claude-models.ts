@@ -1,7 +1,7 @@
-export const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6";
+export const DEFAULT_CLAUDE_MODEL = "claude-sonnet-5-5";
 
 /** 빠른 보조 모델(항목 추출·수치 추출·도면 글자 판독) — CLAUDE_FAST_MODEL 환경변수로 교체 가능 */
-export const CLAUDE_FAST_MODEL = process.env.CLAUDE_FAST_MODEL?.trim() || "claude-haiku-4-5";
+export const CLAUDE_FAST_MODEL = process.env.CLAUDE_FAST_MODEL?.trim() || "claude-haiku-5-5";
 
 /**
  * 5세대 이후 모델(예: claude-sonnet-5-5, claude-haiku-5-5)은 항상 "생각(thinking)"을 하고
@@ -15,6 +15,8 @@ export function isAdaptiveThinkingModel(model: string): boolean {
 const claudeModelFallbacks = [
   DEFAULT_CLAUDE_MODEL,
   CLAUDE_FAST_MODEL,
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5",
   "claude-sonnet-4-5",
   "claude-haiku-4-5-20251001",
   "claude-sonnet-4-20250514",
