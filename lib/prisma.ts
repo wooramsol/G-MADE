@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { attachDatabasePool } from "@vercel/functions";
 import { getPostgresRuntimeUrl } from "./postgres-env";
 
 const globalForPrisma = globalThis as unknown as {
@@ -22,9 +23,18 @@ function createPrismaClient(): PrismaClient {
     new Pool({
       connectionString,
       max: 2,
-      idleTimeoutMillis: 10_000,
+      idleTimeoutMillis: 5_000,
       connectionTimeoutMillis: 10_000,
     });
+  if (!globalForPrisma.prismaPool) {
+    // 함수 인스턴스가 멈추기(suspend) 전에 쉬는 연결을 닫게 한다 — 멈춘 인스턴스가 연결을 붙든 채 남아
+    // DB 연결 한도를 넘기던 문제(리포트 화면의 썸네일 수십 개 동시 요청 뒤 "too many connections") 방지
+    try {
+      attachDatabasePool(pool);
+    } catch {
+      // Vercel 밖(로컬·테스트)에서는 무시
+    }
+  }
   globalForPrisma.prismaPool = pool;
 
   const adapter = new PrismaPg(pool);
