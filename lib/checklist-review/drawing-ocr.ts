@@ -1,4 +1,5 @@
 import { CLAUDE_FAST_MODEL } from "@/lib/ai/claude-models";
+import { findTextBoxNear } from "@/lib/pdf/ink-snap";
 import { parsePageSlices } from "@/lib/ai/page-citation";
 import type { UploadedFileSummary } from "@/lib/ai/uploaded-file";
 import { formatOcrLinesForText, type OcrLine } from "@/lib/pdf/ocr-locate";
@@ -323,7 +324,8 @@ async function ocrSinglePage(
         x1: rect.x + (Math.max(a, c) / 1000) * rect.w,
         y1: rect.y + (Math.max(b, d) / 1000) * rect.h,
       };
-      const snapped = snapBoxToInk(gray, approx);
+      // 제자리 보정이 안 되면 주변에서 같은 크기의 글자 덩어리를 찾아 본다 (위치가 조금 빗나간 라벨)
+      const snapped = snapBoxToInk(gray, approx) ?? findTextBoxNear(gray, approx);
       const box = snapped ?? approx;
       const line: OcrLine = {
         t: text.slice(0, 120),

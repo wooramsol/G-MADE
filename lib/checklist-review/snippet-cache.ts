@@ -36,8 +36,8 @@ export function snippetCachePath(
   variant: SnippetVariant,
   regionKey: string,
 ): string {
-  // v4: 근거 위치 박스 항상 표시 + 표 안 긴 문구·구두점 차이에도 위치 탐색
-  return `projects/${projectId}/snippets/${fileId}-p${page}-${variant}-${regionKey}-v4.jpg`;
+  // v5: 판독 근사 위치는 픽셀에서 실제 글자를 다시 찾아 확정, 못 찾으면 넓은 점선 범위로 표시
+  return `projects/${projectId}/snippets/${fileId}-p${page}-${variant}-${regionKey}-v5.jpg`;
 }
 
 /**

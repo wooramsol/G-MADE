@@ -190,6 +190,8 @@ async function renderRegionSnippetInner(
   targetLongEdge: number,
   anchors: string[] | undefined,
   ocrLines: import("./ocr-locate").OcrLine[] | null,
+  /** 픽셀에서 글자 위치를 다시 찾아 확정한 영역 — 실선 박스로 그린다 (내부 재호출용) */
+  confirmedRegion: boolean = false,
 ): Promise<RegionSnippet | null> {
   try {
     const { getDocumentProxy, renderPageAsImage } = await import("unpdf");
@@ -234,7 +236,13 @@ async function renderRegionSnippetInner(
     // 박스 표시 방식 — 실선: 글자 좌표로 위치를 정확히 확인 / 점선: 근사 위치(판독 근사
     // 좌표 또는 AI 추정 영역). 어느 쪽이든 "어디서 파악했는지"를 항상 보여준다.
     let boxMode: "solid" | "dashed" | null = region ? "dashed" : null;
-    if (anchors && anchors.length > 0) {
+    // 판독(OCR) 근사 좌표로만 찾은 위치 — 렌더링 뒤 픽셀에서 실제 글자 덩어리를 다시 찾는다
+    let approxTextRegion: { x: number; y: number; width: number; height: number } | null = null;
+    if (confirmedRegion && region) {
+      anchorRegion = region;
+      boxMode = "solid";
+    }
+    if (!confirmedRegion && anchors && anchors.length > 0) {
       const { locateAnchorRegion } = await import("./text-locate");
       anchorRegion = await locateAnchorRegion(page, anchors, region);
       if (anchorRegion) {
@@ -246,9 +254,23 @@ async function renderRegionSnippetInner(
         const { locateAnchorInOcr } = await import("./ocr-locate");
         const found = locateAnchorInOcr(ocrLines, anchors, region);
         if (found) {
-          region = found.region;
-          if (found.precise) anchorRegion = found.region;
-          boxMode = found.precise ? "solid" : "dashed";
+          if (found.precise) {
+            region = found.region;
+            anchorRegion = found.region;
+            boxMode = "solid";
+          } else {
+            // 근사 좌표는 몇 글자 높이만큼 빗나갈 수 있다 — 빗나가도 실제 글자가 들어오도록
+            // 표시 범위를 넓혀 두고(점선 = "이 근처"), 아래에서 픽셀로 정확한 위치를 다시 찾는다.
+            approxTextRegion = found.region;
+            const padX = found.region.width * 0.6;
+            const padY = found.region.height * 5;
+            const x0 = Math.max(0, found.region.x - padX);
+            const y0 = Math.max(0, found.region.y - padY);
+            const x1 = Math.min(1, found.region.x + found.region.width + padX);
+            const y1 = Math.min(1, found.region.y + found.region.height + padY);
+            region = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+            boxMode = "dashed";
+          }
         }
       }
     }
@@ -270,6 +292,43 @@ async function renderRegionSnippetInner(
     });
     const image = await canvasModule.loadImage(Buffer.from(rendered));
 
+    if (approxTextRegion) {
+      // 근사 박스 주변 픽셀에서 실제 글자 덩어리를 찾으면 그 위치로 확정해 선명하게 다시 그린다
+      try {
+        const { findTextBoxNear, rgbaToGray } = await import("./ink-snap");
+        const ax0 = approxTextRegion.x * image.width;
+        const ay0 = approxTextRegion.y * image.height;
+        const aw = approxTextRegion.width * image.width;
+        const ah = approxTextRegion.height * image.height;
+        // 탐색에 필요한 주변만 잘라 본다 (페이지 전체 픽셀을 올리지 않도록)
+        const mx = Math.max(aw, ah * 6) + 8;
+        const my = Math.max(ah * 6, aw * 0.5) + 8;
+        const wx = Math.max(0, Math.floor(ax0 - mx));
+        const wy = Math.max(0, Math.floor(ay0 - my));
+        const ww = Math.min(image.width - wx, Math.ceil(aw + mx * 2));
+        const wh = Math.min(image.height - wy, Math.ceil(ah + my * 2));
+        const win = canvasModule.createCanvas(ww, wh);
+        const wctx = win.getContext("2d");
+        wctx.fillStyle = "#ffffff";
+        wctx.fillRect(0, 0, ww, wh);
+        wctx.drawImage(image, wx, wy, ww, wh, 0, 0, ww, wh);
+        const gray = rgbaToGray(wctx.getImageData(0, 0, ww, wh).data, ww, wh);
+        const local = findTextBoxNear(gray, { x0: ax0 - wx, y0: ay0 - wy, x1: ax0 - wx + aw, y1: ay0 - wy + ah });
+        const snapped = local ? { x0: local.x0 + wx, y0: local.y0 + wy, x1: local.x1 + wx, y1: local.y1 + wy } : null;
+        if (snapped) {
+          const exact = {
+            x: snapped.x0 / image.width,
+            y: snapped.y0 / image.height,
+            width: (snapped.x1 - snapped.x0) / image.width,
+            height: (snapped.y1 - snapped.y0) / image.height,
+          };
+          return await renderRegionSnippetInner(pdfInput, pageNumber, exact, targetLongEdge, undefined, null, true);
+        }
+      } catch (error) {
+        console.warn("[checklist-review] 글자 위치 재탐색 실패:", error instanceof Error ? error.message : error);
+      }
+    }
+
     let cropX = 0;
     let cropY = 0;
     let cropW = image.width;
@@ -282,8 +341,9 @@ async function renderRegionSnippetInner(
       const ry = region.y * image.height;
       const rw = Math.max(8, region.width * image.width);
       const rh = Math.max(8, region.height * image.height);
-      const pad =
-        boxMode !== null && (rw < image.width * 0.25 || anchorRegion)
+      const pad = approxTextRegion
+        ? Math.max(24, Math.max(rw, rh) * 0.15)
+        : boxMode !== null && (rw < image.width * 0.25 || anchorRegion)
           ? Math.max(48, rh * 4, rw * 0.35)
           : Math.max(24, Math.max(rw, rh) * SNIPPET_PADDING_RATIO);
       cropX = Math.max(0, Math.floor(rx - pad));
