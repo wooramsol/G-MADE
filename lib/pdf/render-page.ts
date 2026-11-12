@@ -263,7 +263,7 @@ async function renderRegionSnippetInner(
             // 표시 범위를 넓혀 두고(점선 = "이 근처"), 아래에서 픽셀로 정확한 위치를 다시 찾는다.
             approxTextRegion = found.region;
             const padX = found.region.width * 0.6;
-            const padY = found.region.height * 5;
+            const padY = found.region.height * 7;
             const x0 = Math.max(0, found.region.x - padX);
             const y0 = Math.max(0, found.region.y - padY);
             const x1 = Math.min(1, found.region.x + found.region.width + padX);
@@ -295,14 +295,15 @@ async function renderRegionSnippetInner(
     if (approxTextRegion) {
       // 근사 박스 주변 픽셀에서 실제 글자 덩어리를 찾으면 그 위치로 확정해 선명하게 다시 그린다
       try {
-        const { findTextBoxNear, rgbaToGray } = await import("./ink-snap");
+        const { findTextBoxNear, rgbaToGray, searchMargins } = await import("./ink-snap");
         const ax0 = approxTextRegion.x * image.width;
         const ay0 = approxTextRegion.y * image.height;
         const aw = approxTextRegion.width * image.width;
         const ah = approxTextRegion.height * image.height;
         // 탐색에 필요한 주변만 잘라 본다 (페이지 전체 픽셀을 올리지 않도록)
-        const mx = Math.max(aw, ah * 6) + 8;
-        const my = Math.max(ah * 6, aw * 0.5) + 8;
+        const margins = searchMargins(aw, ah);
+        const mx = margins.mx + 8;
+        const my = margins.my + 8;
         const wx = Math.max(0, Math.floor(ax0 - mx));
         const wy = Math.max(0, Math.floor(ay0 - my));
         const ww = Math.min(image.width - wx, Math.ceil(aw + mx * 2));

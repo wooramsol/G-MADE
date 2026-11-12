@@ -25,14 +25,18 @@ export function rgbaToGray(rgba: Uint8ClampedArray | Uint8Array, width: number, 
   return { data, width, height };
 }
 
+/** 탐색 창 여백 — 판독 좌표는 세로로 글자 높이의 여러 배까지 빗나간 실측 사례가 있어 넉넉히 잡는다 */
+export function searchMargins(bw: number, bh: number): { mx: number; my: number } {
+  return { mx: Math.round(Math.max(bw, bh * 6)), my: Math.round(Math.max(bh * 9, bw * 0.6)) };
+}
+
 export function findTextBoxNear(gray: GrayImage, approx: PixelBox): PixelBox | null {
   const bw = approx.x1 - approx.x0;
   const bh = approx.y1 - approx.y0;
   if (bw < 6 || bh < 4) return null;
 
   // 탐색 창 — 위치 오차를 흡수할 만큼 넓게 (세로는 글자 높이의 여러 배, 가로는 박스 폭만큼)
-  const mx = Math.round(Math.max(bw, bh * 6));
-  const my = Math.round(Math.max(bh * 6, bw * 0.5));
+  const { mx, my } = searchMargins(bw, bh);
   const wx0 = Math.max(0, Math.floor(approx.x0 - mx));
   const wy0 = Math.max(0, Math.floor(approx.y0 - my));
   const wx1 = Math.min(gray.width, Math.ceil(approx.x1 + mx));
