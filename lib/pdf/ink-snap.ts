@@ -25,6 +25,38 @@ export function rgbaToGray(rgba: Uint8ClampedArray | Uint8Array, width: number, 
   return { data, width, height };
 }
 
+/**
+ * 박스 안이 "글자처럼" 생겼는지 — 글자는 한 줄을 가로로 훑으면 획이 여러 번 나온다.
+ * 색 견본·해치 같은 채워진 면의 모서리나 선 한 가닥은 획이 한 번뿐이라 걸러진다.
+ */
+export function looksLikeText(gray: GrayImage, box: PixelBox): boolean {
+  const x0 = Math.max(0, Math.floor(box.x0));
+  const y0 = Math.max(0, Math.floor(box.y0));
+  const x1 = Math.min(gray.width, Math.ceil(box.x1));
+  const y1 = Math.min(gray.height, Math.ceil(box.y1));
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (w < 4 || h < 3) return false;
+  const strokes: number[] = [];
+  let ink = 0;
+  for (let y = y0; y < y1; y += 1) {
+    const row = y * gray.width;
+    let count = 0;
+    let inside = false;
+    for (let x = x0; x < x1; x += 1) {
+      const dark = gray.data[row + x] < INK_THRESHOLD;
+      if (dark) ink += 1;
+      if (dark && !inside) count += 1;
+      inside = dark;
+    }
+    if (count > 0) strokes.push(count);
+  }
+  const ratio = ink / (w * h);
+  if (strokes.length < h * 0.3 || ratio < 0.03 || ratio > 0.6) return false;
+  strokes.sort((a, b) => a - b);
+  return strokes[Math.floor(strokes.length / 2)] >= 2;
+}
+
 /** 탐색 창 여백 — 판독 좌표는 세로로 글자 높이의 여러 배까지 빗나간 실측 사례가 있어 넉넉히 잡는다 */
 export function searchMargins(bw: number, bh: number): { mx: number; my: number } {
   return { mx: Math.round(Math.max(bw, bh * 6)), my: Math.round(Math.max(bh * 9, bw * 0.6)) };
@@ -155,6 +187,7 @@ export function findTextBoxNear(gray: GrayImage, approx: PixelBox): PixelBox | n
     if (w < bw * 0.5 || w > bw * 1.8 || h < bh * 0.4 || h > bh * 2.2) continue;
     // 탐색 창 가장자리에 걸리거나 바짝 붙은 덩어리는 창 밖으로 이어지는(잘린) 글자일 수 있어 제외
     if (box.x0 <= gap || box.y0 <= 0 || box.x1 >= ww - gap || box.y1 >= wh) continue;
+    if (!looksLikeText(gray, { x0: wx0 + box.x0, y0: wy0 + box.y0, x1: wx0 + box.x1, y1: wy0 + box.y1 })) continue;
     const dx = (box.x0 + box.x1) / 2 - cx;
     const dy = (box.y0 + box.y1) / 2 - cy;
     candidates.push({ box, distance: Math.hypot(dx, dy) });

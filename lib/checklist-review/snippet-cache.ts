@@ -36,8 +36,8 @@ export function snippetCachePath(
   variant: SnippetVariant,
   regionKey: string,
 ): string {
-  // v6: 판독 근사 위치는 픽셀에서 실제 글자를 다시 찾아 확정, 못 찾으면 넓은 점선 범위로 표시
-  return `projects/${projectId}/snippets/${fileId}-p${page}-${variant}-${regionKey}-v6.jpg`;
+  // v7: 판독 근사 위치는 픽셀에서 실제 글자를 다시 찾아 확정, 못 찾으면 넓은 점선 범위로 표시
+  return `projects/${projectId}/snippets/${fileId}-p${page}-${variant}-${regionKey}-v7.jpg`;
 }
 
 /**

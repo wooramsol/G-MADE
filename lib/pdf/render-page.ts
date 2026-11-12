@@ -238,6 +238,7 @@ async function renderRegionSnippetInner(
     let boxMode: "solid" | "dashed" | null = region ? "dashed" : null;
     // 판독(OCR) 근사 좌표로만 찾은 위치 — 렌더링 뒤 픽셀에서 실제 글자 덩어리를 다시 찾는다
     let approxTextRegion: { x: number; y: number; width: number; height: number } | null = null;
+    let ocrMarkedPrecise = false;
     if (confirmedRegion && region) {
       anchorRegion = region;
       boxMode = "solid";
@@ -254,11 +255,9 @@ async function renderRegionSnippetInner(
         const { locateAnchorInOcr } = await import("./ocr-locate");
         const found = locateAnchorInOcr(ocrLines, anchors, region);
         if (found) {
-          if (found.precise) {
-            region = found.region;
-            anchorRegion = found.region;
-            boxMode = "solid";
-          } else {
+          // 저장된 "정밀" 표시도 그대로 믿지 않고, 렌더링 뒤 그 자리에 실제 글자가 있는지 확인한다
+          ocrMarkedPrecise = found.precise;
+          {
             // 근사 좌표는 몇 글자 높이만큼 빗나갈 수 있다 — 빗나가도 실제 글자가 들어오도록
             // 표시 범위를 넓혀 두고(점선 = "이 근처"), 아래에서 픽셀로 정확한 위치를 다시 찾는다.
             approxTextRegion = found.region;
@@ -295,7 +294,7 @@ async function renderRegionSnippetInner(
     if (approxTextRegion) {
       // 근사 박스 주변 픽셀에서 실제 글자 덩어리를 찾으면 그 위치로 확정해 선명하게 다시 그린다
       try {
-        const { findTextBoxNear, rgbaToGray, searchMargins } = await import("./ink-snap");
+        const { findTextBoxNear, looksLikeText, rgbaToGray, searchMargins } = await import("./ink-snap");
         const ax0 = approxTextRegion.x * image.width;
         const ay0 = approxTextRegion.y * image.height;
         const aw = approxTextRegion.width * image.width;
@@ -314,7 +313,8 @@ async function renderRegionSnippetInner(
         wctx.fillRect(0, 0, ww, wh);
         wctx.drawImage(image, wx, wy, ww, wh, 0, 0, ww, wh);
         const gray = rgbaToGray(wctx.getImageData(0, 0, ww, wh).data, ww, wh);
-        const local = findTextBoxNear(gray, { x0: ax0 - wx, y0: ay0 - wy, x1: ax0 - wx + aw, y1: ay0 - wy + ah });
+        const here = { x0: ax0 - wx, y0: ay0 - wy, x1: ax0 - wx + aw, y1: ay0 - wy + ah };
+        const local = ocrMarkedPrecise && looksLikeText(gray, here) ? here : findTextBoxNear(gray, here);
         const snapped = local ? { x0: local.x0 + wx, y0: local.y0 + wy, x1: local.x1 + wx, y1: local.y1 + wy } : null;
         if (snapped) {
           const exact = {
