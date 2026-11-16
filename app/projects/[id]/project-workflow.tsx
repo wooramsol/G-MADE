@@ -745,12 +745,14 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
           );
         })}
       </div>
-      {locked && completed ? (
+      {locked ? (
         <p className="rounded-md bg-[#f8fafc] px-4 py-2.5 text-sm text-[#475569]">
           <span aria-hidden="true">🔒 </span>
-          {phase === "pre"
-            ? "사전심의가 끝나 AI 분석과 전문가 분석이 잠겼습니다. 결과 열람과 다운로드만 할 수 있습니다."
-            : "심의가 종료되어 AI 분석과 전문가 분석이 잠겼습니다. 결과 열람과 다운로드만 할 수 있습니다."}
+          {!completed
+            ? "반려·철회된 신청이라 AI 분석과 전문가 분석이 잠겼습니다. 결과 열람과 다운로드만 할 수 있습니다."
+            : phase === "pre"
+              ? "사전심의가 끝나 AI 분석과 전문가 분석이 잠겼습니다. 결과 열람과 다운로드만 할 수 있습니다."
+              : "심의가 종료되어 AI 분석과 전문가 분석이 잠겼습니다. 결과 열람과 다운로드만 할 수 있습니다."}
         </p>
       ) : null}
       <div hidden={tab !== "ai"}>

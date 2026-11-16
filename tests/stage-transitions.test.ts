@@ -68,7 +68,12 @@ test("단계가 바뀌면 들어선 시각을 기록하고, 되돌리면 뒤 단
   assert.equal(stepCompletedAt(main, 4), undefined);
   const back = recordStageChange(main, { ...main, stage: "PRE_REVIEW" }, "2026-01-04T00:00:00.000Z");
   assert.equal(back.stageEnteredAt?.MAIN_REVIEW, undefined);
-  assert.equal(back.stageEnteredAt?.PRE_REVIEW, "2026-01-04T00:00:00.000Z");
+  // 되돌아간 단계의 시각(= 사전검토 완료 시각)은 그대로
+  assert.equal(back.stageEnteredAt?.PRE_REVIEW, "2026-01-02T00:00:00.000Z");
+  assert.equal(stepCompletedAt(back, 2), "2026-01-02T00:00:00.000Z");
+  // 반려 취소(반려 → 사전검토)도 도서접수 완료 시각을 바꾸지 않는다
+  const rejected = { ...screening, stage: "REJECTED" as const };
+  assert.equal(recordStageChange(rejected, { ...rejected, stage: "SCREENING" }, "2026-02-01T00:00:00.000Z").stageEnteredAt?.SCREENING, "2026-01-01T00:00:00.000Z");
   // 단계가 그대로면 아무것도 바꾸지 않는다
   assert.equal(recordStageChange(main, main), main);
   assert.equal(projectProgressStep({ ...base, stage: "WITHDRAWN", withdrawnFromStage: "PRE_REVIEW" }), 3);

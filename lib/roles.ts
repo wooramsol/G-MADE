@@ -53,6 +53,8 @@ export function projectProgressStep(project: Project): ProgressStep {
 /**
  * 단계가 바뀌었으면 새 단계에 들어선 시각을 기록한다 (저장 직전에 호출).
  * 되돌린 경우 그 뒤 단계의 기록은 지워서, 다시 진행했을 때의 시각이 남게 한다.
+ * 되돌아간 단계 자체의 시각은 건드리지 않는다 — 그 값은 앞 단계의 완료 시각이라, 덮어쓰면
+ * 예컨대 본심의 → 사전심의로 되돌렸을 때 '사전검토 완료 시각'이 되돌린 시각으로 바뀌어 버린다.
  */
 export function recordStageChange(before: Project, after: Project, now: string = new Date().toISOString()): Project {
   const from = projectStage(before);
@@ -62,7 +64,9 @@ export function recordStageChange(before: Project, after: Project, now: string =
   if (toIndex < 0) return after; // 반려·철회 — 진행 단계가 아니므로 기록하지 않음
   const entered: Partial<Record<ProjectStage, string>> = { ...(after.stageEnteredAt ?? {}) };
   for (const later of STAGE_ORDER.slice(toIndex + 1)) delete entered[later];
-  entered[to] = now;
+  const fromIndex = STAGE_ORDER.indexOf(from);
+  // 앞으로 나아간 경우에만 기록 (반려 취소·되돌리기는 기존 시각 유지)
+  if (fromIndex >= 0 && toIndex > fromIndex) entered[to] = now;
   return { ...after, stageEnteredAt: entered };
 }
 
