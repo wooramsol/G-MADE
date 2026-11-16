@@ -1,3 +1,4 @@
+import { cleanChecklistLabel } from "./clean-label";
 import type {
   ChecklistEvidence,
   ChecklistFinding,
@@ -379,8 +380,9 @@ export function remapItem(item: ChecklistItem, alignments: SubmissionAlignment):
     : { ...item, source: { ...item.source, fileName: mapped.fileName, page: mapped.page } };
 }
 
+/** 항목 문구 비교용 — 공백·가운뎃점 표기 차이·깨진 기호는 같은 문구로 본다 */
 export function normalizeItemText(text: string): string {
-  return text.replace(/\s+/g, "");
+  return cleanChecklistLabel(text).replace(/[\s·ㆍ・･∙⋅•]/g, "");
 }
 
 /** 항목 원문(공백 무시) -> 판정 매핑을 만듭니다. */

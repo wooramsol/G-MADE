@@ -46,7 +46,8 @@ type StatusFilter = ChecklistItemStatus | "전체";
 const STATUS_RANK: Record<ChecklistItemStatus, number> = { 충족: 3, 부분충족: 2, 미충족: 1, 확인불가: 0 };
 
 function normalizeItemTextForCompare(text: string): string {
-  return text.replace(/\s+/g, "");
+  // 공백·가운뎃점 표기 차이·깨진 기호는 같은 항목으로 본다 (그렇지 않으면 같은 항목이 '신규'로 표시됨)
+  return cleanChecklistLabel(text).replace(/[\s·ㆍ・･∙⋅•]/g, "");
 }
 
 type ItemChange = { kind: "개선" | "하락"; from: ChecklistItemStatus } | { kind: "신규" };

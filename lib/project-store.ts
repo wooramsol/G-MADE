@@ -1,3 +1,4 @@
+import { cleanChecklistLabel } from "@/lib/checklist-review/clean-label";
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import { projects as demoProjects } from "./demo-data";
 import {
@@ -69,7 +70,8 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
 export async function getProjectRecordById(id: string): Promise<Project | undefined> {
   // DB의 일반 프로젝트는 그 1건만 읽음 (예전엔 조회할 때마다 전체 프로젝트를 불러왔음)
   if (!isDemoProjectId(id) && (await isDatabaseAvailable())) {
-    return (await readManagedProjectFromDatabase(id)) ?? undefined;
+    const stored = await readManagedProjectFromDatabase(id);
+    return stored ? normalizeProjectEvaluationState(stored) : undefined;
   }
   const allProjects = await getAllProjectsIncludingTrashed();
   return allProjects.find((project) => project.id === id);
@@ -605,7 +607,16 @@ async function getAllProjectsIncludingTrashed(): Promise<Project[]> {
 function normalizeProjectEvaluationState(project: Project): Project {
   return {
     ...project,
-    checklistReviews: project.checklistReviews ?? [],
+    // 이미 저장된 검토의 구분·항목 문구에 남은 깨진 기호(방점 〮 등)도 읽을 때 정리 —
+    // 화면·보고서·내려받기·회차 비교가 모두 같은 문구를 쓰게 한다
+    checklistReviews: (project.checklistReviews ?? []).map((review) => ({
+      ...review,
+      items: (review.items ?? []).map((item) => {
+        const text = cleanChecklistLabel(item.text);
+        const category = item.category === undefined ? undefined : cleanChecklistLabel(item.category) || undefined;
+        return text === item.text && category === item.category ? item : { ...item, text, category };
+      }),
+    })),
   };
 }
 
