@@ -6,7 +6,7 @@ export default function SaasPageShell({
   children,
 }: {
   title: string;
-  description: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -14,7 +14,7 @@ export default function SaasPageShell({
       <div className="mx-auto max-w-[1500px] space-y-6 px-6 py-8">
         <div>
           <PageTitle>{title}</PageTitle>
-          <SectionDescription>{description}</SectionDescription>
+          {description ? <SectionDescription>{description}</SectionDescription> : null}
         </div>
         {children}
       </div>

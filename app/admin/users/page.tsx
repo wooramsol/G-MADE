@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { PageTitle, SectionDescription, SubsectionTitle } from "@/components/typography";
+import { PageTitle, SubsectionTitle } from "@/components/typography";
 import { getRoleLabel } from "@/lib/role-labels";
 import { formatPhone, listAccounts } from "@/lib/user-accounts";
 import { toggleAccountAction } from "./actions";
@@ -18,9 +18,6 @@ export default async function AdminUsersPage() {
       <div className="mx-auto max-w-[1500px] space-y-6 px-6 py-8">
         <div>
           <PageTitle>계정 관리</PageTitle>
-          <SectionDescription>
-            공무원 계정은 여기서 발급합니다. 지원자는 로그인 화면의 &lsquo;지원자 회원가입&rsquo;으로 직접 가입합니다.
-          </SectionDescription>
         </div>
 
         <section className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">

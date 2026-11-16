@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FormLabel, MutedText, PageTitle, SectionDescription } from "@/components/typography";
+import { FormLabel, MutedText, PageTitle } from "@/components/typography";
 import ProjectManagementGrid from "./project-management-grid";
 import { auth } from "@/auth";
 import { getAllProjects } from "@/lib/project-store";
@@ -29,11 +29,6 @@ export default async function ProjectManagementPage({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <PageTitle>{official ? "심의 프로젝트 목록" : "내 심의 신청"}</PageTitle>
-            <SectionDescription>
-              {official
-                ? "도서접수 → 사전검토 → 사전심의 → 본심의 → 심의종료 순서로 진행합니다. 프로젝트를 선택해 단계별 작업을 진행하세요."
-                : "사업을 등록하고 심의 도서를 접수하세요. 보완 요청이나 수정 도서 요청을 받으면 이곳에서 도서를 다시 제출할 수 있습니다."}
-            </SectionDescription>
           </div>
           <div className="flex flex-wrap gap-3">
             {official ? (

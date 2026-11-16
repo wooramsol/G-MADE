@@ -405,9 +405,6 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
           <span className="text-base font-bold text-[#2463b3]">
             {`+ ${kindLabel} PDF 첨부 (클릭 또는 드래그)`}
           </span>
-          <span className="mt-1 text-xs text-[#64748b]">
-            첨부한 뒤 내용을 확인하고 제출합니다.
-          </span>
         </button>
       ) : (
         <p className="mt-4 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
@@ -686,12 +683,12 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
                 ? `분석 완료 · ${formatUploadDateTime(doc.latestReview.completedAt)}`
                 : `분석 시작 · ${formatUploadDateTime(doc.latestReview.reviewedAt)}`
               : "분석 전"],
-            ["expert", "인간 전문가 분석", "심사위원 의견"],
+            ["expert", "인간 전문가 분석", null],
           ] as const
         ).map(([id, label, sub]) => (
           <button
             aria-selected={tab === id}
-            className={`flex flex-col items-start rounded-lg border-2 px-5 py-3.5 text-left transition ${
+            className={`flex flex-col items-start justify-center rounded-lg border-2 px-5 py-3.5 text-left transition ${
               tab === id ? (id === "ai" ? "border-[#2463b3] bg-[#2463b3] text-white" : "border-[#111827] bg-[#111827] text-white") : "border-[#d7dee8] bg-white text-[#334155] hover:border-[#9fb3cc]"
             }`}
             key={id}
@@ -700,7 +697,7 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
             type="button"
           >
             <span className="text-base font-bold">{label}</span>
-            <span className={`text-xs ${tab === id ? "text-white/80" : "text-[#94a3b8]"}`}>{sub}</span>
+            {sub ? <span className={`text-xs ${tab === id ? "text-white/80" : "text-[#94a3b8]"}`}>{sub}</span> : null}
           </button>
         ))}
       </div>
@@ -778,7 +775,6 @@ function PreReviewNotifyBar({ project, analyzed }: { project: Project; analyzed:
   return (
     <div className="rounded-md border border-[#e2e8f0] bg-[#f8fafc] p-4">
       <p className="text-sm font-bold text-[#15345b]">사전심의 결과 통보</p>
-      <p className="mt-1 text-xs text-[#64748b]">AI 분석과 전문가 의견을 정리해 지원자에게 전달한 뒤 통보하세요. 지원자가 수정 도서를 내면 본심의가 시작됩니다.</p>
       <textarea
         className="mt-2 h-16 w-full resize-y rounded-md border border-[#d7dee8] bg-white p-2.5 text-sm outline-none focus:border-[#2463b3]"
         onChange={(event) => setNote(event.target.value)}

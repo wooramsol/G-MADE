@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import IntegrationStatusPanel from "@/components/integration-status-panel";
-import { SectionDescription, SectionTitle, SubsectionTitle } from "@/components/typography";
+import { SectionTitle, SubsectionTitle } from "@/components/typography";
 import LoginHistoryPanel from "@/components/login-history-panel";
 import { getIntegrationStatuses } from "@/lib/integrations/status";
 import { getLoginHistoryForEmail } from "@/lib/login-history";
@@ -20,7 +20,6 @@ export default async function MyPage() {
   return (
     <SaasPageShell
       title="내 정보"
-      description="로그인된 내부 사용자의 계정 정보와 서비스 설정을 확인합니다."
     >
       <div className="space-y-8">
       <section className="grid items-stretch gap-6 xl:grid-cols-2">
@@ -70,10 +69,6 @@ export default async function MyPage() {
       <section className="space-y-4">
         <div>
           <SectionTitle>API 연동 상태</SectionTitle>
-          <SectionDescription>
-            운영 서버 환경 변수 기준으로 AI, 법령, 공간정보, 데이터베이스 연동 여부를 표시합니다. 키 값 전체는
-            노출하지 않습니다.
-          </SectionDescription>
         </div>
 
         <div className="grid items-start gap-4 xl:grid-cols-2">
