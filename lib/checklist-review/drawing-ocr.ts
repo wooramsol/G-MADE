@@ -243,11 +243,34 @@ function buildTileRects(width: number, height: number, grid: number): TileRect[]
 
 type PdfHandle = Awaited<ReturnType<typeof openPdfForRender>>;
 
+/**
+ * 고해상도 렌더링 동시 실행 수 제한.
+ * 도면 1쪽을 타일용으로 그리면 캔버스·픽셀 사본으로 수백 MB를 쓴다. 판독(모델 호출)은 6쪽씩
+ * 동시에 하되, 메모리를 많이 쓰는 '그리기~타일 인코딩' 구간은 2쪽씩만 겹치게 해서
+ * 서버 메모리 초과(instance killed: out of memory)로 분석이 통째로 끊기는 일을 막는다.
+ */
+const RENDER_CONCURRENCY = 2;
+let renderActive = 0;
+const renderWaiters: Array<() => void> = [];
+async function withRenderSlot<T>(task: () => Promise<T>): Promise<T> {
+  if (renderActive >= RENDER_CONCURRENCY) await new Promise<void>((resolve) => renderWaiters.push(resolve));
+  else renderActive += 1;
+  try {
+    return await task();
+  } finally {
+    const next = renderWaiters.shift();
+    if (next) next();
+    else renderActive -= 1;
+  }
+}
+
 async function ocrSinglePage(
   handle: PdfHandle,
   pageNumber: number,
 ): Promise<{ result: CachedOcrPage; usage?: ClaudeUsage; model?: string }> {
   const { pdf, canvasModule, renderPage } = handle;
+  // 그리기~타일 인코딩은 렌더 슬롯 안에서 — 끝나면 큰 캔버스는 놓아 주고 판독에 필요한 것만 들고 나온다
+  const prepared = await withRenderSlot(async () => {
   const page = await pdf.getPage(pageNumber);
   const viewport = page.getViewport({ scale: 1 });
   const longEdgePt = Math.max(viewport.width, viewport.height);
@@ -260,7 +283,7 @@ async function ocrSinglePage(
   smallCtx.fillRect(0, 0, small.width, small.height);
   smallCtx.drawImage(small, 0, 0);
   const kind = classifyRgba(smallCtx.getImageData(0, 0, small.width, small.height).data);
-  if (kind === "photo") return { result: { kind, grid: 0, lines: [] } };
+  if (kind === "photo") return { kind, grid: 0, done: true as const };
 
   // ② 적응형 타일 — A2 이상(긴 변 ≥ 1,400pt)은 3×3, 그 이하는 2×2
   const grid = longEdgePt >= 1_400 ? 3 : 2;
@@ -276,7 +299,7 @@ async function ocrSinglePage(
   const rects = buildTileRects(image.width, image.height, grid).filter(
     (rect) => inkRatio(gray, rect.x, rect.y, rect.x + rect.w, rect.y + rect.h) >= MIN_TILE_INK_RATIO,
   );
-  if (rects.length === 0) return { result: { kind, grid, lines: [] } };
+  if (rects.length === 0) return { kind, grid, done: true as const };
 
   const blocks: ClaudeContentBlock[] = [];
   for (const rect of rects) {
@@ -291,6 +314,10 @@ async function ocrSinglePage(
     });
   }
   blocks.push({ type: "text", text: "위 타일들의 글자를 규칙대로 JSON으로 출력하세요." });
+  return { kind, grid, done: false as const, gray, rects, blocks, image: { width: image.width, height: image.height } };
+  });
+  if (prepared.done) return { result: { kind: prepared.kind, grid: prepared.grid, lines: [] } };
+  const { kind, grid, gray, rects, blocks, image } = prepared;
 
   // ③ OCR
   const response = await callClaude({

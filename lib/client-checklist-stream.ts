@@ -99,5 +99,6 @@ export async function submitChecklistReviewStream(
   const trailing = handleLine(buffer);
   if (trailing) return trailing;
 
-  throw new Error("검토가 중단되었습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.");
+  // 결과 없이 연결이 끝남 — 네트워크 끊김 또는 서버 쪽 중단(시간·메모리 한도 초과)
+  throw new Error("검토가 도중에 끊겼습니다. 네트워크 문제이거나 서버에서 분석이 중단된 경우입니다. 잠시 뒤 다시 시도해 주세요.");
 }
