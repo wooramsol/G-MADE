@@ -33,7 +33,7 @@ import { sortProjectsByUpdatedAt } from "./project-sort";
 import { getWritableStoragePath } from "./runtime-storage";
 import { isProjectPurged, isProjectTrashed } from "./trash";
 import { mergeListChanges } from "./merge-list";
-import { activeAnalysisLock, applicantCanWithdraw, applicantSubmissionKind, canSetStage, projectStage, type SubmissionKind } from "./roles";
+import { activeAnalysisLock, applicantCanWithdraw, applicantSubmissionKind, canSetStage, projectStage, recordStageChange, type SubmissionKind } from "./roles";
 import type { ChecklistReview } from "./checklist-review/types";
 import type { DocumentSubmission, ExpertMemo, PreReviewDecision, Project, ProjectFile, ProjectStage, ReviewerMarker, ReviewPhase } from "./types";
 
@@ -472,7 +472,9 @@ async function updateStoredProject(
     if (await isDatabaseAvailable()) {
       const atomic = await updateManagedProjectAtomically(id, (stored) => {
         if (isProjectPurged(stored)) return null;
-        return updater({ ...stored, checklistReviews: stored.checklistReviews ?? [], updatedAt: new Date().toISOString() });
+        const base = { ...stored, checklistReviews: stored.checklistReviews ?? [], updatedAt: new Date().toISOString() };
+        // 단계가 바뀌면 그 시각을 함께 기록 (단계 완료 시각 표시용)
+        return recordStageChange(base, updater(base));
       });
       if (atomic !== "missing") return atomic ?? undefined;
     }
@@ -485,11 +487,12 @@ async function updateStoredProject(
     const storedProjects = await readCreatedProjects();
     const storedIndex = storedProjects.findIndex((project) => project.id === id);
     const baseProject = storedIndex >= 0 ? storedProjects[storedIndex] : existingProject;
-    const nextProject = updater({
+    const base = {
       ...baseProject,
       checklistReviews: baseProject.checklistReviews ?? [],
       updatedAt: new Date().toISOString(),
-    });
+    };
+    const nextProject = recordStageChange(base, updater(base));
 
     await persistProjectRecord(nextProject);
     return nextProject;

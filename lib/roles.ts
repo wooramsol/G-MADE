@@ -38,6 +38,47 @@ function lastOf<T>(list: T[] | undefined): T | undefined {
   return list && list.length > 0 ? list[list.length - 1] : undefined;
 }
 
+/** 진행 순서 — 1 도서접수 · 2 사전검토 · 3 사전심의 · 4 본심의 · 5 심의종료 */
+export const STAGE_ORDER: ProjectStage[] = ["RECEPTION", "SCREENING", "PRE_REVIEW", "MAIN_REVIEW", "CLOSED"];
+export type ProgressStep = 1 | 2 | 3 | 4 | 5;
+
+/** 진행 표시용 단계 번호 — 반려는 사전검토(2), 철회는 철회 당시 단계에 표시 */
+export function projectProgressStep(project: Project): ProgressStep {
+  const stage = projectStage(project);
+  const effective = stage === "WITHDRAWN" ? (project.withdrawnFromStage ?? "SCREENING") : stage;
+  const index = STAGE_ORDER.indexOf(effective);
+  return (index >= 0 ? index + 1 : 2) as ProgressStep;
+}
+
+/**
+ * 단계가 바뀌었으면 새 단계에 들어선 시각을 기록한다 (저장 직전에 호출).
+ * 되돌린 경우 그 뒤 단계의 기록은 지워서, 다시 진행했을 때의 시각이 남게 한다.
+ */
+export function recordStageChange(before: Project, after: Project, now: string = new Date().toISOString()): Project {
+  const from = projectStage(before);
+  const to = projectStage(after);
+  if (from === to) return after;
+  const toIndex = STAGE_ORDER.indexOf(to);
+  if (toIndex < 0) return after; // 반려·철회 — 진행 단계가 아니므로 기록하지 않음
+  const entered: Partial<Record<ProjectStage, string>> = { ...(after.stageEnteredAt ?? {}) };
+  for (const later of STAGE_ORDER.slice(toIndex + 1)) delete entered[later];
+  entered[to] = now;
+  return { ...after, stageEnteredAt: entered };
+}
+
+/**
+ * 단계(1~4)가 완료된 시각 = 다음 단계에 들어선 시각.
+ * 기록이 없는 예전 프로젝트는 접수·판정·수정 도서 제출 시각으로 추정한다 (본심의 종료 시각은 추정할 수 없어 비움).
+ */
+export function stepCompletedAt(project: Project, step: 1 | 2 | 3 | 4): string | undefined {
+  const recorded = project.stageEnteredAt?.[STAGE_ORDER[step]];
+  if (recorded) return recorded;
+  if (step === 1) return project.submissions?.[0]?.submittedAt;
+  if (step === 2) return lastOf((project.preReviewDecisions ?? []).filter((entry) => entry.decision === "통과"))?.decidedAt;
+  if (step === 3) return (project.submissions ?? []).find((entry) => entry.id === project.mainReviewSubmissionId)?.submittedAt;
+  return undefined;
+}
+
 /** 사전검토에서 보완 요청 후 아직 보완 도서를 안 냈는가 */
 function awaitingScreeningRevision(project: Project): boolean {
   const last = lastOf(project.preReviewDecisions);

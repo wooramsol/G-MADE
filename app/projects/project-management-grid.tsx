@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { CardTitle, Eyebrow } from "@/components/typography";
-import { projectStageStatus } from "@/lib/roles";
+import { projectProgressStep, projectStage, projectStageStatus, STAGE_LABELS, STAGE_ORDER } from "@/lib/roles";
 import { sortProjectsByUpdatedAt } from "@/lib/project-sort";
 import { filterActiveProjects } from "@/lib/trash";
 import type { Project } from "@/lib/types";
@@ -68,6 +68,7 @@ export default function ProjectManagementGrid({ serverProjects, query, addLabel 
                 {projectStageStatus(project)}
               </span>
             </div>
+            <StageProgress project={project} />
             <dl className="mt-5 flex-1 space-y-3 text-sm text-[#475569]">
               <Info label="사업위치" value={project.location} />
               <Info label="시행자" value={project.client} />
@@ -94,6 +95,39 @@ export default function ProjectManagementGrid({ serverProjects, query, addLabel 
         </Link>
       )}
     </>
+  );
+}
+
+/** 5단계 진행 막대 — 지난 단계는 남색, 현재 단계는 파랑(반려·철회는 빨강), 남은 단계는 회색 */
+function StageProgress({ project }: { project: Project }) {
+  const stage = projectStage(project);
+  const current = projectProgressStep(project);
+  const ended = stage === "REJECTED" || stage === "WITHDRAWN";
+  const closed = stage === "CLOSED";
+  return (
+    <ol aria-label={`진행 단계 ${current}/5 · ${projectStageStatus(project)}`} className="mt-4 grid grid-cols-5 gap-1.5">
+      {STAGE_ORDER.map((entry, index) => {
+        const step = index + 1;
+        const done = step < current || closed;
+        const isCurrent = step === current && !closed;
+        return (
+          <li key={entry}>
+            <span
+              className={`block h-1.5 rounded-full ${
+                done ? "bg-[#15345b]" : isCurrent ? (ended ? "bg-[#dc2626]" : "bg-[#2463b3]") : "bg-[#e2e8f0]"
+              }`}
+            />
+            <span
+              className={`mt-1.5 block truncate text-xs leading-4 ${
+                isCurrent ? (ended ? "font-bold text-[#b91c1c]" : "font-bold text-[#2463b3]") : done ? "font-semibold text-[#475569]" : "text-[#94a3b8]"
+              }`}
+            >
+              {STAGE_LABELS[entry]}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

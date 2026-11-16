@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applicantSubmissionKind, canSetStage, phaseCompleted, phaseWritable, projectStage } from "../lib/roles";
+import { applicantSubmissionKind, canSetStage, phaseCompleted, phaseWritable, projectProgressStep, projectStage, recordStageChange, stepCompletedAt } from "../lib/roles";
 import type { Project } from "../lib/types";
 
 const base = { id: "p", name: "t" } as unknown as Project;
@@ -55,4 +55,22 @@ test("지원자 제출 가능 시점", () => {
 test("기존 프로젝트(단계 없음) 추정", () => {
   assert.equal(projectStage(base), "RECEPTION");
   assert.equal(projectStage({ ...base, submissions: [sub("s1", "x")] } as Project), "SCREENING");
+});
+
+test("단계가 바뀌면 들어선 시각을 기록하고, 되돌리면 뒤 단계 기록을 지운다", () => {
+  const screening = recordStageChange({ ...base, stage: "RECEPTION" }, { ...base, stage: "SCREENING" }, "2026-01-01T00:00:00.000Z");
+  assert.equal(screening.stageEnteredAt?.SCREENING, "2026-01-01T00:00:00.000Z");
+  const pre = recordStageChange(screening, { ...screening, stage: "PRE_REVIEW" }, "2026-01-02T00:00:00.000Z");
+  const main = recordStageChange(pre, { ...pre, stage: "MAIN_REVIEW" }, "2026-01-03T00:00:00.000Z");
+  assert.equal(stepCompletedAt(main, 1), "2026-01-01T00:00:00.000Z");
+  assert.equal(stepCompletedAt(main, 2), "2026-01-02T00:00:00.000Z");
+  assert.equal(stepCompletedAt(main, 3), "2026-01-03T00:00:00.000Z");
+  assert.equal(stepCompletedAt(main, 4), undefined);
+  const back = recordStageChange(main, { ...main, stage: "PRE_REVIEW" }, "2026-01-04T00:00:00.000Z");
+  assert.equal(back.stageEnteredAt?.MAIN_REVIEW, undefined);
+  assert.equal(back.stageEnteredAt?.PRE_REVIEW, "2026-01-04T00:00:00.000Z");
+  // 단계가 그대로면 아무것도 바꾸지 않는다
+  assert.equal(recordStageChange(main, main), main);
+  assert.equal(projectProgressStep({ ...base, stage: "WITHDRAWN", withdrawnFromStage: "PRE_REVIEW" }), 3);
+  assert.equal(projectProgressStep({ ...base, stage: "REJECTED" }), 2);
 });

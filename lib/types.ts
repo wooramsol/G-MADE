@@ -139,6 +139,8 @@ export type Project = {
   ownerEmail?: string;
   /** 심의 단계 (없으면 검토 기록 유무로 추정) */
   stage?: ProjectStage;
+  /** 각 단계에 들어선 시각 (ISO) — 앞 단계의 완료 시각 표시용. 단계를 되돌리면 그 뒤 단계 기록은 지운다 */
+  stageEnteredAt?: Partial<Record<ProjectStage, string>>;
   /** 도서 접수·보완 제출 이력 */
   submissions?: DocumentSubmission[];
   /** 지원자가 신청을 철회한 시각 */

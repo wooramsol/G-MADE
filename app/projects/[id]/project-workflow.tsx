@@ -6,8 +6,8 @@ import { buildDocumentVersions, versionKeyOfReview } from "@/lib/checklist-revie
 import type { ChecklistReview } from "@/lib/checklist-review/types";
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
 import { formatBytes } from "@/lib/format-bytes";
-import { formatUploadDateTime } from "@/lib/format-datetime";
-import { applicantSubmissionKind, applicantCanWithdraw, phaseCompleted, phaseSubmission, phaseWritable, projectStage } from "@/lib/roles";
+import { formatCompactDateTime, formatUploadDateTime } from "@/lib/format-datetime";
+import { applicantSubmissionKind, applicantCanWithdraw, phaseCompleted, phaseSubmission, phaseWritable, projectStage, stepCompletedAt } from "@/lib/roles";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { Project, ProjectStage, ReviewPhase } from "@/lib/types";
 import { getMaxUploadFileLabel, getOversizedUploadFiles, buildOversizedUploadMessage } from "@/lib/upload-limits";
@@ -130,6 +130,7 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
   return (
     <div className={official ? "" : "space-y-4"}>
       <Stepper
+        completedAt={(step) => (step <= 4 ? stepCompletedAt(project, step as 1 | 2 | 3 | 4) : undefined)}
         current={currentStep}
         official={official}
         onSelect={setViewStep}
@@ -182,7 +183,10 @@ function Stepper({
   rejected,
   rejectedLabel = "반려",
   onSelect,
+  completedAt,
 }: {
+  /** 단계가 완료된 시각 (ISO) — 완료된 단계의 이름 옆에 표시 */
+  completedAt: (step: StepId) => string | undefined;
   current: StepId;
   view: StepId;
   official: boolean;
@@ -197,6 +201,7 @@ function Stepper({
         const isCurrent = step.id === current;
         const selected = official && step.id === view;
         const reachable = official && step.id <= current;
+        const doneAt = done ? formatCompactDateTime(completedAt(step.id)) : "";
         return (
           <li className={selected ? "relative z-10 -mb-[2px]" : official ? "pb-3" : ""} key={step.id}>
             <button
@@ -222,11 +227,16 @@ function Stepper({
               >
                 {done ? "✓" : step.id}
               </span>
-              <span className="flex min-h-9 min-w-0 items-center">
+              <span className="flex min-h-9 min-w-0 flex-1 flex-wrap items-center gap-x-2">
                 <span className={`block text-base leading-5 ${selected ? "font-black" : "font-bold"}`}>
                   {step.label}
                   {isCurrent && rejected ? <span className="ml-1.5 rounded bg-red-100 px-1.5 text-xs text-red-700">{rejectedLabel}</span> : null}
                 </span>
+                {doneAt ? (
+                  <span className="ml-auto whitespace-nowrap text-xs font-medium leading-4 text-[#64748b]" title={`${step.label} 완료 시각`}>
+                    {doneAt}
+                  </span>
+                ) : null}
               </span>
             </button>
           </li>
