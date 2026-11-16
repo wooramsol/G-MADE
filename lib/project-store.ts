@@ -261,6 +261,18 @@ export class ProjectConflictError extends Error {
   }
 }
 
+/**
+ * AI 분석이 도는 동안에는 공무원의 단계 전환(판정·결과 통보·종료·되돌리기)을 받지 않는다.
+ * 분석 도중 단계가 바뀌면 결과가 이미 잠긴 단계에 뒤늦게 저장되고, 지원자에게는 종료·변경 알림이 먼저 가 버린다.
+ * (저장 직전 잠금 안에서 확인 — 동시에 시작된 분석도 놓치지 않음)
+ */
+function assertNoActiveAnalysis(project: Project): void {
+  if (!activeAnalysisLock(project)) return;
+  throw new ProjectConflictError(
+    "AI 분석이 진행 중입니다. 분석이 끝난 뒤 다시 시도해 주세요. (분석이 도중에 끊긴 경우 최대 5분 30초 뒤에 풀립니다)",
+  );
+}
+
 /** 사전검토 판정 — 통과 → 사전심의(현재 최신 도서 기준), 반려 → 종료, 보완요청 → 사전검토 유지 */
 export async function addPreReviewDecision(id: string, decision: PreReviewDecision): Promise<Project | undefined> {
   const nextStage: ProjectStage =
@@ -269,6 +281,7 @@ export async function addPreReviewDecision(id: string, decision: PreReviewDecisi
     if (projectStage(project) !== "SCREENING") {
       throw new ProjectConflictError("이미 다른 사람이 판정했거나 단계가 바뀌었습니다. 화면을 새로고침해 주세요.");
     }
+    assertNoActiveAnalysis(project);
     const submissions = project.submissions ?? [];
     return {
       ...project,
@@ -293,6 +306,7 @@ export async function notifyPreReviewResult(id: string, note: string): Promise<P
   return updateStoredProject(id, (project) => {
     if (projectStage(project) !== "PRE_REVIEW") throw new ProjectConflictError("사전심의 단계에서만 결과를 통보할 수 있습니다.");
     if (project.preReviewNotifiedAt) throw new ProjectConflictError("이미 결과를 통보했습니다.");
+    assertNoActiveAnalysis(project);
     return { ...project, preReviewNotifiedAt: new Date().toISOString(), preReviewNote: note || undefined };
   });
 }
@@ -320,6 +334,7 @@ export async function setProjectStage(
     if (!canSetStage(previousStage, stage)) {
       throw new ProjectConflictError("지금 단계에서는 그렇게 바꿀 수 없습니다. 화면을 새로고침해 주세요.");
     }
+    assertNoActiveAnalysis(current);
     if (previousStage === "PRE_REVIEW" && stage === "PRE_REVIEW") {
       if (!current.preReviewNotifiedAt) throw new ProjectConflictError("통보한 결과가 없습니다.");
       if (current.mainReviewSubmissionId) throw new ProjectConflictError("지원자가 이미 수정 도서를 제출했습니다.");
