@@ -18,13 +18,18 @@ import ScreeningViewer from "./screening-viewer";
 
 type StepId = 1 | 2 | 3 | 4 | 5;
 
-const STEPS: Array<{ id: StepId; label: string; desc: string }> = [
-  { id: 1, label: "도서접수", desc: "지원자 도서 제출" },
-  { id: 2, label: "사전검토", desc: "도서 확인 · 유관부서 · 판정" },
-  { id: 3, label: "사전심의", desc: "AI 분석 · 전문가 분석" },
-  { id: 4, label: "본심의", desc: "수정 도서 · AI · 전문가" },
-  { id: 5, label: "심의종료", desc: "결과 통지" },
+const STEPS: Array<{ id: StepId; label: string }> = [
+  { id: 1, label: "도서접수" },
+  { id: 2, label: "사전검토" },
+  { id: 3, label: "사전심의" },
+  { id: 4, label: "본심의" },
+  { id: 5, label: "심의종료" },
 ];
+
+/** 선택한 단계 탭과 아래 내용 영역을 한 테두리로 잇는 색 (단계별) */
+function frameBorder(step: StepId): string {
+  return step >= 4 ? "border-[#111827]" : step === 3 ? "border-[#2463b3]" : "border-[#15345b]";
+}
 
 function stageStep(stage: ProjectStage): StepId {
   if (stage === "RECEPTION") return 1;
@@ -123,7 +128,7 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
   const ended = stage === "REJECTED" || stage === "WITHDRAWN";
 
   return (
-    <div className="space-y-4">
+    <div className={official ? "" : "space-y-4"}>
       <Stepper
         current={currentStep}
         official={official}
@@ -136,8 +141,8 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
       {!official ? <ApplicantStatus project={project} /> : null}
 
       <div
-        className={`rounded-md border-2 bg-white p-5 panel-shadow ${
-          viewStep >= 4 ? "border-[#111827]" : viewStep === 3 ? "border-[#2463b3]" : "border-[#15345b]"
+        className={`rounded-md border-2 bg-white p-5 panel-shadow ${frameBorder(viewStep)} ${
+          official ? (viewStep === 1 ? "rounded-tl-none" : viewStep === 5 ? "rounded-tr-none" : "") : ""
         }`}
       >
         {viewStep === 1 || !official ? <ReceptionPanel official={official} project={project} /> : null}
@@ -193,34 +198,35 @@ function Stepper({
         const selected = official && step.id === view;
         const reachable = official && step.id <= current;
         return (
-          <li key={step.id}>
+          <li className={selected ? "relative z-10 -mb-[2px]" : official ? "pb-3" : ""} key={step.id}>
             <button
-              className={`flex h-full w-full items-center gap-3 rounded-lg border-2 px-3.5 py-4 text-left transition ${
+              className={`flex h-full w-full gap-3 px-3.5 text-left transition ${
                 selected
-                  ? "border-[#15345b] bg-[#15345b] text-white shadow-lg"
-                  : isCurrent
-                    ? "border-[#2463b3] bg-[#f3f7fc] text-[#15345b]"
-                    : done
-                      ? "border-[#c9d6e6] bg-white text-[#15345b]"
-                      : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8]"
-              } ${reachable ? "cursor-pointer hover:border-[#2463b3]" : "cursor-default"}`}
+                  ? `items-start rounded-t-lg border-2 border-b-0 bg-white pb-7 pt-4 text-[#15345b] ${frameBorder(step.id)}`
+                  : `items-center rounded-lg border-2 py-4 ${
+                      isCurrent
+                        ? "border-[#2463b3] bg-[#f3f7fc] text-[#15345b]"
+                        : done
+                          ? "border-[#c9d6e6] bg-white text-[#15345b]"
+                          : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8]"
+                    }`
+              } ${reachable && !selected ? "cursor-pointer hover:border-[#2463b3]" : reachable ? "cursor-pointer" : "cursor-default"}`}
               disabled={!reachable}
               onClick={() => onSelect(step.id)}
               type="button"
             >
               <span
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-black ${
-                  selected ? "bg-white/20" : done ? "bg-[#15345b] text-white" : isCurrent ? "bg-[#2463b3] text-white" : "bg-[#e2e8f0]"
+                  done ? "bg-[#15345b] text-white" : isCurrent ? "bg-[#2463b3] text-white" : "bg-[#e2e8f0]"
                 }`}
               >
                 {done ? "✓" : step.id}
               </span>
               <span className="min-w-0">
-                <span className="block text-base font-bold leading-5">
+                <span className={`block text-base leading-5 ${selected ? "font-black" : "font-bold"}`}>
                   {step.label}
                   {isCurrent && rejected ? <span className="ml-1.5 rounded bg-red-100 px-1.5 text-[11px] text-red-700">{rejectedLabel}</span> : null}
                 </span>
-                <span className={`mt-0.5 block text-[11px] leading-4 ${selected ? "text-white/80" : "opacity-75"}`}>{step.desc}</span>
               </span>
             </button>
           </li>
