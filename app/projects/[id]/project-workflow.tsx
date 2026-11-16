@@ -15,6 +15,7 @@ import { showToast } from "../../toast";
 import ChecklistReviewSection from "./checklist-review-section";
 import ExpertReviewSection, { type ExpertVersionInfo } from "./expert-review-section";
 import ScreeningViewer from "./screening-viewer";
+import StageTransitionOverlay, { BlockingNotice, runStageTransition } from "./stage-transition-overlay";
 
 type StepId = 1 | 2 | 3 | 4 | 5;
 
@@ -129,6 +130,7 @@ export default function ProjectWorkflow({ project, official }: { project: Projec
 
   return (
     <div className={official ? "" : "space-y-4"}>
+      <StageTransitionOverlay settleKey={`${stage}|${project.updatedAt ?? ""}`} />
       <Stepper
         completedAt={(step) => (step <= 4 ? stepCompletedAt(project, step as 1 | 2 | 3 | 4) : undefined)}
         current={currentStep}
@@ -353,6 +355,8 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
 
   return (
     <section>
+      {/* 도서 제출(업로드·접수 처리) 중에는 다른 조작을 막는다 */}
+      {busy ? <BlockingNotice label={busy} /> : null}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         {official ? null : <h3 className="text-lg font-bold text-[#15345b]">도서 접수</h3>}
         <p className="text-xs text-[#64748b]">PDF · 최대 {getMaxUploadFileLabel()}</p>
@@ -567,22 +571,27 @@ function DecisionPanel({ project }: { project: Project }) {
       decision === "통과" ? "사전검토를 통과 처리하고 사전심의로 넘길까요?" : decision === "반려" ? "반려 처리할까요? 심의가 종료됩니다." : "지원자에게 보완을 요청할까요?";
     if (!window.confirm(confirmText)) return;
     setBusy(true);
-    try {
-      const response = await fetch(`/api/projects/${project.id}/decision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision, note }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "판정을 저장하지 못했습니다.");
-      setNote("");
-      showToast({ message: `${decision} 처리했습니다.`, tone: "success" });
-      router.refresh();
-    } catch (error) {
-      showToast({ message: error instanceof Error ? error.message : "판정을 저장하지 못했습니다.", tone: "error" });
-    } finally {
-      setBusy(false);
-    }
+    const transitionLabel =
+      decision === "통과" ? "사전심의로 넘기는 중…" : decision === "반려" ? "반려 처리하는 중…" : "보완 요청을 보내는 중…";
+    await runStageTransition(transitionLabel, async () => {
+      try {
+        const response = await fetch(`/api/projects/${project.id}/decision`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decision, note }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "판정을 저장하지 못했습니다.");
+        setNote("");
+        showToast({ message: `${decision} 처리했습니다.`, tone: "success" });
+        router.refresh();
+        return true;
+      } catch (error) {
+        showToast({ message: error instanceof Error ? error.message : "판정을 저장하지 못했습니다.", tone: "error" });
+        return false;
+      }
+    });
+    setBusy(false);
   };
 
   const reopen = async () => {
@@ -592,10 +601,12 @@ function DecisionPanel({ project }: { project: Project }) {
         : "사전검토 단계로 되돌릴까요?\n사전심의 결과 통보와 본심의 진행이 취소되고, 다시 '통과'하면 그때의 최신 도서로 사전심의를 진행합니다.\n(접수 도서·AI 분석·전문가 의견 기록은 그대로 남습니다.)";
     if (!window.confirm(warning)) return;
     setBusy(true);
-    if (await requestStage(project.id, "SCREENING")) {
+    await runStageTransition("사전검토 단계로 되돌리는 중…", async () => {
+      if (!(await requestStage(project.id, "SCREENING"))) return false;
       showToast({ message: "사전검토 단계로 되돌렸습니다.", tone: "success" });
       router.refresh();
-    }
+      return true;
+    });
     setBusy(false);
   };
 
@@ -778,10 +789,12 @@ function PreReviewNotifyBar({ project, analyzed }: { project: Project; analyzed:
     const cancel = async () => {
       if (!window.confirm("사전심의 결과 통보를 취소할까요?\n지원자는 다시 통보를 받을 때까지 수정 도서를 낼 수 없습니다.")) return;
       setBusy(true);
-      if (await requestStage(project.id, "PRE_REVIEW")) {
+      await runStageTransition("결과 통보를 취소하는 중…", async () => {
+        if (!(await requestStage(project.id, "PRE_REVIEW"))) return false;
         showToast({ message: "결과 통보를 취소했습니다.", tone: "success" });
         router.refresh();
-      }
+        return true;
+      });
       setBusy(false);
     };
     return (
@@ -800,21 +813,24 @@ function PreReviewNotifyBar({ project, analyzed }: { project: Project; analyzed:
     const lead = analyzed ? "" : "⚠ 사전심의 AI 분석을 아직 하지 않았습니다.\n\n";
     if (!window.confirm(`${lead}사전심의를 마치고 지원자에게 결과를 통보할까요?\n지원자에게 수정 도서 제출 요청 알림이 갑니다.`)) return;
     setBusy(true);
-    try {
-      const response = await fetch(`/api/projects/${project.id}/decision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notifyPreReview: true, note }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "처리하지 못했습니다.");
-      showToast({ message: "사전심의 결과를 통보했습니다.", tone: "success" });
-      router.refresh();
-    } catch (error) {
-      showToast({ message: error instanceof Error ? error.message : "처리하지 못했습니다.", tone: "error" });
-    } finally {
-      setBusy(false);
-    }
+    await runStageTransition("사전심의 결과를 통보하는 중…", async () => {
+      try {
+        const response = await fetch(`/api/projects/${project.id}/decision`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notifyPreReview: true, note }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "처리하지 못했습니다.");
+        showToast({ message: "사전심의 결과를 통보했습니다.", tone: "success" });
+        router.refresh();
+        return true;
+      } catch (error) {
+        showToast({ message: error instanceof Error ? error.message : "처리하지 못했습니다.", tone: "error" });
+        return false;
+      }
+    });
+    setBusy(false);
   };
   return (
     <div className="rounded-md bg-[#f8fafc] p-4">
@@ -842,10 +858,12 @@ function CloseReviewBar({ project, analyzed }: { project: Project; analyzed: boo
     const lead = analyzed ? "" : "⚠ 본심의 AI 분석을 아직 하지 않았습니다.\n\n";
     if (!window.confirm(`${lead}본심의를 마치고 심의를 종료할까요?\n지원자에게 '심의 결과는 별도로 통지할 예정'이라는 알림이 갑니다.`)) return;
     setBusy(true);
-    if (await requestStage(project.id, "CLOSED")) {
+    await runStageTransition("심의를 종료하는 중…", async () => {
+      if (!(await requestStage(project.id, "CLOSED"))) return false;
       showToast({ message: "심의를 종료했습니다.", tone: "success" });
       router.refresh();
-    }
+      return true;
+    });
     setBusy(false);
   };
   const backToPre = async () => {
@@ -856,10 +874,12 @@ function CloseReviewBar({ project, analyzed }: { project: Project; analyzed: boo
     )
       return;
     setBusy(true);
-    if (await requestStage(project.id, "PRE_REVIEW")) {
+    await runStageTransition("사전심의 단계로 되돌리는 중…", async () => {
+      if (!(await requestStage(project.id, "PRE_REVIEW"))) return false;
       showToast({ message: "사전심의 단계로 되돌렸습니다.", tone: "success" });
       router.refresh();
-    }
+      return true;
+    });
     setBusy(false);
   };
   return (
@@ -882,7 +902,11 @@ function ClosedPanel({ project }: { project: Project }) {
   const router = useRouter();
   const reopen = async () => {
     if (!window.confirm("본심의 단계로 되돌릴까요?\n지원자에게 단계 변경 알림이 갑니다.")) return;
-    if (await requestStage(project.id, "MAIN_REVIEW")) router.refresh();
+    await runStageTransition("본심의 단계로 되돌리는 중…", async () => {
+      if (!(await requestStage(project.id, "MAIN_REVIEW"))) return false;
+      router.refresh();
+      return true;
+    });
   };
   return (
     <section className="py-6 text-center">
@@ -907,18 +931,21 @@ function WithdrawButton({ project }: { project: Project }) {
       : "아직 도서를 제출하지 않은 신청입니다. 신청을 취소하고 목록에서 지울까요?";
     if (!window.confirm(message)) return;
     setBusy(true);
-    try {
-      const response = await fetch(`/api/projects/${project.id}/withdraw`, { method: "POST" });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string; deleted?: boolean };
-      if (!response.ok) throw new Error(payload.error ?? "처리하지 못했습니다.");
-      showToast({ message: payload.deleted ? "신청을 취소했습니다." : "신청을 철회했습니다.", tone: "success" });
-      if (payload.deleted) router.push("/projects");
-      else router.refresh();
-    } catch (error) {
-      showToast({ message: error instanceof Error ? error.message : "처리하지 못했습니다.", tone: "error" });
-    } finally {
-      setBusy(false);
-    }
+    await runStageTransition(submitted ? "신청을 철회하는 중…" : "신청을 취소하는 중…", async () => {
+      try {
+        const response = await fetch(`/api/projects/${project.id}/withdraw`, { method: "POST" });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string; deleted?: boolean };
+        if (!response.ok) throw new Error(payload.error ?? "처리하지 못했습니다.");
+        showToast({ message: payload.deleted ? "신청을 취소했습니다." : "신청을 철회했습니다.", tone: "success" });
+        if (payload.deleted) router.push("/projects");
+        else router.refresh();
+        return true;
+      } catch (error) {
+        showToast({ message: error instanceof Error ? error.message : "처리하지 못했습니다.", tone: "error" });
+        return false;
+      }
+    });
+    setBusy(false);
   };
   return (
     <button
