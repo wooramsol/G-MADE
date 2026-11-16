@@ -94,8 +94,8 @@ export default function ReportView({ project, review, statusLabel }: { project: 
         </section>
 
         {/* 대상지 현황 · 지형 분석 (화면과 같은 카드) */}
-        <div className="grid grid-cols-2 items-stretch gap-5 print-avoid-break">
-          <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} projectId={project.id} />
+        <div className="print-avoid-break">
+          <LandscapeZonePanel alwaysOpen address={project.location} locationPoint={project.locationPoint} projectId={project.id} />
         </div>
 
         {/* 체크리스트 검토 결과 */}

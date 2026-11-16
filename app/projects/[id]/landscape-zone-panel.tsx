@@ -55,6 +55,8 @@ type LandscapeZonePanelProps = {
   projectId: string;
   address: string;
   locationPoint?: ProjectLocationPoint;
+  /** 보고서(PDF)처럼 항상 펼쳐 보여야 하는 화면 — 접기 버튼 없이 지도·지형을 바로 표시 */
+  alwaysOpen?: boolean;
 };
 
 const LAYER_CHIP_COLORS: Record<string, string> = {
@@ -63,13 +65,13 @@ const LAYER_CHIP_COLORS: Record<string, string> = {
   "cultural-heritage": "bg-[#fef2f2] text-[#b91c1c]",
 };
 
-export default function LandscapeZonePanel({ projectId, address, locationPoint }: LandscapeZonePanelProps) {
+export default function LandscapeZonePanel({ projectId, address, locationPoint, alwaysOpen = false }: LandscapeZonePanelProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [result, setResult] = useState<LandscapeZoneResponse | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   // 기본은 한 줄 요약 — 펼쳤을 때만 지도·3D를 불러온다
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(alwaysOpen);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +144,7 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
 
   return (
     <div className="rounded-md border border-[#d7dee8] bg-white panel-shadow">
+      {alwaysOpen ? null : (
       <button
         aria-expanded={open}
         className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5 text-left"
@@ -152,8 +155,9 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
         <span className="min-w-0 flex-1 truncate text-sm text-[#475569]">{summary}</span>
         <span className="text-xs font-bold text-[#2463b3]">{open ? "접기 ▲" : "지도 · 지형 보기 ▼"}</span>
       </button>
+      )}
       {open ? (
-    <div className="grid items-start gap-x-8 gap-y-6 border-t border-[#e2e8f0] p-5 lg:grid-cols-2">
+    <div className={`grid items-start gap-x-8 gap-y-6 p-5 ${alwaysOpen ? "grid-cols-2" : "border-t border-[#e2e8f0] lg:grid-cols-2"}`}>
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <SubsectionTitle>경관지구 · 용도지역</SubsectionTitle>
