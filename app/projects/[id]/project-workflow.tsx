@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { buildDocumentVersions, versionKeyOfReview } from "@/lib/checklist-review/document-versions";
 import type { ChecklistReview } from "@/lib/checklist-review/types";
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
@@ -662,42 +662,62 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
     return <EmptyStep text={phase === "main" ? "지원자가 수정 도서를 제출하면 본심의를 진행할 수 있습니다." : "심사할 도서가 없습니다."} />;
   }
   const stage = projectStage(project);
+  const aiDone = Boolean(doc.latestReview?.completedAt);
   return (
     <section className="space-y-4">
       <p className="text-xs text-[#64748b]">
         심사 도서: {doc.submission.file.originalName.normalize("NFC")} · {formatBytes(doc.submission.file.sizeBytes)} ·{" "}
         도서 접수 {formatUploadDateTime(doc.submission.submittedAt)}
       </p>
-      {/* 단계 탭(폴더형) 아래의 보조 탭 — 밑줄형으로 가볍게 */}
-      <div className="flex gap-7 border-b border-[#d7dee8]" role="tablist">
+      {/* 단계 탭(폴더형) 아래의 보조 탭 — ① AI 분석 › ② 전문가 분석 순서를 번호·화살표로 표시.
+          AI 분석이 선행이지만 필수는 아니므로, 분석 전에도 전문가 탭은 흐리게만 하고 누를 수 있다. */}
+      <div className="flex flex-wrap items-center gap-x-4 border-b border-[#d7dee8]" role="tablist">
         {(
           [
-            ["ai", "AI 에이전트 분석", doc.latestReview
-              ? doc.latestReview.completedAt
-                ? `분석 완료 · ${formatUploadDateTime(doc.latestReview.completedAt)}`
-                : `분석 시작 · ${formatUploadDateTime(doc.latestReview.reviewedAt)}`
-              : "분석 전"],
-            ["expert", "인간 전문가 분석", null],
+            ["ai", "AI 에이전트 분석", aiDone
+              ? `완료 · ${formatUploadDateTime(doc.latestReview?.completedAt ?? "")}`
+              : doc.latestReview
+                ? `분석 시작 · ${formatUploadDateTime(doc.latestReview.reviewedAt)}`
+                : "분석 전"],
+            ["expert", "인간 전문가 분석", aiDone ? null : "AI 분석 후 진행 권장"],
           ] as const
-        ).map(([id, label, sub]) => (
-          <button
-            aria-selected={tab === id}
-            className={`-mb-px flex items-baseline gap-2 border-b-[3px] px-1 pb-2.5 pt-1 text-left transition ${
-              tab === id
-                ? id === "ai"
-                  ? "border-[#2463b3] text-[#2463b3]"
-                  : "border-[#111827] text-[#111827]"
-                : "border-transparent text-[#64748b] hover:text-[#15345b]"
-            }`}
-            key={id}
-            onClick={() => setTab(id)}
-            role="tab"
-            type="button"
-          >
-            <span className="text-base font-bold">{label}</span>
-            {sub ? <span className="text-xs font-normal text-[#94a3b8]">{sub}</span> : null}
-          </button>
-        ))}
+        ).map(([id, label, sub], index) => {
+          const selected = tab === id;
+          const done = id === "ai" && aiDone;
+          // AI 분석 전의 전문가 탭 — 선택하지 않았을 때만 흐리게
+          const waiting = id === "expert" && !aiDone && !selected;
+          const accent = id === "ai" ? "#2463b3" : "#111827";
+          return (
+            <Fragment key={id}>
+              {index > 0 ? (
+                <span aria-hidden="true" className="pb-2.5 text-lg leading-none text-[#94a3b8]">
+                  ›
+                </span>
+              ) : null}
+              <button
+                aria-selected={selected}
+                className={`-mb-px flex items-center gap-2 border-b-[3px] px-1 pb-2.5 pt-1 text-left transition ${
+                  selected ? "" : "border-transparent hover:text-[#15345b]"
+                } ${waiting ? "text-[#94a3b8]" : selected ? "" : "text-[#475569]"}`}
+                onClick={() => setTab(id)}
+                role="tab"
+                style={selected ? { borderColor: accent, color: accent } : undefined}
+                type="button"
+              >
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                    waiting ? "bg-[#e2e8f0] text-[#94a3b8]" : done ? "bg-[#15345b] text-white" : selected ? "text-white" : "bg-[#e2e8f0] text-[#475569]"
+                  }`}
+                  style={selected && !done ? { backgroundColor: accent } : undefined}
+                >
+                  {done ? "✓" : index + 1}
+                </span>
+                <span className="text-base font-bold">{label}</span>
+                {sub ? <span className="text-xs font-normal text-[#94a3b8]">{sub}</span> : null}
+              </button>
+            </Fragment>
+          );
+        })}
       </div>
       <div hidden={tab !== "ai"}>
         <ChecklistReviewSection
