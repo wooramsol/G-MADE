@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ErrorText, FormLabel } from "@/components/typography";
+import { CONTACT_EMAIL_PLACEHOLDER, CONTACT_NOTICE, CONTACT_PHONE_PLACEHOLDER, validateContact } from "@/lib/contact";
 import type { Project } from "@/lib/types";
 import { showToast } from "../../toast";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
@@ -18,6 +19,8 @@ type FormState = {
   reviewType: string;
   receivedAt: string;
   summary: string;
+  contactPhone: string;
+  contactEmail: string;
   status: Project["status"];
 };
 
@@ -31,6 +34,8 @@ function toFormState(project: Project): FormState {
     reviewType: project.reviewType,
     receivedAt: project.receivedAt,
     summary: project.summary ?? "",
+    contactPhone: project.contactPhone ?? "",
+    contactEmail: project.contactEmail ?? "",
     status: project.status,
   };
 }
@@ -40,7 +45,7 @@ function validateForm(form: FormState): string {
   if (!form.client.trim()) return "시행자를 입력해 주세요.";
   if (!form.reviewType) return "심의종류를 선택해 주세요.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.receivedAt.trim())) return "접수일을 연-월-일 형식으로 입력해 주세요. (예: 2026-09-17)";
-  return "";
+  return validateContact(form.contactPhone, form.contactEmail);
 }
 
 export default function ProjectMetadataEditor({
@@ -80,6 +85,8 @@ export default function ProjectMetadataEditor({
       reviewType: form.reviewType,
       receivedAt: form.receivedAt.trim(),
       summary: form.summary.trim() || undefined,
+      contactPhone: form.contactPhone.trim(),
+      contactEmail: form.contactEmail.trim(),
       status: form.status,
     };
 
@@ -132,19 +139,39 @@ export default function ProjectMetadataEditor({
       {/* 표시 레이아웃과 동일한 순서: 1행 사업명·접수일·상태 → 사업개요 → 2행 항목들 */}
       <div className="grid gap-4 lg:grid-cols-4">
         <div className="lg:col-span-3">
-          <Field label="사업명" value={form.name} onChange={(value) => updateField("name", value)} />
+          <Field label="사업명" placeholder="예: 동부역세권 복합문화시설 신축공사" value={form.name} onChange={(value) => updateField("name", value)} />
         </div>
         <Field label="접수일" placeholder="연-월-일 (예: 2026-09-17)" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />
         <label className="lg:col-span-4">
           <FormLabel>사업개요</FormLabel>
           <textarea
             className="mt-2 min-h-24 w-full rounded-md border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
+            placeholder="사업 목적, 주변 현황, 심의 요청사항을 입력하세요."
             value={form.summary}
             onChange={(event) => updateField("summary", event.target.value)}
           />
         </label>
-        <Field label="시행자" value={form.client} onChange={(value) => updateField("client", value)} />
+        <Field label="시행자" placeholder="예: 서울도시개발공사" value={form.client} onChange={(value) => updateField("client", value)} />
         <SelectField label="심의종류" options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
+        <Field
+          autoComplete="tel"
+          inputMode="tel"
+          label="담당자 연락처"
+          placeholder={CONTACT_PHONE_PLACEHOLDER}
+          type="tel"
+          value={form.contactPhone}
+          onChange={(value) => updateField("contactPhone", value)}
+        />
+        <Field
+          autoComplete="email"
+          inputMode="email"
+          label="담당자 이메일"
+          placeholder={CONTACT_EMAIL_PLACEHOLDER}
+          type="email"
+          value={form.contactEmail}
+          onChange={(value) => updateField("contactEmail", value)}
+        />
+        <p className="text-xs leading-5 text-[#64748b] lg:col-span-4">{CONTACT_NOTICE}</p>
       </div>
       {error ? <ErrorText className="mt-4 rounded-md bg-red-50 p-3">{error}</ErrorText> : null}
       <div className="mt-4 flex gap-2">
@@ -179,10 +206,14 @@ function Field({
   placeholder,
   value,
   onChange,
+  inputMode,
+  autoComplete,
 }: {
   label: string;
   type?: string;
   placeholder?: string;
+  inputMode?: "tel" | "email";
+  autoComplete?: string;
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -191,6 +222,8 @@ function Field({
       <FormLabel>{label}</FormLabel>
       <input
         className="mt-2 w-full rounded-md border border-[#d7dee8] bg-white px-4 py-3 text-sm outline-none focus:border-[#2463b3]"
+        autoComplete={autoComplete}
+        inputMode={inputMode}
         placeholder={placeholder}
         type={type}
         value={value}
@@ -219,7 +252,7 @@ function SelectField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
-        <option value="">선택</option>
+        <option value="">심의종류를 선택하세요</option>
         {options.map((option) => (
           <option key={option} value={option}>
             {option}

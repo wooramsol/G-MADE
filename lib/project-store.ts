@@ -121,6 +121,8 @@ export async function updateProject(
       | "reviewType"
       | "receivedAt"
       | "summary"
+      | "contactPhone"
+      | "contactEmail"
       | "status"
     >
   >,

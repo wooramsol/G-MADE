@@ -1,3 +1,4 @@
+import { validateContact } from "@/lib/contact";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiRole } from "@/lib/api-auth";
 import { requireProjectAccess } from "@/lib/project-access";
@@ -55,6 +56,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (payload.summary !== undefined) {
       patch.summary = String(payload.summary).trim() || undefined;
+    }
+
+    // 담당자 연락처·이메일 — 안내 발송에 쓰이므로 형식 확인 (비우면 삭제)
+    if (payload.contactPhone !== undefined || payload.contactEmail !== undefined) {
+      const phone = payload.contactPhone !== undefined ? String(payload.contactPhone).trim() : "";
+      const email = payload.contactEmail !== undefined ? String(payload.contactEmail).trim() : "";
+      const contactError = validateContact(phone, email);
+      if (contactError) return NextResponse.json({ error: contactError }, { status: 400 });
+      if (payload.contactPhone !== undefined) patch.contactPhone = phone || undefined;
+      if (payload.contactEmail !== undefined) patch.contactEmail = email || undefined;
     }
 
     // 지원자는 도서 접수 전까지만 기본정보 수정 가능 (접수 후에는 공무원만)

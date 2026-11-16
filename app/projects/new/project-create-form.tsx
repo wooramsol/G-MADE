@@ -8,6 +8,7 @@ import {
   formatLocationLabel,
 } from "@/lib/address/resolve-location-label";
 import { ErrorText, FormLabel, MutedText } from "@/components/typography";
+import { CONTACT_EMAIL_PLACEHOLDER, CONTACT_NOTICE, CONTACT_PHONE_PLACEHOLDER, validateContact } from "@/lib/contact";
 import { showToast } from "../../toast";
 import { clientFetchWithTimeout } from "@/lib/client-fetch-with-timeout";
 
@@ -22,6 +23,8 @@ const initialState = {
   reviewType: "",
   receivedAt: new Date().toISOString().slice(0, 10),
   summary: "",
+  contactPhone: "",
+  contactEmail: "",
 };
 
 function validateForm(form: typeof initialState, location: LocationSelection | null): string {
@@ -30,7 +33,7 @@ function validateForm(form: typeof initialState, location: LocationSelection | n
   if (!form.client.trim()) return "시행자를 입력해 주세요.";
   if (!form.reviewType) return "심의종류를 선택해 주세요.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.receivedAt.trim())) return "접수일을 연-월-일 형식으로 입력해 주세요. (예: 2026-09-17)";
-  return "";
+  return validateContact(form.contactPhone, form.contactEmail);
 }
 
 export default function ProjectCreateForm() {
@@ -107,6 +110,9 @@ export default function ProjectCreateForm() {
       </div>
       <Field label="시행자" required placeholder="예: 서울도시개발공사" value={form.client} onChange={(value) => updateField("client", value)} />
       <SelectField label="심의종류" required options={reviewTypes} value={form.reviewType} onChange={(value) => updateField("reviewType", value)} />
+      <Field label="담당자 연락처" type="tel" placeholder={CONTACT_PHONE_PLACEHOLDER} value={form.contactPhone} onChange={(value) => updateField("contactPhone", value)} />
+      <Field label="담당자 이메일" type="email" placeholder={CONTACT_EMAIL_PLACEHOLDER} value={form.contactEmail} onChange={(value) => updateField("contactEmail", value)} />
+      <p className="text-xs leading-5 text-[#64748b] lg:col-span-2">{CONTACT_NOTICE}</p>
       <div className="flex flex-wrap gap-3 lg:col-span-2">
         <button className="primary-action rounded-lg px-5 py-3 text-sm font-bold shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400" disabled={loading} type="submit">
           {loading ? "프로젝트 생성 중..." : "프로젝트 생성하기"}
@@ -177,7 +183,7 @@ function SelectField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
-        <option value="">선택</option>
+        <option value="">심의종류를 선택하세요</option>
         {options.map((option) => (
           <option key={option} value={option}>
             {option}

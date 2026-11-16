@@ -1,3 +1,4 @@
+import { validateContact } from "@/lib/contact";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/api-auth";
 import { createProject, getAllProjects } from "@/lib/project-store";
@@ -51,6 +52,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "유효한 위치 선택 정보가 필요합니다." }, { status: 400 });
     }
 
+    const contactPhone = String(payload.contactPhone ?? "").trim();
+    const contactEmail = String(payload.contactEmail ?? "").trim();
+    const contactError = validateContact(contactPhone, contactEmail);
+    if (contactError) return NextResponse.json({ error: contactError }, { status: 400 });
+
     const project = await createProject({
       name: String(payload.name).trim(),
       location: String(payload.location).trim(),
@@ -68,6 +74,8 @@ export async function POST(request: NextRequest) {
       reviewType: String(payload.reviewType).trim(),
       receivedAt: String(payload.receivedAt).trim(),
       summary: String(payload.summary ?? "").trim() || undefined,
+      contactPhone: contactPhone || undefined,
+      contactEmail: contactEmail || undefined,
       // 등록자 = 소유자 (지원자는 자기 프로젝트만 볼 수 있음)
       ownerId: authResult.session.user.id,
       ownerName: authResult.session.user.name ?? undefined,

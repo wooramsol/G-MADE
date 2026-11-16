@@ -121,6 +121,9 @@ export type Project = {
   reviewType: string;
   receivedAt: string;
   summary?: string;
+  /** 담당자 연락처·이메일 — 심의 진행 안내(문자·이메일) 발송용 */
+  contactPhone?: string;
+  contactEmail?: string;
   updatedAt?: string;
   status: "접수" | "심사 진행중" | "완료";
   files: ProjectFile[];

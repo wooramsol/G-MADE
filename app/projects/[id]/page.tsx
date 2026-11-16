@@ -60,6 +60,9 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                 <Meta label="사업위치" value={project.location} />
                 <Meta label="시행자" value={project.client} />
                 <Meta label="심의종류" value={project.reviewType} />
+                {project.contactPhone || project.contactEmail ? (
+                  <Meta label="담당자" value={[project.contactPhone, project.contactEmail].filter(Boolean).join(" · ")} />
+                ) : null}
               </dl>
               {project.summary ? (
                 <details className="mt-2 text-sm">
