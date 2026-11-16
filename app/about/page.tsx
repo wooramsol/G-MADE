@@ -134,7 +134,7 @@ function WorkflowDiagram() {
       <Arrow x1={220} x2={194} y1={164} y2={164} />
       <Arrow x1={340} x2={340} y1={192} y2={228} />
 
-      <Group h={110} title="3 · 사전심의 (통과 도서) — 공무원 진행" w={480} x={100} y={232} />
+      <Group h={110} title="3 · 사전심의 (통과 도서)" w={480} x={100} y={232} />
       <Box h={56} lines={["AI: 체크리스트 자동 판정"]} title="AI 에이전트 분석" tone="neutral" w={210} x={120} y={272} />
       <Box h={56} lines={["공무원: 위원별 핀 의견 입력"]} title="인간 전문가 분석" tone="neutral" w={210} x={350} y={272} />
       <Arrow x1={340} x2={340} y1={342} y2={368} />
@@ -142,7 +142,7 @@ function WorkflowDiagram() {
       <Box h={56} lines={["공무원: 결과 통보 → 지원자: 수정 도서 제출"]} title="결과 통보 · 수정 도서 제출" tone="applicant" w={320} x={180} y={372} />
       <Arrow x1={340} x2={340} y1={428} y2={454} />
 
-      <Group h={110} title="4 · 본심의 (수정 도서) — 공무원 진행" w={480} x={100} y={458} />
+      <Group h={110} title="4 · 본심의 (수정 도서)" w={480} x={100} y={458} />
       <Box h={56} lines={["AI: 재분석 · 회차 비교"]} title="AI 에이전트 분석" tone="neutral" w={210} x={120} y={498} />
       <Box h={56} lines={["공무원: 위원별 핀 의견 입력"]} title="인간 전문가 분석" tone="neutral" w={210} x={350} y={498} />
       <Arrow x1={340} x2={340} y1={568} y2={594} />
