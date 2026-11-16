@@ -222,7 +222,7 @@ function Stepper({
               >
                 {done ? "✓" : step.id}
               </span>
-              <span className="min-w-0">
+              <span className="flex min-h-9 min-w-0 items-center">
                 <span className={`block text-base leading-5 ${selected ? "font-black" : "font-bold"}`}>
                   {step.label}
                   {isCurrent && rejected ? <span className="ml-1.5 rounded bg-red-100 px-1.5 text-[11px] text-red-700">{rejectedLabel}</span> : null}
