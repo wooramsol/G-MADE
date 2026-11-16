@@ -358,10 +358,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
     <section>
       {/* 도서 제출(업로드·접수 처리) 중에는 다른 조작을 막는다 */}
       {busy ? <BlockingNotice label={busy} /> : null}
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        {official ? null : <h3 className="text-lg font-bold text-[#15345b]">도서 접수</h3>}
-        <p className="text-xs text-[#64748b]">PDF · 최대 {getMaxUploadFileLabel()}</p>
-      </div>
+      {official ? null : <h3 className="text-lg font-bold text-[#15345b]">도서 접수</h3>}
 
       {canSubmit && pendingFile ? (
         <div className="mt-4 rounded-md border-2 border-[#2463b3] bg-[#f0f7ff] p-5">
@@ -418,7 +415,8 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
           type="button"
         >
           <span className="text-base font-bold text-[#2463b3]">
-            {`+ ${kindLabel} PDF 첨부 (클릭 또는 드래그)`}
+            {`+ ${kindLabel} PDF 첨부 (클릭 또는 드래그)`}{" "}
+            <span className="font-medium text-[#64748b]">(최대 {getMaxUploadFileLabel()})</span>
           </span>
         </button>
       ) : (
