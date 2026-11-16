@@ -65,11 +65,18 @@ export function parseExtractedItems(raw: string, fallbackPage?: { fileName: stri
   if (!Array.isArray(parsed)) return [];
 
   const items: ChecklistItem[] = [];
+  // 같은 체크리스트가 도서에 두 번 실렸거나(본문 + 부록 등) 모델이 한 항목을 두 번 내보내면
+  // 같은 항목이 따로따로 판정돼 결과 화면에 중복 카드로 나온다 — 구분+본문이 같으면 한 번만.
+  // (구분이 다르면 문구가 같아도 별개 항목으로 둔다)
+  const seen = new Set<string>();
   for (const entry of parsed as RawExtractedItem[]) {
     const text = String(entry?.text ?? "").trim();
     if (!text || text.length < 4) continue;
 
     const category = String(entry?.category ?? "").trim() || undefined;
+    const key = `${(category ?? "").replace(/[\s·ㆍ・.,]/g, "")}|${text.replace(/\s+/g, "")}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     const fileName = String(entry?.fileName ?? "").trim() || fallbackPage?.fileName;
     const page = Number(entry?.page) || fallbackPage?.page;
 
