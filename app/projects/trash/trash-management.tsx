@@ -1,5 +1,6 @@
 "use client";
 
+import { BlockingNotice } from "@/components/blocking-notice";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -101,6 +102,17 @@ export default function TrashManagement({ serverTrashedProjects }: TrashManageme
 
   return (
     <>
+      {loading ? (
+        <BlockingNotice
+          label={
+            confirmAction?.type === "restore"
+              ? "프로젝트를 복원하는 중…"
+              : progress
+                ? `영구 삭제하는 중… ${progress}`
+                : "영구 삭제하는 중…"
+          }
+        />
+      ) : null}
       <div className="mb-4 flex items-center justify-between gap-3">
         <MutedText>휴지통에 {trashedProjects.length}개가 있습니다.</MutedText>
         <button

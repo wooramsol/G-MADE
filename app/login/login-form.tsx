@@ -1,5 +1,6 @@
 "use client";
 
+import { FormPendingNotice } from "@/components/blocking-notice";
 import { useActionState } from "react";
 import { Caption, ErrorText, FormLabel } from "@/components/typography";
 import { loginAction, type LoginState } from "./actions";
@@ -15,6 +16,7 @@ export default function LoginForm({ callbackUrl }: LoginFormProps) {
 
   return (
     <form action={formAction} className="space-y-4">
+      <FormPendingNotice label="로그인하는 중…" />
       <input name="callbackUrl" type="hidden" value={callbackUrl} />
       <label className="block">
         <FormLabel>이메일</FormLabel>

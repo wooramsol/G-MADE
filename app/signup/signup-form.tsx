@@ -1,5 +1,6 @@
 "use client";
 
+import { FormPendingNotice } from "@/components/blocking-notice";
 import Link from "next/link";
 import { useActionState } from "react";
 import { Caption, ErrorText, FormLabel } from "@/components/typography";
@@ -14,6 +15,7 @@ export default function SignupForm() {
 
   return (
     <form action={formAction} className="space-y-4">
+      <FormPendingNotice label="가입 처리하는 중…" />
       <label className="block">
         <FormLabel>이름 (담당자명 또는 업체명)</FormLabel>
         <input autoComplete="name" className={inputClass} maxLength={60} name="name" required />

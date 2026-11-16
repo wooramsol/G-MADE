@@ -1,5 +1,6 @@
 "use client";
 
+import { BlockingNotice } from "@/components/blocking-notice";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
@@ -36,16 +37,17 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
       showToast({ message: "프로젝트가 휴지통으로 이동했습니다.", tone: "success" });
 
       if (redirectTo) {
+        // 목록으로 넘어갈 때까지 로딩창 유지
         window.setTimeout(() => router.push(redirectTo), 650);
-      } else {
-        router.refresh();
+        return;
       }
+      router.refresh();
+      setLoading(false);
     } catch (deleteError) {
       showToast({
         message: deleteError instanceof Error ? deleteError.message : "프로젝트 삭제에 실패했습니다.",
         tone: "error",
       });
-    } finally {
       setLoading(false);
     }
   }
@@ -69,6 +71,7 @@ export default function DeleteProjectButton({ projectId, projectName, redirectTo
         }}
         onConfirm={deleteProject}
       />
+      {loading ? <BlockingNotice label="프로젝트를 휴지통으로 옮기는 중…" /> : null}
     </>
   );
 }

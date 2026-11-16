@@ -1,5 +1,6 @@
 "use client";
 
+import { BlockingNotice } from "@/components/blocking-notice";
 import { memo as reactMemo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import WorkspaceSectionCard from "@/components/workspace-section-card";
 import type { ChecklistReview } from "@/lib/checklist-review/types";
@@ -692,6 +693,7 @@ export default function ExpertReviewSection({
         {/* AI 에이전트 분석 결과 — 이 페이지를 근거로 한 판정 */}
         <AiFindingsPanel onGoToPage={goToPage} page={page} review={aiReview} />
       </div>
+      {exporting ? <BlockingNotice label={`전문가 분석 PDF를 만드는 중… ${exporting}`} /> : null}
       {showByReviewer ? (
         <ReviewerCommentsDialog
           memos={versionMemos}

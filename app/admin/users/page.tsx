@@ -1,3 +1,4 @@
+import { FormPendingNotice } from "@/components/blocking-notice";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PageTitle, SubsectionTitle } from "@/components/typography";
@@ -62,6 +63,7 @@ export default async function AdminUsersPage() {
                     <td className="py-2.5 pr-3 text-xs text-[#64748b]">{account.createdAt.slice(0, 10)}</td>
                     <td className="py-2.5 pr-3">
                       <form action={toggleAccountAction}>
+                        <FormPendingNotice label="계정 상태를 바꾸는 중…" />
                         <input name="id" type="hidden" value={account.id} />
                         <input name="active" type="hidden" value={account.active ? "0" : "1"} />
                         <button

@@ -1,5 +1,6 @@
 "use client";
 
+import { FormPendingNotice } from "@/components/blocking-notice";
 import { useActionState } from "react";
 import { createOfficerAction, deleteApplicantAction, renameAccountAction, resetPasswordAction, type AccountActionState } from "./actions";
 
@@ -10,6 +11,7 @@ export function CreateOfficerForm() {
   const [state, action, pending] = useActionState<AccountActionState, FormData>(createOfficerAction, {});
   return (
     <form action={action} className="grid gap-3 md:grid-cols-[1fr_1.3fr_1fr_1fr_auto] md:items-end">
+      <FormPendingNotice label="공무원 계정을 발급하는 중…" />
       <label className="text-xs font-bold text-[#475569]">
         이름·부서
         <input className={`${inputClass} mt-1`} name="name" placeholder="예: 홍길동 (경관디자인과)" required />
@@ -39,6 +41,7 @@ export function ResetPasswordForm({ id }: { id: string }) {
   const [state, action, pending] = useActionState<AccountActionState, FormData>(resetPasswordAction, {});
   return (
     <form action={action} className="flex items-center gap-1.5">
+      <FormPendingNotice label="비밀번호를 재설정하는 중…" />
       <input name="id" type="hidden" value={id} />
       <input className="w-36 rounded-md border border-[#d7dee8] px-2 py-1 text-xs" name="password" placeholder="새 비밀번호" required />
       <button className="rounded-md border border-[#d7dee8] px-2 py-1 text-xs font-bold text-[#475569] hover:bg-[#f1f5f9]" disabled={pending} type="submit">
@@ -61,6 +64,7 @@ export function DeleteApplicantButton({ id, name }: { id: string; name: string }
         }
       }}
     >
+      <FormPendingNotice label="계정을 삭제하는 중…" />
       <input name="id" type="hidden" value={id} />
       <button className="rounded-md border border-[#fecaca] px-2 py-1 text-xs font-bold text-[#b91c1c] hover:bg-[#fef2f2]" type="submit">
         계정 삭제

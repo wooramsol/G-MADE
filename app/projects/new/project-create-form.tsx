@@ -1,5 +1,6 @@
 "use client";
 
+import { BlockingNotice } from "@/components/blocking-notice";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LocationPicker, type LocationSelection } from "@/components/location-picker";
@@ -77,17 +78,18 @@ export default function ProjectCreateForm() {
       }
 
       showToast({ message: "프로젝트가 생성되었습니다.", tone: "success" });
+      // 성공하면 상세 화면으로 넘어갈 때까지 로딩창을 유지 (그 사이 다시 누르는 것 방지)
       window.setTimeout(() => router.push(`/projects/${payload.project.id}`), 650);
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "프로젝트 생성에 실패했습니다.");
-    } finally {
       setLoading(false);
     }
   }
 
   return (
     <form className="grid gap-4 lg:grid-cols-2" id="new-project-form" onSubmit={submitProject}>
+      {loading ? <BlockingNotice label="프로젝트를 생성하는 중…" /> : null}
       {error ? <ErrorText className="rounded-md bg-red-50 p-3 lg:col-span-2">{error}</ErrorText> : null}
       <Field label="사업명" required placeholder="예: 동부역세권 복합문화시설 경관사전심의" value={form.name} onChange={(value) => updateField("name", value)} />
       <Field label="접수일 (기본: 오늘)" required placeholder="연-월-일 (예: 2026-09-17)" value={form.receivedAt} onChange={(value) => updateField("receivedAt", value)} />

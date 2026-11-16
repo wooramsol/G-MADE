@@ -1,5 +1,6 @@
 "use client";
 
+import { BlockingNotice } from "@/components/blocking-notice";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LocationPicker, type LocationSelection } from "@/components/location-picker";
@@ -93,6 +94,7 @@ export default function ProjectLocationEditor({
 
   return (
     <div className="mt-3 rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
+      {loading ? <BlockingNotice label="사업위치를 저장하는 중…" /> : null}
       <LocationPicker value={location} onChange={setLocation} disabled={loading} />
       <div className="mt-3 flex gap-2">
         <button

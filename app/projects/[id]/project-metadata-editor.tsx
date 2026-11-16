@@ -1,5 +1,6 @@
 "use client";
 
+import { BlockingNotice } from "@/components/blocking-notice";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ErrorText, FormLabel } from "@/components/typography";
@@ -136,6 +137,7 @@ export default function ProjectMetadataEditor({
 
   return (
     <div className="mt-4 rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
+      {loading ? <BlockingNotice label="프로젝트 정보를 저장하는 중…" /> : null}
       {/* 표시 레이아웃과 동일한 순서: 1행 사업명·접수일·상태 → 사업개요 → 2행 항목들 */}
       <div className="grid gap-4 lg:grid-cols-4">
         <div className="lg:col-span-3">

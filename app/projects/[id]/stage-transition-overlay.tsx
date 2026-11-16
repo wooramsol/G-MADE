@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
+import { BlockingNotice } from "@/components/blocking-notice";
 
 /**
  * 단계 전환(다음 단계로 넘기기·되돌리기·종료·철회) 중 화면 전체를 막는 로딩창.
@@ -59,25 +59,4 @@ export default function StageTransitionOverlay({ settleKey }: { settleKey: strin
   }, [settleKey]);
   useEffect(() => () => setLabel(null), []);
   return label ? <BlockingNotice label={label} /> : null;
-}
-
-/** 화면 전체를 덮는 처리 중 안내 (도서 제출처럼 진행률 문구가 바뀌는 작업에도 사용) */
-export function BlockingNotice({ label }: { label: string }) {
-  useBodyScrollLock(true);
-  return (
-    <div
-      aria-busy="true"
-      aria-live="polite"
-      className="fixed inset-0 z-[3000] flex cursor-wait items-center justify-center bg-[#172033]/50 p-4"
-      role="alertdialog"
-    >
-      <div className="flex w-full max-w-sm items-center gap-4 rounded-md border border-[#d7dee8] bg-white p-6 shadow-xl">
-        <div aria-hidden="true" className="h-10 w-10 shrink-0 animate-spin rounded-full border-4 border-[#e2e8f0] border-t-[#2463b3]" />
-        <div className="min-w-0">
-          <p className="text-base font-bold text-[#15345b]">{label}</p>
-          <p className="mt-1 text-sm text-[#64748b]">끝날 때까지 잠시 기다려 주세요.</p>
-        </div>
-      </div>
-    </div>
-  );
 }

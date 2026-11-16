@@ -1,5 +1,6 @@
 "use client";
 
+import { BlockingNotice } from "@/components/blocking-notice";
 import { useRouter } from "next/navigation";
 import { Fragment, useMemo, useRef, useState } from "react";
 import { buildDocumentVersions, versionKeyOfReview } from "@/lib/checklist-review/document-versions";
@@ -15,7 +16,7 @@ import { showToast } from "../../toast";
 import ChecklistReviewSection from "./checklist-review-section";
 import ExpertReviewSection, { type ExpertVersionInfo } from "./expert-review-section";
 import ScreeningViewer from "./screening-viewer";
-import StageTransitionOverlay, { BlockingNotice, runStageTransition } from "./stage-transition-overlay";
+import StageTransitionOverlay, { runStageTransition } from "./stage-transition-overlay";
 
 type StepId = 1 | 2 | 3 | 4 | 5;
 
