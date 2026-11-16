@@ -662,7 +662,8 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
     return <EmptyStep text={phase === "main" ? "지원자가 수정 도서를 제출하면 본심의를 진행할 수 있습니다." : "심사할 도서가 없습니다."} />;
   }
   const stage = projectStage(project);
-  const aiDone = Boolean(doc.latestReview?.completedAt);
+  // 저장된 검토 결과가 있으면 분석이 끝난 것 (완료 시각은 최근 분석부터 기록됨)
+  const aiDone = Boolean(doc.latestReview);
   return (
     <section className="space-y-4">
       <p className="text-xs text-[#64748b]">
@@ -674,11 +675,11 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
       <div className="flex flex-wrap items-center gap-x-4 border-b border-[#d7dee8]" role="tablist">
         {(
           [
-            ["ai", "AI 에이전트 분석", aiDone
-              ? `완료 · ${formatUploadDateTime(doc.latestReview?.completedAt ?? "")}`
-              : doc.latestReview
-                ? `분석 시작 · ${formatUploadDateTime(doc.latestReview.reviewedAt)}`
-                : "분석 전"],
+            ["ai", "AI 에이전트 분석", doc.latestReview
+              ? doc.latestReview.completedAt
+                ? `완료 · ${formatUploadDateTime(doc.latestReview.completedAt)}`
+                : "완료"
+              : "분석 전"],
             ["expert", "인간 전문가 분석", aiDone ? null : "AI 분석 후 진행 권장"],
           ] as const
         ).map(([id, label, sub], index) => {
