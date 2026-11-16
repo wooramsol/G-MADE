@@ -18,4 +18,5 @@ test("구분·항목 문구의 깨진 기호 제거", () => {
   assert.equal(cleanChecklistLabel("배치규모"), "배치규모");
   assert.equal(cleanChecklistLabel("배▤치·규모 "), "배치·규모");
   assert.equal(cleanChecklistLabel("색채ㆍ재료"), "색채ㆍ재료");
+  assert.equal(cleanChecklistLabel("배치\u302e규모"), "배치·규모");
 });
