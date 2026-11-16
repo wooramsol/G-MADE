@@ -730,6 +730,7 @@ export async function runChecklistReview(
     const review: ChecklistReview = {
       id: `review-${Date.now()}-${crypto.randomUUID()}`,
       reviewedAt,
+      completedAt: new Date().toISOString(),
       files: savedFiles.map((file) => {
         const analyzed = filesForAnalysis.find((entry) => entry.id === file.id);
         return {

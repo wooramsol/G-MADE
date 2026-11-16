@@ -99,7 +99,10 @@ export type ChecklistReviewMetric = {
 /** 1회 체크리스트 검토 결과. */
 export type ChecklistReview = {
   id: string;
+  /** 분석을 시작한 시각 (회차 정렬·식별 기준) */
   reviewedAt: string;
+  /** 분석이 끝난 시각 — 화면의 "분석 완료" 표시에 사용 (예전 회차에는 없음) */
+  completedAt?: string;
   files: ChecklistReviewFile[];
   /** 체크리스트로 인식된 페이지들 */
   checklistPages: ChecklistSourcePage[];

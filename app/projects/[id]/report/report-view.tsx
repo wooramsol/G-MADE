@@ -60,7 +60,7 @@ export default function ReportView({ project, review, statusLabel }: { project: 
           <p className="text-xs font-bold tracking-[0.14em] text-[#2463b3]">경관심의 사전검토 결과 · AI 에이전트 분석</p>
           <h1 className="mt-2 text-2xl font-bold text-[#15345b]">{project.name}</h1>
           <p className="mt-2 text-sm text-[#475569]">
-            분석 일시 {formatUploadDateTime(review.reviewedAt)} · 검토 자료 {review.files.map((file) => file.originalName.normalize("NFC")).join(", ")} ·
+            분석 일시 {formatUploadDateTime(review.completedAt ?? review.reviewedAt)} · 검토 자료 {review.files.map((file) => file.originalName.normalize("NFC")).join(", ")} ·
             진행 상태 {statusLabel}
           </p>
         </section>

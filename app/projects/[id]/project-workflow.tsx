@@ -461,7 +461,7 @@ function ScreeningPanel({ project }: { project: Project }) {
         <h3 className="text-lg font-bold text-[#15345b]">사전검토</h3>
         {latest ? (
           <p className="text-xs text-[#64748b]">
-            검토 도서: {latest.file.originalName.normalize("NFC")} · {formatUploadDateTime(latest.submittedAt)} 접수
+            검토 도서: {latest.file.originalName.normalize("NFC")} · 도서 접수 {formatUploadDateTime(latest.submittedAt)}
           </p>
         ) : null}
       </div>
@@ -669,13 +669,17 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
         <h3 className="text-lg font-bold text-[#15345b]">{phaseName}</h3>
         <p className="text-xs text-[#64748b]">
           심사 도서: {doc.submission.file.originalName.normalize("NFC")} · {formatBytes(doc.submission.file.sizeBytes)} ·{" "}
-          {formatUploadDateTime(doc.submission.submittedAt)} 접수
+          도서 접수 {formatUploadDateTime(doc.submission.submittedAt)}
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3" role="tablist">
         {(
           [
-            ["ai", "AI 에이전트 분석", doc.latestReview ? `분석 완료 · ${formatUploadDateTime(doc.latestReview.reviewedAt)}` : "분석 전"],
+            ["ai", "AI 에이전트 분석", doc.latestReview
+              ? doc.latestReview.completedAt
+                ? `분석 완료 · ${formatUploadDateTime(doc.latestReview.completedAt)}`
+                : `분석 시작 · ${formatUploadDateTime(doc.latestReview.reviewedAt)}`
+              : "분석 전"],
             ["expert", "인간 전문가 분석", "심사위원 의견"],
           ] as const
         ).map(([id, label, sub]) => (
