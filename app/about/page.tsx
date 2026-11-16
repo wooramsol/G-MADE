@@ -50,7 +50,7 @@ function Feature({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
       <p className="text-sm font-bold text-[#15345b]">{title}</p>
-      <p className="mt-1.5 text-[13px] leading-6 text-[#475569]">{body}</p>
+      <p className="mt-1.5 text-sm leading-6 text-[#475569]">{body}</p>
     </div>
   );
 }
@@ -59,7 +59,7 @@ function Role({ title, items }: { title: string; items: string[] }) {
   return (
     <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
       <p className="text-sm font-bold text-[#15345b]">{title}</p>
-      <ul className="mt-2 space-y-1.5 text-[13px] leading-5 text-[#475569]">
+      <ul className="mt-2 space-y-1.5 text-sm leading-5 text-[#475569]">
         {items.map((item) => (
           <li className="flex gap-1.5" key={item}>
             <span className="text-[#94a3b8]">·</span>

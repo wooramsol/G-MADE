@@ -116,7 +116,7 @@ export default function LawViewer({ cited, laws, onClose }: { cited: CitedLaw; l
             ×
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[13px] leading-6 text-[#172033] whitespace-pre-wrap">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm leading-6 text-[#172033] whitespace-pre-wrap">
           {law ? (
             start >= 0 && end > start ? (
               <>
@@ -134,7 +134,7 @@ export default function LawViewer({ cited, laws, onClose }: { cited: CitedLaw; l
           )}
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-[#e2e8f0] px-5 py-3">
-          <p className="text-[11px] text-[#94a3b8]">
+          <p className="text-xs text-[#94a3b8]">
             {range ? "인용된 기준 문구를 노란색으로 표시했습니다." : phrase ? "본문에서 인용 문구를 정확히 찾지 못했습니다." : ""} 분석 당시 조회한 원문입니다.
           </p>
           {externalUrl ? (

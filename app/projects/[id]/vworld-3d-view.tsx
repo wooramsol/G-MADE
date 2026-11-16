@@ -103,7 +103,7 @@ export default function Vworld3DView({ x, y }: { x: number; y: number }) {
             <div className="absolute left-2 top-2 z-[500] flex gap-1">
               {(Object.keys(PRESET_LABELS) as CameraPreset[]).map((name) => (
                 <button
-                  className={`rounded-md border px-2.5 py-1 text-[11px] font-bold shadow-sm ${
+                  className={`rounded-md border px-2.5 py-1 text-xs font-bold shadow-sm ${
                     preset === name
                       ? "border-[#2463b3] bg-[#2463b3] text-white"
                       : "border-[#c4ccd6] bg-white/90 text-[#2463b3] hover:bg-white"

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eyebrow, MutedText, PageTitle } from "@/components/typography";
+import { MutedText, PageTitle } from "@/components/typography";
 import { auth } from "@/auth";
 import { getProjectById } from "@/lib/project-store";
 import { canAccessProject, canEditProjectInfo, isOfficialRole, projectForViewer, projectStageStatus } from "@/lib/roles";
@@ -45,7 +45,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
         {/* 사업명 + 프로젝트 개요 — 한 카드로 */}
         <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
                 <PageTitle>{project.name}</PageTitle>
                 <span className="rounded-[3px] border border-[#d0d5dd] bg-white px-2 py-0.5 text-xs font-semibold text-[#475569]">
@@ -55,46 +55,36 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                   {projectStageStatus(project)}
                 </span>
               </div>
-              <div className="mt-1.5">
-                {editable ? (
+              {/* 사업위치 · 시행자 · 심의종류 — 사업명 아래 한 줄 */}
+              <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <Meta label="사업위치" value={project.location} />
+                <Meta label="시행자" value={project.client} />
+                <Meta label="심의종류" value={project.reviewType} />
+              </dl>
+              {project.summary ? (
+                <details className="mt-2 text-sm">
+                  <summary className="cursor-pointer text-xs font-bold text-[#475569] hover:text-[#15345b]">사업개요</summary>
+                  <p className="mt-1.5 max-w-4xl whitespace-pre-wrap leading-6 text-[#172033]">{project.summary}</p>
+                </details>
+              ) : null}
+              {editable ? (
+                <div className="mt-2 flex flex-wrap items-start gap-x-4 gap-y-1 [&>div]:basis-full">
                   <ProjectMetadataEditor project={project} />
-                ) : (
-                  <p className="text-xs text-[#94a3b8]">도서가 접수되어 기본정보는 담당 공무원만 수정할 수 있습니다.</p>
-                )}
-              </div>
+                  <ProjectLocationEditor project={project} />
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-[#94a3b8]">도서가 접수되어 기본정보는 담당 공무원만 수정할 수 있습니다.</p>
+              )}
             </div>
             {official ? (
               <DeleteProjectButton projectId={project.id} projectName={project.name} redirectTo="/projects" />
             ) : null}
           </div>
-
-          {/* 사업개요 · 사업위치 · 시행자 · 심의종류 — 한 줄 */}
-          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-[2fr_1.5fr_1fr_1fr]">
-            <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3">
-              <Eyebrow>사업개요</Eyebrow>
-              {project.summary ? (
-                <p className="mt-1.5 line-clamp-3 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#172033]" title={project.summary}>
-                  {project.summary}
-                </p>
-              ) : (
-                <p className="mt-1.5 text-sm text-[#94a3b8]">미입력</p>
-              )}
-            </div>
-            <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3">
-              <Eyebrow>사업위치</Eyebrow>
-              <p className="mt-1.5 text-sm font-semibold leading-5 text-[#172033]">{project.location}</p>
-              {editable ? <ProjectLocationEditor project={project} /> : null}
-            </div>
-            <Info label="시행자" value={project.client} />
-            <Info label="심의종류" value={project.reviewType} />
-          </div>
         </div>
       </div>
       <div className="mx-auto max-w-[1500px] space-y-8 px-6 py-8">
         <section id="project-management" className="space-y-5">
-          <div className="grid items-stretch gap-5 lg:grid-cols-2">
-            <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} projectId={project.id} />
-          </div>
+          <LandscapeZonePanel address={project.location} locationPoint={project.locationPoint} projectId={project.id} />
           <ProjectWorkflow official={official} project={project} />
         </section>
       </div>
@@ -102,11 +92,11 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] px-4 py-3">
-      <Eyebrow>{label}</Eyebrow>
-      <p className="mt-1.5 font-semibold leading-6 text-[#172033]">{value || "-"}</p>
+    <div className="flex min-w-0 gap-1.5">
+      <dt className="shrink-0 text-[#64748b]">{label}</dt>
+      <dd className="min-w-0 font-semibold text-[#172033]">{value || "-"}</dd>
     </div>
   );
 }

@@ -355,7 +355,7 @@ function ExpertPdfViewerImpl({
         </div>
       </div>
       {rendering ? (
-        <p className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-[#15345b]/80 px-3 py-1 text-[11px] font-semibold text-white">
+        <p className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-[#15345b]/80 px-3 py-1 text-xs font-semibold text-white">
           페이지 불러오는 중…
         </p>
       ) : null}

@@ -92,13 +92,13 @@ function Thumb({
       type="button"
     >
       <canvas className="block w-full bg-white shadow-sm" ref={canvasRef} style={{ height: 74 }} />
-      <span className="mt-1 flex items-center justify-between text-[11px] leading-4">
+      <span className="mt-1 flex items-center justify-between text-xs leading-4">
         <span className={`font-semibold ${active ? "text-[#111827]" : "text-[#64748b]"}`}>
           {pageNumber}
-          {changed ? <span className="ml-1 text-[10px] text-[#92400e]">변경</span> : null}
+          {changed ? <span className="ml-1 text-xs text-[#92400e]">변경</span> : null}
         </span>
         {count > 0 ? (
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#111827] px-1 text-[10px] font-bold text-white">
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#111827] px-1 text-xs font-bold text-white">
             {count}
           </span>
         ) : null}

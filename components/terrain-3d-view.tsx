@@ -482,7 +482,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   const labelClass =
-    "pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-[3px] bg-white/90 px-1.5 py-0.5 text-[13px] font-bold text-[#c1121f] shadow-sm transition-opacity";
+    "pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-[3px] bg-white/90 px-1.5 py-0.5 text-sm font-bold text-[#c1121f] shadow-sm transition-opacity";
 
   return (
     <div className="mt-2">
@@ -490,7 +490,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         <span className="text-sm font-bold text-[#15345b]" ref={readoutRef}>
           단면 계산 중...
         </span>
-        <label className="ml-auto flex items-center gap-1.5 text-[11px] text-[#667085]">
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-[#667085]">
           수직 과장 {exaggeration.toFixed(1)}×
           <input
             max={3}
@@ -536,10 +536,10 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         {status === "ready" ? (
           <div className="pointer-events-none absolute bottom-2.5 right-2.5 h-14 w-14 rounded-full border border-[#c4ccd6] bg-white/90 shadow-sm">
             <div className="absolute inset-0" ref={compassRef}>
-              <span className="absolute left-1/2 top-0.5 -translate-x-1/2 text-[11px] font-bold leading-none text-[#c1121f]">북</span>
-              <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[10px] font-semibold leading-none text-[#94a3b8]">남</span>
-              <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] font-semibold leading-none text-[#94a3b8]">동</span>
-              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] font-semibold leading-none text-[#94a3b8]">서</span>
+              <span className="absolute left-1/2 top-0.5 -translate-x-1/2 text-xs font-bold leading-none text-[#c1121f]">북</span>
+              <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-xs font-semibold leading-none text-[#94a3b8]">남</span>
+              <span className="absolute right-1 top-1/2 -translate-y-1/2 text-xs font-semibold leading-none text-[#94a3b8]">동</span>
+              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-xs font-semibold leading-none text-[#94a3b8]">서</span>
               <svg className="absolute inset-0" viewBox="0 0 56 56">
                 <polygon fill="#c1121f" points="28,14 31,28 28,26 25,28" />
                 <polygon fill="#c4ccd6" points="28,42 31,28 28,30 25,28" />
@@ -550,7 +550,7 @@ export function Terrain3DView({ projectId }: { projectId: string }) {
         ) : null}
       </div>
       {status === "ready" ? (
-        <p className="mt-1.5 text-[11px] leading-4 text-[#94a3b8]">
+        <p className="mt-1.5 text-xs leading-4 text-[#94a3b8]">
           회색 건물은 브이월드 실제 층수(층당 3m 가정), 지형은 위성 DEM(30m 격자) 근사, 참고용입니다.
         </p>
       ) : null}

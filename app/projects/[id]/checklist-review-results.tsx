@@ -211,15 +211,20 @@ export default function ChecklistReviewResults({
           <Caption className="mt-1 text-[#64748b]">
             {review.completedAt
               ? `AI 분석 완료 ${formatUploadDateTime(review.completedAt)}`
-              : `AI 분석 시작 ${formatUploadDateTime(review.reviewedAt)}`}{" "}
-            · 항목 {review.items.length}개 ·{" "}
-            {review.itemSource === "vision" ? "스캔 문서(비전 추출)" : "텍스트 추출"} · G-Made Hive AI
+              : `AI 분석 시작 ${formatUploadDateTime(review.reviewedAt)}`}
           </Caption>
-          {review.usage ? (
-            <Caption className="mt-0.5 text-[#94a3b8]">
-              사용량: 토큰 {formatTokens(review.usage.totalTokens)} · 약 ${review.usage.costUsd.toFixed(2)} (≈ {Math.round(review.usage.costUsd * 1400).toLocaleString("ko-KR")}원)
-            </Caption>
-          ) : null}
+          {/* 항목 수·추출 방식·사용량은 '분석 정보'로 접어 둔다 (인쇄 때는 펼침) */}
+          <details className="mt-0.5 text-xs leading-5 text-[#64748b]" open={printMode || undefined}>
+            <summary className={`cursor-pointer font-semibold text-[#94a3b8] hover:text-[#475569] ${printMode ? "hidden" : ""}`}>분석 정보</summary>
+            <p>
+              항목 {review.items.length}개 · {review.itemSource === "vision" ? "스캔 문서(비전 추출)" : "텍스트 추출"} · G-Made Hive AI
+            </p>
+            {review.usage ? (
+              <p className="text-[#94a3b8]">
+                사용량: 토큰 {formatTokens(review.usage.totalTokens)} · 약 ${review.usage.costUsd.toFixed(2)} (≈ {Math.round(review.usage.costUsd * 1400).toLocaleString("ko-KR")}원)
+              </p>
+            ) : null}
+          </details>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {review.checklistPages.length > 0 ? (
@@ -240,7 +245,7 @@ export default function ChecklistReviewResults({
                 AI 분석 다운로드 (PDF)
               </a>
               <a
-                className="text-[11px] font-semibold text-[#64748b] underline"
+                className="text-xs font-semibold text-[#64748b] underline"
                 href={`/api/checklist-reviews/supplement-doc?projectId=${encodeURIComponent(projectId)}&reviewId=${encodeURIComponent(review.id)}`}
                 title="편집 가능한 보완요구서 초안 (Word)"
               >
@@ -253,7 +258,7 @@ export default function ChecklistReviewResults({
 
       {previousReview && (changeSummary.improved > 0 || changeSummary.regressed > 0 || changeSummary.added > 0) ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-[#d7dee8] bg-white px-4 py-2.5">
-          <span className="text-[13px] font-bold text-[#15345b]">이전 회차 대비</span>
+          <span className="text-sm font-bold text-[#15345b]">이전 회차 대비</span>
           {changeSummary.improved > 0 ? (
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
               ▲ 개선 {changeSummary.improved}
@@ -280,11 +285,11 @@ export default function ChecklistReviewResults({
           <p className="text-sm font-bold text-[#15345b]">사업 규모 (문서에서 자동 인식)</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {review.metrics.map((metric) => (
-              <div className="min-w-[150px] flex-1 rounded-lg bg-[#f8fafc] px-3 py-2 text-[13px]" key={metric.label}>
+              <div className="min-w-[150px] flex-1 rounded-lg bg-[#f8fafc] px-3 py-2 text-sm" key={metric.label}>
                 <p className="font-bold text-[#475569]">{metric.label}</p>
                 <p className="mt-0.5 font-semibold leading-5 text-[#172033]">{metric.value}</p>
                 {metric.source ? (
-                  <p className="mt-0.5 text-[11px] text-[#94a3b8]">
+                  <p className="mt-0.5 text-xs text-[#94a3b8]">
                     p.{metric.source.page}
                   </p>
                 ) : null}
@@ -305,8 +310,8 @@ export default function ChecklistReviewResults({
           <p className="mt-0.5 text-xs text-[#94a3b8]">조문 원문과 대조해 미충족·부분충족으로 판정되고 근거 조문이 달린 항목입니다.</p>
           <ul className="mt-2 space-y-1.5">
             {lawFlagged.map(({ item, finding }) => (
-              <li className="flex flex-wrap items-center gap-1.5 text-[13px]" key={item.id}>
-                <span className={`rounded-[3px] px-1.5 py-0.5 text-[11px] font-bold ${finding.status === "미충족" ? "bg-[#fee2e2] text-[#b91c1c]" : "bg-[#fef3c7] text-[#b45309]"}`}>
+              <li className="flex flex-wrap items-center gap-1.5 text-sm" key={item.id}>
+                <span className={`rounded-[3px] px-1.5 py-0.5 text-xs font-bold ${finding.status === "미충족" ? "bg-[#fee2e2] text-[#b91c1c]" : "bg-[#fef3c7] text-[#b45309]"}`}>
                   {finding.status}
                 </span>
                 <a className="min-w-0 flex-1 truncate font-semibold text-[#172033] hover:underline" href={`#finding-${item.id}`} title={item.text}>
@@ -314,7 +319,7 @@ export default function ChecklistReviewResults({
                 </a>
                 {finding.lawRefs.slice(0, 2).map((law) => (
                   <button
-                    className="max-w-[360px] truncate rounded-[3px] border border-[#c9d6e6] bg-white px-2 py-0.5 text-[11px] font-bold text-[#2463b3] hover:underline"
+                    className="max-w-[360px] truncate rounded-[3px] border border-[#c9d6e6] bg-white px-2 py-0.5 text-xs font-bold text-[#2463b3] hover:underline"
                     key={`${law.title}-${law.article ?? ""}`}
                     onClick={() => setOpenLaw(law)}
                     title={`${law.title} ${law.article ?? ""}`}
@@ -398,7 +403,7 @@ export default function ChecklistReviewResults({
       {review.warnings.length > 0 ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
           <p className="text-xs font-bold text-amber-800">검토 참고</p>
-          <ul className="mt-1.5 space-y-1 text-[13px] leading-5 text-amber-800">
+          <ul className="mt-1.5 space-y-1 text-sm leading-5 text-amber-800">
             {review.warnings.map((warning) => (
               <li key={warning}>· {warning}</li>
             ))}
@@ -460,7 +465,7 @@ function FilterTab({
       {tone ? <span className={`h-2 w-2 rounded-full ${STATUS_STYLES[tone].dot}`} /> : null}
       {label}
       {delta !== 0 ? (
-        <span className={`text-[11px] font-bold ${delta > 0 ? "text-[#2463b3]" : "text-[#94a3b8]"}`}>
+        <span className={`text-xs font-bold ${delta > 0 ? "text-[#2463b3]" : "text-[#94a3b8]"}`}>
           {delta > 0 ? "▲" : "▼"}
           {Math.abs(delta)}
         </span>
@@ -528,22 +533,22 @@ function FindingCard({
   return (
     <li className={`scroll-mt-24 rounded-md border p-4 ${style.card}`} id={`finding-${item.id}`}>
       {category ? (
-        <p className="mb-1.5 text-[11px] font-semibold leading-4 text-[#94a3b8]">{category}</p>
+        <p className="mb-1.5 text-xs font-semibold leading-4 text-[#94a3b8]">{category}</p>
       ) : null}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-sm font-bold leading-6 text-[#172033]">{item.text}</p>
         <span className="flex shrink-0 items-center gap-1.5">
           {change ? (
             change.kind === "개선" ? (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700" title={`이전 회차: ${change.from}`}>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700" title={`이전 회차: ${change.from}`}>
                 ▲ {change.from}→
               </span>
             ) : change.kind === "하락" ? (
-              <span className="rounded-[3px] border border-red-300 bg-white px-2 py-0.5 text-[11px] font-bold text-red-700" title={`이전 회차: ${change.from}`}>
+              <span className="rounded-[3px] border border-red-300 bg-white px-2 py-0.5 text-xs font-bold text-red-700" title={`이전 회차: ${change.from}`}>
                 ▼ {change.from}→
               </span>
             ) : (
-              <span className="rounded-[3px] border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-500">신규</span>
+              <span className="rounded-[3px] border border-slate-300 bg-white px-2 py-0.5 text-xs font-bold text-slate-500">신규</span>
             )
           ) : null}
           <span className={`rounded-[3px] border px-2.5 py-0.5 text-xs font-bold ${style.badge}`}>{status}</span>
@@ -572,12 +577,12 @@ function FindingCard({
                 className="min-w-[240px] max-w-[360px] flex-1"
                 key={`${evidence.fileName}-${evidence.page}-${index}`}
               >
-                <p className="text-[13px] leading-5 text-[#64748b]">
+                <p className="text-sm leading-5 text-[#64748b]">
                   <span className="font-bold text-[#15345b]">
                     p.{evidence.page}
                   </span>{" "}
                   {evidence.kind === "visual" ? (
-                    <span className="mr-1 rounded-[3px] bg-[#f3e8ff] px-1.5 py-0.5 text-[11px] font-bold text-[#7c3aed]" title="글자가 아니라 그림·사진을 보고 판단한 근거 — AI 오류가 있을 수 있어 도서 원본으로 재확인이 필요합니다 (점선은 대략적 위치)">
+                    <span className="mr-1 rounded-[3px] bg-[#f3e8ff] px-1.5 py-0.5 text-xs font-bold text-[#7c3aed]" title="글자가 아니라 그림·사진을 보고 판단한 근거 — AI 오류가 있을 수 있어 도서 원본으로 재확인이 필요합니다 (점선은 대략적 위치)">
                       이미지 관찰 - 재확인 필요
                     </span>
                   ) : null}
@@ -650,7 +655,7 @@ function FindingCard({
         <div className="mt-3 rounded-lg border border-[#c9d6e6] bg-white p-2.5">
           <textarea
             autoFocus
-            className="w-full resize-y rounded-md border border-[#d7dee8] px-2.5 py-1.5 text-[13px] leading-5 text-[#172033] focus:border-[#2463b3] focus:outline-none"
+            className="w-full resize-y rounded-md border border-[#d7dee8] px-2.5 py-1.5 text-sm leading-5 text-[#172033] focus:border-[#2463b3] focus:outline-none"
             disabled={saving}
             maxLength={2000}
             onChange={(event) => setDraft(event.target.value)}
@@ -691,7 +696,7 @@ function FindingCard({
       ) : comment ? (
         <div className="mt-3 rounded-lg border border-[#c9d6e6] bg-white/80 px-3 py-2">
           <div className="flex items-start justify-between gap-2">
-            <p className="min-w-0 flex-1 whitespace-pre-wrap text-[13px] leading-5 text-[#334155]">
+            <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-5 text-[#334155]">
               <span className="mr-1.5 font-bold text-[#15345b]">추가의견</span>
               {comment}
             </p>
@@ -761,7 +766,7 @@ function EvidenceSnippet({
           <span className="h-1 w-28 overflow-hidden rounded-full bg-[#dbe4ee]">
             <span className="block h-full w-1/3 animate-[snippet-loading_1.1s_ease-in-out_infinite] rounded-full bg-[#2463b3]" />
           </span>
-          <span className="text-[11px] font-semibold text-[#94a3b8]">캡처 불러오는 중...</span>
+          <span className="text-xs font-semibold text-[#94a3b8]">캡처 불러오는 중...</span>
         </span>
       ) : null}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -899,16 +904,16 @@ function LegalCheckCard({ check }: { check: NonNullable<ChecklistReview["legalCh
       </div>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {check.rows.map((row) => (
-          <div className="rounded-lg bg-[#f8fafc] px-3 py-2 text-[13px]" key={row.label}>
+          <div className="rounded-lg bg-[#f8fafc] px-3 py-2 text-sm" key={row.label}>
             <div className="flex items-center justify-between gap-2">
               <p className="font-bold text-[#475569]">{row.label}</p>
-              <span className={`rounded-[3px] border px-1.5 py-0.5 text-[11px] font-bold ${tone(row.status)}`}>{row.status}</span>
+              <span className={`rounded-[3px] border px-1.5 py-0.5 text-xs font-bold ${tone(row.status)}`}>{row.status}</span>
             </div>
             <p className="mt-1 font-semibold text-[#172033]">
               계획 {row.planned ?? "—"} <span className="font-normal text-[#94a3b8]">/</span> 기준 {row.limit ?? "—"}
             </p>
             {row.basis ? (
-              <p className="mt-0.5 text-[11px] text-[#64748b]">
+              <p className="mt-0.5 text-xs text-[#64748b]">
                 근거:{" "}
                 {row.basisUrl ? (
                   <a className="text-[#2463b3] underline" href={row.basisUrl} rel="noreferrer" target="_blank">
@@ -919,7 +924,7 @@ function LegalCheckCard({ check }: { check: NonNullable<ChecklistReview["legalCh
                 )}
               </p>
             ) : null}
-            {row.note ? <p className="mt-0.5 text-[11px] text-[#b45309]">{row.note}</p> : null}
+            {row.note ? <p className="mt-0.5 text-xs text-[#b45309]">{row.note}</p> : null}
           </div>
         ))}
       </div>

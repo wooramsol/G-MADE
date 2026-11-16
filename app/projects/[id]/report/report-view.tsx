@@ -103,7 +103,7 @@ export default function ReportView({ project, review, statusLabel }: { project: 
           <ChecklistReviewResults printMode projectId={project.id} review={review} />
         </section>
 
-        <p className="pb-4 text-center text-[11px] text-[#94a3b8]">
+        <p className="pb-4 text-center text-xs text-[#94a3b8]">
           G-MADE HIVE · AI 분석 결과는 참고자료이며 최종 판단은 담당 공무원·심의위원회가 합니다.
         </p>
       </div>

@@ -61,7 +61,7 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
                 <Eyebrow className="tracking-[0.16em] text-[#2463b3]">{project.reviewType}</Eyebrow>
                 <CardTitle className="mt-3">{project.name}</CardTitle>
               </div>
-              <span className="shrink-0 rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11px] font-bold text-[#2463b3]">
+              <span className="shrink-0 rounded-full bg-[#eef4fb] px-2.5 py-1 text-xs font-bold text-[#2463b3]">
                 {projectStageStatus(project)}
               </span>
             </div>

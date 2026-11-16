@@ -166,7 +166,7 @@ const PinNote = reactMemo(function PinNote({
           </p>
         )}
         {tone !== "draft" ? (
-          <p className="mt-1 flex items-center gap-1.5 text-[10px] leading-3 text-[#94a3b8]">
+          <p className="mt-1 flex items-center gap-1.5 text-xs leading-4 text-[#94a3b8]">
             <span className="font-bold" style={{ color: tone === "previous" ? "#64748b" : color }}>
               {author}
             </span>
@@ -569,7 +569,7 @@ export default function ExpertReviewSection({
               page={page}
             />
           ) : (
-            <p className="px-3 py-6 text-center text-[11px] text-[#94a3b8]">불러오는 중…</p>
+            <p className="px-3 py-6 text-center text-xs text-[#94a3b8]">불러오는 중…</p>
           )}
         </div>
 
@@ -608,7 +608,7 @@ export default function ExpertReviewSection({
                 ▶
               </button>
               {changedPageSet.has(page) ? (
-                <span className="ml-1 rounded-[3px] bg-[#fef3c7] px-1.5 py-0.5 text-[11px] font-semibold text-[#92400e]">이전 버전 대비 변경</span>
+                <span className="ml-1 rounded-[3px] bg-[#fef3c7] px-1.5 py-0.5 text-xs font-semibold text-[#92400e]">이전 버전 대비 변경</span>
               ) : null}
             </div>
             <span
@@ -677,7 +677,7 @@ export default function ExpertReviewSection({
             />
           )}
 
-          <div className="flex items-center gap-3 border-t border-[#e2e8f0] px-3 py-2 text-[11px] text-[#94a3b8]">
+          <div className="flex items-center gap-3 border-t border-[#e2e8f0] px-3 py-2 text-xs text-[#94a3b8]">
             <span>의견 글을 누르면 바로 수정할 수 있습니다</span>
             {message ? <span className="font-semibold text-[#b91c1c]">{message}</span> : null}
             <span className="ml-auto">저장 즉시 공유됩니다</span>
@@ -797,7 +797,7 @@ function ReviewerBar({
                 type="button"
               >
                 <span
-                  className={`flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[11px] text-white ${selected ? "" : "opacity-40"}`}
+                  className={`flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-xs text-white ${selected ? "" : "opacity-40"}`}
                   style={{ background: selected ? "rgba(255,255,255,0.25)" : reviewer.color }}
                 >
                   {selected ? "✓" : ""}
@@ -807,7 +807,7 @@ function ReviewerBar({
               </button>
               <button
                 aria-label={`${reviewer.name} 위원 제거`}
-                className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full border border-white bg-[#475569] text-[11px] font-bold leading-none text-white shadow group-hover:flex hover:bg-[#b91c1c]"
+                className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full border border-white bg-[#475569] text-xs font-bold leading-none text-white shadow group-hover:flex hover:bg-[#b91c1c]"
                 onClick={() => {
                   if (count > 0 && !window.confirm(`${reviewer.name} 위원을 목록에서 뺄까요? 이미 남긴 의견 ${count}건은 그대로 남습니다.`)) return;
                   if (reviewer.id === activeId) onSelect(null);
@@ -900,7 +900,7 @@ function AiFindingsPanel({
       <div className="border-b border-[#e2e8f0] px-3 py-2.5">
         <p className="text-xs font-bold text-[#2463b3]">AI 에이전트 분석</p>
         {review ? (
-          <p className="mt-1 flex flex-wrap gap-1 text-[10px]">
+          <p className="mt-1 flex flex-wrap gap-1 text-xs">
             {(["충족", "부분충족", "미충족", "확인불가"] as const).map((status) => (
               <span className={`rounded-[3px] px-1.5 py-0.5 font-bold ${STATUS_STYLE[status]}`} key={status}>
                 {status} {review.counts[status]}
@@ -908,7 +908,7 @@ function AiFindingsPanel({
             ))}
           </p>
         ) : null}
-        <div className="mt-2 flex gap-1 text-[11px]">
+        <div className="mt-2 flex gap-1 text-xs">
           {(
             [
               ["page", `이 페이지 근거 ${onPage.length}`],
@@ -939,15 +939,15 @@ function AiFindingsPanel({
               return (
                 <li className="rounded-md border border-[#e2e8f0] p-2.5" key={finding.itemId}>
                   <div className="flex items-start gap-1.5">
-                    <span className={`shrink-0 rounded-[3px] px-1.5 py-0.5 text-[10px] font-bold ${STATUS_STYLE[finding.status]}`}>{finding.status}</span>
+                    <span className={`shrink-0 rounded-[3px] px-1.5 py-0.5 text-xs font-bold ${STATUS_STYLE[finding.status]}`}>{finding.status}</span>
                     <p className="line-clamp-3 text-xs font-semibold leading-4 text-[#1e293b]">{item?.text ?? finding.itemId}</p>
                   </div>
-                  <p className="mt-1.5 line-clamp-4 text-[11px] leading-4 text-[#475569]">{finding.rationale}</p>
+                  <p className="mt-1.5 line-clamp-4 text-xs leading-4 text-[#475569]">{finding.rationale}</p>
                   {pages.length > 0 ? (
                     <p className="mt-1.5 flex flex-wrap gap-1">
                       {pages.map((evidencePage) => (
                         <button
-                          className={`rounded-[3px] px-1.5 py-0.5 text-[10px] font-bold ${
+                          className={`rounded-[3px] px-1.5 py-0.5 text-xs font-bold ${
                             evidencePage === page ? "bg-[#2463b3] text-white" : "bg-[#eef4fb] text-[#2463b3] hover:bg-[#dbe8f7]"
                           }`}
                           key={evidencePage}
@@ -1071,9 +1071,9 @@ function ReviewerCommentsDialog({
                       title="이 의견이 있는 페이지로 이동"
                       type="button"
                     >
-                      <span className="shrink-0 rounded-[3px] bg-[#f1f5f9] px-1.5 py-0.5 text-[11px] font-bold text-[#475569]">p.{memo.page}</span>
-                      <span className="min-w-0 flex-1 whitespace-pre-wrap text-[13px] leading-5 text-[#172033]">{memo.text}</span>
-                      <span className="shrink-0 text-[11px] text-[#94a3b8]">{shortDateTime(memo.updatedAt ?? memo.createdAt)}</span>
+                      <span className="shrink-0 rounded-[3px] bg-[#f1f5f9] px-1.5 py-0.5 text-xs font-bold text-[#475569]">p.{memo.page}</span>
+                      <span className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-5 text-[#172033]">{memo.text}</span>
+                      <span className="shrink-0 text-xs text-[#94a3b8]">{shortDateTime(memo.updatedAt ?? memo.createdAt)}</span>
                     </button>
                   </li>
                 ))}

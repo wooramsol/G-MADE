@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BrandSubtitle, BrandTitle, Caption, FormLabel } from "@/components/typography";
+import { BrandTitle, Caption, FormLabel } from "@/components/typography";
 import { auth } from "@/auth";
 import { getReleaseVersionLabel } from "@/lib/release-version";
 import { getRoleLabel } from "@/lib/role-labels";
@@ -26,11 +26,10 @@ export default async function GlobalHeader() {
               />
             </div>
             <div>
-              <BrandSubtitle>경관·공공디자인 사전심의 지원</BrandSubtitle>
               <div className="flex flex-wrap items-center gap-2">
                 <BrandTitle>AI-전문가 하이브리드 평가 시스템</BrandTitle>
                 <span
-                  className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-blue-50"
+                  className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 text-xs font-bold tracking-wide text-blue-50"
                   title="현재 배포 버전"
                 >
                   {getReleaseVersionLabel()}

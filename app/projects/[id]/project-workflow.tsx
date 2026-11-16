@@ -225,7 +225,7 @@ function Stepper({
               <span className="flex min-h-9 min-w-0 items-center">
                 <span className={`block text-base leading-5 ${selected ? "font-black" : "font-bold"}`}>
                   {step.label}
-                  {isCurrent && rejected ? <span className="ml-1.5 rounded bg-red-100 px-1.5 text-[11px] text-red-700">{rejectedLabel}</span> : null}
+                  {isCurrent && rejected ? <span className="ml-1.5 rounded bg-red-100 px-1.5 text-xs text-red-700">{rejectedLabel}</span> : null}
                 </span>
               </span>
             </button>
@@ -344,7 +344,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
   return (
     <section>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-lg font-bold text-[#15345b]">도서 접수</h3>
+        {official ? null : <h3 className="text-lg font-bold text-[#15345b]">도서 접수</h3>}
         <p className="text-xs text-[#64748b]">PDF · 최대 {getMaxUploadFileLabel()}</p>
       </div>
 
@@ -407,7 +407,7 @@ function ReceptionPanel({ project, official }: { project: Project; official: boo
           </span>
         </button>
       ) : (
-        <p className="mt-4 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
+        <p className="mt-4 rounded-md bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
           {stage === "RECEPTION" ? "도서를 제출할 수 없습니다." : "제출한 도서를 담당부서에서 검토하고 있습니다. 보완·수정 요청을 받으면 이곳에서 도서를 제출할 수 있습니다."}
         </p>
       )}
@@ -460,14 +460,11 @@ function ScreeningPanel({ project }: { project: Project }) {
   const latest = submissions[submissions.length - 1];
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-lg font-bold text-[#15345b]">사전검토</h3>
-        {latest ? (
-          <p className="text-xs text-[#64748b]">
-            검토 도서: {latest.file.originalName.normalize("NFC")} · 도서 접수 {formatUploadDateTime(latest.submittedAt)}
-          </p>
-        ) : null}
-      </div>
+      {latest ? (
+        <p className="text-xs text-[#64748b]">
+          검토 도서: {latest.file.originalName.normalize("NFC")} · 도서 접수 {formatUploadDateTime(latest.submittedAt)}
+        </p>
+      ) : null}
       {latest ? (
         <ScreeningViewer fileId={latest.file.id} key={latest.id} projectId={project.id} />
       ) : (
@@ -593,7 +590,7 @@ function DecisionPanel({ project }: { project: Project }) {
   };
 
   return (
-    <section className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4">
+    <section className="rounded-md bg-[#f8fafc] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-bold text-[#15345b]">사전검토 판정</h3>
         {stage === "PRE_REVIEW" || stage === "MAIN_REVIEW" || stage === "CLOSED" || stage === "REJECTED" ? (
@@ -660,7 +657,6 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
   const doc = usePhaseDocument(project, phase);
   const [versionKey, setVersionKey] = useState<string | null>(null);
   const versions = useMemo(() => buildDocumentVersions(project.checklistReviews ?? []), [project.checklistReviews]);
-  const phaseName = phase === "pre" ? "사전심의" : "본심의";
 
   if (!doc.submission) {
     return <EmptyStep text={phase === "main" ? "지원자가 수정 도서를 제출하면 본심의를 진행할 수 있습니다." : "심사할 도서가 없습니다."} />;
@@ -668,14 +664,12 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
   const stage = projectStage(project);
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-lg font-bold text-[#15345b]">{phaseName}</h3>
-        <p className="text-xs text-[#64748b]">
-          심사 도서: {doc.submission.file.originalName.normalize("NFC")} · {formatBytes(doc.submission.file.sizeBytes)} ·{" "}
-          도서 접수 {formatUploadDateTime(doc.submission.submittedAt)}
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-3" role="tablist">
+      <p className="text-xs text-[#64748b]">
+        심사 도서: {doc.submission.file.originalName.normalize("NFC")} · {formatBytes(doc.submission.file.sizeBytes)} ·{" "}
+        도서 접수 {formatUploadDateTime(doc.submission.submittedAt)}
+      </p>
+      {/* 단계 탭(폴더형) 아래의 보조 탭 — 밑줄형으로 가볍게 */}
+      <div className="flex gap-7 border-b border-[#d7dee8]" role="tablist">
         {(
           [
             ["ai", "AI 에이전트 분석", doc.latestReview
@@ -688,8 +682,12 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
         ).map(([id, label, sub]) => (
           <button
             aria-selected={tab === id}
-            className={`flex flex-col items-start justify-center rounded-lg border-2 px-5 py-3.5 text-left transition ${
-              tab === id ? (id === "ai" ? "border-[#2463b3] bg-[#2463b3] text-white" : "border-[#111827] bg-[#111827] text-white") : "border-[#d7dee8] bg-white text-[#334155] hover:border-[#9fb3cc]"
+            className={`-mb-px flex items-baseline gap-2 border-b-[3px] px-1 pb-2.5 pt-1 text-left transition ${
+              tab === id
+                ? id === "ai"
+                  ? "border-[#2463b3] text-[#2463b3]"
+                  : "border-[#111827] text-[#111827]"
+                : "border-transparent text-[#64748b] hover:text-[#15345b]"
             }`}
             key={id}
             onClick={() => setTab(id)}
@@ -697,7 +695,7 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
             type="button"
           >
             <span className="text-base font-bold">{label}</span>
-            {sub ? <span className={`text-xs ${tab === id ? "text-white/80" : "text-[#94a3b8]"}`}>{sub}</span> : null}
+            {sub ? <span className="text-xs font-normal text-[#94a3b8]">{sub}</span> : null}
           </button>
         ))}
       </div>
@@ -773,7 +771,7 @@ function PreReviewNotifyBar({ project, analyzed }: { project: Project; analyzed:
     }
   };
   return (
-    <div className="rounded-md border border-[#e2e8f0] bg-[#f8fafc] p-4">
+    <div className="rounded-md bg-[#f8fafc] p-4">
       <p className="text-sm font-bold text-[#15345b]">사전심의 결과 통보</p>
       <textarea
         className="mt-2 h-16 w-full resize-y rounded-md border border-[#d7dee8] bg-white p-2.5 text-sm outline-none focus:border-[#2463b3]"
@@ -819,7 +817,7 @@ function CloseReviewBar({ project, analyzed }: { project: Project; analyzed: boo
     setBusy(false);
   };
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-[#f8fafc] px-4 py-3">
       <p className="text-sm text-[#475569]">
         본심의 AI 분석과 심사위원 의견 입력을 마쳤으면 심의를 종료하세요. 지원자에게 결과 통지 예정 안내가 전달됩니다.
         <button className="ml-2 text-xs font-semibold text-[#64748b] underline disabled:opacity-50" disabled={busy} onClick={() => void backToPre()} type="button">

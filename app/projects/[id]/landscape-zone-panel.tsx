@@ -68,6 +68,8 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
   const [error, setError] = useState("");
   const [result, setResult] = useState<LandscapeZoneResponse | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  // 기본은 한 줄 요약 — 펼쳤을 때만 지도·3D를 불러온다
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,13 +132,31 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
 
   const zoneGroups = buildZoneGroups(result);
 
+  const summary = loading
+    ? "공간정보 조회 중…"
+    : error
+      ? "공간정보를 조회하지 못했습니다"
+      : zoneGroups.length > 0
+        ? zoneGroups.map((group) => `${group.label} ${group.items.length}건`).join(" · ")
+        : "경관지구·용도지역 정보 없음";
+
   return (
-    <>
-    <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
+    <div className="rounded-md border border-[#d7dee8] bg-white panel-shadow">
+      <button
+        aria-expanded={open}
+        className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5 text-left"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span className="text-base font-bold text-[#15345b]">대상지 현황</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-[#475569]">{summary}</span>
+        <span className="text-xs font-bold text-[#2463b3]">{open ? "접기 ▲" : "지도 · 지형 보기 ▼"}</span>
+      </button>
+      {open ? (
+    <div className="grid items-start gap-x-8 gap-y-6 border-t border-[#e2e8f0] p-5 lg:grid-cols-2">
+    <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <SubsectionTitle>대상지 현황</SubsectionTitle>
-        </div>
+        <SubsectionTitle>경관지구 · 용도지역</SubsectionTitle>
         <Badge className="bg-[#e8f1ff] text-[#2463b3]">브이월드 · 경관지구·용도지역·문화재</Badge>
       </div>
 
@@ -167,7 +187,7 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
                 const expanded = expandedGroups[group.id] ?? false;
 
                 return (
-                  <div className="rounded-md border border-[#d7dee8] bg-[#f8fafc] p-4" key={group.id}>
+                  <div className="rounded-md bg-[#f8fafc] p-4" key={group.id}>
                     <p className="text-sm font-bold text-[#15345b]">
                       {group.label} <span className="text-[#64748b]">({group.items.length}건)</span>
                     </p>
@@ -204,7 +224,7 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
     </div>
 
     {!loading && result && locationPoint ? (
-      <div className="rounded-md border border-[#d7dee8] bg-white p-5 panel-shadow">
+      <div>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <SubsectionTitle>지형 분석</SubsectionTitle>
           <Badge className="bg-[#e8f1ff] text-[#2463b3]">브이월드 · 위성 DEM</Badge>
@@ -219,7 +239,9 @@ export default function LandscapeZonePanel({ projectId, address, locationPoint }
         </div>
       </div>
     ) : null}
-    </>
+    </div>
+      ) : null}
+    </div>
   );
 }
 

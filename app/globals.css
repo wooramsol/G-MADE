@@ -166,7 +166,7 @@ body {
   }
 
   .type-micro {
-    @apply text-[11px] leading-4 text-[#64748b];
+    @apply text-xs leading-4 text-[#64748b];
   }
 
   .type-brand-subtitle {

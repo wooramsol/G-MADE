@@ -98,7 +98,7 @@ export default function NotificationBell() {
           <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
         </svg>
         {unread > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#dc2626] px-1 text-[11px] font-bold leading-none text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#dc2626] px-1 text-xs font-bold leading-none text-white">
             {unread > 99 ? "99+" : unread}
           </span>
         ) : null}
@@ -130,9 +130,9 @@ export default function NotificationBell() {
                     type="button"
                   >
                     <span className="flex items-center gap-2">
-                      <span className={`rounded-[3px] px-1.5 py-0.5 text-[10px] font-bold ${style.className}`}>{style.label}</span>
+                      <span className={`rounded-[3px] px-1.5 py-0.5 text-xs font-bold ${style.className}`}>{style.label}</span>
                       {!item.read ? <span className="h-2 w-2 rounded-full bg-[#dc2626]" /> : null}
-                      <span className="ml-auto text-[11px] text-[#94a3b8]">{timeAgo(item.createdAt)}</span>
+                      <span className="ml-auto text-xs text-[#94a3b8]">{timeAgo(item.createdAt)}</span>
                     </span>
                     <span className="mt-1 block text-sm font-semibold leading-5 text-[#172033]">{item.title}</span>
                     {item.body ? <span className="mt-0.5 line-clamp-2 block text-xs leading-4 text-[#64748b]">{item.body}</span> : null}

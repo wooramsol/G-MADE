@@ -234,7 +234,7 @@ export default function ChecklistReviewSection({
             <span className="text-sm font-bold text-[#2463b3]">
               {running ? "검토 중..." : dragActive ? "여기에 놓으면 바로 검토합니다" : "+ PDF 업로드 또는 드래그"}
             </span>
-            <span className="text-[11px] text-[#64748b]">최대 {getMaxUploadFileLabel()}</span>
+            <span className="text-xs text-[#64748b]">최대 {getMaxUploadFileLabel()}</span>
           </button>
           <input
             accept=".pdf,.png,.jpg,.jpeg"

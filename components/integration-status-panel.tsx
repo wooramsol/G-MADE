@@ -52,7 +52,7 @@ function IntegrationStatusRow({ row }: { row: IntegrationRow }) {
           <p className="truncate text-xs text-[#64748b]">{row.provider}</p>
         </div>
         <span
-          className={`shrink-0 rounded-full px-2.5 py-1 text-center text-[11px] font-bold ${toneClasses[row.tone]}`}
+          className={`shrink-0 rounded-full px-2.5 py-1 text-center text-xs font-bold ${toneClasses[row.tone]}`}
         >
           {row.statusLabel}
         </span>
@@ -65,13 +65,13 @@ function IntegrationStatusRow({ row }: { row: IntegrationRow }) {
       ) : null}
 
       {row.envKeys?.length ? (
-        <p className="mt-1 text-[11px] font-medium text-[#94a3b8]">
+        <p className="mt-1 text-xs font-medium text-[#94a3b8]">
           환경 변수: {row.envKeys.join(", ")}
         </p>
       ) : null}
 
       {!row.configured && row.fallback ? (
-        <p className="mt-1 text-[11px] leading-5 text-[#b45309]">대체: {row.fallback}</p>
+        <p className="mt-1 text-xs leading-5 text-[#b45309]">대체: {row.fallback}</p>
       ) : null}
     </div>
   );

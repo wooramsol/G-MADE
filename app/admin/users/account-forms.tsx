@@ -44,8 +44,8 @@ export function ResetPasswordForm({ id }: { id: string }) {
       <button className="rounded-md border border-[#d7dee8] px-2 py-1 text-xs font-bold text-[#475569] hover:bg-[#f1f5f9]" disabled={pending} type="submit">
         재설정
       </button>
-      {state.error ? <span className="text-[11px] text-red-700">{state.error}</span> : null}
-      {state.ok ? <span className="text-[11px] text-[#047857]">{state.ok}</span> : null}
+      {state.error ? <span className="text-xs text-red-700">{state.error}</span> : null}
+      {state.ok ? <span className="text-xs text-[#047857]">{state.ok}</span> : null}
     </form>
   );
 }
@@ -82,9 +82,9 @@ export function AccountNameField({ id, name }: { id: string; name: string }) {
         name="name"
         title="눌러서 이름 수정 후 Enter"
       />
-      {pending ? <span className="text-[11px] text-[#94a3b8]">저장 중…</span> : null}
-      {state.error ? <span className="text-[11px] text-red-700">{state.error}</span> : null}
-      {state.ok && !pending ? <span className="text-[11px] text-[#047857]">{state.ok}</span> : null}
+      {pending ? <span className="text-xs text-[#94a3b8]">저장 중…</span> : null}
+      {state.error ? <span className="text-xs text-red-700">{state.error}</span> : null}
+      {state.ok && !pending ? <span className="text-xs text-[#047857]">{state.ok}</span> : null}
     </form>
   );
 }
