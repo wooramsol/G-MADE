@@ -11,9 +11,11 @@ import type { Project } from "@/lib/types";
 type ProjectManagementGridProps = {
   serverProjects: Project[];
   query: string;
+  /** 목록 끝의 추가 칸에 쓸 문구 (공무원: 새 프로젝트 추가 / 지원자: 새 심의 신청) */
+  addLabel: string;
 };
 
-export default function ProjectManagementGrid({ serverProjects, query }: ProjectManagementGridProps) {
+export default function ProjectManagementGrid({ serverProjects, query, addLabel }: ProjectManagementGridProps) {
   const normalizedQuery = query.trim().toLowerCase();
 
   const allProjects = useMemo(
@@ -40,10 +42,11 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
     );
   }, [allProjects, normalizedQuery]);
 
-  if (visibleProjects.length === 0) {
+  // 검색 결과가 없을 때만 안내문 — 프로젝트가 아직 없으면 추가 칸 하나만 보여준다
+  if (visibleProjects.length === 0 && normalizedQuery) {
     return (
       <p className="col-span-full rounded-md border border-dashed border-[#d7dee8] bg-[#f8fafc] px-4 py-8 text-center text-sm text-[#64748b]">
-        {normalizedQuery ? "검색 결과가 없습니다." : "등록된 프로젝트가 없습니다."}
+        검색 결과가 없습니다.
       </p>
     );
   }
@@ -78,6 +81,18 @@ export default function ProjectManagementGrid({ serverProjects, query }: Project
           </Link>
         </article>
       ))}
+      {/* 목록 끝의 빈 칸 — 프로젝트가 한 칸씩 추가된다는 것을 보여준다 (검색 중에는 숨김) */}
+      {normalizedQuery ? null : (
+        <Link
+          className="flex h-full min-h-[300px] flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-[#9db6d8] bg-[#f8fbff] p-5 text-[#2463b3] transition hover:border-[#2463b3] hover:bg-[#f0f7ff]"
+          href="/projects/new"
+        >
+          <span aria-hidden="true" className="text-4xl font-light leading-none">
+            +
+          </span>
+          <span className="text-base font-bold">{addLabel}</span>
+        </Link>
+      )}
     </>
   );
 }

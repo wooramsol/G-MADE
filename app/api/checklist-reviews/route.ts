@@ -31,6 +31,15 @@ export const maxDuration = 300;
 export const preferredRegion = "icn1";
 export const dynamic = "force-dynamic";
 
+/** AI 분석 결과를 바꿀 수 있는 단계 — 사전심의·본심의가 진행 중일 때만 (종료·반려·철회 후에는 열람만) */
+function reviewWritable(project: Parameters<typeof phaseWritable>[0]): boolean {
+  return phaseWritable(project, "pre") || phaseWritable(project, "main");
+}
+
+function reviewLockedResponse() {
+  return NextResponse.json({ error: "심의가 진행 중이 아니라 AI 분석 결과를 고칠 수 없습니다." }, { status: 409 });
+}
+
 export async function POST(request: NextRequest) {
   const authResult = await requireOfficial();
   if (authResult.response) return authResult.response;
@@ -56,8 +65,8 @@ export async function POST(request: NextRequest) {
     // 사전심의·본심의 단계에서만 분석 (도서접수·사전검토 중이거나 반려·철회된 신청은 불가)
     const targetProject = await getProjectById(projectId);
     if (!targetProject) return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
-    if (!phaseWritable(targetProject, "pre")) {
-      return NextResponse.json({ error: "사전심의 단계부터 AI 분석을 할 수 있습니다." }, { status: 409 });
+    if (!reviewWritable(targetProject)) {
+      return NextResponse.json({ error: "사전심의·본심의가 진행 중일 때만 AI 분석을 할 수 있습니다." }, { status: 409 });
     }
 
     const fileRefs = parseStoredFileRefs(formData.get("fileRefs"));
@@ -214,6 +223,7 @@ export async function PATCH(request: NextRequest) {
   if (!project) {
     return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
   }
+  if (!reviewWritable(project)) return reviewLockedResponse();
   const review = (project.checklistReviews ?? []).find((entry) => entry.id === reviewId);
   if (!review) {
     return NextResponse.json({ error: "해당 검토 기록을 찾을 수 없습니다." }, { status: 404 });
@@ -251,6 +261,7 @@ export async function DELETE(request: NextRequest) {
   if (!project) {
     return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
   }
+  if (!reviewWritable(project)) return reviewLockedResponse();
   const existingIds = new Set((project.checklistReviews ?? []).map((review) => review.id));
   if (!targetReviewIds.some((id) => existingIds.has(id))) {
     return NextResponse.json({ error: "해당 검토 기록을 찾을 수 없습니다." }, { status: 404 });

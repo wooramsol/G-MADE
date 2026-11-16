@@ -30,19 +30,22 @@ export default async function ProjectManagementPage({
           <div>
             <PageTitle>{official ? "심의 프로젝트 목록" : "내 심의 신청"}</PageTitle>
           </div>
-          <div className="flex flex-wrap gap-3">
-            {official ? (
-              <Link
-                className="rounded-lg border border-[#d7dee8] bg-white px-4 py-3 text-sm font-bold text-[#15345b] shadow-sm transition hover:bg-[#f8fafc]"
-                href="/projects/trash"
-              >
-                휴지통
-              </Link>
-            ) : null}
-            <Link href="/projects/new" className="primary-action-blue rounded-lg px-4 py-3 text-sm font-bold shadow-sm">
-              {official ? "새 프로젝트 추가하기" : "새 심의 신청"}
+          {official ? (
+            <Link
+              aria-label="휴지통"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#d7dee8] bg-white text-[#475569] shadow-sm transition hover:bg-[#f8fafc] hover:text-[#15345b]"
+              href="/projects/trash"
+              title="휴지통"
+            >
+              <svg aria-hidden="true" fill="none" height="20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24" width="20">
+                <path d="M4 7h16" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+                <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12" />
+                <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
+              </svg>
             </Link>
-          </div>
+          ) : null}
         </div>
 
         <form action="/projects" className="rounded-md border border-[#d7dee8] bg-white p-4 panel-shadow">
@@ -66,7 +69,7 @@ export default async function ProjectManagementPage({
         </form>
 
         <div className="grid items-stretch gap-5 xl:grid-cols-3">
-          <ProjectManagementGrid serverProjects={projects} query={query} />
+          <ProjectManagementGrid addLabel={official ? "새 프로젝트 추가" : "새 심의 신청"} serverProjects={projects} query={query} />
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applicantSubmissionKind, canSetStage, phaseWritable, projectStage } from "../lib/roles";
+import { applicantSubmissionKind, canSetStage, phaseCompleted, phaseWritable, projectStage } from "../lib/roles";
 import type { Project } from "../lib/types";
 
 const base = { id: "p", name: "t" } as unknown as Project;
@@ -25,6 +25,17 @@ test("아직 도달하지 않은 단계·반려·철회는 분석·의견 작성
   assert.equal(phaseWritable({ ...base, stage: "MAIN_REVIEW" }, "main"), true);
   assert.equal(phaseWritable({ ...base, stage: "WITHDRAWN" }, "pre"), false);
   assert.equal(phaseWritable({ ...base, stage: "REJECTED" }, "pre"), false);
+});
+
+test("다음 단계로 넘어가면 이전 단계는 완료·잠금", () => {
+  assert.equal(phaseWritable({ ...base, stage: "MAIN_REVIEW" }, "pre"), false);
+  assert.equal(phaseWritable({ ...base, stage: "CLOSED" }, "pre"), false);
+  assert.equal(phaseWritable({ ...base, stage: "CLOSED" }, "main"), false);
+  assert.equal(phaseCompleted({ ...base, stage: "PRE_REVIEW" }, "pre"), false);
+  assert.equal(phaseCompleted({ ...base, stage: "MAIN_REVIEW" }, "pre"), true);
+  assert.equal(phaseCompleted({ ...base, stage: "MAIN_REVIEW" }, "main"), false);
+  assert.equal(phaseCompleted({ ...base, stage: "CLOSED" }, "main"), true);
+  assert.equal(phaseCompleted({ ...base, stage: "REJECTED" }, "pre"), false);
 });
 
 test("지원자 제출 가능 시점", () => {

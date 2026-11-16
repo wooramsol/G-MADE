@@ -101,11 +101,20 @@ export function canSetStage(from: ProjectStage, to: ProjectStage): boolean {
   return false;
 }
 
-/** 사전심의·본심의 작업(AI 분석·전문가 의견)이 가능한 단계인가 — 아직 도달하지 않은 단계·반려·철회는 불가 */
+/**
+ * 사전심의·본심의 작업(AI 분석·전문가 의견)이 가능한 단계인가 — 그 단계가 진행 중일 때만.
+ * 아직 도달하지 않은 단계·반려·철회는 불가, 다음 단계로 넘어간 뒤에는 잠금(열람만).
+ * 단계를 되돌리면(본심의 → 사전심의, 심의종료 → 본심의) 다시 작업할 수 있다.
+ */
 export function phaseWritable(project: Project, phase: ReviewPhase): boolean {
   const stage = projectStage(project);
-  if (phase === "pre") return stage === "PRE_REVIEW" || stage === "MAIN_REVIEW" || stage === "CLOSED";
-  return stage === "MAIN_REVIEW" || stage === "CLOSED";
+  return phase === "pre" ? stage === "PRE_REVIEW" : stage === "MAIN_REVIEW";
+}
+
+/** 단계가 끝났는가 — 사전심의: 본심의로 넘어감, 본심의: 심의종료 */
+export function phaseCompleted(project: Project, phase: ReviewPhase): boolean {
+  const stage = projectStage(project);
+  return phase === "pre" ? stage === "MAIN_REVIEW" || stage === "CLOSED" : stage === "CLOSED";
 }
 
 /** 단계별 심사 대상 도서 — 사전심의: 사전검토 통과본, 본심의: 수정 도서 */

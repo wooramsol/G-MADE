@@ -194,7 +194,10 @@ export default function ExpertReviewSection({
   versions = [],
   phase = "main",
   aiReview: aiReviewProp,
+  locked = false,
 }: {
+  /** 끝난 단계 — 심사위원·의견을 바꿀 수 없고 열람·다운로드만 */
+  locked?: boolean;
   project: Project;
   /** 탭이 보일 때만 PDF를 받는다 */
   active?: boolean;
@@ -338,7 +341,7 @@ export default function ExpertReviewSection({
   const memoPages = useMemo(() => [...memoCounts.keys()], [memoCounts]);
 
   const canEdit = (memo: ExpertMemo) =>
-    Boolean(me && (memo.authorId === me.id || me.isAdmin)) && !memo.id.startsWith("pending-");
+    !locked && Boolean(me && (memo.authorId === me.id || me.isAdmin)) && !memo.id.startsWith("pending-");
 
   const createMemo = async (point: Point, text: string) => {
     if (!activeVersion?.fileId || !me) return;
@@ -434,6 +437,7 @@ export default function ExpertReviewSection({
     createMemoRef.current = createMemo;
   });
   const onPageClick = useCallback((point: Point) => {
+    if (locked) return;
     if (!activeReviewerRef.current) {
       setMessage("먼저 위에서 의견을 낼 심사위원을 선택하세요.");
       return;
@@ -443,7 +447,7 @@ export default function ExpertReviewSection({
     if (current.point && current.text.trim()) void createMemoRef.current(current.point, current.text.trim());
     draftRef.current = { point, text: "" };
     setDraft(point);
-  }, []);
+  }, [locked]);
 
   // 페이지 위 핀·메모
   const pageMemos = versionMemos.filter(
@@ -550,6 +554,7 @@ export default function ExpertReviewSection({
           setDraft(null);
           setMessage(null);
         }}
+        locked={locked}
         onToggleOnly={setOnlyActiveReviewer}
         reviewers={reviewers}
       />
@@ -619,7 +624,7 @@ export default function ExpertReviewSection({
                   : { color: "#64748b", background: "#f1f5f9" }
               }
             >
-              {activeReviewer ? `📍 ${activeReviewer.name} 위원 의견 — 남길 곳을 클릭하세요` : "👤 심사위원을 먼저 선택하세요"}
+              {locked ? "🔒 끝난 단계 — 열람만 가능" : activeReviewer ? `📍 ${activeReviewer.name} 위원 의견 — 남길 곳을 클릭하세요` : "👤 심사위원을 먼저 선택하세요"}
             </span>
             <button
               className="inline-flex items-center rounded-lg bg-[#111827] px-3.5 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
@@ -671,16 +676,16 @@ export default function ExpertReviewSection({
               overlay={overlay}
               page={page}
               cursorColor={activeReviewer?.color ?? "#111827"}
-              pinMode
+              pinMode={!locked}
               prefetchPages={memoPages}
               zoom={1}
             />
           )}
 
           <div className="flex items-center gap-3 border-t border-[#e2e8f0] px-3 py-2 text-xs text-[#94a3b8]">
-            <span>의견 글을 누르면 바로 수정할 수 있습니다</span>
+            <span>{locked ? "끝난 단계라 의견을 추가·수정할 수 없습니다" : "의견 글을 누르면 바로 수정할 수 있습니다"}</span>
             {message ? <span className="font-semibold text-[#b91c1c]">{message}</span> : null}
-            <span className="ml-auto">저장 즉시 공유됩니다</span>
+            {locked ? null : <span className="ml-auto">저장 즉시 공유됩니다</span>}
           </div>
         </div>
 
@@ -720,7 +725,10 @@ function ReviewerBar({
   onSelect,
   onChange,
   onToggleOnly,
+  locked = false,
 }: {
+  /** 끝난 단계 — 위원 추가·제거 불가 (이름표 선택으로 의견 걸러 보기만) */
+  locked?: boolean;
   reviewers: ReviewerMarker[];
   activeId: string | null;
   counts: Map<string, number>;
@@ -770,7 +778,10 @@ function ReviewerBar({
     <div className="mb-4 rounded-md border border-[#d7dee8] bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-bold text-[#15345b]">
-          심사위원 <span className="font-medium text-[#94a3b8]">{reviewers.length}명 · 이름표를 눌러 선택한 뒤 도서에 의견을 남기세요</span>
+          심사위원{" "}
+          <span className="font-medium text-[#94a3b8]">
+            {reviewers.length}명{locked ? "" : " · 이름표를 눌러 선택한 뒤 도서에 의견을 남기세요"}
+          </span>
         </p>
         <div className="flex items-center gap-3 text-xs text-[#475569]">
           {finalLabel ? <span className="truncate text-[#94a3b8]">최종 도서: {finalLabel}</span> : null}
@@ -805,6 +816,7 @@ function ReviewerBar({
                 {reviewer.name}
                 <span className={`text-xs font-semibold ${selected ? "text-white/85" : "text-[#cbd5e1]"}`}>{count}</span>
               </button>
+              {locked ? null : (
               <button
                 aria-label={`${reviewer.name} 위원 제거`}
                 className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full border border-white bg-[#475569] text-xs font-bold leading-none text-white shadow group-hover:flex hover:bg-[#b91c1c]"
@@ -818,12 +830,13 @@ function ReviewerBar({
               >
                 ×
               </button>
+              )}
             </span>
           );
         })}
 
         {/* 추가용 빈 이름표 (스켈레톤) */}
-        {adding ? (
+        {locked ? null : adding ? (
           <span className="flex h-10 items-center gap-1 rounded-full border-2 border-[#2463b3] bg-white pl-3 pr-1">
             <input
               autoFocus

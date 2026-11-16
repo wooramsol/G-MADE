@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireOfficial } from "@/lib/project-access";
 import { isMemoId } from "@/lib/storage-keys";
-import { phaseWritable, projectStage } from "@/lib/roles";
+import { phaseCompleted, phaseWritable, projectStage } from "@/lib/roles";
 import { deleteExpertMemo, getExpertMemo, listExpertMemos, saveExpertMemo } from "@/lib/expert-memo-store";
 import { findStoredFileInProject } from "@/lib/project-file-pool";
 import { getProjectById } from "@/lib/project-store";
@@ -119,7 +119,9 @@ function phaseLockedResponse(project: Project, phase: ReviewPhase) {
   const reason =
     stage === "WITHDRAWN" || stage === "REJECTED"
       ? `${stage === "WITHDRAWN" ? "철회" : "반려"}된 신청이라 의견을 고칠 수 없습니다.`
-      : `아직 ${phase === "pre" ? "사전심의" : "본심의"} 단계가 아닙니다.`;
+      : phaseCompleted(project, phase)
+        ? `${phase === "pre" ? "사전심의" : "본심의"}가 끝나 의견을 고칠 수 없습니다.`
+        : `아직 ${phase === "pre" ? "사전심의" : "본심의"} 단계가 아닙니다.`;
   return NextResponse.json({ error: reason }, { status: 409 });
 }
 

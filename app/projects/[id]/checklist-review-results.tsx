@@ -55,7 +55,10 @@ export default function ChecklistReviewResults({
   previousReview,
   projectId,
   printMode = false,
+  commentsLocked = false,
 }: {
+  /** 끝난 단계 — 항목별 추가의견을 새로 쓰거나 고칠 수 없음 */
+  commentsLocked?: boolean;
   /** PDF 보고서용 — 버튼·필터 숨김, 이미지 즉시 로드 */
   printMode?: boolean;
   review: ChecklistReview;
@@ -384,6 +387,7 @@ export default function ChecklistReviewResults({
                 item={item}
                 key={item.id}
                 onOpenLaw={setOpenLaw}
+                commentsLocked={commentsLocked}
                 onSaveComment={saveComment}
                 pageHref={pageHref}
                 printMode={printMode}
@@ -483,8 +487,10 @@ function FindingCard({
   onSaveComment,
   change,
   printMode = false,
+  commentsLocked = false,
   onOpenLaw,
 }: {
+  commentsLocked?: boolean;
   printMode?: boolean;
   /** 법령 근거를 누르면 앱 안에서 조문 원문을 열고 인용 문구를 강조 */
   onOpenLaw?: (law: CitedLaw) => void;
@@ -639,7 +645,7 @@ function FindingCard({
               </span>
             ),
           )}
-          {!editing && !comment && !printMode ? (
+          {!editing && !comment && !printMode && !commentsLocked ? (
             <button
               className="ml-auto rounded-[3px] border border-[#c9d6e6] bg-white px-2.5 py-0.5 text-xs font-bold text-[#2463b3] hover:bg-[#dcebfb]"
               onClick={startEditing}
@@ -700,13 +706,15 @@ function FindingCard({
               <span className="mr-1.5 font-bold text-[#15345b]">추가의견</span>
               {comment}
             </p>
-            <button
-              className="shrink-0 rounded-md px-2 py-1 text-xs font-bold text-[#2463b3] hover:bg-[#eef4fb]"
-              onClick={startEditing}
-              type="button"
-            >
-              수정
-            </button>
+            {commentsLocked ? null : (
+              <button
+                className="shrink-0 rounded-md px-2 py-1 text-xs font-bold text-[#2463b3] hover:bg-[#eef4fb]"
+                onClick={startEditing}
+                type="button"
+              >
+                수정
+              </button>
+            )}
           </div>
         </div>
       ) : null}

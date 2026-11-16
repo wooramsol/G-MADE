@@ -7,7 +7,7 @@ import type { ChecklistReview } from "@/lib/checklist-review/types";
 import { uploadProjectFilesToBlob } from "@/lib/client-blob-upload";
 import { formatBytes } from "@/lib/format-bytes";
 import { formatUploadDateTime } from "@/lib/format-datetime";
-import { applicantSubmissionKind, applicantCanWithdraw, phaseSubmission, projectStage } from "@/lib/roles";
+import { applicantSubmissionKind, applicantCanWithdraw, phaseCompleted, phaseSubmission, phaseWritable, projectStage } from "@/lib/roles";
 import type { StoredFileRef } from "@/lib/stored-file-ref";
 import type { Project, ProjectStage, ReviewPhase } from "@/lib/types";
 import { getMaxUploadFileLabel, getOversizedUploadFiles, buildOversizedUploadMessage } from "@/lib/upload-limits";
@@ -664,6 +664,9 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
   const stage = projectStage(project);
   // 저장된 검토 결과가 있으면 분석이 끝난 것 (완료 시각은 최근 분석부터 기록됨)
   const aiDone = Boolean(doc.latestReview);
+  // 다음 단계로 넘어간 단계는 완료 처리하고 잠근다 (열람·다운로드만)
+  const completed = phaseCompleted(project, phase);
+  const locked = !phaseWritable(project, phase);
   return (
     <section className="space-y-4">
       <p className="text-xs text-[#64748b]">
@@ -679,14 +682,16 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
               ? doc.latestReview.completedAt
                 ? `완료 · ${formatUploadDateTime(doc.latestReview.completedAt)}`
                 : "완료"
-              : "분석 전"],
-            ["expert", "인간 전문가 분석", aiDone ? null : "AI 분석 후 진행 권장"],
+              : completed
+                ? "분석 없음"
+                : "분석 전"],
+            ["expert", "인간 전문가 분석", completed ? "완료" : aiDone ? null : "AI 분석 후 진행 권장"],
           ] as const
         ).map(([id, label, sub], index) => {
           const selected = tab === id;
-          const done = id === "ai" && aiDone;
-          // AI 분석 전의 전문가 탭 — 선택하지 않았을 때만 흐리게
-          const waiting = id === "expert" && !aiDone && !selected;
+          const done = id === "ai" ? aiDone : completed;
+          // AI 분석 전의 전문가 탭 — 선택하지 않았을 때만 흐리게 (끝난 단계는 흐리게 하지 않음)
+          const waiting = id === "expert" && !aiDone && !completed && !selected;
           const accent = id === "ai" ? "#2463b3" : "#111827";
           return (
             <Fragment key={id}>
@@ -720,8 +725,17 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
           );
         })}
       </div>
+      {locked && completed ? (
+        <p className="rounded-md bg-[#f8fafc] px-4 py-2.5 text-sm text-[#475569]">
+          <span aria-hidden="true">🔒 </span>
+          {phase === "pre"
+            ? "사전심의가 끝나 AI 분석과 전문가 분석이 잠겼습니다. 결과 열람과 다운로드만 할 수 있습니다."
+            : "심의가 종료되어 AI 분석과 전문가 분석이 잠겼습니다. 결과 열람과 다운로드만 할 수 있습니다."}
+        </p>
+      ) : null}
       <div hidden={tab !== "ai"}>
         <ChecklistReviewSection
+          locked={locked}
           activeVersionKey={versionKey ?? doc.versionKey ?? versions[versions.length - 1]?.key ?? null}
           onActiveVersionChange={setVersionKey}
           pendingSubmission={doc.pending}
@@ -733,6 +747,7 @@ function PhasePanel({ project, phase, active }: { project: Project; phase: Revie
           active={active && tab === "expert"}
           activeVersion={doc.expertVersion}
           aiReview={doc.latestReview ?? null}
+          locked={locked}
           phase={phase}
           project={project}
           versions={doc.expertVersion ? [doc.expertVersion] : []}

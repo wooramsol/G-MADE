@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireProjectAccess } from "@/lib/project-access";
 import { setProjectReviewers } from "@/lib/project-store";
+import { phaseWritable } from "@/lib/roles";
 import type { ReviewerMarker } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -16,6 +17,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const body = (await request.json().catch(() => null)) as { reviewers?: unknown; phase?: unknown; base?: unknown } | null;
   const phase = body?.phase === "pre" ? "pre" : "main";
+  if (!phaseWritable(access.project, phase)) {
+    return NextResponse.json({ error: `${phase === "pre" ? "사전심의" : "본심의"}가 진행 중일 때만 심사위원을 바꿀 수 있습니다.` }, { status: 409 });
+  }
   if (!Array.isArray(body?.reviewers)) return NextResponse.json({ error: "심사위원 목록이 필요합니다." }, { status: 400 });
 
   const reviewers = sanitizeReviewers(body.reviewers);

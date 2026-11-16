@@ -27,7 +27,10 @@ export default function ChecklistReviewSection({
   onActiveVersionChange,
   versionPicker,
   pendingSubmission = null,
+  locked = false,
 }: {
+  /** 끝난 단계 — 새 분석·재분석·추가의견 수정 없이 결과 열람만 */
+  locked?: boolean;
   project: Project;
   /** 아직 AI 분석하지 않은 최신 접수 도서 (지원자 제출본) */
   pendingSubmission?: StoredFileRef | null;
@@ -189,7 +192,7 @@ export default function ChecklistReviewSection({
             </span>
           </div>
         ) : null}
-        {pendingSubmission ? (
+        {pendingSubmission && !locked ? (
           <div className="flex flex-wrap items-center gap-3 rounded-md border-2 border-[#2463b3] bg-[#f0f7ff] px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-[#15345b]">새로 접수된 도서가 있습니다</p>
@@ -205,6 +208,9 @@ export default function ChecklistReviewSection({
             </button>
           </div>
         ) : null}
+        {locked ? (
+          versionPicker ? <div className="min-w-0">{versionPicker}</div> : null
+        ) : (
         <div
           className={`flex flex-wrap items-center gap-4 rounded-md border px-4 py-3 transition-colors ${
             dragActive ? "border-[#2463b3] bg-[#f0f7ff]" : "border-[#d7dee8] bg-white"
@@ -252,9 +258,10 @@ export default function ChecklistReviewSection({
             </p>
           ) : null}
         </div>
+        )}
 
         <div className="min-w-0">
-          {selectedReview?.files[0]?.storageKey ? (
+          {selectedReview?.files[0]?.storageKey && !locked ? (
             <div className="mb-3 flex justify-end">
               <button
                 className="rounded-md border border-[#d7dee8] bg-white px-3 py-1.5 text-xs font-bold text-[#475569] hover:bg-[#f8fafc] disabled:opacity-50"
@@ -276,11 +283,11 @@ export default function ChecklistReviewSection({
             </div>
           ) : null}
           {selectedReview ? (
-            <ChecklistReviewResults previousReview={previousReview} projectId={project.id} review={selectedReview} />
+            <ChecklistReviewResults commentsLocked={locked} previousReview={previousReview} projectId={project.id} review={selectedReview} />
           ) : (
             <div className="flex h-full min-h-[280px] items-center justify-center rounded-md border border-dashed border-[#d7dee8] bg-[#f8fafc]">
               <MutedText>
-                아직 검토 기록이 없습니다. 체크리스트가 포함된 PDF를 선택하고 검토를 시작하세요.
+                {locked ? "이 단계에서는 AI 분석을 하지 않았습니다." : "아직 검토 기록이 없습니다. 체크리스트가 포함된 PDF를 선택하고 검토를 시작하세요."}
               </MutedText>
             </div>
           )}
