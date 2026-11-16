@@ -1,3 +1,4 @@
+import { cleanChecklistLabel } from "./clean-label";
 import {
   CLAUDE_PDF_VISION_MAX_BYTES,
   selectClaudeVisionFiles,
@@ -99,7 +100,7 @@ export const EVALUATE_SYSTEM_PROMPT = `당신은 경관·공공디자인 사전 
 - "[도면 판독 텍스트]"는 스캔 도면 이미지 속 글자를 고해상도로 판독한 결과로, 문서와 함께 별도 텍스트로 제공됩니다(페이지 번호는 함께 보낸 문서 기준). 작은 글씨·치수는 저해상도 문서 이미지보다 이 판독 텍스트가 더 정확합니다. 실명·치수·라벨 확인에 활용하고 anchorText로 인용할 수 있습니다(위치 표시됨). 단, 판독 텍스트와 도면 이미지가 어긋나 보이면 단정하지 말고 그 사실을 rationale에 밝힙니다.
 - 이미지 관찰 근거(중요): 조감도·투시도·입면도·사진처럼 그림 자체에서 확인되는 내용(형태·재료감·색채·개방감·배치·시설물 유무 등)도 적극적으로 근거로 씁니다. 글자가 아니라 그림을 보고 판단한 근거는 evidence에 "kind":"visual"을 넣고, note에 "무엇이 보이는지"를 구체적으로 적습니다(예: "조감도상 난간이 투시형 철제 구조로 보임", "입면도상 담장 없이 화단으로 경계 처리됨"). region에 그 부위의 대략적 위치를 페이지 기준 비율(0~1: x, y, width, height — 좌상단 기준)로 적습니다. page는 "그 그림이 실제로 있는 페이지"입니다 — 같은 내용(예: 색상 이름)이 설명된 다른 페이지가 아니라 그림 자체가 있는 페이지를 적습니다. 그 그림의 제목·캡션(예: "야간 투시도")이 같은 페이지에 있으면 anchorText에 적습니다.
 - 이미지 관찰만으로는 "충족"으로 단정하지 않습니다 — 글자 근거(설명·라벨·체크리스트 표기)가 함께 있어야 충족입니다. 이미지로만 보이는 경우 "부분충족"으로 두고 rationale에 "이미지상 확인됨, 도면·설명으로 확인 필요"를 밝힙니다. 이미지에서 치수·수치를 읽어 인용하는 것은 계속 금지입니다.
-- evidence의 anchorText: 근거를 확인한 그 페이지 원문에서 "그대로 복사한" 짧은 문구(2~40자)를 기재합니다. 이 문구로 PDF에서 글자 위치를 찾아 화면에 표시하므로 철자·띄어쓰기까지 원문과 일치해야 합니다. 도면이면 해당 부위의 라벨·명칭·치수 텍스트(예: "주동 입면도", "옥상조경", "5YR7/1")를 기재합니다. 화면에 "어디서 파악했는지" 박스로 표시하는 데 쓰이므로 모든 evidence에 가능한 한 반드시 기재합니다 — 체크리스트 표의 판정이면 그 항목 문구의 앞부분을 그대로 복사합니다. 원문 표기를 전혀 확인할 수 없을 때만 생략합니다.
+- evidence의 anchorText: 근거를 확인한 그 페이지 원문에서 "그대로 복사한" 짧은 문구(2~40자)를 기재합니다. 이 문구로 PDF에서 글자 위치를 찾아 화면에 표시하므로 철자·띄어쓰기까지 원문과 일치해야 합니다. 반드시 판단의 근거가 된 '내용' 문구를 고릅니다 — 수치·사양·서술의 핵심 구절(예: "건축물 하부가 차폐됨", "60.45m", "N, YR계열 색상으로 형성"). 페이지 제목·장절 제목·도면 제목·표의 머리글이나 행 제목(예: "조망점 분석 개요", "조망 검토", "조망점 위치", "색채/재료 선정", "주동 입면도")은 근거 내용이 아니므로 anchorText로 쓰지 않습니다. 도면이면 해당 부위의 치수·재료·사양 표기(예: "옥상조경", "5YR7/1", "H=1.2m")를 기재합니다. 그 페이지에 제목 말고는 인용할 내용 문구가 없으면 anchorText를 생략하고, 그림에서 확인한 것이면 이미지 관찰 근거(kind·region)로 표시합니다. 화면에 "어디서 파악했는지" 박스로 표시하는 데 쓰이므로 내용 문구가 있는 evidence에는 가능한 한 반드시 기재합니다 — 체크리스트 표의 판정이면 그 항목 문구의 앞부분을 그대로 복사합니다. 원문 표기를 전혀 확인할 수 없을 때만 생략합니다.
 - 서술(summary·rationale·note·recommendation)에 파일명을 쓰지 않습니다 — 검토 대상 문서는 1개이므로 페이지 번호만으로 충분합니다 (예: "p.12 배치도에서 확인됨"). evidence의 fileName 필드에는 계속 기재합니다.
 - 문체 통일: summary·rationale·note·recommendation 등 모든 서술은 개조식 명사형 종결("~함", "~됨", "~임", "~필요", "~확인")로 작성합니다. "~합니다/~했습니다/~있다" 같은 서술형 종결은 사용하지 않습니다. (예: "배치도 p.12에서 차폐 조경 확인됨", "야간 조명 계획 보완 필요")
 - 반드시 JSON만 출력합니다.`;
@@ -617,8 +618,8 @@ function toChecklistItems(entries: NonNullable<RawEvaluationPayload["items"]>): 
   return entries
     .map((entry, index) => ({
       id: String(entry?.id ?? `c${index + 1}`),
-      category: String(entry?.category ?? "").trim() || undefined,
-      text: String(entry?.text ?? "").trim(),
+      category: cleanChecklistLabel(entry?.category) || undefined,
+      text: cleanChecklistLabel(entry?.text),
       source:
         entry?.fileName && entry?.page
           ? { fileName: String(entry.fileName), page: Number(entry.page) }

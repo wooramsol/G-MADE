@@ -12,6 +12,7 @@ import { CHECKLIST_ITEM_STATUSES } from "@/lib/checklist-review/types";
 import { formatUploadDateTime } from "@/lib/format-datetime";
 import { buildArticleJumpUrl } from "@/lib/reference-links";
 import LawViewer, { type CitedLaw } from "./law-viewer";
+import { cleanChecklistLabel } from "@/lib/checklist-review/clean-label";
 import { buildEvidenceAnchors } from "@/lib/checklist-review/evidence-anchors";
 
 // 행정문서 톤 — 흰 카드에 판정색 테두리(전체 스트로크), 뱃지는 각진 외곽선 태그
@@ -198,7 +199,7 @@ export default function ChecklistReviewResults({
     for (const item of review.items) {
       const finding = findingsByItemId.get(item.id);
       if (filter !== "전체" && finding?.status !== filter) continue;
-      const key = item.category?.trim() || "일반";
+      const key = cleanChecklistLabel(item.category) || "일반";
       const list = groups.get(key) ?? [];
       list.push(item);
       groups.set(key, list);

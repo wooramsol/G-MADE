@@ -14,6 +14,8 @@ export function buildEvidenceAnchors(evidence: { note?: string; anchorText?: str
     // 긴 인용(체크리스트 항목 원문 등)은 버리지 않고 앞 60자만 사용 — 위치 탐색은 앞부분으로 충분
     const text = value?.trim().slice(0, 60).trim();
     if (!text || text.length < 2) return;
+    // 페이지·장절·표 머리 제목은 근거 내용이 아니므로 표시하지 않음
+    if (isTitleLikeAnchor(text)) return;
     if (!anchors.includes(text)) anchors.push(text);
   };
 
@@ -25,6 +27,20 @@ export function buildEvidenceAnchors(evidence: { note?: string; anchorText?: str
   }
 
   return anchors.slice(0, 3);
+}
+
+/**
+ * 제목처럼 보이는 인용구인가 — "조망점 분석 개요", "조망 검토", "색채/재료 선정"처럼
+ * 숫자 없이 짧고 제목용 명사로 끝나는 문구. 근거 표시는 판단의 근거가 된 '내용'을 짚어야 하므로
+ * 이런 문구에는 박스를 치지 않는다 (해당 근거는 박스 없이 페이지만 보여 줌).
+ */
+const TITLE_ENDINGS =
+  /(개요|검토|분석|계획|계획도|현황|현황도|선정|위치|방법|개념|방향|목표|구상|종합|총괄|결과|체크리스트|목차|범례|구분|항목|내용|비고)$/;
+export function isTitleLikeAnchor(text: string): boolean {
+  const compact = text.replace(/\s+/g, "");
+  if (compact.length > 14) return false;
+  if (/\d/.test(compact)) return false;
+  return TITLE_ENDINGS.test(compact);
 }
 
 /** 앵커 목록의 결정적 캐시 접미사 (djb2 해시) — 앵커가 없으면 빈 문자열 */

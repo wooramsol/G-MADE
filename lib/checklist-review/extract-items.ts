@@ -3,6 +3,7 @@ import { extractJsonContent } from "@/lib/ai/extract-json";
 import type { PageSlice } from "@/lib/ai/page-citation";
 import { callClaude, type ClaudeUsage } from "./claude-call";
 import { buildChecklistPagesText } from "./find-checklist-pages";
+import { cleanChecklistLabel } from "./clean-label";
 import type { ChecklistItem } from "./types";
 
 const EXTRACT_SYSTEM_PROMPT = `당신은 경관·공공디자인 심의 문서에서 체크리스트 항목을 추출하는 도구입니다.
@@ -70,10 +71,10 @@ export function parseExtractedItems(raw: string, fallbackPage?: { fileName: stri
   // (구분이 다르면 문구가 같아도 별개 항목으로 둔다)
   const seen = new Set<string>();
   for (const entry of parsed as RawExtractedItem[]) {
-    const text = String(entry?.text ?? "").trim();
+    const text = cleanChecklistLabel(entry?.text);
     if (!text || text.length < 4) continue;
 
-    const category = String(entry?.category ?? "").trim() || undefined;
+    const category = cleanChecklistLabel(entry?.category) || undefined;
     const key = `${(category ?? "").replace(/[\s·ㆍ・.,]/g, "")}|${text.replace(/\s+/g, "")}`;
     if (seen.has(key)) continue;
     seen.add(key);
