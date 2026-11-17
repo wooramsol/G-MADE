@@ -50,12 +50,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       "status",
     ] as const) {
       if (payload[key] !== undefined) {
-        patch[key] = String(payload[key]).trim();
+        // 맥 파일명에서 복사한 한글(자모 분리형)은 일반 형태로 저장 — 검색·비교가 어긋나지 않게
+        patch[key] = String(payload[key]).normalize("NFC").trim();
       }
     }
 
     if (payload.summary !== undefined) {
-      patch.summary = String(payload.summary).trim() || undefined;
+      patch.summary = String(payload.summary).normalize("NFC").trim() || undefined;
     }
 
     // 담당자 연락처·이메일 — 안내 발송에 쓰이므로 형식 확인 (비우면 삭제)

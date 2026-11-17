@@ -19,7 +19,8 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const query = searchParams.get("q")?.trim() ?? "";
+  // 자모 분리형(NFD — 맥 파일명에서 복사한 한글)으로 들어와도 검색되도록 일반 형태(NFC)로 맞춤
+  const query = searchParams.get("q")?.normalize("NFC").trim() ?? "";
   const mode = searchParams.get("mode") ?? "address";
 
   if (query.length < 2) {

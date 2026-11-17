@@ -55,7 +55,8 @@ export function LocationPicker({ value, onChange, disabled }: LocationPickerProp
 
   const runSearch = useCallback(
     async (mode: "address" | "place") => {
-      const q = query.trim();
+      // 맥 파일명에서 복사한 한글은 자모가 분리된 형태(NFD)라 눈에는 같아도 검색이 안 된다 — 일반 형태(NFC)로 맞춤
+      const q = query.normalize("NFC").trim();
       if (q.length < 2) {
         setSearchError("검색어를 2자 이상 입력해 주세요.");
         return;

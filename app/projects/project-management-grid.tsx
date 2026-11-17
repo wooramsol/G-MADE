@@ -16,7 +16,8 @@ type ProjectManagementGridProps = {
 };
 
 export default function ProjectManagementGrid({ serverProjects, query, addLabel }: ProjectManagementGridProps) {
-  const normalizedQuery = query.trim().toLowerCase();
+  // 자모 분리형(NFD — 맥 파일명에서 복사한 한글)도 일반 형태(NFC)로 맞춰 비교
+  const normalizedQuery = query.normalize("NFC").trim().toLowerCase();
 
   const allProjects = useMemo(
     () => filterActiveProjects(sortProjectsByUpdatedAt(serverProjects)),
@@ -37,6 +38,7 @@ export default function ProjectManagementGrid({ serverProjects, query, addLabel 
         projectStageStatus(project),
       ]
         .join(" ")
+        .normalize("NFC")
         .toLowerCase()
         .includes(normalizedQuery),
     );

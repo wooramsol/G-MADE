@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
     if (contactError) return NextResponse.json({ error: contactError }, { status: 400 });
 
     const project = await createProject({
-      name: String(payload.name).trim(),
-      location: String(payload.location).trim(),
+      name: String(payload.name).normalize("NFC").trim(),
+      location: String(payload.location).normalize("NFC").trim(),
       locationPoint: {
         x,
         y,
@@ -67,13 +67,13 @@ export async function POST(request: NextRequest) {
         note: String(locationPoint?.note ?? "").trim() || undefined,
         adminRegion: String(locationPoint?.adminRegion ?? "").trim() || undefined,
       },
-      client: String(payload.client).trim(),
+      client: String(payload.client).normalize("NFC").trim(),
       designer: String(payload.designer ?? "").trim(),
-      projectType: String(payload.projectType ?? "").trim(),
+      projectType: String(payload.projectType ?? "").normalize("NFC").trim(),
       scale: String(payload.scale ?? "").trim(),
-      reviewType: String(payload.reviewType).trim(),
+      reviewType: String(payload.reviewType).normalize("NFC").trim(),
       receivedAt: String(payload.receivedAt).trim(),
-      summary: String(payload.summary ?? "").trim() || undefined,
+      summary: String(payload.summary ?? "").normalize("NFC").trim() || undefined,
       contactPhone: contactPhone || undefined,
       contactEmail: contactEmail || undefined,
       // 등록자 = 소유자 (지원자는 자기 프로젝트만 볼 수 있음)
